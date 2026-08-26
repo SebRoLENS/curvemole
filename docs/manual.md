@@ -44,6 +44,17 @@ Backgrounds include constant, linear, arbitrary-order polynomial, and cubic spli
 Spline x nodes are fixed metadata by default; y nodes are ordinary parameters and
 can therefore be fitted, fixed, bounded, and linked.
 
+Peak creation is graphical: after selecting the peak function, click its centre and
+drag horizontally from the centre to either half-height edge. CurveMole derives the
+initial positive height from the local data residual and uses twice the dragged
+distance as the initial FWHM. Cubic-spline backgrounds are created by clicking nodes
+directly on the graph; the exact spline is previewed after every point. **Undo point**,
+**Finish**, right-click to finish, and **Esc** to cancel are available during placement.
+
+Mask mode supports left-click point masks and left-drag intervals. A right-button drag
+always applies an interval mask directly, without first enabling Mask mode, using the
+currently selected Mask/Unmask operation and curve target.
+
 Each parameter may be free, fixed, lower-bounded, upper-bounded, interval-bounded,
 or linked. Intrinsic bounds are always active: widths are positive and pseudo-Voigt
 `eta` lies in `[0, 1]`. Links use restricted expressions and `${parameter.path}`

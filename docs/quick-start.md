@@ -21,6 +21,11 @@ add a background and one or more peaks. Built-in peaks use signed integrated are
 - Voigt: `area`, `center`, `sigma`, `gamma`
 - pseudo-Voigt: `area`, `center`, `fwhm`, `eta`
 
+After choosing a peak, click its centre on the graph and drag horizontally to either
+half-height edge; the complete initial FWHM is shown while dragging. For a cubic-spline
+background, left-click the desired background nodes. Its preview updates after every
+point; right-click or press **Finish** after at least two points.
+
 Edit values directly in the parameter table. Empty lower/upper cells mean unbounded.
 Check **Fixed** to hold a parameter. A link such as
 `${curve_id.component_id.center}` can connect parameters in the same or another
@@ -34,7 +39,8 @@ while dragging to change the value while leaving it fixed. Use **Ctrl+Z** to und
 
 Enable **Mask** above the graph. Click a point or drag an x interval. Choose Active,
 Selected, or All visible as the target. Masked intervals are shaded and masked data
-are faded. Set the explicit cross-curve x tolerance under **Data → Mask transfer
+are faded. You can also right-drag an interval at any time without enabling Mask first;
+this uses the selected Mask/Unmask operation and target. Set the explicit cross-curve x tolerance under **Data → Mask transfer
 tolerance**. The worksheet never opens automatically during masking.
 
 ## 4. Fit

@@ -234,6 +234,11 @@ class AddComponentDialog(QDialog):
         self.polynomial_order.setRange(0, 50)
         self.polynomial_order.setValue(2)
         self.spline_nodes = QLineEdit()
+        self.spline_nodes_label = QLabel(self.tr("Spline x nodes"))
+        self.spline_help = QLabel(
+            self.tr("After pressing Add, place the spline nodes directly on the graph.")
+        )
+        self.spline_help.setWordWrap(True)
         if curve is not None:
             finite_x = curve.x[~curve.invalid]
             if len(finite_x):
@@ -245,7 +250,8 @@ class AddComponentDialog(QDialog):
         form.addRow(self.tr("Component name"), self.name)
         form.addRow(self.tr("Composition"), self.operator)
         form.addRow(self.tr("Polynomial order"), self.polynomial_order)
-        form.addRow(self.tr("Spline x nodes"), self.spline_nodes)
+        form.addRow(self.spline_nodes_label, self.spline_nodes)
+        form.addRow("", self.spline_help)
         layout.addLayout(form)
         layout.addWidget(self.description)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -276,7 +282,10 @@ class AddComponentDialog(QDialog):
         definition = self.registry.get(self.function.currentData())
         self.description.setText(definition.description or definition.display_name)
         self.polynomial_order.setEnabled(definition.identifier == "polynomial")
-        self.spline_nodes.setEnabled(definition.identifier == "cubic_spline")
+        is_spline = definition.identifier == "cubic_spline"
+        self.spline_nodes.setVisible(False)
+        self.spline_nodes_label.setVisible(False)
+        self.spline_help.setVisible(is_spline)
         if not self.name.text():
             self.name.setPlaceholderText(definition.display_name)
 

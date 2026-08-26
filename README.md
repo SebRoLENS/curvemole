@@ -21,6 +21,8 @@ the graphical interface, Python API, command line, and YAML workflows.
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
 - independent, sequential, copy, and global simultaneous least-squares fitting
 - reversible transformations and graphical masks with immutable original data
+- click-drag peak placement, live point-by-point spline backgrounds, and direct
+  right-drag interval masking
 - covariance statistics, confidence intervals, profile likelihood, Monte Carlo,
   residual bootstrap, and block bootstrap
 - portable, versioned `.fitproj` projects without pickle

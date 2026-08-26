@@ -48,8 +48,14 @@ from curvemole.core.export import export_bundle
 from curvemole.core.fitting import CancellationToken, FitPlan, FitResult, FitSettings, Fitter
 from curvemole.core.functions import formula_definition
 from curvemole.core.importers import import_file
-from curvemole.core.initialization import component_from_suggestion, find_peak_suggestions
-from curvemole.core.models import Model, area_for_height
+from curvemole.core.initialization import (
+    PeakSuggestion,
+    component_from_suggestion,
+    find_peak_suggestions,
+    initialise_peak_component,
+    initialise_spline_component,
+)
+from curvemole.core.models import Component, Model, area_for_height
 from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
@@ -66,6 +72,7 @@ from curvemole.gui.dialogs import (
     ImportMappingDialog,
     PluginManagerDialog,
 )
+from curvemole.gui.external import open_with_host_application
 from curvemole.gui.panels import (
     CalculatorPanel,
     DiagnosticsPanel,
@@ -207,6 +214,8 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self._cancellation: CancellationToken | None = None
         self._project_lock: ProjectLock | None = None
+        self._pending_component: Component | None = None
+        self._pending_component_curve_id: str | None = None
         self.settings = QSettings("CurveMole", "CurveMole")
         self.undo_stack = QUndoStack(self)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
@@ -388,11 +397,11 @@ class MainWindow(QMainWindow):
         self.manual_action.triggered.connect(lambda: self.open_documentation("manual.md"))
         self.update_action = QAction(self.tr("Check for updates"), self)
         self.update_action.triggered.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://github.com/SebRoLENS/curvemole/releases"))
+            lambda: self._open_external("https://github.com/SebRoLENS/curvemole/releases")
         )
         self.report_action = QAction(self.tr("Report a problem"), self)
         self.report_action.triggered.connect(
-            lambda: QDesktopServices.openUrl(QUrl("https://github.com/SebRoLENS/curvemole/issues"))
+            lambda: self._open_external("https://github.com/SebRoLENS/curvemole/issues")
         )
         self.about_action = QAction(self.tr("About CurveMole"), self)
         self.about_action.triggered.connect(self.show_about)
@@ -499,6 +508,9 @@ class MainWindow(QMainWindow):
         self.plot_workspace.peakDragged.connect(self.drag_peak)
         self.plot_workspace.widthDragged.connect(self.drag_width)
         self.plot_workspace.splineNodeDragged.connect(self.drag_spline_node)
+        self.plot_workspace.peakPlacementFinished.connect(self._graphical_peak_placed)
+        self.plot_workspace.splinePlacementFinished.connect(self._graphical_spline_placed)
+        self.plot_workspace.placementCancelled.connect(self._graphical_placement_cancelled)
         self.calculator.applyRequested.connect(self.apply_calculator)
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
@@ -691,25 +703,105 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Activate a curve first."), warning=True)
             return
         curve = self.project.dataset.curve(self.active_curve_id)
+        self.plot_workspace.cancel_placement()
         dialog = AddComponentDialog(self.registry, curve, self)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         try:
             component = dialog.component()
-            if self.registry.get(component.function_id).kind == "peak":
-                suggestions = find_peak_suggestions(curve, sign="positive", max_peaks=1)
-                if suggestions:
-                    estimated = component_from_suggestion(suggestions[0], component.function_id, registry=self.registry)
-                    component.parameters = estimated.parameters
-            model = self.project.model_for(self.active_curve_id)
-            before = model.to_dict()
-            model.add(component)
-            after = model.to_dict()
-            model.components = Model.from_dict(before).components
-            self._push_model_state(self.active_curve_id, before, after, self.tr("Add component"))
-            self.selected_component_id = component.id
+            definition = self.registry.get(component.function_id)
+            if definition.kind == "peak":
+                self._pending_component = component
+                self._pending_component_curve_id = self.active_curve_id
+                self.plot_workspace.begin_peak_placement(definition.display_name)
+                self._notify(
+                    self.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
+                )
+                return
+            if component.function_id == "cubic_spline":
+                self._pending_component = component
+                self._pending_component_curve_id = self.active_curve_id
+                self.plot_workspace.begin_spline_placement(definition.display_name)
+                self._notify(
+                    self.tr("Click background points on the graph; finish after at least two points.")
+                )
+                return
+            self._commit_component(component, self.active_curve_id)
         except Exception as exc:
             self._show_error(self.tr("Add component"), exc)
+
+    def _graphical_peak_placed(self, centre: float, _: float, fwhm: float) -> None:
+        component = self._pending_component
+        curve_id = self._pending_component_curve_id
+        self._pending_component = None
+        self._pending_component_curve_id = None
+        if component is None or curve_id is None:
+            return
+        try:
+            curve = self.project.dataset.curve(curve_id)
+            finite = np.isfinite(curve.x) & np.isfinite(curve.y) & ~curve.effective_mask
+            if not np.any(finite):
+                raise ValueError(self.tr("The active curve has no usable points."))
+            indices = np.flatnonzero(finite)
+            point_index = int(indices[np.argmin(np.abs(curve.x[finite] - centre))])
+            model = self.project.model_for(curve_id)
+            existing = np.asarray(
+                model.evaluate(
+                    curve.x,
+                    curve_id=curve_id,
+                    values=self.project.resolved_parameter_values(),
+                    registry=self.registry,
+                ),
+                dtype=float,
+            )
+            residual = curve.y - existing
+            residual_offset = float(np.nanmedian(residual[finite]))
+            height = float(residual[point_index] - residual_offset)
+            scale = float(np.ptp(curve.y[finite]))
+            minimum_height = max(scale * 0.02, np.finfo(float).eps)
+            if not math.isfinite(height) or height <= 0:
+                height = minimum_height
+            width = max(float(fwhm), np.finfo(float).eps)
+            suggestion = PeakSuggestion(
+                x=float(centre),
+                height=height,
+                fwhm=width,
+                prominence=height,
+                sign=1,
+            )
+            initialise_peak_component(component, suggestion, registry=self.registry)
+            self._commit_component(component, curve_id)
+        except Exception as exc:
+            self._show_error(self.tr("Place peak"), exc)
+
+    def _graphical_spline_placed(self, points: object) -> None:
+        component = self._pending_component
+        curve_id = self._pending_component_curve_id
+        self._pending_component = None
+        self._pending_component_curve_id = None
+        if component is None or curve_id is None:
+            return
+        try:
+            selected = [(float(x), float(y)) for x, y in list(points)]
+            initialise_spline_component(component, selected, registry=self.registry)
+            self._commit_component(component, curve_id)
+        except Exception as exc:
+            self._show_error(self.tr("Place spline background"), exc)
+
+    def _graphical_placement_cancelled(self) -> None:
+        if self._pending_component is not None:
+            self._notify(self.tr("Component placement cancelled."), warning=True)
+        self._pending_component = None
+        self._pending_component_curve_id = None
+
+    def _commit_component(self, component: Component, curve_id: str) -> None:
+        model = self.project.model_for(curve_id)
+        before = model.to_dict()
+        model.add(component)
+        after = model.to_dict()
+        model.components = Model.from_dict(before).components
+        self.selected_component_id = component.id
+        self._push_model_state(curve_id, before, after, self.tr("Add component"))
 
     def duplicate_component(self, component_id: str) -> None:
         self._model_mutation(self.tr("Duplicate component"), lambda model: model.duplicate(component_id))
@@ -1250,13 +1342,31 @@ class MainWindow(QMainWindow):
     def open_documentation(self, name: str) -> None:
         source_tree = Path(__file__).resolve().parents[3] / "docs" / name
         if source_tree.exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(source_tree)))
+            self._open_external(source_tree)
             return
         packaged = _resource_path(f"docs/{name}")
         if packaged and packaged.exists():
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(packaged)))
+            self._open_external(packaged)
             return
-        QDesktopServices.openUrl(QUrl("https://github.com/SebRoLENS/curvemole/tree/main/docs"))
+        self._open_external("https://github.com/SebRoLENS/curvemole/tree/main/docs")
+
+    def _open_external(self, target: str | Path) -> None:
+        value = str(target)
+        try:
+            opened = open_with_host_application(value)
+            if not opened:
+                url = QUrl.fromLocalFile(value) if isinstance(target, Path) else QUrl(value)
+                opened = QDesktopServices.openUrl(url)
+            if opened:
+                return
+        except OSError as exc:
+            self._log(f"External opener failed: {exc}")
+        QMessageBox.warning(
+            self,
+            self.tr("Open link"),
+            self.tr("CurveMole could not open this item automatically. Copy it into your browser or file manager:")
+            + f"\n\n{value}",
+        )
 
     def show_about(self) -> None:
         AboutDialog(_resource_path("curvemole.png"), self).exec()
@@ -1275,6 +1385,8 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Plugin registry updated."))
 
     def _set_active_curve(self, curve_id: str | None) -> None:
+        if curve_id != self.active_curve_id:
+            self.plot_workspace.cancel_placement()
         self.active_curve_id = curve_id
         self.selected_component_id = None
         self.refresh_all()

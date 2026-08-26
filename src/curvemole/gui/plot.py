@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import math
+from contextlib import suppress
 from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -30,12 +31,32 @@ from curvemole.core.registry import FunctionRegistry
 class MaskViewBox(pg.ViewBox):
     maskPointRequested = Signal(float)
     maskRangeRequested = Signal(float, float)
+    peakPlacementPreview = Signal(float, float, float)
+    peakPlacementRequested = Signal(float, float, float)
+    splinePointRequested = Signal(float, float)
+    placementFinishRequested = Signal()
 
     def __init__(self) -> None:
         super().__init__(enableMenu=True)
         self.mask_mode = False
+        self.interaction_mode: str | None = None
 
     def mouseClickEvent(self, event: Any) -> None:
+        if self.interaction_mode == "peak" and event.button() == Qt.MouseButton.LeftButton:
+            point = self.mapSceneToView(event.scenePos())
+            self.peakPlacementRequested.emit(float(point.x()), float(point.y()), 0.0)
+            event.accept()
+            return
+        if self.interaction_mode == "spline":
+            if event.button() == Qt.MouseButton.LeftButton:
+                point = self.mapSceneToView(event.scenePos())
+                self.splinePointRequested.emit(float(point.x()), float(point.y()))
+                event.accept()
+                return
+            if event.button() == Qt.MouseButton.RightButton:
+                self.placementFinishRequested.emit()
+                event.accept()
+                return
         if self.mask_mode and event.button() == Qt.MouseButton.LeftButton:
             point = self.mapSceneToView(event.scenePos())
             self.maskPointRequested.emit(float(point.x()))
@@ -44,6 +65,26 @@ class MaskViewBox(pg.ViewBox):
         super().mouseClickEvent(event)
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:
+        if self.interaction_mode == "peak" and event.button() == Qt.MouseButton.LeftButton:
+            start = self.mapSceneToView(event.buttonDownScenePos())
+            end = self.mapSceneToView(event.scenePos())
+            width = 2 * abs(float(end.x() - start.x()))
+            self.peakPlacementPreview.emit(float(start.x()), float(start.y()), width)
+            if event.isFinish():
+                self.peakPlacementRequested.emit(float(start.x()), float(start.y()), width)
+            event.accept()
+            return
+        if self.interaction_mode == "spline" and event.button() == Qt.MouseButton.LeftButton:
+            event.accept()
+            return
+        if self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
+            if event.isFinish():
+                start = self.mapSceneToView(event.buttonDownScenePos())
+                end = self.mapSceneToView(event.scenePos())
+                if not math.isclose(float(start.x()), float(end.x())):
+                    self.maskRangeRequested.emit(float(start.x()), float(end.x()))
+            event.accept()
+            return
         if self.mask_mode and event.button() == Qt.MouseButton.LeftButton:
             if event.isFinish():
                 start = self.mapSceneToView(event.buttonDownScenePos())
@@ -62,6 +103,9 @@ class PlotWorkspace(QWidget):
     widthDragged = Signal(str, float, bool)
     splineNodeDragged = Signal(str, int, float, bool)
     componentSelected = Signal(str)
+    peakPlacementFinished = Signal(float, float, float)
+    splinePlacementFinished = Signal(object)
+    placementCancelled = Signal()
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -75,6 +119,11 @@ class PlotWorkspace(QWidget):
         self._handles: list[Any] = []
         self._updating_handles = False
         self._view_locked = False
+        self._placement_mode: str | None = None
+        self._peak_preview: tuple[float, float, float] | None = None
+        self._spline_points: list[tuple[float, float]] = []
+        self._placement_items: list[Any] = []
+        self._placement_name = ""
 
         controls = QHBoxLayout()
         controls.setContentsMargins(4, 2, 4, 2)
@@ -94,6 +143,9 @@ class PlotWorkspace(QWidget):
         self.mask_toggle = QToolButton()
         self.mask_toggle.setText(self.tr("Mask"))
         self.mask_toggle.setCheckable(True)
+        self.mask_toggle.setToolTip(
+            self.tr("Click for point/range masking, or right-drag the graph to mask an interval directly.")
+        )
         self.mask_toggle.toggled.connect(self._set_mask_mode)
         controls.addWidget(self.mask_toggle)
         self.mask_operation = QComboBox()
@@ -115,6 +167,29 @@ class PlotWorkspace(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addLayout(controls)
+        self.placement_bar = QWidget()
+        placement_layout = QHBoxLayout(self.placement_bar)
+        placement_layout.setContentsMargins(8, 4, 8, 4)
+        self.placement_label = QLabel()
+        self.placement_label.setWordWrap(True)
+        placement_layout.addWidget(self.placement_label, 1)
+        self.undo_point_button = QToolButton()
+        self.undo_point_button.setText(self.tr("Undo point"))
+        self.undo_point_button.clicked.connect(lambda: self.undo_spline_point())
+        placement_layout.addWidget(self.undo_point_button)
+        self.finish_placement_button = QToolButton()
+        self.finish_placement_button.setText(self.tr("Finish"))
+        self.finish_placement_button.clicked.connect(lambda: self.finish_placement())
+        placement_layout.addWidget(self.finish_placement_button)
+        self.cancel_placement_button = QToolButton()
+        self.cancel_placement_button.setText(self.tr("Cancel"))
+        self.cancel_placement_button.clicked.connect(lambda: self.cancel_placement())
+        placement_layout.addWidget(self.cancel_placement_button)
+        self.placement_bar.setStyleSheet(
+            "QWidget { background:#e8f5f2; color:#123; border-bottom:1px solid #79b8ad; }"
+        )
+        self.placement_bar.hide()
+        layout.addWidget(self.placement_bar)
         self.graphics = pg.GraphicsLayoutWidget()
         self.graphics.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.view_box = MaskViewBox()
@@ -128,12 +203,18 @@ class PlotWorkspace(QWidget):
         layout.addWidget(self.graphics)
         self.view_box.maskPointRequested.connect(self.maskPointRequested)
         self.view_box.maskRangeRequested.connect(self.maskRangeRequested)
+        self.view_box.peakPlacementPreview.connect(self._preview_peak_placement)
+        self.view_box.peakPlacementRequested.connect(self._finish_peak_placement)
+        self.view_box.splinePointRequested.connect(self._add_spline_point)
+        self.view_box.placementFinishRequested.connect(self.finish_placement)
         self.residual_toggle.toggled.connect(self.residual_plot.setVisible)
         self._mouse_proxy = pg.SignalProxy(
             self.graphics.scene().sigMouseMoved,
             rateLimit=40,
             slot=self._mouse_moved,
         )
+        self._cancel_shortcut = QShortcut(QKeySequence("Esc"), self)
+        self._cancel_shortcut.activated.connect(self.cancel_placement)
 
     def set_context(
         self,
@@ -154,6 +235,7 @@ class PlotWorkspace(QWidget):
         self._data_items.clear()
         self._component_items.clear()
         self._handles.clear()
+        self._placement_items.clear()
         project = self._project
         if project is None or not project.curves:
             self.plot.setTitle(self.tr("Import data to begin"))
@@ -238,6 +320,7 @@ class PlotWorkspace(QWidget):
             self.plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
             self.plot.setLabel("left", first.y_label, units=first.y_unit or None)
             self.residual_plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
+        self._render_placement_preview()
         self.plot.setTitle("")
 
     def _add_component_handles(
@@ -345,12 +428,224 @@ class PlotWorkspace(QWidget):
             modifiers,
         )
 
+    def begin_peak_placement(self, name: str) -> None:
+        self.cancel_placement()
+        self._placement_mode = "peak"
+        self._placement_name = name
+        self._peak_preview = None
+        self.view_box.interaction_mode = "peak"
+        self.mask_toggle.setChecked(False)
+        self.mask_toggle.setEnabled(False)
+        self.undo_point_button.hide()
+        self.finish_placement_button.hide()
+        self.placement_label.setText(
+            self.tr("Place ")
+            + name
+            + self.tr(": click the peak centre, drag horizontally to either half-height edge, and release. Esc cancels.")
+        )
+        self.placement_bar.show()
+        self.graphics.setCursor(Qt.CursorShape.CrossCursor)
+        self._update_interaction_state()
+
+    def begin_spline_placement(self, name: str) -> None:
+        self.cancel_placement()
+        self._placement_mode = "spline"
+        self._placement_name = name
+        self._spline_points = []
+        self.view_box.interaction_mode = "spline"
+        self.mask_toggle.setChecked(False)
+        self.mask_toggle.setEnabled(False)
+        self.undo_point_button.show()
+        self.finish_placement_button.show()
+        self.undo_point_button.setEnabled(False)
+        self.finish_placement_button.setEnabled(False)
+        self._update_spline_instruction()
+        self.placement_bar.show()
+        self.graphics.setCursor(Qt.CursorShape.CrossCursor)
+        self._update_interaction_state()
+
+    def cancel_placement(self) -> None:
+        if self._placement_mode is None:
+            return
+        self._end_placement()
+        self.placementCancelled.emit()
+
+    def finish_placement(self) -> None:
+        if self._placement_mode != "spline":
+            return
+        if len(self._spline_points) < 2:
+            self._update_spline_instruction()
+            return
+        points = sorted(self._spline_points)
+        self._end_placement()
+        self.splinePlacementFinished.emit(points)
+
+    def undo_spline_point(self) -> None:
+        if self._placement_mode != "spline" or not self._spline_points:
+            return
+        self._spline_points.pop()
+        self._render_placement_preview()
+        self._update_spline_instruction()
+
+    def _preview_peak_placement(self, x: float, y: float, fwhm: float) -> None:
+        if self._placement_mode != "peak":
+            return
+        x, y = self._from_display_coordinates(x, y)
+        self._peak_preview = (x, y, fwhm)
+        self._render_placement_preview()
+
+    def _finish_peak_placement(self, x: float, y: float, fwhm: float) -> None:
+        if self._placement_mode != "peak":
+            return
+        x, y = self._from_display_coordinates(x, y)
+        selected_width = fwhm if fwhm > 0 else self._default_peak_width()
+        self._end_placement()
+        self.peakPlacementFinished.emit(x, y, selected_width)
+
+    def _add_spline_point(self, x: float, y: float) -> None:
+        if self._placement_mode != "spline":
+            return
+        x, y = self._from_display_coordinates(x, y)
+        if not math.isfinite(x) or not math.isfinite(y):
+            return
+        tolerance = max(self._active_x_span(), 1.0) * 1e-12
+        for index, (existing_x, _) in enumerate(self._spline_points):
+            if math.isclose(x, existing_x, rel_tol=0.0, abs_tol=tolerance):
+                self._spline_points[index] = (x, y)
+                break
+        else:
+            self._spline_points.append((x, y))
+        self._render_placement_preview()
+        self._update_spline_instruction()
+
+    def _render_placement_preview(self) -> None:
+        self._clear_placement_items()
+        if self._placement_mode is None or self._project is None or not self._active_curve_id:
+            return
+        x_offset, y_offset = self._active_display_offsets()
+        if self._placement_mode == "peak" and self._peak_preview is not None:
+            centre, height, fwhm = self._peak_preview
+            width = fwhm if fwhm > 0 else self._default_peak_width()
+            region = pg.LinearRegionItem(
+                values=(centre + x_offset - width / 2, centre + x_offset + width / 2),
+                movable=False,
+                brush=pg.mkBrush(0, 158, 115, 38),
+                pen=pg.mkPen(0, 158, 115, 130),
+            )
+            centre_line = pg.InfiniteLine(
+                pos=centre + x_offset,
+                angle=90,
+                movable=False,
+                pen=pg.mkPen("#009E73", width=2),
+            )
+            marker = self.plot.plot(
+                [centre + x_offset],
+                [height + y_offset],
+                pen=None,
+                symbol="+",
+                symbolSize=14,
+                symbolPen=pg.mkPen("#009E73", width=2),
+            )
+            for item in (region, centre_line):
+                self.plot.addItem(item)
+            self._placement_items.extend([region, centre_line, marker])
+            return
+        if self._placement_mode != "spline" or not self._spline_points:
+            return
+        ordered = sorted(self._spline_points)
+        node_x = np.asarray([point[0] for point in ordered], dtype=float)
+        node_y = np.asarray([point[1] for point in ordered], dtype=float)
+        markers = self.plot.plot(
+            node_x + x_offset,
+            node_y + y_offset,
+            pen=None,
+            symbol="o",
+            symbolSize=9,
+            symbolBrush=pg.mkBrush("#009E73"),
+            symbolPen=pg.mkPen("#ffffff", width=1),
+        )
+        self._placement_items.append(markers)
+        if len(ordered) < 2:
+            return
+        curve = self._project.dataset.curve(self._active_curve_id)
+        finite = np.isfinite(curve.x)
+        if not np.any(finite):
+            return
+        metadata = {"x_nodes": node_x.tolist()}
+        values = {f"y{index}": value for index, value in enumerate(node_y)}
+        preview = self.registry.get("cubic_spline").evaluate(curve.x[finite], values, metadata)
+        line = self.plot.plot(
+            curve.x[finite] + x_offset,
+            preview + y_offset,
+            pen=pg.mkPen("#009E73", width=2, style=Qt.PenStyle.DashLine),
+        )
+        self._placement_items.append(line)
+
+    def _clear_placement_items(self) -> None:
+        for item in self._placement_items:
+            with suppress(RuntimeError):
+                self.plot.removeItem(item)
+        self._placement_items.clear()
+
+    def _end_placement(self) -> None:
+        self._clear_placement_items()
+        self._placement_mode = None
+        self._placement_name = ""
+        self._peak_preview = None
+        self._spline_points = []
+        self.view_box.interaction_mode = None
+        self.placement_bar.hide()
+        self.mask_toggle.setEnabled(True)
+        self.graphics.unsetCursor()
+        self._update_interaction_state()
+
+    def _update_spline_instruction(self) -> None:
+        count = len(self._spline_points)
+        self.placement_label.setText(
+            self.tr("Place spline background nodes: left-click the graph; the curve updates live. ")
+            + f"{count} "
+            + self.tr("point(s). Add at least two, then right-click or press Finish. Esc cancels.")
+        )
+        self.undo_point_button.setEnabled(count > 0)
+        self.finish_placement_button.setEnabled(count >= 2)
+
+    def _active_display_offsets(self) -> tuple[float, float]:
+        if self.display_mode.currentText() != self.tr("Waterfall") or self._project is None:
+            return 0.0, 0.0
+        curves = [curve for curve in self._project.curves if curve.visible]
+        index = next(
+            (position for position, curve in enumerate(curves) if curve.id == self._active_curve_id),
+            0,
+        )
+        return index * self.x_offset.value(), index * self.y_offset.value()
+
+    def _from_display_coordinates(self, x: float, y: float) -> tuple[float, float]:
+        x_offset, y_offset = self._active_display_offsets()
+        return x - x_offset, y - y_offset
+
+    def _active_x_span(self) -> float:
+        if self._project is None or not self._active_curve_id:
+            return 0.0
+        curve = self._project.dataset.curve(self._active_curve_id)
+        finite = curve.x[np.isfinite(curve.x)]
+        return float(np.ptp(finite)) if len(finite) else 0.0
+
+    def _default_peak_width(self) -> float:
+        if self._project is None or not self._active_curve_id:
+            return 1.0
+        curve = self._project.dataset.curve(self._active_curve_id)
+        finite = np.sort(curve.x[np.isfinite(curve.x)])
+        spacing = float(np.nanmedian(np.abs(np.diff(finite)))) if len(finite) > 1 else 0.0
+        return max(self._active_x_span() * 0.05, spacing * 4, np.finfo(float).eps)
+
+    def _update_interaction_state(self) -> None:
+        interactive = self._placement_mode is not None
+        enabled = not interactive and not self._view_locked and not self.view_box.mask_mode
+        self.plot.setMouseEnabled(x=enabled, y=enabled)
+
     def _set_mask_mode(self, enabled: bool) -> None:
         self.view_box.mask_mode = enabled
-        self.plot.setMouseEnabled(
-            x=not enabled and not self._view_locked,
-            y=not enabled and not self._view_locked,
-        )
+        self._update_interaction_state()
         self.mask_toggle.setText(self.tr("Masking…") if enabled else self.tr("Mask"))
 
     def set_log_x(self, enabled: bool) -> None:
@@ -368,10 +663,7 @@ class PlotWorkspace(QWidget):
 
     def set_view_locked(self, enabled: bool) -> None:
         self._view_locked = enabled
-        self.plot.setMouseEnabled(
-            x=not enabled and not self.view_box.mask_mode,
-            y=not enabled and not self.view_box.mask_mode,
-        )
+        self._update_interaction_state()
 
     def auto_range(self) -> None:
         self.plot.enableAutoRange()

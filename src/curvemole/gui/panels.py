@@ -155,6 +155,7 @@ class ModelPanel(QWidget):
                 self.components.setCurrentRow(selected_row)
         finally:
             self._updating = False
+        self.refresh_parameters()
 
     def selected_component_id(self) -> str | None:
         item = self.components.currentItem()
@@ -210,7 +211,7 @@ class ModelPanel(QWidget):
             self._updating = False
 
     def _component_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
-        if current is None:
+        if self._updating or current is None:
             return
         component_id = str(current.data(Qt.ItemDataRole.UserRole))
         self.refresh_parameters()
