@@ -381,7 +381,12 @@ def export_bundle(
     previous_owned: set[str] = set()
     if manifest_path.exists():
         try:
-            previous_owned = set(json.loads(manifest_path.read_text(encoding="utf-8")).get("owned_files", []))
+            previous_owned = {
+                _normalise_owned_path(relative)
+                for relative in json.loads(manifest_path.read_text(encoding="utf-8")).get(
+                    "owned_files", []
+                )
+            }
         except (OSError, json.JSONDecodeError) as exc:
             raise CurveMoleError(
                 f"Existing export manifest is unreadable: {manifest_path}. No files were changed."
@@ -490,7 +495,11 @@ def export_bundle(
                 {"lag": np.arange(len(diagnostics.autocorrelation)), "autocorrelation": diagnostics.autocorrelation}
             ).to_csv(root / "diagnostics" / f"{curve_id}_autocorrelation.csv", index=False)
 
-    owned = sorted(str(path.relative_to(root)) for path in root.rglob("*") if path.is_file() and path != manifest_path)
+    owned = sorted(
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file() and path != manifest_path
+    )
     manifest_path.write_text(
         json.dumps(
             {
@@ -588,6 +597,11 @@ def _label(name: str, unit: str) -> str:
 
 def _safe_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip()).strip("._")
+
+
+def _normalise_owned_path(value: object) -> str:
+    """Return a platform-independent key for an export-manifest path."""
+    return str(value).replace("\\", "/")
 
 
 def _escape(value: str) -> str:

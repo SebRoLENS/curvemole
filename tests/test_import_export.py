@@ -5,7 +5,12 @@ from pathlib import Path
 import numpy as np
 
 from curvemole import Component, Curve, Project
-from curvemole.core.export import export_bundle, tidy_dataframe, wide_dataframe
+from curvemole.core.export import (
+    _normalise_owned_path,
+    export_bundle,
+    tidy_dataframe,
+    wide_dataframe,
+)
 from curvemole.core.importers import ColumnMapping, ImportConfig, import_file
 
 
@@ -59,6 +64,10 @@ def test_bundle_preserves_unrelated_files_and_requires_confirmation(gaussian_cur
     assert external.read_text(encoding="utf-8") == "do not touch"
     assert first.created
     assert second.updated or second.unchanged
+
+
+def test_export_manifest_paths_are_portable_between_operating_systems() -> None:
+    assert _normalise_owned_path(r"python\data_tidy.csv") == "python/data_tidy.csv"
 
 
 def test_cross_spectrum_links_are_resolved_in_exports() -> None:
