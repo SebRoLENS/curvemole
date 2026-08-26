@@ -1,6 +1,6 @@
-# CurveMole User Manual — Preview 0.1.0
+# CurveMole User Manual — Preview 0.1.1
 
-**Current manual version: 0.1.0**
+**Current manual version: 0.1.1**
 
 CurveMole is a general one-dimensional curve fitter with a spectrum-first workflow.
 It is not a crystallographic refinement program. The same engine serves the desktop
