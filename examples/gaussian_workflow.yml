@@ -1,0 +1,44 @@
+schema_version: 1
+name: Gaussian workflow example
+series_name: Synthetic spectra
+
+imports:
+  - path: gaussian.csv
+    config:
+      delimiter: ","
+      decimal: "."
+      header: true
+    columns:
+      x: x
+      y: [y]
+      sigma_y: sigma_y
+    aliases: [Synthetic Gaussian]
+
+models:
+  - curve: Synthetic Gaussian
+    components:
+      - function: constant
+        name: Background
+        parameters:
+          offset: 0.0
+      - function: gaussian
+        name: Main band
+        parameters:
+          area: 3.0
+          center: 0.3
+          sigma: 1.0
+        constraints:
+          sigma:
+            minimum: 0.001
+            maximum: 5.0
+
+fit:
+  mode: independent
+  curves: [Synthetic Gaussian]
+  settings:
+    solver: local
+    loss: linear
+    seed: 1729
+
+export:
+  project: gaussian_result.fitproj

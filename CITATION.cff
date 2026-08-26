@@ -1,0 +1,14 @@
+cff-version: 1.2.0
+message: "If you use CurveMole in scientific work, please cite the exact release used."
+title: "CurveMole: Modular Scientific Curve Fitting"
+type: software
+version: "0.1.0"
+date-released: 2026-08-26
+authors:
+  - family-names: Romi
+    given-names: Sebastiano
+    affiliation: "European Laboratory for Non-Linear Spectroscopy (LENS), University of Florence (UNIFI)"
+    email: romi@lens.unifi.it
+repository-code: "https://github.com/SebRoLENS/curvemole"
+url: "https://github.com/SebRoLENS/curvemole/releases/tag/v0.1.0"
+license: GPL-3.0-or-later

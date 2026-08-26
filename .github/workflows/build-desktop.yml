@@ -1,0 +1,296 @@
+name: Build desktop packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Tag, branch, or commit to build
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+  PYINSTALLER_VERSION: "6.21.0"
+
+jobs:
+  prepare-icons:
+    name: Prepare application icons
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked --group dev
+
+      - name: Generate PNG, ICO, and ICNS icons
+        run: |
+          mkdir -p generated-icons
+          uv run python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          source = Image.open('src/curvemole/resources/curvemole.png').convert('RGBA')
+          source.thumbnail((1024, 1024), Image.Resampling.LANCZOS)
+          canvas = Image.new('RGBA', (1024, 1024), (0, 0, 0, 0))
+          canvas.alpha_composite(source, ((1024 - source.width) // 2, (1024 - source.height) // 2))
+
+          targets = {
+              'png': Path('generated-icons/curvemole.png'),
+              'ico': Path('generated-icons/curvemole.ico'),
+              'icns': Path('generated-icons/curvemole.icns'),
+          }
+          canvas.save(targets['png'], 'PNG', optimize=True)
+          canvas.save(
+              targets['ico'],
+              'ICO',
+              sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+          )
+          canvas.save(targets['icns'], 'ICNS')
+          for path in targets.values():
+              if not path.stat().st_size:
+                  raise SystemExit(f'Empty generated icon: {path}')
+              with Image.open(path) as image:
+                  image.verify()
+              print(path)
+          PY
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-icons
+          path: generated-icons/curvemole.*
+          if-no-files-found: error
+
+  python-packages:
+    name: Python wheel and source package
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked --group dev
+      - run: uv build
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-python
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  linux:
+    name: Linux AppImage x86_64
+    needs: prepare-icons
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-icons
+          path: generated-icons
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          uv sync --locked --group dev
+
+      - name: Read version
+        run: |
+          VERSION="$(uv run python -c 'from curvemole.version import __version__; print(__version__)')"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build and smoke-test application
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_ICON: ${{ github.workspace }}/generated-icons/curvemole.png
+        run: uv run python scripts/build_desktop.py
+
+      - name: Build AppImage
+        id: appimage
+        run: |
+          set -euxo pipefail
+          mkdir -p CurveMole.AppDir/usr/lib/curvemole
+          cp -a dist/CurveMole/. CurveMole.AppDir/usr/lib/curvemole/
+          cp packaging/linux/curvemole.desktop CurveMole.AppDir/curvemole.desktop
+          cp generated-icons/curvemole.png CurveMole.AppDir/curvemole.png
+          cp generated-icons/curvemole.png CurveMole.AppDir/.DirIcon
+          cat > CurveMole.AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          APPDIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+          exec "$APPDIR/usr/lib/curvemole/CurveMole" "$@"
+          EOF
+          chmod +x CurveMole.AppDir/AppRun
+          APPIMAGE="CurveMole-${VERSION}-linux-x86_64.AppImage"
+          curl -L --fail --retry 3 \
+            -o appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 \
+            ./appimagetool-x86_64.AppImage --no-appstream CurveMole.AppDir "$APPIMAGE"
+          chmod +x "$APPIMAGE"
+          echo "path=$APPIMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: Attest Linux AppImage
+        uses: actions/attest@v4
+        with:
+          subject-path: ${{ steps.appimage.outputs.path }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-x86_64
+          path: ${{ steps.appimage.outputs.path }}
+          if-no-files-found: error
+
+  windows:
+    name: Windows standalone executable x86_64
+    needs: prepare-icons
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-icons
+          path: generated-icons
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked --group dev
+
+      - name: Read version
+        shell: pwsh
+        run: |
+          $version = uv run python -c "from curvemole.version import __version__; print(__version__)"
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build standalone executable
+        shell: pwsh
+        run: |
+          $pyinstallerArgs = @(
+            "--noconfirm", "--clean", "--windowed", "--onefile",
+            "--name", "CurveMole",
+            "--icon", "generated-icons/curvemole.ico",
+            "--paths", "src",
+            "--add-data", "src/curvemole/resources/curvemole.png;curvemole/resources",
+            "--add-data", "docs;curvemole/resources/docs",
+            "--hidden-import", "scipy.special._ufuncs_cxx",
+            "--hidden-import", "scipy.optimize",
+            "--hidden-import", "scipy.signal",
+            "--hidden-import", "scipy.interpolate",
+            "--hidden-import", "pandas",
+            "--hidden-import", "matplotlib.backends.backend_agg",
+            "src/curvemole/gui/app.py"
+          )
+          uv run pyinstaller @pyinstallerArgs
+
+      - name: Smoke-test frozen GUI
+        shell: pwsh
+        run: |
+          $env:CURVEMOLE_SMOKE_TEST = "1"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          & ".\dist\CurveMole.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Frozen GUI exited with $LASTEXITCODE" }
+          Move-Item ".\dist\CurveMole.exe" ".\CurveMole-$env:VERSION-windows-x86_64.exe"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-windows-x86_64
+          path: CurveMole-${{ env.VERSION }}-windows-x86_64.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS DMG ${{ matrix.arch }}
+    needs: prepare-icons
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.ref }}
+      - uses: actions/download-artifact@v7
+        with:
+          name: build-icons
+          path: generated-icons
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: uv sync --locked --group dev
+
+      - name: Read version
+        run: |
+          VERSION="$(uv run python -c 'from curvemole.version import __version__; print(__version__)')"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Build and smoke-test application
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_ICON: ${{ github.workspace }}/generated-icons/curvemole.icns
+        run: uv run python scripts/build_desktop.py
+
+      - name: Create DMG
+        run: |
+          mkdir dmg-stage
+          ditto dist/CurveMole.app "dmg-stage/CurveMole.app"
+          hdiutil create \
+            -volname CurveMole \
+            -srcfolder dmg-stage \
+            -ov -format UDZO \
+            "CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-macos-${{ matrix.arch }}
+          path: CurveMole-${{ env.VERSION }}-macos-${{ matrix.arch }}.dmg
+          if-no-files-found: error
+
+  publish-release-assets:
+    name: Attach packages to tagged release
+    if: startsWith(inputs.source_ref, 'v')
+    needs: [python-packages, linux, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate SHA-256 checksums
+        run: cd release-assets && sha256sum * > SHA256SUMS.txt
+
+      - name: Upload packages to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.source_ref }}
+          files: release-assets/*
+          fail_on_unmatched_files: true

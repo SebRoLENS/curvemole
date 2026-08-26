@@ -1,0 +1,27 @@
+name: Bug report
+description: Report a reproducible CurveMole problem
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Include exact actions and the observed result. Do not attach confidential spectra unless intended.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: CurveMole version and operating system
+    validations:
+      required: true
+  - type: checkboxes
+    attributes:
+      label: Privacy
+      options:
+        - label: I reviewed every attached file for scientific or personal data.
+          required: true

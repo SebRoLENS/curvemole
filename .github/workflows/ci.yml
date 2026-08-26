@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14]
+        python: ["3.12"]
+        include:
+          - os: ubuntu-22.04
+            python: "3.13"
+          - os: ubuntu-22.04
+            python: "3.14"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux GUI libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --group dev
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run pytest --cov=curvemole --cov-report=term-missing
+
+  minimum-linux:
+    name: Ubuntu 22.04 GUI smoke test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux GUI libraries
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --group dev
+      - name: Qt smoke test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run pytest tests/test_gui_smoke.py

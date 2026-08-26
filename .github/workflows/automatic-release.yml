@@ -1,0 +1,220 @@
+name: Automatic release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "packaging/**"
+      - "scripts/build_desktop.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".release-trigger"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version part to increment
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major]
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: automatic-release
+  cancel-in-progress: false
+
+jobs:
+  prepare-release:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+      commit_sha: ${{ steps.commit.outputs.commit_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Prepare release metadata
+        id: prepare
+        env:
+          REQUESTED_BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || '' }}
+        run: |
+          args=()
+          if [ -n "$REQUESTED_BUMP" ]; then args+=(--bump "$REQUESTED_BUMP"); fi
+          VERSION="$(uv run python .github/scripts/prepare_release.py "${args[@]}")"
+          uv lock
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Preparing CurveMole v$VERSION"
+
+      - name: Validate release source
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          uv run ruff check .
+          uv run pytest
+          uv build
+
+      - name: Build versioned PDF manual
+        run: |
+          pandoc docs/manual.md \
+            --from markdown \
+            --resource-path=.:docs \
+            --pdf-engine=xelatex \
+            --metadata title="CurveMole User Manual" \
+            --output docs/CurveMole_User_Manual.pdf
+
+      - name: Commit release metadata
+        id: commit
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            src/curvemole/version.py pyproject.toml uv.lock README.md CITATION.cff \
+            docs/manual.md docs/CurveMole_User_Manual.pdf
+          if ! git diff --cached --quiet; then
+            git commit -m "Prepare v${VERSION} release"
+            git push origin HEAD:main
+          fi
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            echo "Tag v${VERSION} already exists."
+            exit 1
+          fi
+          git tag -a "v${VERSION}" -m "CurveMole v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          cat > /tmp/release-notes.md <<EOF
+          ## CurveMole v${VERSION}
+
+          Automated CurveMole release. Desktop packages are being built for Linux x86_64,
+          Windows x86_64, macOS Apple Silicon, and macOS Intel. Python wheel and source
+          packages will also be attached automatically.
+
+          **Zenodo DOI:** pending archival or repository integration.
+          EOF
+          gh release create "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "CurveMole v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            --verify-tag
+
+      - name: Dispatch and monitor desktop builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          RELEASE_SHA: ${{ steps.commit.outputs.commit_sha }}
+        run: |
+          gh workflow run build-desktop.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "source_ref=v${VERSION}"
+
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/build-desktop.yml/runs?event=workflow_dispatch&head_sha=${RELEASE_SHA}&per_page=10" \
+              --jq '.workflow_runs[0].id // empty')"
+            if [ -n "$RUN_ID" ]; then break; fi
+            sleep 4
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "Could not locate the dispatched desktop-build run."
+            exit 1
+          fi
+          gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
+
+  sync-zenodo-doi:
+    needs: prepare-release
+    if: ${{ always() && needs.prepare-release.outputs.version != '' && vars.ZENODO_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Wait for Zenodo GitHub integration
+        id: zenodo
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          DOI=""
+          for attempt in $(seq 1 60); do
+            set +e
+            DOI="$(python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION")"
+            STATUS=$?
+            set -e
+            if [ "$STATUS" -eq 0 ] && [ -n "$DOI" ]; then break; fi
+            sleep 60
+          done
+          if [ -z "$DOI" ]; then
+            echo "Zenodo DOI was not found within one hour."
+            exit 1
+          fi
+          python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" --apply >/dev/null
+          echo "doi=$DOI" >> "$GITHUB_OUTPUT"
+
+      - name: Commit DOI metadata
+        env:
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          DOI: ${{ steps.zenodo.outputs.doi }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md CITATION.cff
+          if ! git diff --cached --quiet; then
+            git commit -m "Link v${VERSION} to Zenodo DOI ${DOI}"
+            git push origin HEAD:main
+          fi
+
+      - name: Add DOI to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare-release.outputs.version }}
+          DOI: ${{ steps.zenodo.outputs.doi }}
+        run: |
+          cat > /tmp/release-notes.md <<EOF
+          ## CurveMole v${VERSION}
+
+          Desktop applications are available for Linux x86_64, Windows x86_64,
+          macOS Apple Silicon, and macOS Intel. Python packages are also attached.
+
+          **Zenodo DOI:** https://doi.org/${DOI}
+          EOF
+          gh release edit "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file /tmp/release-notes.md

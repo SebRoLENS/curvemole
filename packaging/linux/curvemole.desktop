@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=CurveMole
+Comment=Modular Scientific Curve Fitting
+Exec=CurveMole
+Icon=curvemole
+Categories=Science;Education;
+Terminal=false
+MimeType=application/x-curvemole-project;

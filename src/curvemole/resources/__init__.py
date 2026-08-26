@@ -1,0 +1,1 @@
+"""Packaged CurveMole visual resources."""
