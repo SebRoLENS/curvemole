@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   prepare-release:
-    if: github.actor != 'github-actions[bot]'
+    if: ${{ github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-22.04
     outputs:
       version: ${{ steps.prepare.outputs.version }}
@@ -162,7 +162,7 @@ jobs:
 
   sync-zenodo-doi:
     needs: prepare-release
-    if: ${{ always() && needs.prepare-release.outputs.version != '' && vars.ZENODO_ENABLED == 'true' }}
+    if: ${{ always() && needs.prepare-release.outputs.version != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

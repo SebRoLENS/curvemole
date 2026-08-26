@@ -34,10 +34,10 @@ All downloadable files and `SHA256SUMS.txt` are attached to the same release.
 
 ## Zenodo
 
-Zenodo support is dormant until the repository is connected to Zenodo. After
-enabling the GitHub integration, create the repository variable
-`ZENODO_ENABLED=true`. Future releases then wait for the version DOI and update the
-README, `CITATION.cff`, and GitHub release notes automatically.
+The repository is connected to Zenodo. Future releases wait for the version DOI and
+update the README, `CITATION.cff`, and GitHub release notes automatically. Commits
+containing `[skip release]` can update release infrastructure or citation metadata
+without creating a new software version.
 
 No Zenodo token is stored in this repository. The synchronisation uses only the
 public records API and requests no more than 25 records per page.
