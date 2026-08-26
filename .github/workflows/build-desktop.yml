@@ -208,8 +208,8 @@ jobs:
         run: |
           $env:CURVEMOLE_SMOKE_TEST = "1"
           $env:QT_QPA_PLATFORM = "offscreen"
-          & ".\dist\CurveMole.exe"
-          if ($LASTEXITCODE -ne 0) { throw "Frozen GUI exited with $LASTEXITCODE" }
+          $process = Start-Process -FilePath ".\dist\CurveMole.exe" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Frozen GUI exited with $($process.ExitCode)" }
           Move-Item ".\dist\CurveMole.exe" ".\CurveMole-$env:VERSION-windows-x86_64.exe"
 
       - uses: actions/upload-artifact@v7
