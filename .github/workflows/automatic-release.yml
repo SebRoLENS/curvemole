@@ -31,6 +31,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Administrative metadata updates carry [skip release] to preserve the current version.
   prepare-release:
     if: ${{ github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-22.04
