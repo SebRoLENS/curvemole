@@ -1,26 +1,23 @@
 % Options for packages loaded elsewhere
 \PassOptionsToPackage{unicode}{hyperref}
 \PassOptionsToPackage{hyphens}{url}
-\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\PassOptionsToPackage{dvipsnames,svgnames*,x11names*}{xcolor}
 %
 \documentclass[
   10pt,
   a4paper,
   oneside]{scrreprt}
-\usepackage{amsmath,amssymb}
-\usepackage{iftex}
-\ifPDFTeX
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
   \usepackage[T1]{fontenc}
   \usepackage[utf8]{inputenc}
   \usepackage{textcomp} % provide euro and other symbols
 \else % if luatex or xetex
-  \usepackage{unicode-math} % this also loads fontspec
+  \usepackage{unicode-math}
   \defaultfontfeatures{Scale=MatchLowercase}
   \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
-\fi
-\usepackage{lmodern}
-\ifPDFTeX\else
-  % xetex/luatex font selection
   \setmainfont[]{DejaVu Serif}
   \setsansfont[]{DejaVu Sans}
   \setmonofont[]{DejaVu Sans Mono}
@@ -42,6 +39,18 @@
   \KOMAoptions{parskip=half}}
 \makeatother
 \usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={CurveMole User Manual},
+  pdfauthor={Sebastiano Romi},
+  colorlinks=true,
+  linkcolor=teal,
+  filecolor=Maroon,
+  citecolor=Blue,
+  urlcolor=teal,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
 \usepackage[top=24mm,bottom=25mm,left=25mm,right=25mm]{geometry}
 \usepackage{color}
 \usepackage{fancyvrb}
@@ -54,7 +63,7 @@
 \newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
 \newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
 \newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
-\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
 \newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
 \newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
 \newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
@@ -67,7 +76,7 @@
 \newcommand{\ExtensionTok}[1]{#1}
 \newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
 \newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
-\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
 \newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
 \newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
 \newcommand{\NormalTok}[1]{#1}
@@ -81,8 +90,7 @@
 \newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
 \newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
 \newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
-\usepackage{longtable,booktabs,array}
-\usepackage{calc} % for calculating minipage widths
+\usepackage{longtable,booktabs}
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
 \makeatletter
@@ -157,21 +165,6 @@
   \end{titlepage}
 }
 \makeatother
-\ifLuaTeX
-  \usepackage{selnolig}  % disable illegal ligatures
-\fi
-\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
-\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
-\urlstyle{same}
-\hypersetup{
-  pdftitle={CurveMole User Manual},
-  pdfauthor={Sebastiano Romi},
-  colorlinks=true,
-  linkcolor={teal},
-  filecolor={Maroon},
-  citecolor={Blue},
-  urlcolor={teal},
-  pdfcreator={LaTeX via pandoc}}
 
 \title{CurveMole User Manual}
 \usepackage{etoolbox}
@@ -420,28 +413,22 @@ launch}\label{installation-and-first-launch}}
 
 The current reference configuration is:
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Item
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Minimum or supported target
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Item & Minimum or supported target\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Processor & x86-64, 4 CPU cores recommended \\
-Memory & 8 GB RAM \\
-Storage & SSD recommended \\
-Display & 1920 x 1080 recommended \\
-Windows & Windows 10 22H2 legacy compatibility or Windows 11, 64-bit \\
-macOS & macOS 13 Ventura or newer, Intel or Apple Silicon \\
+Processor & x86-64, 4 CPU cores recommended\tabularnewline
+Memory & 8 GB RAM\tabularnewline
+Storage & SSD recommended\tabularnewline
+Display & 1920 x 1080 recommended\tabularnewline
+Windows & Windows 10 22H2 legacy compatibility or Windows 11,
+64-bit\tabularnewline
+macOS & macOS 13 Ventura or newer, Intel or Apple Silicon\tabularnewline
 Linux & Ubuntu 22.04 LTS, Debian 12, or a comparable newer
-distribution \\
-Python & Python 3.12 or newer for Python installations \\
+distribution\tabularnewline
+Python & Python 3.12 or newer for Python installations\tabularnewline
+\bottomrule
 \end{longtable}
 
 A dedicated GPU is not required. Large multi-curve fits and resampling
@@ -455,30 +442,46 @@ Open the
 \href{https://github.com/SebRoLENS/curvemole/releases/latest}{latest
 release} and select the package for your system.
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3333}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Platform
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Release asset
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Normal launch method
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.30\columnwidth}\raggedright
+Platform\strut
+\end{minipage} & \begin{minipage}[b]{0.30\columnwidth}\raggedright
+Release asset\strut
+\end{minipage} & \begin{minipage}[b]{0.30\columnwidth}\raggedright
+Normal launch method\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Linux x86-64 & \texttt{CurveMole-VERSION-linux-x86\_64.AppImage} & Mark
-executable and run \\
-Windows x86-64 & \texttt{CurveMole-VERSION-windows-x86\_64.exe} &
-Double-click the executable \\
-macOS Apple Silicon & \texttt{CurveMole-VERSION-macos-arm64.dmg} & Open
-the DMG and launch the app \\
-macOS Intel & \texttt{CurveMole-VERSION-macos-x86\_64.dmg} & Open the
-DMG and launch the app \\
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+Linux x86-64\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-linux-x86\_64.AppImage}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Mark executable and run\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+Windows x86-64\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-windows-x86\_64.exe}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Double-click the executable\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+macOS Apple Silicon\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-macos-arm64.dmg}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Open the DMG and launch the app\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+macOS Intel\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-macos-x86\_64.dmg}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Open the DMG and launch the app\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
 
 Windows and macOS packages are currently unsigned. The operating system
@@ -502,7 +505,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN}\OperatorTok{=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.2.1{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.2.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -524,7 +527,7 @@ Every release includes \texttt{SHA256SUMS.txt}. On Linux:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{sha256sum} \AttributeTok{{-}c}\NormalTok{ SHA256SUMS.txt }\AttributeTok{{-}{-}ignore{-}missing}
+\ExtensionTok{sha256sum}\NormalTok{ {-}c SHA256SUMS.txt {-}{-}ignore{-}missing}
 \end{Highlighting}
 \end{Shaded}
 
@@ -532,7 +535,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum} \AttributeTok{{-}a}\NormalTok{ 256 CurveMole{-}0.2.1{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.2.1{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -540,7 +543,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get}\OperatorTok{{-}}\NormalTok{FileHash }\OperatorTok{.}\NormalTok{\textbackslash{}CurveMole}\OperatorTok{{-}}\NormalTok{0}\OperatorTok{.}\FunctionTok{2}\OperatorTok{.}\FunctionTok{1}\OperatorTok{{-}}\NormalTok{windows}\OperatorTok{{-}}\NormalTok{x86\_64}\OperatorTok{.}\FunctionTok{exe} \OperatorTok{{-}}\NormalTok{Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{2}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -555,9 +558,9 @@ Use an isolated environment. From a downloaded wheel:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{python3} \AttributeTok{{-}m}\NormalTok{ venv \textasciitilde{}/.venv/curvemole}
+\ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ pip install ./curvemole{-}0.2.1{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.2.1{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -566,9 +569,9 @@ On Windows PowerShell, activation is:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{py }\OperatorTok{{-}}\NormalTok{m venv }\VariableTok{$env}\OperatorTok{:}\NormalTok{USERPROFILE\textbackslash{}}\OperatorTok{.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
-\OperatorTok{\&} \VariableTok{$env}\OperatorTok{:}\NormalTok{USERPROFILE\textbackslash{}}\OperatorTok{.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate}\OperatorTok{.}\FunctionTok{ps1}
-\NormalTok{python }\OperatorTok{{-}}\NormalTok{m pip install }\OperatorTok{.}\NormalTok{\textbackslash{}curvemole}\OperatorTok{{-}}\NormalTok{0}\OperatorTok{.}\FunctionTok{2}\OperatorTok{.}\FunctionTok{1}\OperatorTok{{-}}\NormalTok{py3}\OperatorTok{{-}}\NormalTok{none}\OperatorTok{{-}}\NormalTok{any}\OperatorTok{.}\FunctionTok{whl}
+\NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
+\NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{2}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -583,7 +586,7 @@ Clone the repository and install its locked development environment:
 \begin{Highlighting}[]
 \FunctionTok{git}\NormalTok{ clone https://github.com/SebRoLENS/curvemole.git}
 \BuiltInTok{cd}\NormalTok{ curvemole}
-\ExtensionTok{uv}\NormalTok{ sync }\AttributeTok{{-}{-}locked} \AttributeTok{{-}{-}group}\NormalTok{ dev}
+\ExtensionTok{uv}\NormalTok{ sync {-}{-}locked {-}{-}group dev}
 \ExtensionTok{uv}\NormalTok{ run curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -592,9 +595,9 @@ For an editable installation using \texttt{pip}:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{python3} \AttributeTok{{-}m}\NormalTok{ venv .venv}
+\ExtensionTok{python3}\NormalTok{ {-}m venv .venv}
 \BuiltInTok{source}\NormalTok{ .venv/bin/activate}
-\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ pip install }\AttributeTok{{-}e}\NormalTok{ .}
+\ExtensionTok{python}\NormalTok{ {-}m pip install {-}e .}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -605,7 +608,7 @@ version}\label{confirming-the-installed-version}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole} \AttributeTok{{-}{-}version}
+\ExtensionTok{curvemole}\NormalTok{ {-}{-}version}
 \end{Highlighting}
 \end{Shaded}
 
@@ -802,27 +805,20 @@ The left dock contains a search field and a tree with \textbf{Visible},
 
 Curve states are:
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-State
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Meaning
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+State & Meaning\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
 Not fitted & No successful fit is associated with the current curve
-state \\
-Ready & The curve is prepared for fitting \\
-Running & A fit involving the curve is in progress \\
-Fitted & The last fit completed successfully \\
+state\tabularnewline
+Ready & The curve is prepared for fitting\tabularnewline
+Running & A fit involving the curve is in progress\tabularnewline
+Fitted & The last fit completed successfully\tabularnewline
 Modified/outdated & Data or model changed after the last successful
-fit \\
-Failed & The latest fit attempt failed \\
+fit\tabularnewline
+Failed & The latest fit attempt failed\tabularnewline
+\bottomrule
 \end{longtable}
 
 \hypertarget{plot-workspace}{%
@@ -889,17 +885,18 @@ matters because composition operators are evaluated sequentially.
 The controls below the list are:
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Control & Action \\
-\midrule\noalign{}
+\toprule
+Control & Action\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{+} & Add a component \\
-Duplicate & Duplicate the selected component and its settings \\
-Up / Down & Change component order \\
-Delete & Delete the component after confirmation \\
-Copy fit & Copy selected model information to other curves \\
+\texttt{+} & Add a component\tabularnewline
+Duplicate & Duplicate the selected component and its
+settings\tabularnewline
+Up / Down & Change component order\tabularnewline
+Delete & Delete the component after confirmation\tabularnewline
+Copy fit & Copy selected model information to other
+curves\tabularnewline
+\bottomrule
 \end{longtable}
 
 Uncheck a component in the list to disable it without deleting it.
@@ -1106,15 +1103,14 @@ dragging to restore an interval.
 \section{7.3 Mask targets}\label{mask-targets}}
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Target & Effect \\
-\midrule\noalign{}
+\toprule
+Target & Effect\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Active & Changes only the active curve \\
-Selected & Changes every selected curve \\
-All visible & Changes every currently visible curve \\
+Active & Changes only the active curve\tabularnewline
+Selected & Changes every selected curve\tabularnewline
+All visible & Changes every currently visible curve\tabularnewline
+\bottomrule
 \end{longtable}
 
 For interval masks, the same numeric x interval is applied to every
@@ -1211,18 +1207,20 @@ modify source arrays.
 Components are evaluated in list order. Available operators are:
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Operator & Operation \\
-\midrule\noalign{}
+\toprule
+Operator & Operation\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{add} & Add the component array to the accumulated model \\
-\texttt{subtract} & Subtract the component array \\
+\texttt{add} & Add the component array to the accumulated
+model\tabularnewline
+\texttt{subtract} & Subtract the component array\tabularnewline
 \texttt{multiply} & Multiply the accumulated model by the component
-array \\
-\texttt{divide} & Divide the accumulated model by the component array \\
-\texttt{convolve} & Convolve using FFT and scale by median x spacing \\
+array\tabularnewline
+\texttt{divide} & Divide the accumulated model by the component
+array\tabularnewline
+\texttt{convolve} & Convolve using FFT and scale by median x
+spacing\tabularnewline
+\bottomrule
 \end{longtable}
 
 The first enabled component can use only \texttt{add} or
@@ -1491,19 +1489,19 @@ links}\label{parameters-constraints-and-links}}
 The table columns are:
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Column & Meaning \\
-\midrule\noalign{}
+\toprule
+Column & Meaning\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Parameter & Parameter name; linked parameters show a link indicator \\
-Value & Current value or successful fitted value \\
-±1 sigma & Covariance-based standard error when available \\
-Fixed & Exclude the parameter from optimization \\
-Lower & Lower bound; blank means negative infinity \\
-Upper & Upper bound; blank means positive infinity \\
-Link & Restricted expression controlling this parameter \\
+Parameter & Parameter name; linked parameters show a link
+indicator\tabularnewline
+Value & Current value or successful fitted value\tabularnewline
+±1 sigma & Covariance-based standard error when available\tabularnewline
+Fixed & Exclude the parameter from optimization\tabularnewline
+Lower & Lower bound; blank means negative infinity\tabularnewline
+Upper & Upper bound; blank means positive infinity\tabularnewline
+Link & Restricted expression controlling this parameter\tabularnewline
+\bottomrule
 \end{longtable}
 
 An edit is validated immediately. CurveMole rejects a value outside its
@@ -1541,27 +1539,21 @@ because the function definition sets a positive intrinsic minimum.
 
 The canonical path is:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{curve\_id.component\_id.parameter\_name}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+curve_id.component_id.parameter_name
+\end{verbatim}
 
 A link refers to a path inside \texttt{\$\{...\}}. For example:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{$\{curve\_ab12.component\_cd34.center\}}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+${curve_ab12.component_cd34.center}
+\end{verbatim}
 
 or a derived relation:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{$\{curve\_ab12.component\_cd34.center\} + 12.5}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+${curve_ab12.component_cd34.center} + 12.5
+\end{verbatim}
 
 Internal curve and component identifiers are preserved in
 \texttt{.fitproj}, YAML-derived objects, Python objects, and
@@ -1592,15 +1584,13 @@ Constants are \texttt{pi}, \texttt{e}, and \texttt{inf}.
 
 Allowed functions are:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{abs, sqrt, exp, log, log10,}
-\NormalTok{sin, cos, tan, arcsin, arccos, arctan,}
-\NormalTok{sinh, cosh, tanh,}
-\NormalTok{erf, erfc,}
-\NormalTok{minimum, maximum, clip, where, heaviside}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+abs, sqrt, exp, log, log10,
+sin, cos, tan, arcsin, arccos, arctan,
+sinh, cosh, tanh,
+erf, erfc,
+minimum, maximum, clip, where, heaviside
+\end{verbatim}
 
 Attribute access, imports, indexing, comprehensions, arbitrary function
 calls, file access, and network access are not part of the expression
@@ -1796,21 +1786,23 @@ Let \(N\) be the number of usable observations and \(k\) the number of
 independent free parameters. CurveMole reports:
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Statistic & Definition or interpretation \\
-\midrule\noalign{}
+\toprule
+Statistic & Definition or interpretation\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Degrees of freedom & \(N-k\) \\
-RSS & \(\sum_i(y_i-f_i)^2\) without point weighting \\
-RMSE & \(\sqrt{\mathrm{RSS}/N}\) \\
-Chi-square & Sum of squared weighted residuals \\
-Reduced chi-square & Chi-square divided by \(N-k\) when positive \\
-Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\) \\
-AIC & Gaussian ordinary least-squares expression when applicable \\
-AICc & Small-sample correction when \(N>k+1\) \\
-BIC & Gaussian ordinary least-squares expression when applicable \\
+Degrees of freedom & \(N-k\)\tabularnewline
+RSS & \(\sum_i(y_i-f_i)^2\) without point weighting\tabularnewline
+RMSE & \(\sqrt{\mathrm{RSS}/N}\)\tabularnewline
+Chi-square & Sum of squared weighted residuals\tabularnewline
+Reduced chi-square & Chi-square divided by \(N-k\) when
+positive\tabularnewline
+Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\)\tabularnewline
+AIC & Gaussian ordinary least-squares expression when
+applicable\tabularnewline
+AICc & Small-sample correction when \(N>k+1\)\tabularnewline
+BIC & Gaussian ordinary least-squares expression when
+applicable\tabularnewline
+\bottomrule
 \end{longtable}
 
 The descriptive \(R^2\) can be misleading for baselines, constrained
@@ -2062,33 +2054,31 @@ Unrelated files in the directory are preserved.
 The exact set depends on available fit and covariance results. A typical
 bundle is:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{README.txt}
-\NormalTok{parameters.csv}
-\NormalTok{CURVE\_wide.csv}
-\NormalTok{main\_plot.png}
-\NormalTok{summary\_report.html}
-\NormalTok{PROJECT.fitmodel}
-\NormalTok{PROJECT.fitproj}
-\NormalTok{data/}
-\NormalTok{  CURVE\_wide.csv}
-\NormalTok{python/}
-\NormalTok{  data\_tidy.csv}
-\NormalTok{  results.json}
-\NormalTok{figures/}
-\NormalTok{  main\_plot.svg}
-\NormalTok{report/}
-\NormalTok{  full\_reproducibility.html}
-\NormalTok{  summary.pdf}
-\NormalTok{uncertainty/}
-\NormalTok{  covariance.csv}
-\NormalTok{  correlation.csv}
-\NormalTok{diagnostics/}
-\NormalTok{  CURVE\_ID\_autocorrelation.csv}
-\NormalTok{.curvemole{-}export.json}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+README.txt
+parameters.csv
+CURVE_wide.csv
+main_plot.png
+summary_report.html
+PROJECT.fitmodel
+PROJECT.fitproj
+data/
+  CURVE_wide.csv
+python/
+  data_tidy.csv
+  results.json
+figures/
+  main_plot.svg
+report/
+  full_reproducibility.html
+  summary.pdf
+uncertainty/
+  covariance.csv
+  correlation.csv
+diagnostics/
+  CURVE_ID_autocorrelation.csv
+.curvemole-export.json
+\end{verbatim}
 
 \hypertarget{wide-data-tables}{%
 \section{14.4 Wide data tables}\label{wide-data-tables}}
@@ -2164,7 +2154,7 @@ software manual.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole} \PreprocessorTok{[{-}{-}}\SpecialStringTok{version}\PreprocessorTok{]} \PreprocessorTok{[{-}{-}}\SpecialStringTok{json}\PreprocessorTok{]} \PreprocessorTok{[{-}{-}}\SpecialStringTok{verbose}\PreprocessorTok{]}\NormalTok{ COMMAND }\PreprocessorTok{[}\SpecialStringTok{OPTIONS}\PreprocessorTok{]}
+\ExtensionTok{curvemole}\NormalTok{ [{-}{-}version] [{-}{-}json] [{-}{-}verbose] COMMAND [OPTIONS]}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2189,7 +2179,7 @@ first argument.
 \begin{Shaded}
 \begin{Highlighting}[]
 \ExtensionTok{curvemole}\NormalTok{ functions list}
-\ExtensionTok{curvemole}\NormalTok{ functions list }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ functions list {-}{-}json}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2198,12 +2188,12 @@ first argument.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ fit spectrum.csv }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}x}\NormalTok{ wavenumber }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}y}\NormalTok{ absorbance }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}function}\NormalTok{ gaussian }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}background}\NormalTok{ linear }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}output}\NormalTok{ spectrum.fitproj}
+\ExtensionTok{curvemole}\NormalTok{ fit spectrum.csv }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}x}\NormalTok{ wavenumber }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}y}\NormalTok{ absorbance }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}function}\NormalTok{ gaussian }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}background}\NormalTok{ linear }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}output}\NormalTok{ spectrum.fitproj}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2223,12 +2213,12 @@ are none, constant, or linear.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ fit{-}series scan\_01.csv scan\_02.csv scan\_03.csv }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}x}\NormalTok{ 0 }\AttributeTok{{-}{-}y}\NormalTok{ 1 }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}function}\NormalTok{ pseudo\_voigt }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}background}\NormalTok{ constant }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}mode}\NormalTok{ sequential }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}output}\NormalTok{ series.fitproj}
+\ExtensionTok{curvemole}\NormalTok{ fit{-}series scan\_01.csv scan\_02.csv scan\_03.csv }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}x}\NormalTok{ 0 {-}{-}y 1 }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}function}\NormalTok{ pseudo\_voigt }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}background}\NormalTok{ constant }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}mode}\NormalTok{ sequential }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}output}\NormalTok{ series.fitproj}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2243,8 +2233,8 @@ Python API.
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ inspect analysis.fitproj }\AttributeTok{{-}{-}json}
-\ExtensionTok{curvemole}\NormalTok{ inspect raw\_data.dat }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ inspect analysis.fitproj {-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ inspect raw\_data.dat {-}{-}json}
 \ExtensionTok{curvemole}\NormalTok{ validate analysis.fitproj}
 \ExtensionTok{curvemole}\NormalTok{ validate workflow.yml}
 \end{Highlighting}
@@ -2273,19 +2263,18 @@ ownership manifest permits the overwrite.
 \section{15.8 Exit codes}\label{exit-codes}}
 
 \begin{longtable}[]{@{}rl@{}}
-\toprule\noalign{}
-Code & Meaning \\
-\midrule\noalign{}
+\toprule
+Code & Meaning\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-0 & Success \\
-2 & Command usage error \\
-3 & Data validation error \\
-4 & Fit error \\
-5 & Project format error \\
-6 & Plugin or other CurveMole domain error \\
-10 & Unexpected failure \\
+0 & Success\tabularnewline
+2 & Command usage error\tabularnewline
+3 & Data validation error\tabularnewline
+4 & Fit error\tabularnewline
+5 & Project format error\tabularnewline
+6 & Plugin or other CurveMole domain error\tabularnewline
+10 & Unexpected failure\tabularnewline
+\bottomrule
 \end{longtable}
 
 \hypertarget{reproducible-yaml-workflows}{%
@@ -2297,7 +2286,7 @@ workflows}\label{reproducible-yaml-workflows}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ run examples/gaussian\_workflow.yml }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ run examples/gaussian\_workflow.yml {-}{-}json}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2394,8 +2383,8 @@ argument for each plugin whose Python source may run:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ run workflow.yml }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}trust{-}plugin}\NormalTok{ org.example.lineshape}
+\ExtensionTok{curvemole}\NormalTok{ run workflow.yml }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}trust{-}plugin}\NormalTok{ org.example.lineshape}
 \end{Highlighting}
 \end{Shaded}
 
@@ -2540,11 +2529,9 @@ initial values and bounds in the normal parameter table.
 
 Example:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{offset + amplitude * exp({-}x / tau)}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+offset + amplitude * exp(-x / tau)
+\end{verbatim}
 
 Detected parameters are \texttt{amplitude}, \texttt{offset}, and
 \texttt{tau}.
@@ -2628,13 +2615,11 @@ opener still fails, the dialog shows the path or URL to copy manually.
 
 Use these direct addresses:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{https://github.com/SebRoLENS/curvemole}
-\NormalTok{https://github.com/SebRoLENS/curvemole/releases}
-\NormalTok{https://github.com/SebRoLENS/curvemole/issues}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+https://github.com/SebRoLENS/curvemole
+https://github.com/SebRoLENS/curvemole/releases
+https://github.com/SebRoLENS/curvemole/issues
+\end{verbatim}
 
 \hypertarget{windows-smartscreen-or-macos-gatekeeper-warns}{%
 \section{19.3 Windows SmartScreen or macOS Gatekeeper
@@ -2852,34 +2837,86 @@ shortcuts}\label{appendix-a.-keyboard-shortcuts}}
 
 Shortcuts use the platform's standard key sequence where applicable.
 
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\columnwidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Shortcut
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Action
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Shortcut\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Action\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Ctrl+N & New project \\
-Ctrl+O & Open project \\
-Ctrl+I & Import data \\
-Ctrl+S & Save project \\
-Ctrl+Shift+S & Save project as on common desktop mappings \\
-Ctrl+E & Export analysis bundle \\
-Ctrl+Z & Undo \\
-Standard Redo shortcut & Redo \\
-Ctrl++ & Add component \\
-F5 & Open Fit dialog \\
-F1 or platform Help shortcut & Quick Start \\
-Esc & Cancel graphical peak or spline placement \\
-Ctrl while dragging & Change a fixed graphical parameter without
-unfixing it \\
-Right-drag on plot & Mask or unmask an interval directly \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+N\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+New project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+O\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Open project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+I\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Import data\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+S\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Save project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+Shift+S\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Save project as on common desktop mappings\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+E\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Export analysis bundle\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+Z\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Undo\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Standard Redo shortcut\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Redo\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl++\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Add component\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+F5\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Open Fit dialog\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+F1 or platform Help shortcut\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Quick Start\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Esc\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Cancel graphical peak or spline placement\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl while dragging\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Change a fixed graphical parameter without unfixing it\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Right-drag on plot\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Mask or unmask an interval directly\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
 
 \hypertarget{appendix-b.-built-in-identifiers}{%
@@ -2887,27 +2924,26 @@ Right-drag on plot & Mask or unmask an interval directly \\
 identifiers}\label{appendix-b.-built-in-identifiers}}
 
 \begin{longtable}[]{@{}lll@{}}
-\toprule\noalign{}
-Identifier & Display name & Parameters \\
-\midrule\noalign{}
+\toprule
+Identifier & Display name & Parameters\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
 \texttt{gaussian} & Gaussian & \texttt{area}, \texttt{center},
-\texttt{sigma} \\
+\texttt{sigma}\tabularnewline
 \texttt{lorentzian} & Lorentzian & \texttt{area}, \texttt{center},
-\texttt{gamma} \\
+\texttt{gamma}\tabularnewline
 \texttt{voigt} & Voigt & \texttt{area}, \texttt{center}, \texttt{sigma},
-\texttt{gamma} \\
+\texttt{gamma}\tabularnewline
 \texttt{pseudo\_voigt} & Pseudo-Voigt & \texttt{area}, \texttt{center},
-\texttt{fwhm}, \texttt{eta} \\
-\texttt{constant} & Constant background & \texttt{offset} \\
+\texttt{fwhm}, \texttt{eta}\tabularnewline
+\texttt{constant} & Constant background & \texttt{offset}\tabularnewline
 \texttt{linear} & Linear background & \texttt{intercept},
-\texttt{slope} \\
+\texttt{slope}\tabularnewline
 \texttt{polynomial} & Polynomial background & \texttt{c0} through
-selected order \\
+selected order\tabularnewline
 \texttt{cubic\_spline} & Cubic-spline background & \texttt{y0} through
-last node \\
+last node\tabularnewline
+\bottomrule
 \end{longtable}
 
 \hypertarget{appendix-c.-file-extensions}{%
@@ -2915,21 +2951,21 @@ last node \\
 extensions}\label{appendix-c.-file-extensions}}
 
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Extension & Purpose \\
-\midrule\noalign{}
+\toprule
+Extension & Purpose\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{.fitproj} & Complete CurveMole project \\
-\texttt{.fitmodel} & Reusable model and formula definitions \\
-\texttt{.yml}, \texttt{.yaml} & Reproducible workflow \\
+\texttt{.fitproj} & Complete CurveMole project\tabularnewline
+\texttt{.fitmodel} & Reusable model and formula
+definitions\tabularnewline
+\texttt{.yml}, \texttt{.yaml} & Reproducible workflow\tabularnewline
 \texttt{.txt}, \texttt{.dat}, \texttt{.csv}, \texttt{.tsv} & Imported
-one-dimensional data \\
-\texttt{.whl} & Installable Python package \\
-\texttt{.AppImage} & Linux desktop package \\
-\texttt{.exe} & Windows desktop executable \\
-\texttt{.dmg} & macOS disk image \\
+one-dimensional data\tabularnewline
+\texttt{.whl} & Installable Python package\tabularnewline
+\texttt{.AppImage} & Linux desktop package\tabularnewline
+\texttt{.exe} & Windows desktop executable\tabularnewline
+\texttt{.dmg} & macOS disk image\tabularnewline
+\bottomrule
 \end{longtable}
 
 \hypertarget{appendix-d.-preview-0.2.1-limitations}{%
@@ -2988,12 +3024,10 @@ installed, run:
 The command validates version declarations and local links, then
 creates:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{docs/CurveMole\_User\_Manual.tex}
-\NormalTok{docs/CurveMole\_User\_Manual.pdf}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+docs/CurveMole_User_Manual.tex
+docs/CurveMole_User_Manual.pdf
+\end{verbatim}
 
 GitHub Actions repeats this process for documentation changes and
 releases. Release assets use versioned filenames and include both LaTeX
