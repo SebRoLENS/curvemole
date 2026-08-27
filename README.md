@@ -16,6 +16,39 @@ line, and reproducible YAML workflows.
 > **Status:** Version **0.8.4 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
+## Download
+
+**[Download the latest release](https://github.com/SebRoLENS/curvemole/releases/latest)**
+· [Browse previous releases](https://github.com/SebRoLENS/curvemole/releases)
+
+Available packages are built automatically for:
+
+- Linux x86_64: AppImage
+- Windows x86_64: standalone `.exe`
+- macOS Apple Silicon: `.dmg`
+- macOS Intel x86_64: `.dmg`
+- Python 3.12+: wheel and source distribution
+
+> **Windows and macOS security notice**
+>
+> Windows SmartScreen or macOS Gatekeeper will probably show a warning on first
+> launch because these packages are not currently code-signed or notarized with
+> certificates recognised by those platforms. Obtaining and maintaining those
+> certificates requires paid developer programmes. CurveMole is free, open-source,
+> non-profit software, and the project currently chooses not to fund commercial,
+> platform-specific signing programmes or pass those costs on to users. A warning
+> caused by a missing signature is not, by itself, evidence that malware was detected.
+> Download CurveMole only from the official release page and verify `SHA256SUMS.txt`.
+
+The Linux AppImage is cryptographically signed using the free, open-source Sigstore
+infrastructure through GitHub Actions. Every release includes a detached
+`.sigstore.json` signature bundle. With the [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh attestation verify CurveMole-VERSION-linux-x86_64.AppImage \
+  --repo SebRoLENS/curvemole
+```
+
 ## Why CurveMole?
 
 CurveMole is designed for experimental scientists who want the convenience of an
@@ -90,25 +123,6 @@ colourblind-safe spectrum palette.
 All four screenshots are generated from the real application by
 [`scripts/generate_screenshots.py`](scripts/generate_screenshots.py) and refreshed
 automatically whenever the graphical interface changes.
-
-## Download
-
-The easiest way to test CurveMole is through a pre-built desktop application:
-
-**[Download the latest release](https://github.com/SebRoLENS/curvemole/releases/latest)**
-
-**[Browse and download previous releases](https://github.com/SebRoLENS/curvemole/releases)**
-
-Available packages are built automatically for:
-
-- Linux x86_64: AppImage
-- Windows x86_64: standalone `.exe`
-- macOS Apple Silicon: `.dmg`
-- macOS Intel x86_64: `.dmg`
-- Python 3.12+: wheel and source distribution
-
-Linux packages receive a GitHub artifact attestation. Windows and macOS packages
-are currently unsigned and may show a security warning on first launch.
 
 ## Install and run from source
 

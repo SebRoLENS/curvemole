@@ -149,15 +149,25 @@ jobs:
           chmod +x "$APPIMAGE"
           echo "path=$APPIMAGE" >> "$GITHUB_OUTPUT"
 
-      - name: Attest Linux AppImage
+      - name: Sign and attest Linux AppImage with Sigstore
+        id: attest
         uses: actions/attest@v4
         with:
           subject-path: ${{ steps.appimage.outputs.path }}
 
+      - name: Prepare detached Sigstore signature
+        id: signature
+        run: |
+          SIGNATURE="${{ steps.appimage.outputs.path }}.sigstore.json"
+          cp "${{ steps.attest.outputs.bundle-path }}" "$SIGNATURE"
+          echo "path=$SIGNATURE" >> "$GITHUB_OUTPUT"
+
       - uses: actions/upload-artifact@v7
         with:
           name: release-linux-x86_64
-          path: ${{ steps.appimage.outputs.path }}
+          path: |
+            ${{ steps.appimage.outputs.path }}
+            ${{ steps.signature.outputs.path }}
           if-no-files-found: error
 
   windows:
