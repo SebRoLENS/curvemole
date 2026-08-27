@@ -38,6 +38,35 @@ def apply_scalar(curve: Curve, operation: str, value: float | None = None) -> Tr
     return transformation
 
 
+def apply_background_subtraction(
+    curve: Curve,
+    background: np.ndarray,
+    *,
+    method: str,
+    description: str,
+    parameters: dict[str, Any] | None = None,
+) -> Transformation:
+    """Subtract a background array from every data point, including masked points."""
+    values = np.asarray(background, dtype=np.float64).reshape(-1)
+    if len(values) != len(curve):
+        raise DataValidationError(
+            f"Background length {len(values)} does not match curve length {len(curve)}."
+        )
+    usable = np.isfinite(curve.x) & np.isfinite(curve.y)
+    if np.any(usable & ~np.isfinite(values)):
+        raise DataValidationError("Background contains invalid values at usable data points.")
+    metadata: dict[str, Any] = {"method": str(method)}
+    metadata.update(parameters or {})
+    transformation = Transformation(
+        "background_subtract",
+        metadata,
+        description=description,
+        operand=values.copy(),
+    )
+    curve.apply_transformation(transformation)
+    return transformation
+
+
 def apply_curve_operation(
     target: Curve,
     operand: Curve,

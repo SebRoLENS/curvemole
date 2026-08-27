@@ -1902,3 +1902,16 @@ docs/CurveMole_User_Manual.pdf
 GitHub Actions repeats this process for documentation changes and releases. Release
 assets use versioned filenames and include both LaTeX and PDF editions. Do not edit
 the generated files directly; changes will be replaced by the next automated build.
+
+## Background subtraction and spline controls
+
+Use **Data > Subtract background...** when the measured zero line should be corrected before or after model construction. Two methods are available:
+
+- **Constant from x interval** asks for an x interval, calculates the median y value in that interval, and subtracts that constant from the entire active curve. The interval calculation deliberately includes masked data points if they lie inside the requested x range.
+- **Spline from graph** starts the graphical spline editor. Left-click adds a node, right-click removes the nearest node, and a left double-click or **Finish** accepts the spline. Nodes may be placed inside masked regions. The resulting spline is evaluated and subtracted over the entire x array, including masked regions.
+
+Background subtraction is stored as a reversible data transformation. The original imported arrays are retained, **Undo** reverses the subtraction, and **Restore original data** in the Data Calculator removes the transformation history. Masks are not removed or changed by background subtraction: they still control which data points participate in fitting.
+
+For cubic-spline model components, the y values of newly placed spline nodes are **fixed by default**. This prevents an intentionally drawn baseline from drifting when a fit starts. Individual nodes can be unlocked with the **Fixed** checkbox in the parameter table. The **Lock all** and **Unlock all** controls below the parameter table change the fixed state of every parameter in the selected component at once. The x positions of spline nodes remain fixed; unlocking a node allows its y value to vary or be dragged.
+
+A spline is evaluated continuously through masked regions even though masked measurements are excluded from the objective function. This makes it possible to define a baseline through masked peaks or artifacts without temporarily unmasking those data.

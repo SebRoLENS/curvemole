@@ -47,6 +47,7 @@ class ModelPanel(QWidget):
     enabledRequested = Signal(str, bool)
     parameterChangeRequested = Signal(str, str, str, object)
     parameterLinkRequested = Signal(str, str)
+    bulkFixedRequested = Signal(str, bool)
     copyFitRequested = Signal()
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
@@ -97,6 +98,21 @@ class ModelPanel(QWidget):
         )
         self.parameters.itemChanged.connect(self._parameter_changed)
         single_layout.addWidget(self.parameters, 2)
+        fixed_buttons = QHBoxLayout()
+        self.lock_all_parameters_button = QPushButton(self.tr("Lock all"))
+        self.unlock_all_parameters_button = QPushButton(self.tr("Unlock all"))
+        self.lock_all_parameters_button.setToolTip(
+            self.tr("Fix every parameter in the selected component during fitting.")
+        )
+        self.unlock_all_parameters_button.setToolTip(
+            self.tr("Allow every parameter in the selected component to vary during fitting.")
+        )
+        self.lock_all_parameters_button.clicked.connect(lambda: self._bulk_fixed(True))
+        self.unlock_all_parameters_button.clicked.connect(lambda: self._bulk_fixed(False))
+        fixed_buttons.addWidget(self.lock_all_parameters_button)
+        fixed_buttons.addWidget(self.unlock_all_parameters_button)
+        fixed_buttons.addStretch(1)
+        single_layout.addLayout(fixed_buttons)
         self.derived = QLabel()
         self.derived.setWordWrap(True)
         single_layout.addWidget(self.derived)
@@ -270,6 +286,10 @@ class ModelPanel(QWidget):
             self.refresh_parameters()
             return
         self.parameterChangeRequested.emit(component_id, name, field, value)
+
+    def _bulk_fixed(self, fixed: bool) -> None:
+        if component_id := self.selected_component_id():
+            self.bulkFixedRequested.emit(component_id, fixed)
 
     def _duplicate(self) -> None:
         if component_id := self.selected_component_id():

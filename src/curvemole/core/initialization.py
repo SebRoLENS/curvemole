@@ -185,6 +185,8 @@ def initialise_spline_component(
     initial = {f"y{index}": y for index, (_, y) in enumerate(ordered)}
     component.metadata = metadata
     component.parameters = registry.get("cubic_spline").make_parameters(initial, metadata)
+    for parameter in component.parameters.values():
+        parameter.fixed = True
     return component
 
 

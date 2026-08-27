@@ -351,7 +351,10 @@ class PlotWorkspace(QWidget):
                     brush=pg.mkBrush(255, 255, 255, 180),
                 )
                 target.setToolTip(
-                    self.tr("Drag spline y node. Its x position remains fixed by default.")
+                    self.tr(
+                        "Drag an unlocked spline y node. Fixed nodes stay locked unless Ctrl is held; "
+                        "the x position always remains fixed."
+                    )
                 )
                 self.plot.addItem(target)
                 target.sigPositionChangeFinished.connect(
@@ -628,7 +631,7 @@ class PlotWorkspace(QWidget):
         self.placement_label.setText(
             self.tr(
                 "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "
-                "and a left double-click accepts the spline. The curve updates live. "
+                "and a left double-click accepts the spline. Masked regions are allowed and the curve updates live. "
             )
             + f"{count} "
             + self.tr("point(s). Add at least two, then double-click or press Finish. Esc cancels.")

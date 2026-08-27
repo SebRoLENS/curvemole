@@ -48,7 +48,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from curvemole.core.calculator import apply_curve_operation, apply_scalar
+from curvemole.core.calculator import (
+    apply_background_subtraction,
+    apply_curve_operation,
+    apply_scalar,
+)
 from curvemole.core.data import Curve, CurveState, Series
 from curvemole.core.export import export_bundle
 from curvemole.core.fitting import CancellationToken, FitPlan, FitResult, FitSettings, Fitter
@@ -237,6 +241,7 @@ class MainWindow(QMainWindow):
         self._project_lock: ProjectLock | None = None
         self._pending_component: Component | None = None
         self._pending_component_curve_id: str | None = None
+        self._pending_background_subtraction_curve_id: str | None = None
         self.settings = QSettings("CurveMole", "CurveMole")
         self.last_peak_function_id = str(
             self.settings.value("last_peak_function", "gaussian")
@@ -400,6 +405,11 @@ class MainWindow(QMainWindow):
         self.find_peaks_action.triggered.connect(self.find_peaks)
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
         self.mask_tolerance_action.triggered.connect(self.set_mask_tolerance)
+        self.subtract_background_action = QAction(self.tr("Subtract background…"), self)
+        self.subtract_background_action.setToolTip(
+            self.tr("Subtract a constant or graphically defined spline background from the active curve.")
+        )
+        self.subtract_background_action.triggered.connect(self.subtract_background)
 
         self.fit_action = QAction(self.tr("Fit…"), self)
         self.fit_action.setShortcut("F5")
@@ -470,7 +480,14 @@ class MainWindow(QMainWindow):
         edit_menu.addActions([self.undo_action, self.redo_action])
 
         data_menu = menu.addMenu(self.tr("&Data"))
-        data_menu.addActions([self.import_action, self.calculator_action, self.worksheet_action])
+        data_menu.addActions(
+            [
+                self.import_action,
+                self.subtract_background_action,
+                self.calculator_action,
+                self.worksheet_action,
+            ]
+        )
         data_menu.addSeparator()
         data_menu.addAction(self.mask_tolerance_action)
 
@@ -545,6 +562,7 @@ class MainWindow(QMainWindow):
                 self.undo_action,
                 self.redo_action,
                 self.calculator_action,
+                self.subtract_background_action,
                 self.add_component_action,
                 self.quick_peak_action,
                 self.fit_action,
@@ -567,6 +585,7 @@ class MainWindow(QMainWindow):
         self.model_panel.enabledRequested.connect(self.enable_component)
         self.model_panel.parameterChangeRequested.connect(self.change_parameter)
         self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
+        self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
@@ -791,7 +810,10 @@ class MainWindow(QMainWindow):
                 self._pending_component_curve_id = self.active_curve_id
                 self.plot_workspace.begin_spline_placement(definition.display_name)
                 self._notify(
-                    self.tr("Click background points on the graph; finish after at least two points.")
+                    self.tr(
+                        "Click background points anywhere on the graph, including masked regions; "
+                        "finish after at least two points. Spline nodes are locked by default."
+                    )
                 )
                 return
             self._commit_component(component, self.active_curve_id)
@@ -877,6 +899,44 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Place peak"), exc)
 
     def _graphical_spline_placed(self, points: object) -> None:
+        selected = [(float(x), float(y)) for x, y in list(points)]
+        subtraction_curve_id = self._pending_background_subtraction_curve_id
+        self._pending_background_subtraction_curve_id = None
+        if subtraction_curve_id is not None:
+            try:
+                ordered = sorted(selected)
+                component = Component.create(
+                    "cubic_spline",
+                    registry=self.registry,
+                    metadata={"x_nodes": [x for x, _ in ordered]},
+                )
+                initialise_spline_component(component, ordered, registry=self.registry)
+                curve = self.project.dataset.curve(subtraction_curve_id)
+                values = {
+                    name: parameter.value for name, parameter in component.parameters.items()
+                }
+                background = self.registry.get("cubic_spline").evaluate(
+                    curve.x, values, component.metadata
+                )
+                self._apply_background_array(
+                    curve,
+                    background,
+                    method="spline",
+                    description=self.tr("Subtract spline background"),
+                    parameters={
+                        "x_nodes": list(component.metadata["x_nodes"]),
+                        "y_nodes": [values[f"y{index}"] for index in range(len(values))],
+                    },
+                )
+                self._notify(
+                    self.tr(
+                        "Spline background subtracted from the full curve, including masked regions."
+                    )
+                )
+            except Exception as exc:
+                self._show_error(self.tr("Subtract spline background"), exc)
+            return
+
         component = self._pending_component
         curve_id = self._pending_component_curve_id
         self._pending_component = None
@@ -884,7 +944,6 @@ class MainWindow(QMainWindow):
         if component is None or curve_id is None:
             return
         try:
-            selected = [(float(x), float(y)) for x, y in list(points)]
             initialise_spline_component(component, selected, registry=self.registry)
             self._commit_component(component, curve_id)
         except Exception as exc:
@@ -893,8 +952,11 @@ class MainWindow(QMainWindow):
     def _graphical_placement_cancelled(self) -> None:
         if self._pending_component is not None:
             self._notify(self.tr("Component placement cancelled."), warning=True)
+        if self._pending_background_subtraction_curve_id is not None:
+            self._notify(self.tr("Background subtraction cancelled."), warning=True)
         self._pending_component = None
         self._pending_component_curve_id = None
+        self._pending_background_subtraction_curve_id = None
 
     def _commit_component(self, component: Component, curve_id: str) -> None:
         model = self.project.model_for(curve_id)
@@ -957,6 +1019,22 @@ class MainWindow(QMainWindow):
             lambda: setattr(parameter, field, old),
         )
 
+    def set_component_fixed(self, component_id: str, fixed: bool) -> None:
+        if not self.active_curve_id:
+            return
+        component = self.project.model_for(self.active_curve_id).component(component_id)
+        before = {name: parameter.fixed for name, parameter in component.parameters.items()}
+        after = {name: bool(fixed) for name in component.parameters}
+        if before == after:
+            return
+
+        def restore(values: dict[str, bool]) -> None:
+            for name, value in values.items():
+                component.parameters[name].fixed = value
+
+        text = self.tr("Lock all parameters") if fixed else self.tr("Unlock all parameters")
+        self._push_change(text, lambda: restore(after), lambda: restore(before))
+
     def edit_parameter_link(self, component_id: str, name: str) -> None:
         if not self.active_curve_id:
             return
@@ -999,6 +1077,123 @@ class MainWindow(QMainWindow):
             lambda: restore(after),
             lambda: restore(before),
         )
+
+    def subtract_background(self) -> None:
+        if not self._ensure_editable():
+            return
+        if not self.active_curve_id:
+            self._notify(self.tr("Activate a curve first."), warning=True)
+            return
+        curve = self.project.dataset.curve(self.active_curve_id)
+        choices = [
+            self.tr("Constant from x interval"),
+            self.tr("Spline from graph"),
+        ]
+        selected_method, accepted = QInputDialog.getItem(
+            self,
+            self.tr("Subtract background"),
+            self.tr("Background method:"),
+            choices,
+            0,
+            False,
+        )
+        if not accepted:
+            return
+        if selected_method == choices[1]:
+            self.plot_workspace.cancel_placement()
+            self._pending_background_subtraction_curve_id = curve.id
+            self.plot_workspace.begin_spline_placement(self.tr("Background subtraction"))
+            self._notify(
+                self.tr(
+                    "Place spline background nodes anywhere, including masked regions. "
+                    "Double-click or press Finish to subtract it from the full curve."
+                )
+            )
+            return
+
+        finite_x = curve.x[np.isfinite(curve.x)]
+        if not len(finite_x):
+            self._notify(self.tr("The active curve has no finite x values."), warning=True)
+            return
+        x_min = float(np.min(finite_x))
+        x_max = float(np.max(finite_x))
+        lower, accepted = QInputDialog.getDouble(
+            self,
+            self.tr("Constant background"),
+            self.tr("Interval start (x):"),
+            x_min,
+            -1e100,
+            1e100,
+            12,
+        )
+        if not accepted:
+            return
+        upper, accepted = QInputDialog.getDouble(
+            self,
+            self.tr("Constant background"),
+            self.tr("Interval end (x):"),
+            x_max,
+            -1e100,
+            1e100,
+            12,
+        )
+        if not accepted:
+            return
+        lo, hi = sorted((float(lower), float(upper)))
+        in_interval = (
+            np.isfinite(curve.x)
+            & np.isfinite(curve.y)
+            & (curve.x >= lo)
+            & (curve.x <= hi)
+        )
+        if not np.any(in_interval):
+            self._notify(
+                self.tr("The selected interval contains no finite data points."),
+                warning=True,
+            )
+            return
+        offset = float(np.nanmedian(curve.y[in_interval]))
+        background = np.full(len(curve), offset, dtype=float)
+        self._apply_background_array(
+            curve,
+            background,
+            method="constant_interval",
+            description=self.tr("Subtract constant background"),
+            parameters={"lower": lo, "upper": hi, "offset": offset},
+        )
+        self._notify(
+            self.tr("Constant background subtracted: ") + f"{offset:.8g}"
+        )
+
+    def _apply_background_array(
+        self,
+        curve: Curve,
+        background: np.ndarray,
+        *,
+        method: str,
+        description: str,
+        parameters: dict[str, Any] | None = None,
+    ) -> None:
+        transformation = apply_background_subtraction(
+            curve,
+            background,
+            method=method,
+            description=description,
+            parameters=parameters,
+        )
+        curve.undo_transformation()
+
+        def redo() -> None:
+            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
+                curve.redo_transformation()
+            elif transformation not in curve.transformations:
+                curve.apply_transformation(transformation)
+
+        def undo() -> None:
+            if curve.transformations and curve.transformations[-1] is transformation:
+                curve.undo_transformation()
+
+        self._push_change(self.tr("Subtract background"), redo, undo)
 
     def find_peaks(self) -> None:
         if not self._ensure_editable():
