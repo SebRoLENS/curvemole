@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 xvfb
+            fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
 
       - uses: astral-sh/setup-uv@v6
         with:
@@ -44,8 +44,8 @@ jobs:
       - name: Generate deterministic screenshots
         env:
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-          QT_X11_NO_MITSHM: "1"
-        run: xvfb-run -a -s "-screen 0 1600x1000x24" uv run python scripts/generate_screenshots.py
+          QT_QPA_PLATFORM: offscreen
+        run: uv run python scripts/generate_screenshots.py
 
       - name: Commit updated screenshots
         run: |
