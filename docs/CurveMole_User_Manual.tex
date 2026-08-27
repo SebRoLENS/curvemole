@@ -799,6 +799,9 @@ The left dock contains a search field and a tree with \textbf{Visible},
   Use Ctrl-click or Shift-click for a multi-selection, or use
   \textbf{Select all} and \textbf{Deselect all} above the tree.
 \item
+  Use \textbf{Remove selected} to delete one or more accidentally
+  imported curves. Removal is undoable.
+\item
   Use the visibility checkbox to include or exclude it from Overlay and
   Waterfall displays.
 \item
@@ -856,6 +859,14 @@ The coordinate readout displays the pointer coordinate and the nearest
 finite point from the active curve. Rendering may be downsampled by the
 plotting library for speed, but fitting and export use all usable
 points.
+
+Model functions receive systematic names such as \textbf{Voigt1},
+\textbf{Voigt2}, and \textbf{Gaussian1}. Their labels are shown above
+each function maximum by default and are shifted vertically when
+necessary to avoid overlap. Right-click the main plot and toggle
+\textbf{Show component labels} to hide or show these labels. After every
+completed fit, CurveMole redraws and auto-ranges the plot so the newly
+fitted model is visible immediately.
 
 \hypertarget{navigation-and-axes}{%
 \section{5.3 Navigation and axes}\label{navigation-and-axes}}

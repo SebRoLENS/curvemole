@@ -277,6 +277,7 @@ class MainWindow(QMainWindow):
         self.autosave_timer.timeout.connect(self._autosave)
         self.autosave_timer.start()
         self._load_custom_functions()
+        self._normalise_component_names()
         self._restore_layout()
         self.refresh_all()
         self.update_check_timer = QTimer(self)
@@ -297,10 +298,16 @@ class MainWindow(QMainWindow):
         selection_row = QHBoxLayout()
         self.select_all_curves_button = QPushButton(self.tr("Select all"))
         self.deselect_all_curves_button = QPushButton(self.tr("Deselect all"))
+        self.remove_curves_button = QPushButton(self.tr("Remove selected"))
+        self.remove_curves_button.setToolTip(
+            self.tr("Remove the selected curve(s) from the project. This can be undone.")
+        )
         self.select_all_curves_button.clicked.connect(self.curve_tree.select_all_curves)
         self.deselect_all_curves_button.clicked.connect(self.curve_tree.deselect_all_curves)
+        self.remove_curves_button.clicked.connect(self.remove_selected_curves)
         selection_row.addWidget(self.select_all_curves_button)
         selection_row.addWidget(self.deselect_all_curves_button)
+        selection_row.addWidget(self.remove_curves_button)
         selection_row.addStretch(1)
         left_layout.addLayout(selection_row)
         left_layout.addWidget(self.curve_tree)
@@ -658,6 +665,7 @@ class MainWindow(QMainWindow):
             self.selected_component_id = None
             self.undo_stack.clear()
             self._load_custom_functions()
+            self._normalise_component_names()
             self.refresh_all()
             self._notify(self.tr("Project opened."))
         except Exception as exc:
@@ -920,9 +928,52 @@ class MainWindow(QMainWindow):
         self._pending_component = None
         self._pending_component_curve_id = None
 
+    def _component_base_name(self, component: Component) -> str:
+        definition = self.registry.get(component.function_id)
+        base = re.sub(r"[\W_]+", "", definition.display_name, flags=re.UNICODE)
+        return base or "Function"
+
+    def _assign_component_name(
+        self,
+        component: Component,
+        model: Model,
+        *,
+        exclude_component_id: str | None = None,
+    ) -> None:
+        base = self._component_base_name(component)
+        pattern = re.compile(rf"^{re.escape(base)}(\d+)$")
+        used: list[int] = []
+        for existing in model.components:
+            if existing.id == exclude_component_id or existing.function_id != component.function_id:
+                continue
+            match = pattern.fullmatch(existing.name)
+            if match:
+                used.append(int(match.group(1)))
+        component.name = f"{base}{max(used, default=0) + 1}"
+
+    def _normalise_component_names(self) -> None:
+        for model in self.project.models.values():
+            used: dict[str, set[int]] = {}
+            pending: list[Component] = []
+            for component in model.components:
+                base = self._component_base_name(component)
+                match = re.fullmatch(rf"{re.escape(base)}(\d+)", component.name)
+                number = int(match.group(1)) if match else 0
+                numbers = used.setdefault(component.function_id, set())
+                if number > 0 and number not in numbers:
+                    numbers.add(number)
+                else:
+                    pending.append(component)
+            for component in pending:
+                numbers = used.setdefault(component.function_id, set())
+                number = max(numbers, default=0) + 1
+                numbers.add(number)
+                component.name = f"{self._component_base_name(component)}{number}"
+
     def _commit_component(self, component: Component, curve_id: str) -> None:
         model = self.project.model_for(curve_id)
         before = model.to_dict()
+        self._assign_component_name(component, model)
         model.add(component)
         after = model.to_dict()
         model.components = Model.from_dict(before).components
@@ -930,7 +981,19 @@ class MainWindow(QMainWindow):
         self._push_model_state(curve_id, before, after, self.tr("Add component"))
 
     def duplicate_component(self, component_id: str) -> None:
-        self._model_mutation(self.tr("Duplicate component"), lambda model: model.duplicate(component_id))
+        created_id: list[str] = []
+
+        def operation(model: Model) -> None:
+            duplicate = model.duplicate(component_id)
+            self._assign_component_name(
+                duplicate, model, exclude_component_id=duplicate.id
+            )
+            created_id.append(duplicate.id)
+
+        self._model_mutation(self.tr("Duplicate component"), operation)
+        if created_id:
+            self.selected_component_id = created_id[-1]
+            self.refresh_all()
 
     def delete_component(self, component_id: str) -> None:
         answer = QMessageBox.question(
@@ -1288,9 +1351,12 @@ class MainWindow(QMainWindow):
         )
         self.resume_action.setEnabled(bool(result.paused_curve_id))
         self._paused_result = result if result.paused_curve_id else None
-        self.refresh_all()
         if result.paused_curve_id:
             self.active_curve_id = result.paused_curve_id
+        self.refresh_all()
+        if result.success or result.curve_outputs:
+            self.plot_workspace.auto_range()
+        if result.paused_curve_id:
             QMessageBox.warning(
                 self,
                 self.tr("Sequential fit paused"),
@@ -1864,6 +1930,64 @@ class MainWindow(QMainWindow):
             self.selected_component_id,
         )
 
+    def remove_selected_curves(self) -> None:
+        if not self._ensure_editable():
+            return
+        selected = self.curve_tree.selected_curve_ids()
+        if not selected and self.active_curve_id:
+            selected = {self.active_curve_id}
+        if not selected:
+            self._notify(self.tr("Select at least one curve to remove."), warning=True)
+            return
+        count = len(selected)
+        question = (
+            self.tr("Remove the selected curve? This action can be undone.")
+            if count == 1
+            else self.tr("Remove the selected curves? This action can be undone.")
+        )
+        if QMessageBox.question(self, self.tr("Remove curve"), question) != QMessageBox.StandardButton.Yes:
+            return
+
+        records: list[tuple[str, Series, int, Curve, dict[str, Any] | None, bool, Any]] = []
+        for curve_id in selected:
+            series = self.project.dataset.series_for(curve_id)
+            curve = self.project.dataset.curve(curve_id)
+            index = series.curves.index(curve)
+            model = self.project.models.get(curve_id)
+            model_state = model.to_dict() if model is not None else None
+            had_result = curve_id in self.project.results
+            result_value = copy.deepcopy(self.project.results.get(curve_id))
+            records.append((curve_id, series, index, curve, model_state, had_result, result_value))
+        active_before = self.active_curve_id
+
+        def redo() -> None:
+            existing_ids = {curve.id for curve in self.project.curves}
+            for curve_id, *_ in records:
+                if curve_id in existing_ids:
+                    self.project.remove_curve(curve_id)
+            if self.active_curve_id in selected:
+                self.active_curve_id = self.project.curves[0].id if self.project.curves else None
+            self.selected_component_id = None
+
+        def undo() -> None:
+            for curve_id, series, index, curve, model_state, had_result, result_value in sorted(
+                records, key=lambda item: item[2]
+            ):
+                if all(existing.id != curve_id for existing in series.curves):
+                    series.add(curve, index)
+                if model_state is not None:
+                    self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
+                if had_result:
+                    self.project.results[curve_id] = copy.deepcopy(result_value)
+            self.active_curve_id = active_before if active_before else (self.project.curves[0].id if self.project.curves else None)
+            self.selected_component_id = None
+
+        self._push_change(
+            self.tr("Remove curve") if count == 1 else self.tr("Remove curves"),
+            redo,
+            undo,
+        )
+
     def _set_visibility(self, curve_id: str, visible: bool) -> None:
         curve = self.project.dataset.curve(curve_id)
         curve.visible = visible
@@ -1928,7 +2052,10 @@ class MainWindow(QMainWindow):
         except PermissionError as exc:
             self._show_error(self.tr("Read-only project"), exc)
         for curve_id in self.curve_tree.selected_curve_ids() or ({self.active_curve_id} if self.active_curve_id else set()):
-            curve = self.project.dataset.curve(curve_id)
+            try:
+                curve = self.project.dataset.curve(curve_id)
+            except KeyError:
+                continue
             if curve.state == CurveState.FITTED:
                 curve.state = CurveState.MODIFIED
         self.refresh_all()
