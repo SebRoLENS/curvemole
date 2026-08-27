@@ -4,15 +4,28 @@
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22124662.svg)](https://doi.org/10.5281/zenodo.22124662)
 [![CI](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg)](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml)
 
-**Modular Scientific Curve Fitting**
+**Scientific curve and peak fitting for spectroscopy, diffraction, kinetics, and general x-y data.**
 
-CurveMole is a desktop-first, scriptable fitting application for one-dimensional
-spectra and curves. It is designed for IR and Raman spectra, powder diffraction
-patterns, kinetic traces, and general x-y data. The scientific engine is shared by
-the graphical interface, Python API, command line, and YAML workflows.
+CurveMole is a desktop-first, scriptable scientific data-analysis application for
+one-dimensional spectra and curves. It provides interactive curve fitting, peak fitting,
+baseline/background modelling, and nonlinear least-squares analysis for IR and Raman
+spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y data.
+The same scientific engine is shared by the graphical interface, Python API, command
+line, and reproducible YAML workflows.
 
 > **Status:** Version **0.2.3 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
+
+## Why CurveMole?
+
+CurveMole is designed for experimental scientists who want the convenience of an
+interactive desktop GUI without giving up reproducibility or scriptability. A fit can
+be explored graphically and then reproduced through the Python API, CLI, or YAML
+workflow using the same fitting engine and scientific conventions.
+
+It is intended as a general-purpose open-source tool for spectroscopy, diffraction,
+kinetics, peak analysis, and other one-dimensional scientific datasets rather than a
+workflow tied to a single experimental technique.
 
 ## Documentation
 
