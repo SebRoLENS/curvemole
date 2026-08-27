@@ -28,7 +28,7 @@ MANUAL_VERSION_RE = re.compile(
 )
 MARKDOWN_LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
 UNICODE_DASHES = "\u2010\u2011\u2012\u2013\u2014"
-PDF_ID_RE = re.compile(rb"/ID\[<[0-9A-Fa-f]{32}><[0-9A-Fa-f]{32}>\]")
+PDF_ID_RE = re.compile(rb"/ID\s*\[\s*<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\]")
 
 
 def read_package_version() -> str:
