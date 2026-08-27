@@ -775,9 +775,12 @@ Save the complete workspace with \textbf{File \textgreater{} Save
 project as}. Use a \texttt{.fitproj} extension.
 
 Then choose \textbf{File \textgreater{} Export analysis bundle}. Select
-a new empty directory for the first export. The bundle contains
-human-readable CSV tables, fit parameters, plots, HTML and PDF reports,
-machine-readable JSON, a reusable model, and a portable project copy.
+a destination and choose both how to save and \textbf{What to export?}.
+The default selection writes only \texttt{fit\_results.csv}, which
+associates every curve with its model functions and lists each parameter
+together with its fitted value and standard error. Data tables, plots,
+reports, JSON, reusable models, project copies, uncertainty matrices,
+and diagnostics are optional.
 
 \hypertarget{main-window-and-controls}{%
 \chapter{5. Main window and controls}\label{main-window-and-controls}}
@@ -2079,77 +2082,101 @@ bundle}\label{exporting-an-analysis-bundle}}
 \section{14.1 Starting an export}\label{starting-an-export}}
 
 Choose \textbf{File \textgreater{} Export analysis bundle} or press
-\textbf{Ctrl+E}. For a first export, select an empty directory. Options
-are:
+\textbf{Ctrl+E}. Export mode and export content are independent.
+
+The existing save modes remain:
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Create versioned export:} create a timestamped subdirectory;
+  leave both mode checkboxes clear to create a new export in the
+  selected directory;
 \item
-  \textbf{Update existing CurveMole-owned files after confirmation:}
-  update only files listed in the existing export manifest;
+  \textbf{Create versioned export} to create a timestamped subdirectory;
 \item
-  \textbf{Include full uncertainty samples:} preserve raw samples in the
-  project copy at the cost of file size.
+  \textbf{Update existing CurveMole-owned files after confirmation} to
+  update files that CurveMole can verify as belonging to the current
+  project export.
 \end{itemize}
+
+Under \textbf{What to export?}, select the desired outputs. Only
+\textbf{Fit results} is checked by default.
+
+\hypertarget{default-fit-results-file}{%
+\section{14.2 Default fit-results file}\label{default-fit-results-file}}
+
+The default export creates only \texttt{fit\_results.csv}. No additional
+visible file and no empty subdirectory is created.
+
+Each row represents one parameter of one model component and includes
+the series, curve and curve ID, component and component ID, displayed
+function and function ID, enabled/background state, composition
+operator, parameter name and full parameter path, fitted value, standard
+error, confidence interval, bounds, fixed/link state, unit,
+human-readable value with uncertainty, and derived area/FWHM where
+defined.
+
+This format makes the association between every data curve, the
+functions used to fit it, and the fitted parameters explicit in a single
+table.
+
+\hypertarget{optional-outputs}{%
+\section{14.3 Optional outputs}\label{optional-outputs}}
+
+The dialog can additionally export:
+
+\begin{itemize}
+\tightlist
+\item
+  data plus fitted-function wide CSV tables;
+\item
+  a tidy CSV table for Python;
+\item
+  machine-readable fit results as JSON;
+\item
+  a reusable \texttt{.fitmodel};
+\item
+  a \texttt{.fitproj} project copy, optionally including full
+  uncertainty samples;
+\item
+  the main plot as PNG and/or SVG;
+\item
+  compact HTML and PDF summaries;
+\item
+  a full reproducibility HTML report;
+\item
+  covariance and correlation matrices when available;
+\item
+  residual autocorrelation diagnostics when available;
+\item
+  an export README.
+\end{itemize}
+
+Directories such as \texttt{data/}, \texttt{python/}, \texttt{figures/},
+\texttt{report/}, \texttt{uncertainty/}, and \texttt{diagnostics/} are
+created only when a selected output actually writes a file there. An
+option whose required fit result is unavailable does not create an empty
+folder.
 
 \hypertarget{safe-overwrite-policy}{%
-\section{14.2 Safe overwrite policy}\label{safe-overwrite-policy}}
+\section{14.4 Safe overwrite policy}\label{safe-overwrite-policy}}
 
-The hidden \texttt{.curvemole-export.json} manifest identifies files
-owned by a prior CurveMole export. CurveMole refuses to overwrite
-matching files if:
+New exports store their ownership list in the project export
+configuration rather than creating a hidden sidecar file. This allows
+the default export to contain truly only \texttt{fit\_results.csv}.
+Existing \texttt{.curvemole-export.json} manifests from older versions
+are still read for backwards-compatible updates.
 
-\begin{itemize}
-\tightlist
-\item
-  overwrite was not explicitly confirmed;
-\item
-  no readable ownership manifest exists;
-\item
-  a colliding file is not listed as CurveMole-owned.
-\end{itemize}
-
-Unrelated files in the directory are preserved.
-
-\hypertarget{bundle-layout}{%
-\section{14.3 Bundle layout}\label{bundle-layout}}
-
-The exact set depends on available fit and covariance results. A typical
-bundle is:
-
-\begin{verbatim}
-README.txt
-parameters.csv
-CURVE_wide.csv
-main_plot.png
-summary_report.html
-PROJECT.fitmodel
-PROJECT.fitproj
-data/
-  CURVE_wide.csv
-python/
-  data_tidy.csv
-  results.json
-figures/
-  main_plot.svg
-report/
-  full_reproducibility.html
-  summary.pdf
-uncertainty/
-  covariance.csv
-  correlation.csv
-diagnostics/
-  CURVE_ID_autocorrelation.csv
-.curvemole-export.json
-\end{verbatim}
+When \textbf{Update existing} is selected, CurveMole refuses to
+overwrite a colliding file unless it can verify that the file belongs to
+the current project export. Unrelated files in the directory are
+preserved.
 
 \hypertarget{wide-data-tables}{%
-\section{14.4 Wide data tables}\label{wide-data-tables}}
+\section{14.5 Wide data tables}\label{wide-data-tables}}
 
-Each wide CSV is intended for direct inspection and tools such as Origin
-or QtiPlot. Depending on data and model, columns include:
+Optional wide CSV files are intended for direct inspection and tools
+such as Origin or QtiPlot. Depending on data and model, columns include:
 
 \begin{itemize}
 \tightlist
@@ -2173,21 +2200,13 @@ Rows remain aligned with the complete curve, including masked and
 invalid entries.
 
 \hypertarget{tidy-data-and-json}{%
-\section{14.5 Tidy data and JSON}\label{tidy-data-and-json}}
+\section{14.6 Tidy data and JSON}\label{tidy-data-and-json}}
 
 \texttt{python/data\_tidy.csv} stores one quantity per row with series,
 curve, component, x, value, mask, and validity fields.
 \texttt{python/results.json} records schema version, application
 version, result metadata, parameters, statistics, warnings, and settings
 without duplicating large numeric arrays.
-
-\hypertarget{parameter-table-1}{%
-\section{14.6 Parameter table}\label{parameter-table-1}}
-
-\texttt{parameters.csv} contains component and parameter identifiers,
-values, standard errors, confidence limits, bounds, state, link, unit,
-human-readable value with error, and derived area and FWHM where
-defined.
 
 \hypertarget{reports-and-reusable-files}{%
 \section{14.7 Reports and reusable
