@@ -45,6 +45,7 @@ class ModelPanel(QWidget):
     deleteRequested = Signal(str)
     moveRequested = Signal(str, int)
     enabledRequested = Signal(str, bool)
+    backgroundRequested = Signal(str, bool)
     parameterChangeRequested = Signal(str, str, str, object)
     parameterLinkRequested = Signal(str, str)
     bulkFixedRequested = Signal(str, bool)
@@ -66,6 +67,12 @@ class ModelPanel(QWidget):
         self.components.currentItemChanged.connect(self._component_selected)
         self.components.itemChanged.connect(self._component_enabled)
         single_layout.addWidget(self.components, 1)
+        self.background_toggle = QCheckBox(self.tr("Mark as background"))
+        self.background_toggle.setToolTip(
+            self.tr("Treat the selected model function as part of the background.")
+        )
+        self.background_toggle.toggled.connect(self._background_toggled)
+        single_layout.addWidget(self.background_toggle)
         buttons = QHBoxLayout()
         for text, tooltip, slot in (
             ("+", self.tr("Add component"), self.addRequested.emit),
@@ -159,11 +166,13 @@ class ModelPanel(QWidget):
             for row, component in enumerate(model.components):
                 definition = self.registry.get(component.function_id)
                 label = f"{component.name}  ·  {definition.display_name}"
+                if component.is_background:
+                    label += self.tr("  ·  Background")
                 item = QListWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)
-                if definition.kind == "background":
+                if component.is_background:
                     item.setForeground(QColor("#666666"))
                 self.components.addItem(item)
                 if component.id == selected_component_id:
@@ -184,10 +193,18 @@ class ModelPanel(QWidget):
             self.parameters.setRowCount(0)
             component_id = self.selected_component_id()
             if not component_id or not self.project or not self.curve_id:
+                self.background_toggle.blockSignals(True)
+                self.background_toggle.setChecked(False)
+                self.background_toggle.setEnabled(False)
+                self.background_toggle.blockSignals(False)
                 self.derived.clear()
                 return
             model = self.project.model_for(self.curve_id)
             component = model.component(component_id)
+            self.background_toggle.blockSignals(True)
+            self.background_toggle.setEnabled(True)
+            self.background_toggle.setChecked(component.is_background)
+            self.background_toggle.blockSignals(False)
             self.parameters.setRowCount(len(component.parameters))
             for row, (name, parameter) in enumerate(component.parameters.items()):
                 name_item = QTableWidgetItem(("🔗 " if parameter.link else "") + name)
@@ -264,6 +281,12 @@ class ModelPanel(QWidget):
         self.enabledRequested.emit(
             str(item.data(Qt.ItemDataRole.UserRole)), item.checkState() == Qt.CheckState.Checked
         )
+
+    def _background_toggled(self, marked: bool) -> None:
+        if self._updating:
+            return
+        if component_id := self.selected_component_id():
+            self.backgroundRequested.emit(component_id, marked)
 
     def _parameter_changed(self, item: QTableWidgetItem) -> None:
         if self._updating:
@@ -393,7 +416,8 @@ class FunctionBuilderPanel(QWidget):
         self.identifier = QLineEdit()
         self.display_name = QLineEdit()
         self.kind = QComboBox()
-        self.kind.addItems(["peak", "background", "generic"])
+        self.kind.addItem(self.tr("Peak-shaped function (graphical peak placement)"), "peak")
+        self.kind.addItem(self.tr("General function"), "generic")
         self.formula = QPlainTextEdit("area * exp(-0.5*((x-center)/sigma)**2) / (sigma*sqrt(2*pi))")
         self.formula.setMaximumHeight(95)
         self.parameters = QLabel()
@@ -406,7 +430,7 @@ class FunctionBuilderPanel(QWidget):
         add.clicked.connect(self._add)
         layout.addRow(self.tr("Identifier"), self.identifier)
         layout.addRow(self.tr("Display name"), self.display_name)
-        layout.addRow(self.tr("Classification"), self.kind)
+        layout.addRow(self.tr("Graphical behaviour"), self.kind)
         layout.addRow(self.tr("Formula in x"), self.formula)
         layout.addRow(self.tr("Detected parameters"), self.parameters)
         layout.addRow(self.tr("Derived area formula (optional)"), self.derived_area)
@@ -447,7 +471,7 @@ class FunctionBuilderPanel(QWidget):
                 identifier,
                 self.display_name.text().strip() or identifier,
                 self.formula.toPlainText(),
-                kind=self.kind.currentText(),
+                kind=str(self.kind.currentData()),
                 derived_formulas=derived,
             )
             self.registry.register(definition, replace=True)
