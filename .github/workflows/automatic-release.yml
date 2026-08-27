@@ -28,8 +28,10 @@ permissions:
   contents: write
   actions: write
 
+# Documentation also writes generated files to main. Use the same cross-workflow
+# concurrency group so release metadata and manual rebuilds can never push at once.
 concurrency:
-  group: automatic-release
+  group: curvemole-main-write-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
