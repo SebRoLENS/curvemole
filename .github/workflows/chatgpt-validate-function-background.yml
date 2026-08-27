@@ -21,22 +21,32 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Align patcher with current spline interaction text
+      - name: Align current source with reviewed patch context
         run: |
           python - <<'PY'
           from pathlib import Path
-          path = Path('.chatgpt/apply_function_background_patch.py')
-          text = path.read_text(encoding='utf-8')
-          text = text.replace(
-              '''                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n                "and a left double-click accepts the spline. The curve updates live. "\n''',
-              '''                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n                "and a left double-click accepts the spline. Masked regions are allowed and the curve updates live. "\n''',
+
+          plot = Path('src/curvemole/gui/plot.py')
+          text = plot.read_text(encoding='utf-8')
+          old = (
+              '                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n'
+              '                "and a left double-click accepts the spline. Masked regions are allowed and the curve updates live. "\n'
           )
+          normalized = (
+              '                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n'
+              '                "and a left double-click accepts the spline. The curve updates live. "\n'
+          )
+          if old not in text:
+              raise SystemExit('Current spline instruction text not found')
+          plot.write_text(text.replace(old, normalized, 1), encoding='utf-8')
+
+          patcher = Path('.chatgpt/apply_function_background_patch.py')
+          patch_text = patcher.read_text(encoding='utf-8')
           marker = '# Manual: explain component-level background semantics and spline navigation.\n'
-          extra = '''replace_once(\n    "src/curvemole/gui/plot.py",\n    ''' + repr('''    def _update_interaction_state(self) -> None:\n        interactive = self._placement_mode is not None\n        enabled = not interactive and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n''') + ''',\n    ''' + repr('''    def _update_interaction_state(self) -> None:\n        spline_navigation = self._placement_mode == "spline"\n        interactive = self._placement_mode is not None\n        enabled = (spline_navigation or not interactive) and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n''') + ''',\n)\n\n'''
-          if marker not in text:
+          extra = '''replace_once(\n    "src/curvemole/gui/plot.py",\n    """    def _update_interaction_state(self) -> None:\n        interactive = self._placement_mode is not None\n        enabled = not interactive and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n""",\n    """    def _update_interaction_state(self) -> None:\n        spline_navigation = self._placement_mode == \"spline\"\n        interactive = self._placement_mode is not None\n        enabled = (spline_navigation or not interactive) and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n""",\n)\n\n'''
+          if marker not in patch_text:
               raise SystemExit('Could not locate manual marker in patcher')
-          text = text.replace(marker, extra + marker, 1)
-          path.write_text(text, encoding='utf-8')
+          patcher.write_text(patch_text.replace(marker, extra + marker, 1), encoding='utf-8')
           PY
 
       - name: Apply reviewed patch
