@@ -21,8 +21,10 @@ on:
 permissions:
   contents: write
 
+# Documentation and release jobs can both write generated files to main. Keep them
+# in one cross-workflow queue so a manual rebuild cannot race a release metadata push.
 concurrency:
-  group: documentation-${{ github.ref }}
+  group: curvemole-main-write-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -70,6 +72,13 @@ jobs:
         env:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          # A queued documentation job may resume after another serialized writer
+          # has advanced main. Never push generated files from that stale checkout.
+          git fetch origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "main advanced while documentation was building; skipping stale generated commit."
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add docs/CurveMole_User_Manual.tex docs/CurveMole_User_Manual.pdf
