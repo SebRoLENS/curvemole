@@ -476,13 +476,13 @@ class MainWindow(QMainWindow):
         self.new_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileIcon), self.tr("New project"), self)
         self.new_action.setShortcut(QKeySequence.StandardKey.New)
         self.new_action.triggered.connect(self.new_project)
-        self.open_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), self.tr("Open project…"), self)
+        self.open_action = QAction(_resource_icon("open-project.svg"), self.tr("Open project…"), self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(lambda checked=False: self.open_project())
         self.import_action = QAction(self.tr("Import data…"), self)
         self.import_action.setShortcut("Ctrl+I")
         self.import_action.triggered.connect(lambda checked=False: self.import_data())
-        self.save_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), self.tr("Save project"), self)
+        self.save_action = QAction(_resource_icon("save-project.svg"), self.tr("Save project"), self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.triggered.connect(self.save_project)
         self.save_as_action = QAction(self.tr("Save project as…"), self)
@@ -544,7 +544,8 @@ class MainWindow(QMainWindow):
         self.subtract_background_action.triggered.connect(self.subtract_background)
 
         self.fit_action = QAction(self.tr("Fit…"), self)
-        self.fit_action.setIcon(_resource_icon("fit.png", crop=(290, 120, 525, 525)))
+        # Keep the play symbol at the same visual scale as the other quick actions.
+        self.fit_action.setIcon(_resource_icon("fit.png"))
         self.fit_action.setToolTip(self.tr("Fit…"))
         self.fit_action.setShortcut("F5")
         self.fit_action.triggered.connect(self.start_fit)
@@ -708,6 +709,8 @@ class MainWindow(QMainWindow):
             ]
         )
         for action in (
+            self.open_action,
+            self.save_action,
             self.calculator_action,
             self.subtract_background_action,
             self.add_component_action,

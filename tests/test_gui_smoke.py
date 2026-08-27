@@ -41,6 +41,8 @@ def test_quick_toolbar_actions_use_bundled_icons_and_text_tooltips() -> None:
     window = MainWindow()
 
     expected = {
+        window.open_action: "Open project",
+        window.save_action: "Save project",
         window.calculator_action: "Data Calculator",
         window.subtract_background_action: "Subtract background",
         window.add_component_action: "Add component",
