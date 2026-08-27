@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog
 
 from curvemole import Component, Curve, Project
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
+from curvemole.gui.app import _missing_toolbar_icons
 from curvemole.gui.dialogs import (
     CopyFitDialog,
     FitPlanDialog,
@@ -53,6 +54,7 @@ def test_quick_toolbar_actions_use_bundled_icons_and_text_tooltips() -> None:
     for action, label in expected.items():
         assert not action.icon().isNull()
         assert label in action.toolTip()
+    assert _missing_toolbar_icons(window) == []
 
     window.close()
     app.processEvents()

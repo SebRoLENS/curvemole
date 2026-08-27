@@ -12,13 +12,9 @@ icon = Path(os.environ.get(
     root / "src" / "curvemole" / "resources" / "curvemole.png",
 ))
 datas = [
-    (str(root / "src" / "curvemole" / "resources" / "curvemole.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "add-peak.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "calculator.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "fit.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "quick-add-peak.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "quick-fit.png"), "curvemole/resources"),
-    (str(root / "src" / "curvemole" / "resources" / "subtract-background.png"), "curvemole/resources"),
+    # Bundle the directory rather than an icon allow-list so future resources
+    # are automatically present in every frozen desktop application.
+    (str(root / "src" / "curvemole" / "resources"), "curvemole/resources"),
     (str(root / "docs"), "curvemole/resources/docs"),
 ]
 
