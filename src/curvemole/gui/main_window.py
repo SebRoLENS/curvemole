@@ -24,6 +24,7 @@ from PySide6.QtGui import (
     QIcon,
     QKeySequence,
     QPalette,
+    QPixmap,
     QUndoCommand,
     QUndoStack,
 )
@@ -107,9 +108,12 @@ from curvemole.version import __version__
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
 
 
-def _resource_icon(filename: str) -> QIcon:
+def _resource_icon(filename: str, crop: tuple[int, int, int, int] | None = None) -> QIcon:
     """Return an icon bundled with CurveMole."""
-    return QIcon(str(resources.files("curvemole.resources").joinpath(filename)))
+    pixmap = QPixmap(str(resources.files("curvemole.resources").joinpath(filename)))
+    if crop is not None:
+        pixmap = pixmap.copy(*crop)
+    return QIcon(pixmap)
 
 
 class Worker(QObject):
@@ -540,7 +544,7 @@ class MainWindow(QMainWindow):
         self.subtract_background_action.triggered.connect(self.subtract_background)
 
         self.fit_action = QAction(self.tr("Fit…"), self)
-        self.fit_action.setIcon(_resource_icon("fit.png"))
+        self.fit_action.setIcon(_resource_icon("fit.png", crop=(290, 120, 525, 525)))
         self.fit_action.setToolTip(self.tr("Fit…"))
         self.fit_action.setShortcut("F5")
         self.fit_action.triggered.connect(self.start_fit)
@@ -684,7 +688,7 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar(self.tr("Main toolbar"), self)
         toolbar.setObjectName("Main_toolbar")
         toolbar.setMovable(True)
-        toolbar.setIconSize(QSize(32, 32))
+        toolbar.setIconSize(QSize(40, 40))
         self.addToolBar(toolbar)
         toolbar.addActions(
             [
