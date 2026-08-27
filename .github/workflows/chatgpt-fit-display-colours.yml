@@ -5,6 +5,7 @@ on:
     branches: [chatgpt/fit-display-and-colours-20260827]
     paths:
       - ".chatgpt/apply_fit_display_colours_patch.py"
+      - ".chatgpt/fix_fit_display_colours_followup.py"
       - ".github/workflows/chatgpt-fit-display-colours.yml"
 
 permissions:
@@ -37,7 +38,9 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Apply patch
-        run: uv run python .chatgpt/apply_fit_display_colours_patch.py
+        run: |
+          uv run python .chatgpt/apply_fit_display_colours_patch.py
+          uv run python .chatgpt/fix_fit_display_colours_followup.py
 
       - name: Rebuild manual
         run: python scripts/build_manual.py
