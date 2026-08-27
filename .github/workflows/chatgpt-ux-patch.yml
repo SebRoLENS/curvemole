@@ -46,6 +46,7 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
         run: |
+          uv run ruff check . --fix
           uv run ruff check .
           uv run pytest
 
