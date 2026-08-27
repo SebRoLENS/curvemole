@@ -30,12 +30,14 @@ from PySide6.QtGui import (
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
+    QColorDialog,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
@@ -73,6 +75,11 @@ from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
 from curvemole.core.uncertainty import UncertaintyAnalyzer
+from curvemole.gui.colours import (
+    DEFAULT_SERIES_PALETTE,
+    SERIES_PALETTES,
+    spectrum_colour_allowed,
+)
 from curvemole.gui.dialogs import (
     AboutDialog,
     AddComponentDialog,
@@ -96,7 +103,7 @@ from curvemole.gui.panels import (
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.version import __version__
 
-PALETTE = ["#0072B2", "#D55E00", "#009E73", "#CC79A7", "#E69F00", "#56B4E9", "#F0E442"]
+PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
 
 
 class Worker(QObject):
@@ -139,6 +146,8 @@ class CurveTree(QTreeWidget):
     activeCurveChanged = Signal(object)
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
+    curveColourRequested = Signal(str)
+    seriesPaletteRequested = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -147,6 +156,8 @@ class CurveTree(QTreeWidget):
         self.setSelectionMode(self.SelectionMode.ExtendedSelection)
         self.setAlternatingRowColors(True)
         self._updating = False
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
 
@@ -206,6 +217,33 @@ class CurveTree(QTreeWidget):
 
     def deselect_all_curves(self) -> None:
         self.clearSelection()
+
+    def _show_context_menu(self, position: Any) -> None:
+        item = self.itemAt(position)
+        if item is None:
+            return
+        metadata = item.data(1, Qt.ItemDataRole.UserRole)
+        if not metadata:
+            return
+        menu = QMenu(self)
+        if metadata[0] == "curve":
+            curve_id = str(metadata[1])
+            colour_action = menu.addAction(self.tr("Choose spectrum colour…"))
+            colour_action.triggered.connect(
+                lambda checked=False, curve_id=curve_id: self.curveColourRequested.emit(curve_id)
+            )
+        elif metadata[0] == "series":
+            series_id = str(metadata[1])
+            palette_menu = menu.addMenu(self.tr("Series palette"))
+            for palette_name in SERIES_PALETTES:
+                action = palette_menu.addAction(palette_name)
+                action.triggered.connect(
+                    lambda checked=False, series_id=series_id, palette_name=palette_name: (
+                        self.seriesPaletteRequested.emit(series_id, palette_name)
+                    )
+                )
+        if not menu.isEmpty():
+            menu.exec(self.viewport().mapToGlobal(position))
 
     def _active_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
         if self._updating or current is None:
@@ -278,6 +316,7 @@ class MainWindow(QMainWindow):
         self.autosave_timer.start()
         self._load_custom_functions()
         self._normalise_component_names()
+        self._normalise_spectrum_colours()
         self._restore_layout()
         self.refresh_all()
         self.update_check_timer = QTimer(self)
@@ -584,6 +623,8 @@ class MainWindow(QMainWindow):
         self.curve_tree.itemSelectionChanged.connect(self._selection_changed)
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
         self.curve_tree.curveRenamed.connect(self._rename_curve)
+        self.curve_tree.curveColourRequested.connect(self.choose_curve_colour)
+        self.curve_tree.seriesPaletteRequested.connect(self.apply_series_palette)
         self.model_panel.componentSelected.connect(self._set_component)
         self.model_panel.addRequested.connect(self.add_component)
         self.model_panel.duplicateRequested.connect(self.duplicate_component)
@@ -666,6 +707,7 @@ class MainWindow(QMainWindow):
             self.undo_stack.clear()
             self._load_custom_functions()
             self._normalise_component_names()
+            self._normalise_spectrum_colours()
             self.refresh_all()
             self._notify(self.tr("Project opened."))
         except Exception as exc:
@@ -684,6 +726,7 @@ class MainWindow(QMainWindow):
         if not paths:
             return
         series = Series(self.tr("Imported series"))
+        series.metadata["palette"] = DEFAULT_SERIES_PALETTE
         shared_mapping = None
         shared_config = None
         apply_all = False
@@ -969,6 +1012,19 @@ class MainWindow(QMainWindow):
                 number = max(numbers, default=0) + 1
                 numbers.add(number)
                 component.name = f"{self._component_base_name(component)}{number}"
+
+    def _normalise_spectrum_colours(self) -> None:
+        changed = False
+        fallback = SERIES_PALETTES[DEFAULT_SERIES_PALETTE]
+        for series in self.project.dataset.series:
+            palette = SERIES_PALETTES.get(str(series.metadata.get("palette", "")), fallback)
+            for index, curve in enumerate(series.curves):
+                if spectrum_colour_allowed(curve.colour):
+                    continue
+                curve.colour = palette[index % len(palette)]
+                changed = True
+        if changed and not self.project.read_only:
+            self.project.touch()
 
     def _commit_component(self, component: Component, curve_id: str) -> None:
         model = self.project.model_for(curve_id)
@@ -1337,7 +1393,38 @@ class MainWindow(QMainWindow):
             self.tr("Fitting…"),
         )
 
+    def _apply_fit_result_to_project(self, result: FitResult) -> None:
+        # Fitting runs in a worker thread. Commit the returned estimates explicitly
+        # to the GUI-side project so the redraw never depends on worker-side mutation.
+        if result.success:
+            fitted_curve_ids = set(result.curve_outputs) or {
+                path.split(".", 1)[0] for path in result.parameters
+            }
+        elif result.paused_curve_id:
+            fitted_curve_ids = set(result.curve_outputs)
+        else:
+            fitted_curve_ids = set()
+        if not fitted_curve_ids:
+            return
+
+        parameter_map = self.project.parameter_map()
+        for path, estimate in result.parameters.items():
+            curve_id = path.split(".", 1)[0]
+            if curve_id not in fitted_curve_ids or path not in parameter_map:
+                continue
+            parameter = parameter_map[path]
+            parameter.value = float(estimate.value)
+            parameter.standard_error = estimate.standard_error
+            parameter.ci_low = estimate.ci_low
+            parameter.ci_high = estimate.ci_high
+        for curve_id in fitted_curve_ids:
+            try:
+                self.project.dataset.curve(curve_id).state = CurveState.FITTED
+            except KeyError:
+                continue
+
     def _fit_finished(self, result: FitResult) -> None:
+        self._apply_fit_result_to_project(result)
         self.project.results["last_attempt"] = result
         if result.success:
             self.project.results["last_fit"] = result
@@ -1986,6 +2073,76 @@ class MainWindow(QMainWindow):
             self.tr("Remove curve") if count == 1 else self.tr("Remove curves"),
             redo,
             undo,
+        )
+
+    def _set_curve_colour(self, curve_id: str, colour: str) -> None:
+        curve = self.project.dataset.curve(curve_id)
+        curve.colour = colour.upper()
+        self.project.touch()
+        self.refresh_all()
+
+    def choose_curve_colour(self, curve_id: str) -> None:
+        if not self._ensure_editable():
+            return
+        curve = self.project.dataset.curve(curve_id)
+        while True:
+            selected = QColorDialog.getColor(
+                QColor(curve.colour),
+                self,
+                self.tr("Choose spectrum colour"),
+            )
+            if not selected.isValid():
+                return
+            colour = selected.name(QColor.NameFormat.HexRgb).upper()
+            if spectrum_colour_allowed(colour):
+                break
+            QMessageBox.warning(
+                self,
+                self.tr("Reserved colour"),
+                self.tr(
+                    "Red is reserved for the Model sum so spectra and fitted-model curves can never use the same colour. Choose another spectrum colour."
+                ),
+            )
+        old = curve.colour.upper()
+        if colour == old:
+            return
+        self.undo_stack.push(
+            CallbackCommand(
+                self.tr("Change spectrum colour"),
+                lambda: self._set_curve_colour(curve_id, colour),
+                lambda: self._set_curve_colour(curve_id, old),
+            )
+        )
+
+    def apply_series_palette(self, series_id: str, palette_name: str) -> None:
+        if not self._ensure_editable():
+            return
+        palette = SERIES_PALETTES.get(palette_name)
+        if not palette:
+            return
+        series = next((item for item in self.project.dataset.series if item.id == series_id), None)
+        if series is None:
+            return
+        before_colours = [curve.colour for curve in series.curves]
+        before_palette = series.metadata.get("palette")
+        after_colours = [palette[index % len(palette)] for index in range(len(series.curves))]
+
+        def restore(colours: list[str], marker: Any) -> None:
+            for curve, colour in zip(series.curves, colours, strict=True):
+                curve.colour = colour.upper()
+            if marker is None:
+                series.metadata.pop("palette", None)
+            else:
+                series.metadata["palette"] = marker
+            self.project.touch()
+            self.refresh_all()
+
+        self.undo_stack.push(
+            CallbackCommand(
+                self.tr("Change series palette"),
+                lambda: restore(after_colours, palette_name),
+                lambda: restore(before_colours, before_palette),
+            )
         )
 
     def _set_visibility(self, curve_id: str, visible: bool) -> None:

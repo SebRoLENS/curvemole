@@ -763,10 +763,12 @@ The example does not normally require masking.
   Press \textbf{OK}.
 \end{enumerate}
 
-After a successful fit, the model line and residual panel update.
-Parameter standard errors appear in the \texttt{±1\ sigma} column when
-covariance is available. Open \textbf{View \textgreater{} Diagnostics}
-to inspect residual warnings.
+After a successful fit, CurveMole commits the optimized parameter values
+back into the displayed model and immediately redraws the model sum,
+individual components, and residual panel. Parameter standard errors
+appear in the \texttt{±1\ sigma} column when covariance is available.
+Open \textbf{View \textgreater{} Diagnostics} to inspect residual
+warnings.
 
 \hypertarget{save-and-export}{%
 \section{4.7 Save and export}\label{save-and-export}}
@@ -806,6 +808,14 @@ The left dock contains a search field and a tree with \textbf{Visible},
   Waterfall displays.
 \item
   Double-click an editable name to rename a series or curve.
+\item
+  Right-click a \textbf{curve} and choose \textbf{Choose spectrum
+  colour\ldots{}} to set its colour. Red is reserved for the fitted
+  Model sum and cannot be assigned to a spectrum.
+\item
+  Right-click a \textbf{series} and choose \textbf{Series palette} to
+  recolour the complete series with one of the built-in non-red
+  palettes. Palette and individual colours are saved in the project.
 \item
   Use the search field to filter curves by name without removing them.
 \end{itemize}
@@ -865,8 +875,11 @@ Model functions receive systematic names such as \textbf{Voigt1},
 each function maximum by default and are shifted vertically when
 necessary to avoid overlap. Right-click the main plot and toggle
 \textbf{Show component labels} to hide or show these labels. After every
-completed fit, CurveMole redraws and auto-ranges the plot so the newly
-fitted model is visible immediately.
+completed fit, CurveMole explicitly applies the returned optimized
+parameters to the displayed model, redraws and auto-ranges the plot so
+the newly fitted curves are visible immediately. The \textbf{Model sum
+is always red}; imported spectra and selectable series palettes exclude
+red so a data curve can never be confused with the fitted sum.
 
 \hypertarget{navigation-and-axes}{%
 \section{5.3 Navigation and axes}\label{navigation-and-axes}}
