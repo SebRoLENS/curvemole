@@ -1,0 +1,51 @@
+name: Apply reviewed CurveMole patch
+
+on:
+  push:
+    branches: ["chatgpt/apply-curvemole-fixes-20260827"]
+    paths:
+      - ".chatgpt/**"
+      - ".github/workflows/chatgpt-apply-reviewed-patch.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/apply-curvemole-fixes-20260827
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Apply reviewed patch
+        run: |
+          cat .chatgpt/patch.part.* | base64 -d > .chatgpt/curvemole-local-fixes.patch
+          python .chatgpt/apply_local_review.py . --diff .chatgpt/curvemole-local-fixes.patch
+
+      - name: Install development environment
+        run: uv sync --locked --group dev
+
+      - name: Lint and test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          uv run ruff check .
+          uv run pytest
+
+      - name: Commit reviewed changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r .chatgpt
+          git rm .github/workflows/chatgpt-apply-reviewed-patch.yml
+          git add src/curvemole/gui/main_window.py src/curvemole/gui/plot.py tests/test_gui_smoke.py
+          git commit -m "Fix GUI actions and add quick tools and update checks [skip release]"
+          git push origin HEAD:chatgpt/apply-curvemole-fixes-20260827
