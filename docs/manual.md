@@ -374,6 +374,7 @@ and **State** columns.
 
 - Click a curve to activate it.
 - Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
+- Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays.
 - Double-click an editable name to rename a series or curve.
@@ -409,6 +410,13 @@ not screen offsets.
 The coordinate readout displays the pointer coordinate and the nearest finite point
 from the active curve. Rendering may be downsampled by the plotting library for
 speed, but fitting and export use all usable points.
+
+Model functions receive systematic names such as **Voigt1**, **Voigt2**, and
+**Gaussian1**. Their labels are shown above each function maximum by default and are
+shifted vertically when necessary to avoid overlap. Right-click the main plot and
+toggle **Show component labels** to hide or show these labels. After every completed
+fit, CurveMole redraws and auto-ranges the plot so the newly fitted model is visible
+immediately.
 
 ### 5.3 Navigation and axes
 

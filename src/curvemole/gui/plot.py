@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QPointF, Qt, Signal
-from PySide6.QtGui import QColor, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -123,6 +123,10 @@ class PlotWorkspace(QWidget):
         self._selected_component_id: str | None = None
         self._data_items: dict[str, pg.PlotDataItem] = {}
         self._component_items: dict[str, pg.PlotDataItem] = {}
+        self._component_labels: list[pg.TextItem] = []
+        self._component_label_specs: list[tuple[pg.TextItem, float, float]] = []
+        self._show_component_labels = True
+        self._laying_out_labels = False
         self._handles: list[Any] = []
         self._updating_handles = False
         self._view_locked = False
@@ -202,6 +206,13 @@ class PlotWorkspace(QWidget):
         self.view_box = MaskViewBox()
         self.plot = self.graphics.addPlot(row=0, col=0, viewBox=self.view_box)
         self.plot.showGrid(x=True, y=True, alpha=0.15)
+        view_menu = self.view_box.getMenu(None)
+        view_menu.addSeparator()
+        self.component_labels_action = QAction(self.tr("Show component labels"), self)
+        self.component_labels_action.setCheckable(True)
+        self.component_labels_action.setChecked(True)
+        self.component_labels_action.toggled.connect(self.set_component_labels_visible)
+        view_menu.addAction(self.component_labels_action)
         self.residual_plot = self.graphics.addPlot(row=1, col=0)
         self.residual_plot.setXLink(self.plot)
         self.residual_plot.setMaximumHeight(190)
@@ -215,6 +226,7 @@ class PlotWorkspace(QWidget):
         self.view_box.splinePointRequested.connect(self._add_spline_point)
         self.view_box.splinePointRemoveRequested.connect(self._remove_spline_point)
         self.view_box.placementFinishRequested.connect(self.finish_placement)
+        self.view_box.sigRangeChanged.connect(self._layout_component_labels)
         self.residual_toggle.toggled.connect(self.residual_plot.setVisible)
         self._mouse_proxy = pg.SignalProxy(
             self.graphics.scene().sigMouseMoved,
@@ -242,6 +254,8 @@ class PlotWorkspace(QWidget):
         self.residual_plot.clear()
         self._data_items.clear()
         self._component_items.clear()
+        self._component_labels.clear()
+        self._component_label_specs.clear()
         self._handles.clear()
         self._placement_items.clear()
         project = self._project
@@ -321,6 +335,8 @@ class PlotWorkspace(QWidget):
                         )
                     )
                     self._component_items[component.id] = component_item
+                    if self._show_component_labels:
+                        self._add_component_label(component.name, x, component_y)
                 if curve.id == self._active_curve_id and self._selected_component_id:
                     self._add_component_handles(curve, model, index * x_step, index * y_step)
         if curves:
@@ -328,8 +344,66 @@ class PlotWorkspace(QWidget):
             self.plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
             self.plot.setLabel("left", first.y_label, units=first.y_unit or None)
             self.residual_plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
+        self._layout_component_labels()
         self._render_placement_preview()
         self.plot.setTitle("")
+
+    def set_component_labels_visible(self, visible: bool) -> None:
+        self._show_component_labels = bool(visible)
+        if self.component_labels_action.isChecked() != self._show_component_labels:
+            self.component_labels_action.blockSignals(True)
+            self.component_labels_action.setChecked(self._show_component_labels)
+            self.component_labels_action.blockSignals(False)
+        self.refresh()
+
+    def _add_component_label(self, name: str, x: np.ndarray, y: np.ndarray) -> None:
+        finite = np.isfinite(x) & np.isfinite(y)
+        if not np.any(finite):
+            return
+        finite_indices = np.flatnonzero(finite)
+        values = y[finite]
+        maximum = float(np.nanmax(values))
+        tolerance = max(abs(maximum) * 1e-10, np.finfo(float).eps)
+        maxima = finite_indices[np.isclose(values, maximum, rtol=1e-10, atol=tolerance)]
+        index = int(maxima[len(maxima) // 2]) if len(maxima) else int(finite_indices[np.nanargmax(values)])
+        x_position = float(x[index])
+        y_position = float(y[index])
+        label = pg.TextItem(
+            text=name,
+            color="#202020",
+            anchor=(0.5, 1.0),
+            border=pg.mkPen(100, 100, 100, 150),
+            fill=pg.mkBrush(255, 255, 255, 220),
+        )
+        label.setZValue(70)
+        self.plot.addItem(label)
+        label.setPos(x_position, y_position)
+        self._component_labels.append(label)
+        self._component_label_specs.append((label, x_position, y_position))
+
+    def _layout_component_labels(self, *_: Any) -> None:
+        if self._laying_out_labels or not self._component_label_specs:
+            return
+        self._laying_out_labels = True
+        try:
+            _, y_per_pixel = self.view_box.viewPixelSize()
+            step_scale = abs(float(y_per_pixel)) if math.isfinite(float(y_per_pixel)) else 0.0
+            if step_scale == 0.0:
+                return
+            direction = -1.0 if bool(self.view_box.state.get("yInverted", False)) else 1.0
+            placed: list[Any] = []
+            for label, base_x, base_y in sorted(self._component_label_specs, key=lambda item: item[1]):
+                y_position = base_y
+                label.setPos(base_x, y_position)
+                for _ in range(len(self._component_label_specs) + 3):
+                    rect = label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0)
+                    if not any(rect.intersects(previous) for previous in placed):
+                        break
+                    y_position += direction * max(16.0, rect.height() + 4.0) * step_scale
+                    label.setPos(base_x, y_position)
+                placed.append(label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0))
+        finally:
+            self._laying_out_labels = False
 
     def _add_component_handles(
         self, curve: Any, model: Any, x_offset: float, y_offset: float

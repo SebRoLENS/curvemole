@@ -164,8 +164,7 @@ class ModelPanel(QWidget):
             self.title.setText(f"<b>{curve.name}</b><br>{model.name}")
             selected_row = 0
             for row, component in enumerate(model.components):
-                definition = self.registry.get(component.function_id)
-                label = f"{component.name}  ·  {definition.display_name}"
+                label = component.name
                 if component.is_background:
                     label += self.tr("  ·  Background")
                 item = QListWidgetItem(label)
