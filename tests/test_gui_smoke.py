@@ -360,7 +360,9 @@ def test_update_check_accepts_qnetworkreply_error_enum() -> None:
     window.close()
     app.processEvents()
 
-def test_spline_bulk_lock_controls_and_background_subtraction() -> None:
+def test_spline_bulk_lock_controls_and_background_subtraction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("Background")
     curve = Curve(
@@ -386,12 +388,41 @@ def test_spline_bulk_lock_controls_and_background_subtraction() -> None:
     window.model_panel.lock_all_parameters_button.click()
     assert all(parameter.fixed for parameter in spline.parameters.values())
 
+    class FakeBackgroundDialog:
+        class DialogCode:
+            Accepted = 1
+
+        def __init__(self, *args: object, **kwargs: object) -> None:
+            pass
+
+        def exec(self) -> int:
+            return self.DialogCode.Accepted
+
+        def selected_component_ids(self) -> list[str]:
+            return [spline.id]
+
+    monkeypatch.setattr(
+        "curvemole.gui.main_window.BackgroundComponentsDialog",
+        FakeBackgroundDialog,
+    )
+
     mask_before = curve.effective_mask.copy()
-    window._pending_background_subtraction_curve_id = curve.id
-    window._graphical_spline_placed([(0.0, 2.0), (4.0, 2.0)])
+    window.subtract_background()
     assert curve.y.tolist() == pytest.approx([0.0, 1.0, 3.0, 1.0, 0.0])
     assert curve.effective_mask.tolist() == mask_before.tolist()
     assert curve.transformations[-1].operation == "background_subtract"
+    assert spline.is_background is True
+    assert spline.enabled is False
+
+    window.undo_stack.undo()
+    assert curve.y.tolist() == pytest.approx([2.0, 3.0, 5.0, 3.0, 2.0])
+    assert spline.is_background is False
+    assert spline.enabled is True
+
+    window.undo_stack.redo()
+    assert curve.y.tolist() == pytest.approx([0.0, 1.0, 3.0, 1.0, 0.0])
+    assert spline.is_background is True
+    assert spline.enabled is False
 
     project.dirty = False
     window.close()
