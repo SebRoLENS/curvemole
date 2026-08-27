@@ -131,6 +131,9 @@ def render_screenshots() -> None:
     window.resize(1440, 900)
     window.selected_component_id = selected_peak_id
     window.refresh_all()
+    window.plot_workspace.plot.getAxis("bottom").enableAutoSIPrefix(False)
+    window.plot_workspace.residual_plot.getAxis("bottom").enableAutoSIPrefix(False)
+    window.plot_workspace.residual_plot.getAxis("left").enableAutoSIPrefix(False)
     window.show()
     window.statusBar().showMessage("Fit completed · Gaussian + Lorentzian peaks with linear background")
     _settle(app)
