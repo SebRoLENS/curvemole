@@ -1,0 +1,51 @@
+name: Validate function/background/spline UX patch
+
+on:
+  push:
+    branches:
+      - chatgpt/function-background-spline-ux-20260827
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/function-background-spline-ux-20260827
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+
+      - name: Apply reviewed patch
+        run: python .chatgpt/apply_function_background_patch.py
+
+      - name: Install development environment
+        run: uv sync --locked --group dev
+
+      - name: Ruff
+        run: uv run ruff check .
+
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run pytest
+
+      - name: Remove temporary patch helpers
+        run: |
+          rm -f .chatgpt/apply_function_background_patch.py
+          rm -f .github/workflows/chatgpt-validate-function-background.yml
+          rmdir .chatgpt 2>/dev/null || true
+
+      - name: Commit validated feature patch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Unify fitting functions and improve background/spline UX [skip release]'
+          git push origin HEAD:chatgpt/function-background-spline-ux-20260827
