@@ -62,7 +62,8 @@ def test_generated_manual_editions_are_present_and_versioned() -> None:
     pdf = GENERATED_PDF.read_bytes()
     assert pdf.startswith(b"%PDF-")
     assert GENERATED_PDF.stat().st_size >= 200_000
-    document_id = hashlib.sha256(GENERATED_TEX.read_bytes()).hexdigest()[:32].encode()
+    canonical_tex = GENERATED_TEX.read_text(encoding="utf-8").encode("utf-8")
+    document_id = hashlib.sha256(canonical_tex).hexdigest()[:32].encode()
     assert re.search(rb"/ID\[<([^>]+)><([^>]+)>\]", pdf).groups() == (
         document_id,
         document_id,

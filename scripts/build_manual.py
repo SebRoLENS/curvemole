@@ -187,6 +187,8 @@ def build(source: Path, tex_output: Path, pdf_output: Path) -> None:
             ],
             cwd=ROOT,
         )
+        tex_text = tex_output.read_text(encoding="utf-8")
+        tex_output.write_text(tex_text, encoding="utf-8", newline="\n")
 
         build_directory = temporary_root / "latex-build"
         build_directory.mkdir()
