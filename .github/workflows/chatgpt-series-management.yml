@@ -5,6 +5,7 @@ on:
     branches: [chatgpt/series-management-20260827]
     paths:
       - ".chatgpt/apply_series_management_patch.py"
+      - ".chatgpt/fix_series_identity.py"
       - ".github/workflows/chatgpt-series-management.yml"
 
 permissions:
@@ -37,7 +38,9 @@ jobs:
         run: uv sync --locked --group dev
 
       - name: Apply patch
-        run: uv run python .chatgpt/apply_series_management_patch.py
+        run: |
+          uv run python .chatgpt/apply_series_management_patch.py
+          uv run python .chatgpt/fix_series_identity.py
 
       - name: Rebuild manual
         run: python scripts/build_manual.py
