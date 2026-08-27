@@ -1,0 +1,61 @@
+name: ChatGPT fit display and colours patch
+
+on:
+  push:
+    branches: [chatgpt/fit-display-and-colours-20260827]
+    paths:
+      - ".chatgpt/apply_fit_display_colours_patch.py"
+      - ".github/workflows/chatgpt-fit-display-colours.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: ${{ !contains(github.event.head_commit.message, '[patched]') }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/fit-display-and-colours-20260827
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-dejavu-core latexmk \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Apply patch
+        run: uv run python .chatgpt/apply_fit_display_colours_patch.py
+
+      - name: Rebuild manual
+        run: python scripts/build_manual.py
+
+      - name: Validate
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          uv run ruff check .
+          uv run pytest -q
+
+      - name: Commit validated patch and remove helpers
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -rf .chatgpt
+          rm -f .github/workflows/chatgpt-fit-display-colours.yml
+          git add -A
+          git commit -m "Fix fitted redraw and add spectrum colours [patched] [skip release]"
+          git push origin HEAD:chatgpt/fit-display-and-colours-20260827
