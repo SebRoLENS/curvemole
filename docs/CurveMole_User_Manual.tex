@@ -793,7 +793,8 @@ The left dock contains a search field and a tree with \textbf{Visible},
 \item
   Click a curve to activate it.
 \item
-  Use Ctrl-click or Shift-click for a multi-selection.
+  Use Ctrl-click or Shift-click for a multi-selection, or use
+  \textbf{Select all} and \textbf{Deselect all} above the tree.
 \item
   Use the visibility checkbox to include or exclude it from Overlay and
   Waterfall displays.
@@ -991,8 +992,10 @@ delimiters. Check the preview for locale-specific exports.
 \section{6.3 Column mapping}\label{column-mapping}}
 
 Choose exactly one x column and one or more y columns. Each selected y
-column becomes a separate curve sharing the selected x column. The
-Python API additionally supports explicit x-y column pairs.
+column becomes a separate curve sharing the selected x column. Use
+\textbf{Select all Y columns} or \textbf{Deselect all Y columns} when
+importing tables with many signals. The Python API additionally supports
+explicit x-y column pairs.
 
 Optional columns are:
 
@@ -1454,7 +1457,8 @@ subtraction.
 curves}\label{copying-a-fit-to-other-curves}}
 
 \textbf{Model \textgreater{} Copy fit} copies selected information from
-the active curve. Options include:
+the active curve. Use \textbf{Select all} or \textbf{Deselect all} when
+choosing many target curves. Options include:
 
 \begin{itemize}
 \tightlist
@@ -1490,19 +1494,57 @@ The table columns are:
 
 \begin{longtable}[]{@{}ll@{}}
 \toprule
-Column & Meaning\tabularnewline
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Column\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Meaning\strut
+\end{minipage}\tabularnewline
 \midrule
 \endhead
-Parameter & Parameter name; linked parameters show a link
-indicator\tabularnewline
-Value & Current value or successful fitted value\tabularnewline
-±1 sigma & Covariance-based standard error when available\tabularnewline
-Fixed & Exclude the parameter from optimization\tabularnewline
-Lower & Lower bound; blank means negative infinity\tabularnewline
-Upper & Upper bound; blank means positive infinity\tabularnewline
-Link & Restricted expression controlling this parameter\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Parameter\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Parameter name; linked parameters show a link indicator\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Value\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Current value or successful fitted value\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+±1 sigma\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Covariance-based standard error when available\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Fixed\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Exclude the parameter from optimization\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Lower\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Lower bound; blank means negative infinity\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Upper\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Upper bound; blank means positive infinity\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Link\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Graphical \textbf{Set link\ldots{}} control; linked parameters show
+their source in readable form\strut
+\end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
+
+Press \textbf{Set link\ldots{}} to choose a source spectrum, component,
+and parameter. The default relationship is \textbf{Equal to source}.
+Choose \textbf{Advanced expression} for relationships such as
+\texttt{2\ *\ \$\{source\}\ +\ 1}. Use \textbf{Remove link} to make the
+parameter independent again.
 
 An edit is validated immediately. CurveMole rejects a value outside its
 bounds, a lower bound above an upper bound, an invalid expression, a
@@ -1555,12 +1597,13 @@ or a derived relation:
 ${curve_ab12.component_cd34.center} + 12.5
 \end{verbatim}
 
-Internal curve and component identifiers are preserved in
-\texttt{.fitproj}, YAML-derived objects, Python objects, and
-machine-readable exports. In Preview 0.2.3, the GUI does not yet provide
-a dedicated path picker. Complex cross-curve links are therefore most
-reliably prepared through the Python API or a reproducible workflow and
-then inspected in the GUI.
+The graphical \textbf{Set link\ldots{}} dialog creates these paths
+automatically, so normal GUI use does not require knowing curve or
+component identifiers. The canonical expression is still shown as a
+tooltip and remains available to advanced workflows, Python code, and
+machine-readable exports. For a link between different spectra, select
+both spectra and use \textbf{Global simultaneous} mode; CurveMole blocks
+incompatible fit modes with an explicit message.
 
 \hypertarget{link-evaluation}{%
 \section{9.4 Link evaluation}\label{link-evaluation}}
@@ -1608,7 +1651,8 @@ Before pressing \textbf{F5}:
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  confirm the active and selected curves;
+  confirm the active and selected curves; use \textbf{Select all} /
+  \textbf{Deselect all} when appropriate;
 \item
   inspect invalid and masked points;
 \item

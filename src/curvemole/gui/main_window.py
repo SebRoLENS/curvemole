@@ -27,17 +27,19 @@ from PySide6.QtGui import (
     QUndoCommand,
     QUndoStack,
 )
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
     QFileDialog,
+    QHBoxLayout,
     QInputDialog,
     QLineEdit,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
     QProgressBar,
+    QPushButton,
     QStyle,
     QToolBar,
     QTreeWidget,
@@ -74,6 +76,7 @@ from curvemole.gui.dialogs import (
     ExportBundleDialog,
     FitPlanDialog,
     ImportMappingDialog,
+    ParameterLinkDialog,
     PluginManagerDialog,
 )
 from curvemole.gui.external import open_with_host_application
@@ -185,6 +188,20 @@ class CurveTree(QTreeWidget):
                 )
         return result
 
+    def select_all_curves(self) -> None:
+        self.clearSelection()
+        for top_index in range(self.topLevelItemCount()):
+            parent = self.topLevelItem(top_index)
+            if parent.isHidden():
+                continue
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                if not child.isHidden():
+                    child.setSelected(True)
+
+    def deselect_all_curves(self) -> None:
+        self.clearSelection()
+
     def _active_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
         if self._updating or current is None:
             return
@@ -272,6 +289,15 @@ class MainWindow(QMainWindow):
         self.curve_filter.textChanged.connect(self._filter_curves)
         self.curve_tree = CurveTree()
         left_layout.addWidget(self.curve_filter)
+        selection_row = QHBoxLayout()
+        self.select_all_curves_button = QPushButton(self.tr("Select all"))
+        self.deselect_all_curves_button = QPushButton(self.tr("Deselect all"))
+        self.select_all_curves_button.clicked.connect(self.curve_tree.select_all_curves)
+        self.deselect_all_curves_button.clicked.connect(self.curve_tree.deselect_all_curves)
+        selection_row.addWidget(self.select_all_curves_button)
+        selection_row.addWidget(self.deselect_all_curves_button)
+        selection_row.addStretch(1)
+        left_layout.addLayout(selection_row)
         left_layout.addWidget(self.curve_tree)
         self.series_dock = self._dock(self.tr("Series and curves"), left_container, Qt.DockWidgetArea.LeftDockWidgetArea)
 
@@ -540,6 +566,7 @@ class MainWindow(QMainWindow):
         self.model_panel.moveRequested.connect(self.move_component)
         self.model_panel.enabledRequested.connect(self.enable_component)
         self.model_panel.parameterChangeRequested.connect(self.change_parameter)
+        self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
@@ -929,6 +956,22 @@ class MainWindow(QMainWindow):
             lambda: setattr(parameter, field, value),
             lambda: setattr(parameter, field, old),
         )
+
+    def edit_parameter_link(self, component_id: str, name: str) -> None:
+        if not self.active_curve_id:
+            return
+        parameter = self.project.model_for(self.active_curve_id).component(component_id).parameters[name]
+        dialog = ParameterLinkDialog(
+            self.project,
+            self.active_curve_id,
+            component_id,
+            name,
+            parameter.link,
+            self,
+        )
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        self.change_parameter(component_id, name, "link", dialog.selected_link())
 
     def copy_fit(self) -> None:
         if not self._ensure_editable():
@@ -1478,7 +1521,7 @@ class MainWindow(QMainWindow):
 
     def _update_check_finished(self, reply: Any, force: bool) -> None:
         try:
-            if int(reply.error()) != 0:
+            if reply.error() != QNetworkReply.NetworkError.NoError:
                 message = self.tr("Could not check for CurveMole updates: ") + reply.errorString()
                 self._log(message)
                 if force:
