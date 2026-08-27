@@ -25,11 +25,12 @@ def build_example_project():
     """Create and fit three deterministic Raman-like spectra."""
     from curvemole import Component, Curve, Fitter, Project
     from curvemole.core.data import CurveState
+    from curvemole.gui.colours import DEFAULT_SERIES_PALETTE, SERIES_PALETTES
 
     project = Project("Raman peak-fitting example")
     x = np.linspace(350.0, 1850.0, 1201)
     rng = np.random.default_rng(20260827)
-    colours = ("#0072B2", "#D55E00", "#009E73")
+    colours = SERIES_PALETTES[DEFAULT_SERIES_PALETTE]
     selected_peak_id = ""
 
     for index, (shift, scale) in enumerate(((-10.0, 0.88), (0.0, 1.0), (13.0, 1.12)), start=1):
@@ -52,7 +53,8 @@ def build_example_project():
             source="Deterministic CurveMole screenshot example",
             colour=colours[index - 1],
         )
-        project.add_curve(curve)
+        series = project.add_curve(curve)
+        series.metadata["palette"] = DEFAULT_SERIES_PALETTE
         model = project.model_for(curve.id)
 
         baseline = Component.create(
@@ -148,6 +150,24 @@ def render_screenshots() -> None:
     window.statusBar().showMessage("Three fitted spectra selected · Overlay comparison")
     _settle(app)
     _save_window(window, app, "multi-spectrum-overlay.png")
+
+    window.plot_workspace.display_mode.setCurrentIndex(2)
+    window.plot_workspace.x_offset.setValue(0.0)
+    window.plot_workspace.y_offset.setValue(0.55)
+    window.statusBar().showMessage("Three fitted spectra · Colourblind palette · Waterfall view")
+    _settle(app)
+    _save_window(window, app, "waterfall-view.png")
+
+    window.plot_workspace.display_mode.setCurrentIndex(0)
+    window.plot_workspace.y_offset.setValue(0.0)
+    window.curve_tree.deselect_all_curves()
+    window.selected_component_id = selected_peak_id
+    window.refresh_all()
+    window.plot_workspace.set_component_labels_visible(True)
+    window.apply_theme("dark")
+    window.statusBar().showMessage("Single-spectrum fit · Colourblind palette · Dark mode")
+    _settle(app)
+    _save_window(window, app, "dark-mode-fit.png")
 
     project.dirty = False
     window.close()

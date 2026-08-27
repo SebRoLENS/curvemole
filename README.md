@@ -71,7 +71,23 @@ components, model sum, residuals, fitted parameters, uncertainties, and curve st
 ![CurveMole comparing three fitted spectra in overlay view](docs/screenshots/multi-spectrum-overlay.png)
 
 Three related spectra are fitted independently and inspected together in Overlay view.
-The screenshots are generated from the real application by
+All spectrum colours use CurveMole's built-in **Colourblind** palette.
+
+### Waterfall view
+
+![CurveMole displaying three fitted spectra in Waterfall view](docs/screenshots/waterfall-view.png)
+
+The same fitted series displayed with a vertical offset in Waterfall view, while
+preserving the model components and residual information.
+
+### Dark mode
+
+![CurveMole fitting interface in dark mode](docs/screenshots/dark-mode-fit.png)
+
+The single-spectrum fit shown with CurveMole's dark interface theme and the same
+colourblind-safe spectrum palette.
+
+All four screenshots are generated from the real application by
 [`scripts/generate_screenshots.py`](scripts/generate_screenshots.py) and refreshed
 automatically whenever the graphical interface changes.
 
