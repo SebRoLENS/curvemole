@@ -1,7 +1,7 @@
 # CurveMole
 
 [![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22114004.svg)](https://doi.org/10.5281/zenodo.22114004)
+[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://github.com/SebRoLENS/curvemole/releases/latest)
 [![CI](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg)](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml)
 
 **Modular Scientific Curve Fitting**
@@ -11,7 +11,7 @@ spectra and curves. It is designed for IR and Raman spectra, powder diffraction
 patterns, kinetic traces, and general x-y data. The scientific engine is shared by
 the graphical interface, Python API, command line, and YAML workflows.
 
-> **Status:** Version **0.2.1 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.2.2 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 ## Documentation
@@ -103,17 +103,18 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.2.1**
+Current public version: **0.2.2**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.2.1)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22114004
+Version **0.2.2** will be archived on Zenodo after its GitHub integration is enabled.
+The release DOI will then be inserted here automatically.
 
-DOI: [**10.5281/zenodo.22114004**](https://doi.org/10.5281/zenodo.22114004)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.2.2)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.2.2
 
 ## License
 
