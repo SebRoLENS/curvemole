@@ -52,6 +52,29 @@ jobs:
       - name: Apply reviewed patch
         run: python .chatgpt/apply_function_background_patch.py
 
+      - name: Normalize generated test formatting
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          semantics = Path('tests/test_background_semantics.py')
+          text = semantics.read_text(encoding='utf-8')
+          text = text.replace(
+              'from curvemole import Component, Curve, Project\n',
+              'from curvemole import Component\n',
+              1,
+          )
+          semantics.write_text(text, encoding='utf-8')
+
+          gui = Path('tests/test_background_gui.py')
+          text = gui.read_text(encoding='utf-8')
+          old = '''from curvemole import Component, Curve, Project\nfrom curvemole.gui.dialogs import AddComponentDialog, BackgroundComponentsDialog\nfrom curvemole.gui.main_window import MainWindow\nfrom curvemole.gui.plot import PlotWorkspace\nfrom curvemole.core.registry import default_registry\n'''
+          new = '''from curvemole import Component, Curve, Project\nfrom curvemole.core.registry import default_registry\nfrom curvemole.gui.dialogs import AddComponentDialog, BackgroundComponentsDialog\nfrom curvemole.gui.main_window import MainWindow\nfrom curvemole.gui.plot import PlotWorkspace\n'''
+          if old not in text:
+              raise SystemExit('Generated GUI test import block not found')
+          gui.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
       - name: Install development environment
         run: uv sync --locked --group dev
 
