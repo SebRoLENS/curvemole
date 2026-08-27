@@ -1,0 +1,44 @@
+name: Validate updated background regression test
+
+on:
+  push:
+    branches:
+      - chatgpt/fix-background-test-20260827
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/fix-background-test-20260827
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - name: Apply regression-test update
+        run: python .chatgpt/fix_legacy_background_test.py
+      - name: Install
+        run: uv sync --locked --group dev
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Test
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run pytest
+      - name: Clean temporary helpers
+        run: |
+          rm -f .chatgpt/fix_legacy_background_test.py
+          rm -f .github/workflows/chatgpt-validate-background-regression.yml
+          rmdir .chatgpt 2>/dev/null || true
+      - name: Commit validated test
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Update background subtraction regression test [skip release]'
+          git push origin HEAD:chatgpt/fix-background-test-20260827
