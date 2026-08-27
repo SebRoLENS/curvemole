@@ -1,7 +1,7 @@
 # CurveMole
 
 [![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://github.com/SebRoLENS/curvemole/releases/latest)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22124662.svg)](https://doi.org/10.5281/zenodo.22124662)
 [![CI](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg)](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml)
 
 **Modular Scientific Curve Fitting**
@@ -112,11 +112,10 @@ Current public version: **0.2.3**
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-Version **0.2.3** will be archived on Zenodo after its GitHub integration is enabled.
-The release DOI will then be inserted here automatically.
-
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.2.3)
-> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.2.3
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22124662
+
+DOI: [**10.5281/zenodo.22124662**](https://doi.org/10.5281/zenodo.22124662)
 
 ## License
 
