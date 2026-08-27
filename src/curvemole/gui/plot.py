@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.models import component_height
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
+from curvemole.gui.colours import MODEL_SUM_COLOUR
 
 
 class MaskViewBox(pg.ViewBox):
@@ -313,7 +314,12 @@ class PlotWorkspace(QWidget):
                     components=True,
                 )
                 total = total + index * y_step
-                self.plot.plot(x, total, pen=pg.mkPen("#D55E00", width=2.1), name=f"{curve.name} fit")
+                self.plot.plot(
+                    x,
+                    total,
+                    pen=pg.mkPen(MODEL_SUM_COLOUR, width=2.2),
+                    name=f"{curve.name} Model sum",
+                )
                 residual = curve.y - (total - index * y_step)
                 self.residual_plot.plot(x[unmasked], residual[unmasked], pen=pg.mkPen(curve.colour, width=1))
                 for component in model.components:

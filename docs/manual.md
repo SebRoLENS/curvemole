@@ -349,8 +349,10 @@ The example does not normally require masking.
 4. Keep **Local constrained least squares** and `linear` loss.
 5. Press **OK**.
 
-After a successful fit, the model line and residual panel update. Parameter standard
-errors appear in the `±1 sigma` column when covariance is available. Open
+After a successful fit, CurveMole commits the optimized parameter values back into
+the displayed model and immediately redraws the model sum, individual components, and
+residual panel. Parameter standard errors appear in the `±1 sigma` column when covariance
+is available. Open
 **View > Diagnostics** to inspect residual warnings.
 
 ### 4.7 Save and export
@@ -378,6 +380,11 @@ and **State** columns.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays.
 - Double-click an editable name to rename a series or curve.
+- Right-click a **curve** and choose **Choose spectrum colour…** to set its colour. Red is
+  reserved for the fitted Model sum and cannot be assigned to a spectrum.
+- Right-click a **series** and choose **Series palette** to recolour the complete series
+  with one of the built-in non-red palettes. Palette and individual colours are saved in
+  the project.
 - Use the search field to filter curves by name without removing them.
 
 Curve states are:
@@ -415,8 +422,10 @@ Model functions receive systematic names such as **Voigt1**, **Voigt2**, and
 **Gaussian1**. Their labels are shown above each function maximum by default and are
 shifted vertically when necessary to avoid overlap. Right-click the main plot and
 toggle **Show component labels** to hide or show these labels. After every completed
-fit, CurveMole redraws and auto-ranges the plot so the newly fitted model is visible
-immediately.
+fit, CurveMole explicitly applies the returned optimized parameters to the displayed
+model, redraws and auto-ranges the plot so the newly fitted curves are visible immediately.
+The **Model sum is always red**; imported spectra and selectable series palettes exclude red
+so a data curve can never be confused with the fitted sum.
 
 ### 5.3 Navigation and axes
 
