@@ -4,7 +4,11 @@ import numpy as np
 import pytest
 
 from curvemole import Curve
-from curvemole.core.calculator import apply_curve_operation, apply_scalar
+from curvemole.core.calculator import (
+    apply_background_subtraction,
+    apply_curve_operation,
+    apply_scalar,
+)
 from curvemole.core.data import aligned_operand
 from curvemole.core.errors import DataValidationError
 
@@ -53,3 +57,20 @@ def test_curve_operation_does_not_extrapolate_by_default() -> None:
 def test_cubic_interpolation_requires_enough_unique_points() -> None:
     with pytest.raises(DataValidationError):
         aligned_operand(np.arange(4.0), np.arange(3.0), np.arange(3.0), method="cubic")
+
+def test_background_subtraction_applies_inside_masks() -> None:
+    curve = Curve("background", np.arange(5.0), np.array([10.0, 11.0, 12.0, 13.0, 14.0]))
+    curve.mask_interval(1.0, 3.0)
+    before_mask = curve.effective_mask.copy()
+
+    apply_background_subtraction(
+        curve,
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]),
+        method="test",
+        description="test background",
+    )
+
+    assert curve.y.tolist() == pytest.approx([9.0, 9.0, 9.0, 9.0, 9.0])
+    assert curve.effective_mask.tolist() == before_mask.tolist()
+    assert curve.undo_transformation()
+    assert curve.y.tolist() == pytest.approx([10.0, 11.0, 12.0, 13.0, 14.0])

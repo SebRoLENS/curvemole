@@ -359,3 +359,40 @@ def test_update_check_accepts_qnetworkreply_error_enum() -> None:
     assert window._update_reply is None
     window.close()
     app.processEvents()
+
+def test_spline_bulk_lock_controls_and_background_subtraction() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("Background")
+    curve = Curve(
+        "curve",
+        [0.0, 1.0, 2.0, 3.0, 4.0],
+        [2.0, 3.0, 5.0, 3.0, 2.0],
+    )
+    curve.mask_interval(1.0, 3.0)
+    project.add_curve(curve)
+    spline = Component.create("cubic_spline", metadata={"x_nodes": [0.0, 4.0]})
+    initialise_spline_component = pytest.importorskip(
+        "curvemole.core.initialization"
+    ).initialise_spline_component
+    initialise_spline_component(spline, [(0.0, 2.0), (4.0, 2.0)])
+    project.model_for(curve.id).add(spline)
+    project.dirty = False
+    window = MainWindow(project)
+    window._set_component(spline.id)
+
+    assert all(parameter.fixed for parameter in spline.parameters.values())
+    window.model_panel.unlock_all_parameters_button.click()
+    assert all(not parameter.fixed for parameter in spline.parameters.values())
+    window.model_panel.lock_all_parameters_button.click()
+    assert all(parameter.fixed for parameter in spline.parameters.values())
+
+    mask_before = curve.effective_mask.copy()
+    window._pending_background_subtraction_curve_id = curve.id
+    window._graphical_spline_placed([(0.0, 2.0), (4.0, 2.0)])
+    assert curve.y.tolist() == pytest.approx([0.0, 1.0, 3.0, 1.0, 0.0])
+    assert curve.effective_mask.tolist() == mask_before.tolist()
+    assert curve.transformations[-1].operation == "background_subtract"
+
+    project.dirty = False
+    window.close()
+    app.processEvents()

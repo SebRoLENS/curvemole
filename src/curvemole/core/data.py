@@ -104,6 +104,10 @@ class Transformation:
             y_new /= area
             if sigma_new is not None:
                 sigma_new /= abs(area)
+        elif op == "background_subtract":
+            if self.operand is None or len(self.operand) != len(y_new):
+                raise DataValidationError("Background subtraction is missing its background array.")
+            y_new -= self.operand
         elif op in {"curve_add", "curve_subtract", "curve_multiply", "curve_divide"}:
             if self.operand is None or len(self.operand) != len(y_new):
                 raise DataValidationError(f"Transformation '{op}' is missing its aligned operand.")

@@ -33,6 +33,7 @@ def test_graphical_spline_initialisation_sorts_and_interpolates_nodes() -> None:
     initialise_spline_component(component, [(2.0, 5.0), (0.0, 1.0), (1.0, 2.0)])
 
     assert component.metadata["x_nodes"] == [0.0, 1.0, 2.0]
+    assert all(parameter.fixed for parameter in component.parameters.values())
     values = {name: parameter.value for name, parameter in component.parameters.items()}
     result = default_registry().get("cubic_spline").evaluate(
         np.array([0.0, 1.0, 2.0]), values, component.metadata
