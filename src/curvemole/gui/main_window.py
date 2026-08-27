@@ -146,8 +146,13 @@ class CurveTree(QTreeWidget):
     activeCurveChanged = Signal(object)
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
+    seriesRenamed = Signal(str, str)
     curveColourRequested = Signal(str)
     seriesPaletteRequested = Signal(str, str)
+    newSeriesRequested = Signal()
+    curvesMoveRequested = Signal(object, str)
+    curvesReorderRequested = Signal(object, int)
+    seriesMergeRequested = Signal(str, str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -156,12 +161,14 @@ class CurveTree(QTreeWidget):
         self.setSelectionMode(self.SelectionMode.ExtendedSelection)
         self.setAlternatingRowColors(True)
         self._updating = False
+        self._project: Project | None = None
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
+        self._project = project
         self._updating = True
         self.clear()
         active_item: QTreeWidgetItem | None = None
@@ -204,6 +211,20 @@ class CurveTree(QTreeWidget):
                 )
         return result
 
+    def ordered_selected_curve_ids(self) -> list[str]:
+        selected = self.selected_curve_ids()
+        return [
+            str(child.data(1, Qt.ItemDataRole.UserRole)[1])
+            for top_index in range(self.topLevelItemCount())
+            for child in (
+                self.topLevelItem(top_index).child(child_index)
+                for child_index in range(self.topLevelItem(top_index).childCount())
+            )
+            if child.data(1, Qt.ItemDataRole.UserRole)
+            and child.data(1, Qt.ItemDataRole.UserRole)[0] == "curve"
+            and str(child.data(1, Qt.ItemDataRole.UserRole)[1]) in selected
+        ]
+
     def select_all_curves(self) -> None:
         self.clearSelection()
         for top_index in range(self.topLevelItemCount()):
@@ -220,20 +241,58 @@ class CurveTree(QTreeWidget):
 
     def _show_context_menu(self, position: Any) -> None:
         item = self.itemAt(position)
-        if item is None:
+        project = self._project
+        menu = QMenu(self)
+        new_series_action = menu.addAction(self.tr("New series…"))
+        new_series_action.triggered.connect(lambda checked=False: self.newSeriesRequested.emit())
+        if item is None or project is None:
+            menu.exec(self.viewport().mapToGlobal(position))
             return
         metadata = item.data(1, Qt.ItemDataRole.UserRole)
         if not metadata:
+            menu.exec(self.viewport().mapToGlobal(position))
             return
-        menu = QMenu(self)
+
+        menu.addSeparator()
         if metadata[0] == "curve":
             curve_id = str(metadata[1])
+            if not item.isSelected():
+                self.clearSelection()
+                item.setSelected(True)
+                self.setCurrentItem(item)
+            selected_ids = self.ordered_selected_curve_ids() or [curve_id]
+
+            move_menu = menu.addMenu(self.tr("Move selected to series"))
+            for series in project.dataset.series:
+                action = move_menu.addAction(series.name)
+                action.triggered.connect(
+                    lambda checked=False, ids=list(selected_ids), target_id=series.id: (
+                        self.curvesMoveRequested.emit(ids, target_id)
+                    )
+                )
+            menu.addAction(self.tr("Move selected up")).triggered.connect(
+                lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, -1)
+            )
+            menu.addAction(self.tr("Move selected down")).triggered.connect(
+                lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, 1)
+            )
+            menu.addSeparator()
             colour_action = menu.addAction(self.tr("Choose spectrum colour…"))
             colour_action.triggered.connect(
                 lambda checked=False, curve_id=curve_id: self.curveColourRequested.emit(curve_id)
             )
         elif metadata[0] == "series":
             series_id = str(metadata[1])
+            merge_menu = menu.addMenu(self.tr("Merge series into"))
+            targets = [series for series in project.dataset.series if series.id != series_id]
+            merge_menu.setEnabled(bool(targets))
+            for target in targets:
+                action = merge_menu.addAction(target.name)
+                action.triggered.connect(
+                    lambda checked=False, source_id=series_id, target_id=target.id: (
+                        self.seriesMergeRequested.emit(source_id, target_id)
+                    )
+                )
             palette_menu = menu.addMenu(self.tr("Series palette"))
             for palette_name in SERIES_PALETTES:
                 action = palette_menu.addAction(palette_name)
@@ -242,8 +301,7 @@ class CurveTree(QTreeWidget):
                         self.seriesPaletteRequested.emit(series_id, palette_name)
                     )
                 )
-        if not menu.isEmpty():
-            menu.exec(self.viewport().mapToGlobal(position))
+        menu.exec(self.viewport().mapToGlobal(position))
 
     def _active_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
         if self._updating or current is None:
@@ -255,7 +313,13 @@ class CurveTree(QTreeWidget):
         if self._updating:
             return
         metadata = item.data(1, Qt.ItemDataRole.UserRole)
-        if not metadata or metadata[0] != "curve":
+        if not metadata:
+            return
+        if metadata[0] == "series":
+            if column == 1:
+                self.seriesRenamed.emit(str(metadata[1]), item.text(1))
+            return
+        if metadata[0] != "curve":
             return
         curve_id = str(metadata[1])
         if column == 0:
@@ -338,15 +402,21 @@ class MainWindow(QMainWindow):
         self.select_all_curves_button = QPushButton(self.tr("Select all"))
         self.deselect_all_curves_button = QPushButton(self.tr("Deselect all"))
         self.remove_curves_button = QPushButton(self.tr("Remove selected"))
+        self.new_series_button = QPushButton(self.tr("New series"))
+        self.new_series_button.setToolTip(
+            self.tr("Create an empty series. Curves can then be moved into it from the tree menu.")
+        )
         self.remove_curves_button.setToolTip(
             self.tr("Remove the selected curve(s) from the project. This can be undone.")
         )
         self.select_all_curves_button.clicked.connect(self.curve_tree.select_all_curves)
         self.deselect_all_curves_button.clicked.connect(self.curve_tree.deselect_all_curves)
         self.remove_curves_button.clicked.connect(self.remove_selected_curves)
+        self.new_series_button.clicked.connect(self.create_series)
         selection_row.addWidget(self.select_all_curves_button)
         selection_row.addWidget(self.deselect_all_curves_button)
         selection_row.addWidget(self.remove_curves_button)
+        selection_row.addWidget(self.new_series_button)
         selection_row.addStretch(1)
         left_layout.addLayout(selection_row)
         left_layout.addWidget(self.curve_tree)
@@ -623,8 +693,13 @@ class MainWindow(QMainWindow):
         self.curve_tree.itemSelectionChanged.connect(self._selection_changed)
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
         self.curve_tree.curveRenamed.connect(self._rename_curve)
+        self.curve_tree.seriesRenamed.connect(self._rename_series)
         self.curve_tree.curveColourRequested.connect(self.choose_curve_colour)
         self.curve_tree.seriesPaletteRequested.connect(self.apply_series_palette)
+        self.curve_tree.newSeriesRequested.connect(self.create_series)
+        self.curve_tree.curvesMoveRequested.connect(self.move_curves_to_series)
+        self.curve_tree.curvesReorderRequested.connect(self.reorder_curves)
+        self.curve_tree.seriesMergeRequested.connect(self.merge_series)
         self.model_panel.componentSelected.connect(self._set_component)
         self.model_panel.addRequested.connect(self.add_component)
         self.model_panel.duplicateRequested.connect(self.duplicate_component)
@@ -2144,6 +2219,196 @@ class MainWindow(QMainWindow):
                 lambda: restore(before_colours, before_palette),
             )
         )
+
+    def _series_layout_snapshot(self) -> list[tuple[Series, str, dict[str, Any], list[str]]]:
+        return [
+            (
+                series,
+                series.name,
+                copy.deepcopy(series.metadata),
+                [curve.id for curve in series.curves],
+            )
+            for series in self.project.dataset.series
+        ]
+
+    def _restore_series_layout(
+        self, snapshot: list[tuple[Series, str, dict[str, Any], list[str]]]
+    ) -> None:
+        # Keep the original Series objects alive across Undo/Redo. This matters for
+        # GUI and external references, and also allows a merged-away series to be
+        # restored as the very same object rather than a replacement with the same id.
+        curve_map = {curve.id: curve for curve in self.project.curves}
+        restored: list[Series] = []
+        for series, name, metadata, curve_ids in snapshot:
+            series.name = name
+            series.metadata = copy.deepcopy(metadata)
+            series.curves = [curve_map[curve_id] for curve_id in curve_ids]
+            restored.append(series)
+        self.project.dataset.series = restored
+        self.project.touch()
+        self.refresh_all()
+
+    def _push_series_layout_change(self, text: str, operation: Callable[[], None]) -> None:
+        if not self._ensure_editable():
+            return
+        before = self._series_layout_snapshot()
+        operation()
+        after = self._series_layout_snapshot()
+        self._restore_series_layout(before)
+        self.undo_stack.push(
+            CallbackCommand(
+                text,
+                lambda: self._restore_series_layout(after),
+                lambda: self._restore_series_layout(before),
+            )
+        )
+
+    def create_series(self) -> None:
+        if not self._ensure_editable():
+            return
+        default_name = self.tr("Series ") + str(len(self.project.dataset.series) + 1)
+        name, accepted = QInputDialog.getText(
+            self, self.tr("New series"), self.tr("Series name:"), text=default_name
+        )
+        if not accepted:
+            return
+        name = name.strip()
+        if not name:
+            self._notify(self.tr("Series name cannot be empty."), warning=True)
+            return
+        if any(series.name == name for series in self.project.dataset.series):
+            self._notify(self.tr("A series with that name already exists."), warning=True)
+            return
+
+        def operation() -> None:
+            self.project.dataset.add_series(
+                Series(name, metadata={"palette": DEFAULT_SERIES_PALETTE})
+            )
+
+        self._push_series_layout_change(self.tr("Create series"), operation)
+
+    def move_curves_to_series(self, curve_ids: object, target_series_id: str) -> None:
+        if not self._ensure_editable():
+            return
+        requested = [str(value) for value in list(curve_ids)]
+        if not requested:
+            return
+        target = next(
+            (series for series in self.project.dataset.series if series.id == target_series_id), None
+        )
+        if target is None:
+            return
+        order = {curve.id: index for index, curve in enumerate(self.project.curves)}
+        requested = sorted(set(requested), key=lambda curve_id: order.get(curve_id, 10**9))
+
+        def operation() -> None:
+            moved: list[Curve] = []
+            for curve_id in requested:
+                try:
+                    source = self.project.dataset.series_for(curve_id)
+                except KeyError:
+                    continue
+                if source.id == target_series_id:
+                    continue
+                moved.append(source.remove(curve_id))
+            for curve in moved:
+                target.add(curve)
+
+        before = self._series_layout_snapshot()
+        operation()
+        after = self._series_layout_snapshot()
+        self._restore_series_layout(before)
+        if after == before:
+            return
+        self.undo_stack.push(
+            CallbackCommand(
+                self.tr("Move spectra to series"),
+                lambda: self._restore_series_layout(after),
+                lambda: self._restore_series_layout(before),
+            )
+        )
+
+    def merge_series(self, source_series_id: str, target_series_id: str) -> None:
+        if not self._ensure_editable() or source_series_id == target_series_id:
+            return
+        source = next(
+            (series for series in self.project.dataset.series if series.id == source_series_id), None
+        )
+        target = next(
+            (series for series in self.project.dataset.series if series.id == target_series_id), None
+        )
+        if source is None or target is None:
+            return
+
+        def operation() -> None:
+            while source.curves:
+                target.add(source.remove(source.curves[0].id))
+            self.project.dataset.series = [
+                series for series in self.project.dataset.series if series.id != source_series_id
+            ]
+
+        self._push_series_layout_change(self.tr("Merge series"), operation)
+
+    def reorder_curves(self, curve_ids: object, delta: int) -> None:
+        if not self._ensure_editable() or delta not in {-1, 1}:
+            return
+        selected = {str(value) for value in list(curve_ids)}
+        if not selected:
+            return
+        parents = []
+        for curve_id in selected:
+            try:
+                parents.append(self.project.dataset.series_for(curve_id).id)
+            except KeyError:
+                return
+        if len(set(parents)) != 1:
+            self._notify(
+                self.tr("Spectra can be reordered together only when they belong to the same series."),
+                warning=True,
+            )
+            return
+        series = next(item for item in self.project.dataset.series if item.id == parents[0])
+
+        def operation() -> None:
+            curves = series.curves
+            if delta < 0:
+                for index in range(1, len(curves)):
+                    if curves[index].id in selected and curves[index - 1].id not in selected:
+                        curves[index - 1], curves[index] = curves[index], curves[index - 1]
+            else:
+                for index in range(len(curves) - 2, -1, -1):
+                    if curves[index].id in selected and curves[index + 1].id not in selected:
+                        curves[index], curves[index + 1] = curves[index + 1], curves[index]
+
+        before = self._series_layout_snapshot()
+        operation()
+        after = self._series_layout_snapshot()
+        self._restore_series_layout(before)
+        if after == before:
+            return
+        self.undo_stack.push(
+            CallbackCommand(
+                self.tr("Reorder spectra"),
+                lambda: self._restore_series_layout(after),
+                lambda: self._restore_series_layout(before),
+            )
+        )
+
+    def _rename_series(self, series_id: str, name: str) -> None:
+        name = name.strip()
+        series = next(
+            (item for item in self.project.dataset.series if item.id == series_id), None
+        )
+        if series is None:
+            return
+        if not name or any(
+            item.id != series_id and item.name == name for item in self.project.dataset.series
+        ):
+            self.refresh_all()
+            return
+        series.name = name
+        self.project.touch()
+        self.refresh_all()
 
     def _set_visibility(self, curve_id: str, visible: bool) -> None:
         curve = self.project.dataset.curve(curve_id)
