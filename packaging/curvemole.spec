@@ -13,6 +13,12 @@ icon = Path(os.environ.get(
 ))
 datas = [
     (str(root / "src" / "curvemole" / "resources" / "curvemole.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "add-peak.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "calculator.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "fit.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "quick-add-peak.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "quick-fit.png"), "curvemole/resources"),
+    (str(root / "src" / "curvemole" / "resources" / "subtract-background.png"), "curvemole/resources"),
     (str(root / "docs"), "curvemole/resources/docs"),
 ]
 

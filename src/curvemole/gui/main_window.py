@@ -15,7 +15,7 @@ from typing import Any
 
 import numpy as np
 from platformdirs import user_cache_path
-from PySide6.QtCore import QObject, QSettings, Qt, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QStyle,
     QToolBar,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -104,6 +105,11 @@ from curvemole.gui.plot import PlotWorkspace
 from curvemole.version import __version__
 
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
+
+
+def _resource_icon(filename: str) -> QIcon:
+    """Return an icon bundled with CurveMole."""
+    return QIcon(str(resources.files("curvemole.resources").joinpath(filename)))
 
 
 class Worker(QObject):
@@ -494,6 +500,8 @@ class MainWindow(QMainWindow):
 
         self.calculator_action = self.calculator_dock.toggleViewAction()
         self.calculator_action.setText(self.tr("Data Calculator"))
+        self.calculator_action.setIcon(_resource_icon("calculator.png"))
+        self.calculator_action.setToolTip(self.tr("Data Calculator"))
         self.worksheet_action = self.worksheet_dock.toggleViewAction()
         self.worksheet_action.setText(self.tr("Worksheet"))
         self.function_action = self.function_dock.toggleViewAction()
@@ -508,11 +516,14 @@ class MainWindow(QMainWindow):
         self.plugins_action.triggered.connect(self.show_plugin_manager)
 
         self.add_component_action = QAction(self.tr("Add component…"), self)
+        self.add_component_action.setIcon(_resource_icon("add-peak.png"))
+        self.add_component_action.setToolTip(self.tr("Add component…"))
         self.add_component_action.setShortcut("Ctrl++")
         self.add_component_action.triggered.connect(self.add_component)
         self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
+        self.quick_peak_action.setIcon(_resource_icon("quick-add-peak.png"))
         self.quick_peak_action.setToolTip(
-            self.tr("Add the last selected peak function without reopening the component dialog.")
+            self.tr("Quick Peak\nAdd the last selected peak function without reopening the component dialog.")
         )
         self.quick_peak_action.triggered.connect(self.quick_peak)
         self.copy_fit_action = QAction(self.tr("Copy fit…"), self)
@@ -522,17 +533,21 @@ class MainWindow(QMainWindow):
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
         self.mask_tolerance_action.triggered.connect(self.set_mask_tolerance)
         self.subtract_background_action = QAction(self.tr("Subtract background…"), self)
+        self.subtract_background_action.setIcon(_resource_icon("subtract-background.png"))
         self.subtract_background_action.setToolTip(
-            self.tr("Subtract selected model functions that are marked as background.")
+            self.tr("Subtract background…\nSubtract selected model functions that are marked as background.")
         )
         self.subtract_background_action.triggered.connect(self.subtract_background)
 
         self.fit_action = QAction(self.tr("Fit…"), self)
+        self.fit_action.setIcon(_resource_icon("fit.png"))
+        self.fit_action.setToolTip(self.tr("Fit…"))
         self.fit_action.setShortcut("F5")
         self.fit_action.triggered.connect(self.start_fit)
         self.quick_fit_action = QAction(self.tr("Quick Fit"), self)
+        self.quick_fit_action.setIcon(_resource_icon("quick-fit.png"))
         self.quick_fit_action.setToolTip(
-            self.tr("Fit the current selection with the last accepted fit settings.")
+            self.tr("Quick Fit\nFit the current selection with the last accepted fit settings.")
         )
         self.quick_fit_action.triggered.connect(self.quick_fit)
         self.resume_action = QAction(self.tr("Continue paused sequence"), self)
@@ -669,6 +684,7 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar(self.tr("Main toolbar"), self)
         toolbar.setObjectName("Main_toolbar")
         toolbar.setMovable(True)
+        toolbar.setIconSize(QSize(32, 32))
         self.addToolBar(toolbar)
         toolbar.addActions(
             [
@@ -687,6 +703,17 @@ class MainWindow(QMainWindow):
                 self.export_action,
             ]
         )
+        for action in (
+            self.calculator_action,
+            self.subtract_background_action,
+            self.add_component_action,
+            self.quick_peak_action,
+            self.fit_action,
+            self.quick_fit_action,
+        ):
+            button = toolbar.widgetForAction(action)
+            if isinstance(button, QToolButton):
+                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._set_active_curve)

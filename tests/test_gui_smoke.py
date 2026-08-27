@@ -36,6 +36,26 @@ def test_main_window_starts_offscreen() -> None:
     app.processEvents()
 
 
+def test_quick_toolbar_actions_use_bundled_icons_and_text_tooltips() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+
+    expected = {
+        window.calculator_action: "Data Calculator",
+        window.subtract_background_action: "Subtract background",
+        window.add_component_action: "Add component",
+        window.quick_peak_action: "Quick Peak",
+        window.fit_action: "Fit",
+        window.quick_fit_action: "Quick Fit",
+    }
+    for action, label in expected.items():
+        assert not action.icon().isNull()
+        assert label in action.toolTip()
+
+    window.close()
+    app.processEvents()
+
+
 def test_update_version_classification_and_reminder_policy() -> None:
     current = _semantic_version("v1.2.3")
     assert current == (1, 2, 3)
