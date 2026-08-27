@@ -74,6 +74,12 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Preparing CurveMole v$VERSION"
 
+      # The generated manual embeds the package version, so it must be rebuilt
+      # after prepare_release.py bumps the version and before the test suite
+      # validates that generated documentation is in sync.
+      - name: Build LaTeX and PDF manuals
+        run: python scripts/build_manual.py
+
       - name: Validate release source
         env:
           QT_QPA_PLATFORM: offscreen
@@ -82,9 +88,6 @@ jobs:
           uv run ruff check .
           uv run pytest
           uv build
-
-      - name: Build LaTeX and PDF manuals
-        run: python scripts/build_manual.py
 
       - name: Commit release metadata
         id: commit
