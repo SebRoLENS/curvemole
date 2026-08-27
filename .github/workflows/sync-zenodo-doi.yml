@@ -1,0 +1,117 @@
+name: Sync Zenodo DOI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version to synchronise (for example 0.2.3)
+        required: true
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - ".zenodo-sync-trigger"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: zenodo-doi-sync-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  sync-doi:
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip zenodo]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Resolve release version
+        id: version
+        env:
+          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="$REQUESTED_VERSION"
+          if [ -z "$VERSION" ]; then
+            VERSION="$(sed -n 's/^version=//p' .zenodo-sync-trigger | tail -n 1)"
+          fi
+          VERSION="${VERSION#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release version: $VERSION"
+            exit 1
+          fi
+          gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Synchronising Zenodo DOI for CurveMole v$VERSION"
+
+      - name: Wait for Zenodo archival
+        id: zenodo
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          DOI=""
+          for attempt in $(seq 1 120); do
+            set +e
+            DOI="$(python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" 2>/tmp/zenodo-error.txt)"
+            STATUS=$?
+            set -e
+            if [ "$STATUS" -eq 0 ] && [ -n "$DOI" ]; then
+              echo "Found Zenodo DOI $DOI for v$VERSION"
+              break
+            fi
+            if [ "$attempt" -eq 1 ] || [ $((attempt % 10)) -eq 0 ]; then
+              echo "Zenodo record not available yet (attempt $attempt/120)."
+              cat /tmp/zenodo-error.txt || true
+            fi
+            sleep 30
+          done
+          if [ -z "$DOI" ]; then
+            echo "Zenodo DOI for v$VERSION was not found within one hour."
+            exit 1
+          fi
+          echo "doi=$DOI" >> "$GITHUB_OUTPUT"
+
+      - name: Apply DOI metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          DOI: ${{ steps.zenodo.outputs.doi }}
+        run: |
+          git fetch origin main
+          git reset --hard origin/main
+          python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" --apply >/dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add README.md CITATION.cff
+          if ! git diff --cached --quiet; then
+            git commit -m "Link v${VERSION} to Zenodo DOI ${DOI} [skip release] [skip zenodo]"
+            git push origin HEAD:main
+          fi
+
+      - name: Add DOI to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+          DOI: ${{ steps.zenodo.outputs.doi }}
+        run: |
+          gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > /tmp/release-notes.md
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path('/tmp/release-notes.md')
+          text = path.read_text(encoding='utf-8')
+          line = f"**Zenodo DOI:** https://doi.org/{os.environ['DOI']}"
+          updated, count = re.subn(r"(?m)^\*\*Zenodo DOI:\*\*.*$", line, text, count=1)
+          if count == 0:
+              updated = text.rstrip() + "\n\n" + line + "\n"
+          path.write_text(updated, encoding='utf-8')
+          PY
+          gh release edit "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file /tmp/release-notes.md
