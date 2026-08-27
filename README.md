@@ -49,6 +49,8 @@ The easiest way to test CurveMole is through a pre-built desktop application:
 
 **[Download the latest release](https://github.com/SebRoLENS/curvemole/releases/latest)**
 
+**[Browse and download previous releases](https://github.com/SebRoLENS/curvemole/releases)**
+
 Available packages are built automatically for:
 
 - Linux x86_64: AppImage
