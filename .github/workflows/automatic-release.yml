@@ -137,6 +137,18 @@ jobs:
             --notes-file /tmp/release-notes.md \
             --verify-tag
 
+      # DOI archival is intentionally asynchronous. It is dispatched only after
+      # the GitHub release exists, and failures do not block release/build jobs.
+      - name: Dispatch Zenodo DOI sync
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          gh workflow run sync-zenodo-doi.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "version=${VERSION}"
+
       - name: Dispatch and monitor desktop builds
         env:
           GH_TOKEN: ${{ github.token }}
@@ -161,65 +173,3 @@ jobs:
             exit 1
           fi
           gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
-
-  sync-zenodo-doi:
-    needs: prepare-release
-    if: ${{ always() && needs.prepare-release.outputs.version != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          ref: main
-          fetch-depth: 1
-
-      - name: Wait for Zenodo GitHub integration
-        id: zenodo
-        env:
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-        run: |
-          DOI=""
-          for attempt in $(seq 1 60); do
-            set +e
-            DOI="$(python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION")"
-            STATUS=$?
-            set -e
-            if [ "$STATUS" -eq 0 ] && [ -n "$DOI" ]; then break; fi
-            sleep 60
-          done
-          if [ -z "$DOI" ]; then
-            echo "Zenodo DOI was not found within one hour."
-            exit 1
-          fi
-          python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" --apply >/dev/null
-          echo "doi=$DOI" >> "$GITHUB_OUTPUT"
-
-      - name: Commit DOI metadata
-        env:
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-          DOI: ${{ steps.zenodo.outputs.doi }}
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add README.md CITATION.cff
-          if ! git diff --cached --quiet; then
-            git commit -m "Link v${VERSION} to Zenodo DOI ${DOI}"
-            git push origin HEAD:main
-          fi
-
-      - name: Add DOI to GitHub release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.prepare-release.outputs.version }}
-          DOI: ${{ steps.zenodo.outputs.doi }}
-        run: |
-          cat > /tmp/release-notes.md <<EOF
-          ## CurveMole v${VERSION}
-
-          Desktop applications are available for Linux x86_64, Windows x86_64,
-          macOS Apple Silicon, and macOS Intel. Python packages are also attached.
-
-          **Zenodo DOI:** https://doi.org/${DOI}
-          EOF
-          gh release edit "v${VERSION}" \
-            --repo "$GITHUB_REPOSITORY" \
-            --notes-file /tmp/release-notes.md
