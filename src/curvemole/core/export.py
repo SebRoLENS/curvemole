@@ -57,6 +57,47 @@ class ExportSelection:
 
 
 @dataclass(slots=True)
+class BundleExportSelection:
+    """User-selectable contents for an analysis export."""
+
+    fit_results: bool = True
+    wide_tables: bool = False
+    tidy_table: bool = False
+    results_json: bool = False
+    fitmodel: bool = False
+    project_copy: bool = False
+    main_plot_png: bool = False
+    main_plot_svg: bool = False
+    html_summary: bool = False
+    html_reproducibility: bool = False
+    pdf_summary: bool = False
+    uncertainty: bool = False
+    diagnostics: bool = False
+    readme: bool = False
+
+    def any_selected(self) -> bool:
+        return any(self.to_dict().values())
+
+    def to_dict(self) -> dict[str, bool]:
+        return {
+            "fit_results": self.fit_results,
+            "wide_tables": self.wide_tables,
+            "tidy_table": self.tidy_table,
+            "results_json": self.results_json,
+            "fitmodel": self.fitmodel,
+            "project_copy": self.project_copy,
+            "main_plot_png": self.main_plot_png,
+            "main_plot_svg": self.main_plot_svg,
+            "html_summary": self.html_summary,
+            "html_reproducibility": self.html_reproducibility,
+            "pdf_summary": self.pdf_summary,
+            "uncertainty": self.uncertainty,
+            "diagnostics": self.diagnostics,
+            "readme": self.readme,
+        }
+
+
+@dataclass(slots=True)
 class ExportSummary:
     directory: Path
     created: list[Path] = field(default_factory=list)
@@ -196,7 +237,12 @@ def parameter_dataframe(
                             "component": component.name,
                             "component_id": component.id,
                             "function": definition.display_name,
+                            "function_id": component.function_id,
+                            "enabled": component.enabled,
+                            "is_background": component.is_background,
+                            "composition": component.operator,
                             "parameter": name,
+                            "parameter_path": path,
                             "value": value,
                             "standard_error": error,
                             "confidence_interval_low": ci_low,
@@ -371,36 +417,60 @@ def export_bundle(
     versioned: bool = False,
     overwrite: bool = False,
     include_uncertainty_samples: bool = True,
+    selection: BundleExportSelection | None = None,
 ) -> ExportSummary:
+    selection = selection or BundleExportSelection()
+    if not selection.any_selected():
+        raise CurveMoleError("Select at least one item to export.")
+
     root = Path(directory)
     if versioned:
         root = root / datetime.now(UTC).strftime("export-%Y%m%d-%H%M%S")
-    root.mkdir(parents=True, exist_ok=True)
+
     registry = _registry_for_project(project)
-    manifest_path = root / ".curvemole-export.json"
+    planned = _bundle_paths(project, result, selection)
+    if not planned:
+        raise CurveMoleError("The selected export items have no available data to write.")
+
+    # New exports keep ownership metadata inside the project so the default export
+    # can genuinely contain one visible file. Old hidden manifests remain readable
+    # for backwards-compatible updates, but are not created for new exports.
     previous_owned: set[str] = set()
-    if manifest_path.exists():
+    stored_directory = project.export_config.get("directory")
+    if stored_directory:
         try:
-            previous_owned = {
+            same_root = Path(str(stored_directory)).resolve(strict=False) == root.resolve(strict=False)
+        except OSError:
+            same_root = Path(str(stored_directory)) == root
+        if same_root:
+            previous_owned.update(
                 _normalise_owned_path(relative)
-                for relative in json.loads(manifest_path.read_text(encoding="utf-8")).get(
+                for relative in project.export_config.get("owned_files", [])
+            )
+
+    legacy_manifest = root / ".curvemole-export.json"
+    if legacy_manifest.exists():
+        try:
+            previous_owned.update(
+                _normalise_owned_path(relative)
+                for relative in json.loads(legacy_manifest.read_text(encoding="utf-8")).get(
                     "owned_files", []
                 )
-            }
+            )
         except (OSError, json.JSONDecodeError) as exc:
             raise CurveMoleError(
-                f"Existing export manifest is unreadable: {manifest_path}. No files were changed."
+                f"Existing export manifest is unreadable: {legacy_manifest}. No files were changed."
             ) from exc
-    planned = _bundle_paths(project, result)
+
     collisions = [relative for relative in planned if (root / relative).exists()]
     if collisions and not overwrite:
         raise FileExistsError(
-            "Export would overwrite existing files. Confirm overwrite or choose versioned export: "
+            "Export would overwrite existing files. Confirm update or choose versioned export: "
             + ", ".join(collisions[:8])
         )
-    if collisions and not previous_owned:
+    if collisions and overwrite and not previous_owned:
         raise FileExistsError(
-            "Export refused because matching files exist without a CurveMole export manifest: "
+            "Export refused because CurveMole cannot verify ownership of the existing files: "
             + ", ".join(collisions[:8])
         )
     if previous_owned:
@@ -410,148 +480,200 @@ def export_bundle(
                 "Export refused to overwrite files not owned by CurveMole: "
                 + ", ".join(protected_collision[:8])
             )
+
+    root.mkdir(parents=True, exist_ok=True)
     summary = ExportSummary(root)
     before = {relative: _sha256(root / relative) for relative in collisions}
     base = _safe_name(project.name) or "curvemole"
-    for relative in planned:
-        (root / relative).parent.mkdir(parents=True, exist_ok=True)
 
-    readme = root / "README.txt"
-    readme.write_text(
-        "CurveMole analysis bundle\n\n"
-        "Quick access: root CSV files, parameters.csv, main_plot.png, summary_report.html, "
-        ".fitmodel, and .fitproj.\n"
-        "Python/automation: python/data_tidy.csv and python/results.json.\n"
-        "Detailed outputs: data, diagnostics, uncertainty, figures, and report directories.\n",
-        encoding="utf-8",
-    )
-    for curve in project.curves:
-        frame = wide_dataframe(
-            curve,
-            project.models.get(curve.id),
-            registry=registry,
-            parameter_values=project.resolved_parameter_values(),
-        )
-        export_dataframe(frame, root / f"{_safe_name(curve.name)}_wide.csv", delimiter=delimiter)
+    if selection.fit_results:
         export_dataframe(
-            frame, root / "data" / f"{_safe_name(curve.name)}_wide.csv", delimiter=delimiter
+            parameter_dataframe(project, result, registry=registry),
+            root / "fit_results.csv",
+            delimiter=delimiter,
         )
-    export_dataframe(
-        parameter_dataframe(project, result, registry=registry),
-        root / "parameters.csv",
-        delimiter=delimiter,
-    )
-    export_dataframe(
-        tidy_dataframe(project, registry=registry),
-        root / "python" / "data_tidy.csv",
-        delimiter=delimiter,
-    )
-    (root / "python" / "results.json").write_text(
-        json.dumps(
-            {
-                "schema_version": 1,
-                "application_version": __version__,
-                "result": result.to_dict(arrays=False) if result else None,
-            },
-            indent=2,
-            default=_json_default,
+
+    if selection.wide_tables:
+        for curve in project.curves:
+            frame = wide_dataframe(
+                curve,
+                project.models.get(curve.id),
+                registry=registry,
+                parameter_values=project.resolved_parameter_values(),
+            )
+            export_dataframe(
+                frame,
+                root / "data" / f"{_safe_name(curve.name)}_wide.csv",
+                delimiter=delimiter,
+            )
+
+    if selection.tidy_table:
+        export_dataframe(
+            tidy_dataframe(project, registry=registry),
+            root / "python" / "data_tidy.csv",
+            delimiter=delimiter,
         )
-        + "\n",
-        encoding="utf-8",
-    )
-    first_model = next(iter(project.models.values()), Model())
-    save_fitmodel(first_model, root / f"{base}.fitmodel", custom_functions=project.custom_functions)
-    save_project(
-        project,
-        root / f"{base}.fitproj",
-        include_uncertainty_samples=include_uncertainty_samples,
-        update_project_path=False,
-    )
-    export_figure(project.curves, project.models, root / "main_plot.png", registry=registry)
-    export_figure(
-        project.curves, project.models, root / "figures" / "main_plot.svg", registry=registry
-    )
-    generate_html_report(
-        project, root / "summary_report.html", result=result, registry=registry
-    )
-    generate_html_report(
-        project,
-        root / "report" / "full_reproducibility.html",
-        result=result,
-        full=True,
-        registry=registry,
-    )
-    generate_pdf_report(
-        project, root / "report" / "summary.pdf", result=result, registry=registry
-    )
-    if result:
+
+    if selection.results_json:
+        results_path = root / "python" / "results.json"
+        results_path.parent.mkdir(parents=True, exist_ok=True)
+        results_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "application_version": __version__,
+                    "result": result.to_dict(arrays=False) if result else None,
+                },
+                indent=2,
+                default=_json_default,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+    if selection.fitmodel:
+        first_model = next(iter(project.models.values()), Model())
+        save_fitmodel(
+            first_model,
+            root / f"{base}.fitmodel",
+            custom_functions=project.custom_functions,
+        )
+
+    if selection.project_copy:
+        save_project(
+            project,
+            root / f"{base}.fitproj",
+            include_uncertainty_samples=include_uncertainty_samples,
+            update_project_path=False,
+        )
+
+    if selection.main_plot_png:
+        export_figure(project.curves, project.models, root / "main_plot.png", registry=registry)
+
+    if selection.main_plot_svg:
+        export_figure(
+            project.curves,
+            project.models,
+            root / "figures" / "main_plot.svg",
+            registry=registry,
+        )
+
+    if selection.html_summary:
+        generate_html_report(
+            project,
+            root / "summary_report.html",
+            result=result,
+            registry=registry,
+        )
+
+    if selection.html_reproducibility:
+        generate_html_report(
+            project,
+            root / "report" / "full_reproducibility.html",
+            result=result,
+            full=True,
+            registry=registry,
+        )
+
+    if selection.pdf_summary:
+        generate_pdf_report(
+            project,
+            root / "report" / "summary.pdf",
+            result=result,
+            registry=registry,
+        )
+
+    if selection.uncertainty and result:
         if result.covariance is not None:
-            np.savetxt(root / "uncertainty" / "covariance.csv", result.covariance, delimiter=delimiter)
+            covariance_path = root / "uncertainty" / "covariance.csv"
+            covariance_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savetxt(covariance_path, result.covariance, delimiter=delimiter)
         if result.correlation is not None:
-            np.savetxt(root / "uncertainty" / "correlation.csv", result.correlation, delimiter=delimiter)
+            correlation_path = root / "uncertainty" / "correlation.csv"
+            correlation_path.parent.mkdir(parents=True, exist_ok=True)
+            np.savetxt(correlation_path, result.correlation, delimiter=delimiter)
+
+    if selection.diagnostics and result:
         for curve_id, output in result.curve_outputs.items():
             diagnostics = residual_diagnostics(output.residual)
+            diagnostics_path = root / "diagnostics" / f"{curve_id}_autocorrelation.csv"
+            diagnostics_path.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame(
-                {"lag": np.arange(len(diagnostics.autocorrelation)), "autocorrelation": diagnostics.autocorrelation}
-            ).to_csv(root / "diagnostics" / f"{curve_id}_autocorrelation.csv", index=False)
+                {
+                    "lag": np.arange(len(diagnostics.autocorrelation)),
+                    "autocorrelation": diagnostics.autocorrelation,
+                }
+            ).to_csv(diagnostics_path, index=False)
 
-    owned = sorted(
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file() and path != manifest_path
-    )
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "format": "CurveMole export manifest",
-                "schema_version": 1,
-                "generated_at": datetime.now(UTC).isoformat(),
-                "project_id": project.id,
-                "owned_files": owned,
-            },
-            indent=2,
+    if selection.readme:
+        (root / "README.txt").write_text(
+            "CurveMole selected analysis export\n\n"
+            "fit_results.csv contains the fitted functions and their parameters, grouped by data curve.\n"
+            "Additional files are present only when explicitly selected in the export dialog.\n",
+            encoding="utf-8",
         )
-        + "\n",
-        encoding="utf-8",
-    )
-    for relative in owned:
-        path = root / relative
+
+    written = sorted(relative for relative in planned if (root / relative).is_file())
+    owned = sorted(previous_owned | set(written))
+    for relative in written:
+        output_path = root / relative
         if relative in before:
-            (summary.unchanged if before[relative] == _sha256(path) else summary.updated).append(path)
+            (summary.unchanged if before[relative] == _sha256(output_path) else summary.updated).append(
+                output_path
+            )
         else:
-            summary.created.append(path)
-    summary.created.append(manifest_path)
+            summary.created.append(output_path)
+
     project.export_config["directory"] = str(root)
+    project.export_config["owned_files"] = owned
+    project.export_config["selection"] = selection.to_dict()
     return summary
 
 
-def _bundle_paths(project: Project, result: FitResult | None = None) -> list[str]:
+def _bundle_paths(
+    project: Project,
+    result: FitResult | None,
+    selection: BundleExportSelection,
+) -> list[str]:
     base = _safe_name(project.name) or "curvemole"
-    paths = [
-        "README.txt",
-        "parameters.csv",
-        "main_plot.png",
-        "summary_report.html",
-        f"{base}.fitmodel",
-        f"{base}.fitproj",
-        "python/data_tidy.csv",
-        "python/results.json",
-        "figures/main_plot.svg",
-        "report/full_reproducibility.html",
-        "report/summary.pdf",
-    ]
-    for curve in project.curves:
-        name = _safe_name(curve.name)
-        paths.extend([f"{name}_wide.csv", f"data/{name}_wide.csv"])
-    if result:
+    paths: list[str] = []
+    if selection.fit_results:
+        paths.append("fit_results.csv")
+    if selection.wide_tables:
+        paths.extend(
+            f"data/{_safe_name(curve.name)}_wide.csv"
+            for curve in project.curves
+        )
+    if selection.tidy_table:
+        paths.append("python/data_tidy.csv")
+    if selection.results_json:
+        paths.append("python/results.json")
+    if selection.fitmodel:
+        paths.append(f"{base}.fitmodel")
+    if selection.project_copy:
+        paths.append(f"{base}.fitproj")
+    if selection.main_plot_png:
+        paths.append("main_plot.png")
+    if selection.main_plot_svg:
+        paths.append("figures/main_plot.svg")
+    if selection.html_summary:
+        paths.append("summary_report.html")
+    if selection.html_reproducibility:
+        paths.append("report/full_reproducibility.html")
+    if selection.pdf_summary:
+        paths.append("report/summary.pdf")
+    if selection.uncertainty and result:
         if result.covariance is not None:
             paths.append("uncertainty/covariance.csv")
         if result.correlation is not None:
             paths.append("uncertainty/correlation.csv")
+    if selection.diagnostics and result:
         paths.extend(
             f"diagnostics/{curve_id}_autocorrelation.csv"
             for curve_id in result.curve_outputs
         )
+    if selection.readme:
+        paths.append("README.txt")
     return paths
 
 

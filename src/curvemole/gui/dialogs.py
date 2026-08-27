@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.data import Curve
+from curvemole.core.export import BundleExportSelection
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 from curvemole.core.importers import ColumnMapping, ImportConfig, inspect_file
@@ -807,16 +808,19 @@ class CopyFitDialog(QDialog):
 class ExportBundleDialog(QDialog):
     def __init__(self, remembered: str | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(self.tr("Export analysis bundle"))
+        self.setWindowTitle(self.tr("Export analysis"))
+        self.resize(720, 610)
         layout = QVBoxLayout(self)
+
         info = QLabel(
             self.tr(
-                "Wide tables are organised for Origin/QtiPlot and quick inspection. "
-                "Tidy tables and JSON are organised for Python and automation."
+                "Choose how the export is saved and, independently, what it contains. "
+                "By default CurveMole writes only fit_results.csv."
             )
         )
         info.setWordWrap(True)
         layout.addWidget(info)
+
         row = QHBoxLayout()
         self.directory = QLineEdit(remembered or "")
         browse = QLabel(f'<a href="#">{self.tr("Choose folder…")}</a>')
@@ -825,19 +829,102 @@ class ExportBundleDialog(QDialog):
         row.addWidget(self.directory, 1)
         row.addWidget(browse)
         layout.addLayout(row)
+
+        mode_box = QGroupBox(self.tr("Export mode"))
+        mode_layout = QVBoxLayout(mode_box)
+        mode_layout.addWidget(
+            QLabel(
+                self.tr(
+                    "Leave both options unchecked to create a new export in the selected folder."
+                )
+            )
+        )
         self.versioned = QCheckBox(self.tr("Create versioned export"))
-        self.overwrite = QCheckBox(self.tr("Update existing CurveMole-owned files after confirmation"))
+        self.overwrite = QCheckBox(
+            self.tr("Update existing CurveMole-owned files after confirmation")
+        )
+        self.versioned.toggled.connect(
+            lambda checked: self.overwrite.setChecked(False) if checked else None
+        )
+        self.overwrite.toggled.connect(
+            lambda checked: self.versioned.setChecked(False) if checked else None
+        )
+        mode_layout.addWidget(self.versioned)
+        mode_layout.addWidget(self.overwrite)
+        layout.addWidget(mode_box)
+
+        export_box = QGroupBox(self.tr("What to export?"))
+        export_layout = QGridLayout(export_box)
+        self.fit_results = QCheckBox(
+            self.tr("Fit results (functions, parameters and errors) — fit_results.csv")
+        )
+        self.fit_results.setChecked(True)
+        self.wide_tables = QCheckBox(self.tr("Data + fitted curves tables (CSV)"))
+        self.tidy_table = QCheckBox(self.tr("Tidy data table for Python (CSV)"))
+        self.results_json = QCheckBox(self.tr("Machine-readable fit result (JSON)"))
+        self.fitmodel = QCheckBox(self.tr("Reusable fit model (.fitmodel)"))
+        self.project_copy = QCheckBox(self.tr("Project copy (.fitproj)"))
+        self.main_plot_png = QCheckBox(self.tr("Main plot (PNG)"))
+        self.main_plot_svg = QCheckBox(self.tr("Main plot (SVG)"))
+        self.html_summary = QCheckBox(self.tr("Summary report (HTML)"))
+        self.html_reproducibility = QCheckBox(self.tr("Full reproducibility report (HTML)"))
+        self.pdf_summary = QCheckBox(self.tr("Summary report (PDF)"))
+        self.uncertainty = QCheckBox(self.tr("Covariance/correlation matrices"))
+        self.diagnostics = QCheckBox(self.tr("Residual diagnostics"))
+        self.readme = QCheckBox(self.tr("Export README"))
+
+        choices = [
+            self.fit_results,
+            self.wide_tables,
+            self.tidy_table,
+            self.results_json,
+            self.fitmodel,
+            self.project_copy,
+            self.main_plot_png,
+            self.main_plot_svg,
+            self.html_summary,
+            self.html_reproducibility,
+            self.pdf_summary,
+            self.uncertainty,
+            self.diagnostics,
+            self.readme,
+        ]
+        for index, widget in enumerate(choices):
+            export_layout.addWidget(widget, index // 2, index % 2)
+        layout.addWidget(export_box)
+
         self.full_samples = QCheckBox(
-            self.tr("Include full uncertainty samples (larger project, easier complete recovery)")
+            self.tr("Include full uncertainty samples in the .fitproj copy")
         )
         self.full_samples.setChecked(True)
-        layout.addWidget(self.versioned)
-        layout.addWidget(self.overwrite)
+        self.full_samples.setEnabled(False)
+        self.project_copy.toggled.connect(self.full_samples.setEnabled)
         layout.addWidget(self.full_samples)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def selection(self) -> BundleExportSelection:
+        return BundleExportSelection(
+            fit_results=self.fit_results.isChecked(),
+            wide_tables=self.wide_tables.isChecked(),
+            tidy_table=self.tidy_table.isChecked(),
+            results_json=self.results_json.isChecked(),
+            fitmodel=self.fitmodel.isChecked(),
+            project_copy=self.project_copy.isChecked(),
+            main_plot_png=self.main_plot_png.isChecked(),
+            main_plot_svg=self.main_plot_svg.isChecked(),
+            html_summary=self.html_summary.isChecked(),
+            html_reproducibility=self.html_reproducibility.isChecked(),
+            pdf_summary=self.pdf_summary.isChecked(),
+            uncertainty=self.uncertainty.isChecked(),
+            diagnostics=self.diagnostics.isChecked(),
+            readme=self.readme.isChecked(),
+        )
 
     def _browse(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, self.tr("Export folder"), self.directory.text())
@@ -847,6 +934,13 @@ class ExportBundleDialog(QDialog):
     def _accept(self) -> None:
         if not self.directory.text().strip():
             QMessageBox.warning(self, self.tr("Export"), self.tr("Choose an export folder."))
+            return
+        if not self.selection().any_selected():
+            QMessageBox.warning(
+                self,
+                self.tr("Export"),
+                self.tr("Select at least one item under 'What to export?'."),
+            )
             return
         self.accept()
 

@@ -358,10 +358,12 @@ errors appear in the `±1 sigma` column when covariance is available. Open
 Save the complete workspace with **File > Save project as**. Use a `.fitproj`
 extension.
 
-Then choose **File > Export analysis bundle**. Select a new empty directory for the
-first export. The bundle contains human-readable CSV tables, fit parameters, plots,
-HTML and PDF reports, machine-readable JSON, a reusable model, and a portable project
-copy.
+Then choose **File > Export analysis bundle**. Select a destination and choose both
+how to save and **What to export?**. The default selection writes only
+`fit_results.csv`, which associates every curve with its model functions and lists
+each parameter together with its fitted value and standard error. Data tables, plots,
+reports, JSON, reusable models, project copies, uncertainty matrices, and diagnostics
+are optional.
 
 ## 5. Main window and controls
 
@@ -1236,60 +1238,68 @@ Quit ask whether to save, discard, or cancel when unsaved changes exist.
 
 ### 14.1 Starting an export
 
-Choose **File > Export analysis bundle** or press **Ctrl+E**. For a first export,
-select an empty directory. Options are:
+Choose **File > Export analysis bundle** or press **Ctrl+E**. Export mode and export
+content are independent.
 
-- **Create versioned export:** create a timestamped subdirectory;
-- **Update existing CurveMole-owned files after confirmation:** update only files
-  listed in the existing export manifest;
-- **Include full uncertainty samples:** preserve raw samples in the project copy at
-  the cost of file size.
+The existing save modes remain:
 
-### 14.2 Safe overwrite policy
+- leave both mode checkboxes clear to create a new export in the selected directory;
+- **Create versioned export** to create a timestamped subdirectory;
+- **Update existing CurveMole-owned files after confirmation** to update files that
+  CurveMole can verify as belonging to the current project export.
 
-The hidden `.curvemole-export.json` manifest identifies files owned by a prior
-CurveMole export. CurveMole refuses to overwrite matching files if:
+Under **What to export?**, select the desired outputs. Only **Fit results** is checked
+by default.
 
-- overwrite was not explicitly confirmed;
-- no readable ownership manifest exists;
-- a colliding file is not listed as CurveMole-owned.
+### 14.2 Default fit-results file
 
-Unrelated files in the directory are preserved.
+The default export creates only `fit_results.csv`. No additional visible file and no
+empty subdirectory is created.
 
-### 14.3 Bundle layout
+Each row represents one parameter of one model component and includes the series,
+curve and curve ID, component and component ID, displayed function and function ID,
+enabled/background state, composition operator, parameter name and full parameter
+path, fitted value, standard error, confidence interval, bounds, fixed/link state,
+unit, human-readable value with uncertainty, and derived area/FWHM where defined.
 
-The exact set depends on available fit and covariance results. A typical bundle is:
+This format makes the association between every data curve, the functions used to fit
+it, and the fitted parameters explicit in a single table.
 
-```text
-README.txt
-parameters.csv
-CURVE_wide.csv
-main_plot.png
-summary_report.html
-PROJECT.fitmodel
-PROJECT.fitproj
-data/
-  CURVE_wide.csv
-python/
-  data_tidy.csv
-  results.json
-figures/
-  main_plot.svg
-report/
-  full_reproducibility.html
-  summary.pdf
-uncertainty/
-  covariance.csv
-  correlation.csv
-diagnostics/
-  CURVE_ID_autocorrelation.csv
-.curvemole-export.json
-```
+### 14.3 Optional outputs
 
-### 14.4 Wide data tables
+The dialog can additionally export:
 
-Each wide CSV is intended for direct inspection and tools such as Origin or QtiPlot.
-Depending on data and model, columns include:
+- data plus fitted-function wide CSV tables;
+- a tidy CSV table for Python;
+- machine-readable fit results as JSON;
+- a reusable `.fitmodel`;
+- a `.fitproj` project copy, optionally including full uncertainty samples;
+- the main plot as PNG and/or SVG;
+- compact HTML and PDF summaries;
+- a full reproducibility HTML report;
+- covariance and correlation matrices when available;
+- residual autocorrelation diagnostics when available;
+- an export README.
+
+Directories such as `data/`, `python/`, `figures/`, `report/`, `uncertainty/`, and
+`diagnostics/` are created only when a selected output actually writes a file there.
+An option whose required fit result is unavailable does not create an empty folder.
+
+### 14.4 Safe overwrite policy
+
+New exports store their ownership list in the project export configuration rather
+than creating a hidden sidecar file. This allows the default export to contain truly
+only `fit_results.csv`. Existing `.curvemole-export.json` manifests from older
+versions are still read for backwards-compatible updates.
+
+When **Update existing** is selected, CurveMole refuses to overwrite a colliding file
+unless it can verify that the file belongs to the current project export. Unrelated
+files in the directory are preserved.
+
+### 14.5 Wide data tables
+
+Optional wide CSV files are intended for direct inspection and tools such as Origin
+or QtiPlot. Depending on data and model, columns include:
 
 - x and y;
 - total fit;
@@ -1301,18 +1311,12 @@ Depending on data and model, columns include:
 
 Rows remain aligned with the complete curve, including masked and invalid entries.
 
-### 14.5 Tidy data and JSON
+### 14.6 Tidy data and JSON
 
 `python/data_tidy.csv` stores one quantity per row with series, curve, component, x,
 value, mask, and validity fields. `python/results.json` records schema version,
 application version, result metadata, parameters, statistics, warnings, and settings
 without duplicating large numeric arrays.
-
-### 14.6 Parameter table
-
-`parameters.csv` contains component and parameter identifiers, values, standard
-errors, confidence limits, bounds, state, link, unit, human-readable value with
-error, and derived area and FWHM where defined.
 
 ### 14.7 Reports and reusable files
 

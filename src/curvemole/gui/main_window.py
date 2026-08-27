@@ -758,8 +758,8 @@ class MainWindow(QMainWindow):
                 self,
                 self.tr("Confirm export update"),
                 self.tr(
-                    "CurveMole will overwrite only files recorded in its export manifest. "
-                    "Unrelated files will be preserved. Continue?"
+                    "CurveMole will overwrite only files previously recorded as belonging "
+                    "to this project export. Unrelated files will be preserved. Continue?"
                 ),
             )
             if answer != QMessageBox.StandardButton.Yes:
@@ -773,6 +773,7 @@ class MainWindow(QMainWindow):
                 versioned=dialog.versioned.isChecked(),
                 overwrite=overwrite,
                 include_uncertainty_samples=dialog.full_samples.isChecked(),
+                selection=dialog.selection(),
             )
             self.project.touch()
             self._notify(
