@@ -1,0 +1,60 @@
+name: Update GUI screenshots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/curvemole/gui/**"
+      - "src/curvemole/resources/**"
+      - "scripts/generate_screenshots.py"
+      - ".github/workflows/screenshots.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: curvemole-main-write-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install Linux GUI libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 xvfb
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install CurveMole
+        run: uv sync --locked --group dev
+
+      - name: Generate deterministic screenshots
+        env:
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          QT_X11_NO_MITSHM: "1"
+        run: xvfb-run -a -s "-screen 0 1600x1000x24" uv run python scripts/generate_screenshots.py
+
+      - name: Commit updated screenshots
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/screenshots
+          if git diff --cached --quiet; then
+            echo "Screenshots are already current."
+          else
+            git commit -m "Update generated GUI screenshots [skip release]"
+            git push origin HEAD:main
+          fi

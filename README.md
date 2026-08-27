@@ -56,6 +56,25 @@ to releases.
 - human-friendly Wide exports and Python-friendly Tidy exports
 - Python API, CLI, YAML workflows, custom formulas, and trusted plugins
 
+## Interface and real usage examples
+
+### Multi-peak fit with background and residuals
+
+![CurveMole fitting a Raman-like spectrum with Gaussian and Lorentzian peaks](docs/screenshots/fit-overview.png)
+
+A deterministic Raman-like dataset fitted with a linear background, a Gaussian peak,
+and a Lorentzian peak. The complete interface shows the measured curve, individual
+components, model sum, residuals, fitted parameters, uncertainties, and curve state.
+
+### Comparing a fitted series
+
+![CurveMole comparing three fitted spectra in overlay view](docs/screenshots/multi-spectrum-overlay.png)
+
+Three related spectra are fitted independently and inspected together in Overlay view.
+The screenshots are generated from the real application by
+[`scripts/generate_screenshots.py`](scripts/generate_screenshots.py) and refreshed
+automatically whenever the graphical interface changes.
+
 ## Download
 
 The easiest way to test CurveMole is through a pre-built desktop application:
