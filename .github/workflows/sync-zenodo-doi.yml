@@ -7,21 +7,16 @@ on:
         description: Release version to synchronise (for example 0.2.3)
         required: true
         type: string
-  push:
-    branches: [main]
-    paths:
-      - ".zenodo-sync-trigger"
 
 permissions:
   contents: write
 
 concurrency:
-  group: zenodo-doi-sync-${{ github.event_name == 'workflow_dispatch' && inputs.version || github.sha }}
+  group: zenodo-doi-sync-${{ inputs.version }}
   cancel-in-progress: false
 
 jobs:
   sync-doi:
-    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip zenodo]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 75
     steps:
@@ -33,14 +28,10 @@ jobs:
       - name: Resolve release version
         id: version
         env:
-          REQUESTED_VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
+          REQUESTED_VERSION: ${{ inputs.version }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="$REQUESTED_VERSION"
-          if [ -z "$VERSION" ]; then
-            VERSION="$(sed -n 's/^version=//p' .zenodo-sync-trigger | tail -n 1)"
-          fi
-          VERSION="${VERSION#v}"
+          VERSION="${REQUESTED_VERSION#v}"
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid release version: $VERSION"
             exit 1
@@ -88,7 +79,7 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add README.md CITATION.cff
           if ! git diff --cached --quiet; then
-            git commit -m "Link v${VERSION} to Zenodo DOI ${DOI} [skip release] [skip zenodo]"
+            git commit -m "Link v${VERSION} to Zenodo DOI ${DOI} [skip release]"
             git push origin HEAD:main
           fi
 
