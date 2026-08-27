@@ -279,11 +279,25 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+
       - uses: actions/download-artifact@v7
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
+
+      - name: Add versioned manuals
+        shell: bash
+        run: |
+          VERSION="${{ inputs.source_ref }}"
+          VERSION="${VERSION#v}"
+          cp docs/CurveMole_User_Manual.pdf \
+            "release-assets/CurveMole-${VERSION}-User-Manual.pdf"
+          cp docs/CurveMole_User_Manual.tex \
+            "release-assets/CurveMole-${VERSION}-User-Manual.tex"
 
       - name: Generate SHA-256 checksums
         run: cd release-assets && sha256sum * > SHA256SUMS.txt

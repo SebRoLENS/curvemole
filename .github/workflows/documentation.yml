@@ -1,0 +1,106 @@
+name: Documentation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/manual.md"
+      - "docs/manual-preamble.tex"
+      - "scripts/build_manual.py"
+      - "src/curvemole/version.py"
+      - ".github/workflows/documentation.yml"
+  pull_request:
+    paths:
+      - "docs/manual.md"
+      - "docs/manual-preamble.tex"
+      - "scripts/build_manual.py"
+      - "src/curvemole/version.py"
+      - ".github/workflows/documentation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: documentation-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-manual:
+    if: ${{ github.event_name != 'push' || github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install document toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-dejavu-core latexmk pandoc poppler-utils \
+            texlive-fonts-recommended texlive-latex-extra texlive-xetex
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION="$(python -c "import re, pathlib; text=pathlib.Path('src/curvemole/version.py').read_text(); print(re.search(r'__version__ = \"([^\"]+)\"', text).group(1))")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build and validate manual
+        run: |
+          python scripts/build_manual.py
+          pdfinfo docs/CurveMole_User_Manual.pdf | grep -q '^Pages:'
+          pdftotext docs/CurveMole_User_Manual.pdf - | grep -q 'Current manual version\|Updated for CurveMole'
+          git diff --check
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CurveMole-${{ steps.version.outputs.version }}-documentation
+          path: |
+            docs/manual.md
+            docs/CurveMole_User_Manual.tex
+            docs/CurveMole_User_Manual.pdf
+          if-no-files-found: error
+
+      - name: Commit generated editions
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/CurveMole_User_Manual.tex docs/CurveMole_User_Manual.pdf
+          if ! git diff --cached --quiet; then
+            git commit -m "[skip release] Rebuild user manual for v${VERSION}"
+            git push origin HEAD:main
+          fi
+
+      - name: Attach documentation to matching release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "No matching release v${VERSION}; documentation remains a workflow artifact."
+            exit 0
+          fi
+          mkdir -p release-checksums
+          gh release download "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir release-checksums
+          rm -f release-checksums/SHA256SUMS.txt
+          cp docs/CurveMole_User_Manual.pdf \
+            "release-checksums/CurveMole-${VERSION}-User-Manual.pdf"
+          cp docs/CurveMole_User_Manual.tex \
+            "release-checksums/CurveMole-${VERSION}-User-Manual.tex"
+          (cd release-checksums && sha256sum * > SHA256SUMS.txt)
+          gh release upload "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber \
+            "release-checksums/CurveMole-${VERSION}-User-Manual.pdf" \
+            "release-checksums/CurveMole-${VERSION}-User-Manual.tex" \
+            release-checksums/SHA256SUMS.txt

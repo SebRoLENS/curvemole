@@ -18,9 +18,9 @@ or major choice. To publish without changing code, modify `.release-trigger`.
 ## Release pipeline
 
 Before publishing, GitHub Actions synchronises the version in the Python package,
-`pyproject.toml`, README, manual, lock file, and `CITATION.cff`. It runs lint, tests,
-builds the Python packages and creates a versioned PDF manual. It then creates an
-annotated tag and GitHub Release.
+`pyproject.toml`, README, manual, lock file, and `CITATION.cff`. It runs lint and
+tests, builds the Python packages, and generates LaTeX and PDF manuals from
+`docs/manual.md`. It then creates an annotated tag and GitHub Release.
 
 A second workflow builds and smoke-tests:
 
@@ -29,8 +29,23 @@ A second workflow builds and smoke-tests:
 - macOS Apple Silicon DMG
 - macOS Intel x86_64 DMG
 - Python wheel and source distribution
+- versioned LaTeX and PDF user manuals
 
 All downloadable files and `SHA256SUMS.txt` are attached to the same release.
+
+## Documentation-only updates
+
+`docs/manual.md` is the sole hand-edited manual source. Run:
+
+```bash
+python scripts/build_manual.py
+```
+
+to validate it and regenerate `docs/CurveMole_User_Manual.tex` and
+`docs/CurveMole_User_Manual.pdf`. The documentation workflow performs the same build
+for pull requests and documentation changes. A documentation-only commit should use
+`[skip release]` when it must update the current manual without incrementing the
+software version.
 
 ## Zenodo
 

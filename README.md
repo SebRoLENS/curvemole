@@ -14,6 +14,20 @@ the graphical interface, Python API, command line, and YAML workflows.
 > **Status:** Version **0.2.1 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
+## Documentation
+
+- **[Detailed user manual (Markdown)](docs/manual.md)** - authoritative source,
+  with the supported CurveMole version declared at the top
+- **[User manual (PDF)](docs/CurveMole_User_Manual.pdf)** - generated automatically
+  from the Markdown source
+- **[User manual (LaTeX)](docs/CurveMole_User_Manual.tex)** - generated source used
+  to compile the PDF
+- **[Quick Start](docs/quick-start.md)** - compact first-workflow guide
+
+The documentation workflow verifies the declared software version, local links,
+LaTeX conversion, and PDF compilation. Versioned PDF and LaTeX manuals are attached
+to releases.
+
 ## Highlights
 
 - Gaussian, Lorentzian, Voigt, and pseudo-Voigt peaks parameterised by signed area
@@ -70,9 +84,8 @@ uv sync --group dev
 uv run pytest
 ```
 
-The [Quick Start](docs/quick-start.md), [user manual](docs/manual.md), and
-[plugin guide](docs/plugins.md) are included offline. Maintainers can consult the
-[automated release guide](docs/releasing.md).
+The manual, Quick Start, and [plugin guide](docs/plugins.md) are included offline.
+Maintainers can consult the [automated release guide](docs/releasing.md).
 
 ## Scientific conventions
 

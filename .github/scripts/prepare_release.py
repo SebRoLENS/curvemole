@@ -22,6 +22,9 @@ PYPROJECT_VERSION_RE = re.compile(r'^version\s*=\s*"\d+\.\d+\.\d+"', re.M)
 MANUAL_VERSION_RE = re.compile(
     r"^\*\*Current manual version:\s*\d+\.\d+\.\d+\*\*$", re.M
 )
+MANUAL_TITLE_RE = re.compile(
+    r"^# CurveMole User Manual (?:-|–|—) Preview (\d+\.\d+\.\d+)$", re.M
+)
 STATUS_RE = re.compile(
     r"> \*\*Status:\*\* Version \*\*\d+\.\d+\.\d+ Preview\*\*\."
 )
@@ -164,12 +167,29 @@ The release DOI will then be inserted here automatically.
 
 def update_manual(version: str) -> None:
     text = MANUAL.read_text(encoding="utf-8")
-    text = re.sub(
-        r"^# CurveMole User Manual — Preview \d+\.\d+\.\d+$",
-        f"# CurveMole User Manual — Preview {version}",
+    title_match = MANUAL_TITLE_RE.search(text)
+    if not title_match:
+        raise SystemExit("Could not find the manual title version")
+    previous_version = title_match.group(1)
+    if previous_version != version:
+        text = text.replace(previous_version, version)
+        citation = f"""### 20.3 Citation
+
+If CurveMole contributes to published work, cite the exact version used. The release
+DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
+Until archival completes, the versioned GitHub release is the authoritative record:
+
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
+> [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v{version}
+
+The repository provides **Cite this repository** from `CITATION.cff`.
+"""
+        text = replace_section(text, "### 20.3 Citation", "### 20.4 Author and contact", citation)
+    text = MANUAL_TITLE_RE.sub(
+        f"# CurveMole User Manual - Preview {version}",
         text,
         count=1,
-        flags=re.M,
     )
     replacement = f"**Current manual version: {version}**"
     if MANUAL_VERSION_RE.search(text):

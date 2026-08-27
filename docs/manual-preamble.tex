@@ -1,0 +1,62 @@
+% This file is expanded by scripts/build_manual.py.
+\usepackage{microtype}
+\usepackage{fvextra}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{chngcntr}
+\usepackage{xcolor}
+\usepackage[automark,headsepline]{scrlayer-scrpage}
+
+\definecolor{CurveMoleTeal}{HTML}{185C5A}
+\definecolor{CurveMoleGold}{HTML}{D39B29}
+\definecolor{CurveMoleGrey}{HTML}{52616B}
+
+\KOMAoptions{parskip=half,headings=normal}
+\setkomafont{chapter}{\sffamily\bfseries\color{CurveMoleTeal}}
+\setkomafont{section}{\sffamily\bfseries\color{CurveMoleTeal}}
+\setkomafont{subsection}{\sffamily\bfseries\color{CurveMoleGrey}}
+\setkomafont{descriptionlabel}{\sffamily\bfseries}
+\setlength{\emergencystretch}{3em}
+\setlength{\LTpre}{0.5\baselineskip}
+\setlength{\LTpost}{0.75\baselineskip}
+\counterwithout{table}{chapter}
+\RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  fontsize=\small
+}
+
+\clearpairofpagestyles
+\ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
+\ohead{Version @@CURVEMOLE_VERSION@@}
+\cfoot{\pagemark}
+\renewcommand*{\chapterpagestyle}{scrheadings}
+
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{titlepage}
+    \centering
+    \vspace*{1.2cm}
+    \includegraphics[width=0.30\textwidth]{@@CURVEMOLE_LOGO@@}\par
+    \vspace{1.5cm}
+    {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
+    \vspace{0.45cm}
+    {\sffamily\Large\color{CurveMoleGrey}Preview @@CURVEMOLE_VERSION@@\par}
+    \vspace{0.55cm}
+    {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
+    \vfill
+    {\Large\@author\par}
+    \vspace{0.4cm}
+    {\large European Laboratory for Non-Linear Spectroscopy (LENS)\par}
+    {\large University of Florence (UNIFI)\par}
+    \vspace{0.25cm}
+    {\ttfamily romi@lens.unifi.it\par}
+    \vfill
+    {\large\@date\par}
+    \vspace{0.35cm}
+    {\small GPL-3.0-or-later\par}
+  \end{titlepage}
+}
+\makeatother

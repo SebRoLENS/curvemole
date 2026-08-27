@@ -7,6 +7,8 @@ on:
       - "src/**"
       - "packaging/**"
       - "scripts/build_desktop.py"
+      - "scripts/build_manual.py"
+      - "docs/manual-preamble.tex"
       - ".github/workflows/build-desktop.yml"
       - ".github/workflows/automatic-release.yml"
       - ".github/scripts/prepare_release.py"
@@ -48,6 +50,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            fonts-dejavu-core latexmk \
             libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
             pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended
 
@@ -80,14 +83,8 @@ jobs:
           uv run pytest
           uv build
 
-      - name: Build versioned PDF manual
-        run: |
-          pandoc docs/manual.md \
-            --from markdown \
-            --resource-path=.:docs \
-            --pdf-engine=xelatex \
-            --metadata title="CurveMole User Manual" \
-            --output docs/CurveMole_User_Manual.pdf
+      - name: Build LaTeX and PDF manuals
+        run: python scripts/build_manual.py
 
       - name: Commit release metadata
         id: commit
@@ -98,7 +95,8 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add \
             src/curvemole/version.py pyproject.toml uv.lock README.md CITATION.cff \
-            docs/manual.md docs/CurveMole_User_Manual.pdf
+            docs/manual.md docs/CurveMole_User_Manual.tex \
+            docs/CurveMole_User_Manual.pdf
           if ! git diff --cached --quiet; then
             git commit -m "Prepare v${VERSION} release"
             git push origin HEAD:main
