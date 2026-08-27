@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import copy
+import json
 import math
+import re
+import time
 import traceback
 from collections.abc import Callable
 from importlib import resources
@@ -24,6 +27,7 @@ from PySide6.QtGui import (
     QUndoCommand,
     QUndoStack,
 )
+from PySide6.QtNetwork import QNetworkAccessManager, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
@@ -217,6 +221,11 @@ class MainWindow(QMainWindow):
         self._pending_component: Component | None = None
         self._pending_component_curve_id: str | None = None
         self.settings = QSettings("CurveMole", "CurveMole")
+        self.last_peak_function_id = str(
+            self.settings.value("last_peak_function", "gaussian")
+        )
+        self._update_manager = QNetworkAccessManager(self)
+        self._update_reply: Any | None = None
         self.undo_stack = QUndoStack(self)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
 
@@ -248,6 +257,11 @@ class MainWindow(QMainWindow):
         self._load_custom_functions()
         self._restore_layout()
         self.refresh_all()
+        self.update_check_timer = QTimer(self)
+        self.update_check_timer.setInterval(60 * 60 * 1000)
+        self.update_check_timer.timeout.connect(self._automatic_update_check)
+        self.update_check_timer.start()
+        QTimer.singleShot(2500, self._automatic_update_check)
 
     def _build_docks(self) -> None:
         left_container = QWidget()
@@ -307,10 +321,10 @@ class MainWindow(QMainWindow):
         self.new_action.triggered.connect(self.new_project)
         self.open_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton), self.tr("Open project…"), self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.triggered.connect(self.open_project)
+        self.open_action.triggered.connect(lambda checked=False: self.open_project())
         self.import_action = QAction(self.tr("Import data…"), self)
         self.import_action.setShortcut("Ctrl+I")
-        self.import_action.triggered.connect(self.import_data)
+        self.import_action.triggered.connect(lambda checked=False: self.import_data())
         self.save_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton), self.tr("Save project"), self)
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.triggered.connect(self.save_project)
@@ -349,6 +363,11 @@ class MainWindow(QMainWindow):
         self.add_component_action = QAction(self.tr("Add component…"), self)
         self.add_component_action.setShortcut("Ctrl++")
         self.add_component_action.triggered.connect(self.add_component)
+        self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
+        self.quick_peak_action.setToolTip(
+            self.tr("Add the last selected peak function without reopening the component dialog.")
+        )
+        self.quick_peak_action.triggered.connect(self.quick_peak)
         self.copy_fit_action = QAction(self.tr("Copy fit…"), self)
         self.copy_fit_action.triggered.connect(self.copy_fit)
         self.find_peaks_action = QAction(self.tr("Find positive peaks…"), self)
@@ -359,6 +378,11 @@ class MainWindow(QMainWindow):
         self.fit_action = QAction(self.tr("Fit…"), self)
         self.fit_action.setShortcut("F5")
         self.fit_action.triggered.connect(self.start_fit)
+        self.quick_fit_action = QAction(self.tr("Quick Fit"), self)
+        self.quick_fit_action.setToolTip(
+            self.tr("Fit the current selection with the last accepted fit settings.")
+        )
+        self.quick_fit_action.triggered.connect(self.quick_fit)
         self.resume_action = QAction(self.tr("Continue paused sequence"), self)
         self.resume_action.setEnabled(False)
         self.resume_action.triggered.connect(self.resume_sequence)
@@ -397,7 +421,7 @@ class MainWindow(QMainWindow):
         self.manual_action.triggered.connect(lambda: self.open_documentation("manual.md"))
         self.update_action = QAction(self.tr("Check for updates"), self)
         self.update_action.triggered.connect(
-            lambda: self._open_external("https://github.com/SebRoLENS/curvemole/releases")
+            lambda checked=False: self.check_for_updates(force=True)
         )
         self.report_action = QAction(self.tr("Report a problem"), self)
         self.report_action.triggered.connect(
@@ -426,12 +450,24 @@ class MainWindow(QMainWindow):
 
         model_menu = menu.addMenu(self.tr("&Model"))
         model_menu.addActions(
-            [self.add_component_action, self.copy_fit_action, self.find_peaks_action, self.function_action]
+            [
+                self.add_component_action,
+                self.quick_peak_action,
+                self.copy_fit_action,
+                self.find_peaks_action,
+                self.function_action,
+            ]
         )
 
         fit_menu = menu.addMenu(self.tr("&Fit"))
         fit_menu.addActions(
-            [self.fit_action, self.resume_action, self.cancel_action, self.uncertainty_action]
+            [
+                self.fit_action,
+                self.quick_fit_action,
+                self.resume_action,
+                self.cancel_action,
+                self.uncertainty_action,
+            ]
         )
 
         view_menu = menu.addMenu(self.tr("&View"))
@@ -482,8 +518,11 @@ class MainWindow(QMainWindow):
                 self.save_action,
                 self.undo_action,
                 self.redo_action,
+                self.calculator_action,
                 self.add_component_action,
+                self.quick_peak_action,
                 self.fit_action,
+                self.quick_fit_action,
                 self.cancel_action,
                 self.export_action,
             ]
@@ -711,6 +750,8 @@ class MainWindow(QMainWindow):
             component = dialog.component()
             definition = self.registry.get(component.function_id)
             if definition.kind == "peak":
+                self.last_peak_function_id = component.function_id
+                self.settings.setValue("last_peak_function", component.function_id)
                 self._pending_component = component
                 self._pending_component_curve_id = self.active_curve_id
                 self.plot_workspace.begin_peak_placement(definition.display_name)
@@ -729,6 +770,40 @@ class MainWindow(QMainWindow):
             self._commit_component(component, self.active_curve_id)
         except Exception as exc:
             self._show_error(self.tr("Add component"), exc)
+
+    def quick_peak(self) -> None:
+        if not self._ensure_editable():
+            return
+        if not self.active_curve_id:
+            self._notify(self.tr("Activate a curve first."), warning=True)
+            return
+        self.plot_workspace.cancel_placement()
+        try:
+            function_id = self._quick_peak_function_id()
+            definition = self.registry.get(function_id)
+            component = Component.create(function_id, registry=self.registry)
+            self.last_peak_function_id = function_id
+            self.settings.setValue("last_peak_function", function_id)
+            self._pending_component = component
+            self._pending_component_curve_id = self.active_curve_id
+            self.plot_workspace.begin_peak_placement(definition.display_name)
+            self._notify(
+                self.tr("Quick Peak: click the peak centre and drag horizontally to set its initial FWHM.")
+            )
+        except Exception as exc:
+            self._show_error(self.tr("Quick Peak"), exc)
+
+    def _quick_peak_function_id(self) -> str:
+        try:
+            definition = self.registry.get(self.last_peak_function_id)
+            if definition.kind == "peak":
+                return definition.identifier
+        except (KeyError, ValueError):
+            pass
+        for definition in self.registry.values():
+            if definition.kind == "peak":
+                return definition.identifier
+        raise ValueError(self.tr("No peak function is available in the current registry."))
 
     def _graphical_peak_placed(self, centre: float, _: float, fwhm: float) -> None:
         component = self._pending_component
@@ -940,6 +1015,38 @@ class MainWindow(QMainWindow):
         plan = dialog.plan()
         self.fit_settings = plan.settings
         self.last_fit_plan = plan
+        self._run_fit(plan)
+
+    def quick_fit(self) -> None:
+        if not self._ensure_editable():
+            return
+        if self._thread is not None:
+            return
+        if self.last_fit_plan is None:
+            self._notify(
+                self.tr("Run Fit… once to define the settings used by Quick Fit."),
+                warning=True,
+            )
+            return
+        selected = self.curve_tree.selected_curve_ids()
+        if not selected and self.active_curve_id:
+            selected = {self.active_curve_id}
+        if not selected:
+            self._notify(self.tr("Select or activate at least one curve first."), warning=True)
+            return
+        plan = copy.deepcopy(self.last_fit_plan)
+        plan.curve_ids = [curve.id for curve in self.project.curves if curve.id in selected]
+        plan.spectrum_weights = {
+            curve_id: plan.spectrum_weights.get(curve_id, 1.0)
+            for curve_id in plan.curve_ids
+        }
+        try:
+            plan.validate()
+        except Exception as exc:
+            self._show_error(self.tr("Quick Fit"), exc)
+            return
+        self.fit_settings = copy.deepcopy(plan.settings)
+        self.last_fit_plan = copy.deepcopy(plan)
         self._run_fit(plan)
 
     def _run_fit(self, plan: FitPlan) -> None:
@@ -1339,6 +1446,148 @@ class MainWindow(QMainWindow):
                 dock.hide()
         self.resize(1440, 900)
 
+    def _automatic_update_check(self) -> None:
+        self.check_for_updates(force=False)
+
+    def check_for_updates(self, *, force: bool = False) -> None:
+        if self._update_reply is not None:
+            if force:
+                self._notify(self.tr("An update check is already in progress."))
+            return
+        now = time.time()
+        try:
+            last_check = float(self.settings.value("updates/last_check", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            last_check = 0.0
+        if not force and now - last_check < 24 * 60 * 60:
+            return
+
+        # Record the attempt so repeated launches while offline do not hammer GitHub.
+        self.settings.setValue("updates/last_check", now)
+        request = QNetworkRequest(
+            QUrl("https://api.github.com/repos/SebRoLENS/curvemole/releases/latest")
+        )
+        request.setRawHeader(b"Accept", b"application/vnd.github+json")
+        request.setRawHeader(b"User-Agent", f"CurveMole/{__version__}".encode("ascii"))
+        request.setTransferTimeout(10_000)
+        reply = self._update_manager.get(request)
+        self._update_reply = reply
+        reply.finished.connect(
+            lambda reply=reply, force=force: self._update_check_finished(reply, force)
+        )
+
+    def _update_check_finished(self, reply: Any, force: bool) -> None:
+        try:
+            if int(reply.error()) != 0:
+                message = self.tr("Could not check for CurveMole updates: ") + reply.errorString()
+                self._log(message)
+                if force:
+                    QMessageBox.warning(self, self.tr("Check for updates"), message)
+                return
+
+            payload = json.loads(bytes(reply.readAll()).decode("utf-8"))
+            current = _semantic_version(__version__)
+            latest = _semantic_version(str(payload.get("tag_name", "")))
+            if current is None or latest is None:
+                raise ValueError(self.tr("GitHub returned an unrecognised release version."))
+
+            latest_text = ".".join(str(value) for value in latest)
+            if latest <= current:
+                self.settings.remove("updates/last_notified_version")
+                self.settings.remove("updates/last_notified_at")
+                if force:
+                    QMessageBox.information(
+                        self,
+                        self.tr("Check for updates"),
+                        self.tr("CurveMole is up to date. Installed version: ") + __version__,
+                    )
+                return
+
+            now = time.time()
+            previous_version = str(
+                self.settings.value("updates/last_notified_version", "") or ""
+            )
+            try:
+                previous_at = float(
+                    self.settings.value("updates/last_notified_at", 0.0) or 0.0
+                )
+            except (TypeError, ValueError):
+                previous_at = 0.0
+
+            due = _update_notification_due(
+                latest_text,
+                previous_version,
+                previous_at,
+                now,
+            )
+            if not force and not due:
+                return
+
+            reminder = not force and previous_version == latest_text
+            release_url = str(
+                payload.get("html_url")
+                or "https://github.com/SebRoLENS/curvemole/releases"
+            )
+            self._show_update_available(
+                latest_text,
+                _update_kind(current, latest),
+                release_url,
+                reminder=reminder,
+            )
+            self.settings.setValue("updates/last_notified_version", latest_text)
+            self.settings.setValue("updates/last_notified_at", now)
+        except Exception as exc:
+            self._log(f"Update check failed: {exc}")
+            if force:
+                QMessageBox.warning(self, self.tr("Check for updates"), str(exc))
+        finally:
+            self._update_reply = None
+            reply.deleteLater()
+
+    def _show_update_available(
+        self,
+        latest: str,
+        kind: str,
+        release_url: str,
+        *,
+        reminder: bool,
+    ) -> None:
+        if kind == "patch":
+            description = self.tr(
+                "A maintenance update is available with patches that correct bugs."
+            )
+        elif kind == "minor":
+            description = self.tr(
+                "A feature update is available and contains new functionality."
+            )
+        else:
+            description = self.tr("A new major version of CurveMole is available.")
+
+        prefix = self.tr("Reminder: ") if reminder else ""
+        message = (
+            prefix
+            + self.tr("CurveMole ")
+            + latest
+            + self.tr(" is available. ")
+            + description
+            + "\n\n"
+            + self.tr(
+                "Keeping CurveMole up to date is strongly recommended so that you receive "
+                "the latest bug fixes, reliability improvements, and compatibility updates."
+            )
+        )
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.Information)
+        box.setWindowTitle(self.tr("CurveMole update available"))
+        box.setText(message)
+        open_button = box.addButton(
+            self.tr("Open release page"), QMessageBox.ButtonRole.AcceptRole
+        )
+        box.addButton(self.tr("Later"), QMessageBox.ButtonRole.RejectRole)
+        box.exec()
+        if box.clickedButton() is open_button:
+            self._open_external(release_url)
+
     def open_documentation(self, name: str) -> None:
         source_tree = Path(__file__).resolve().parents[3] / "docs" / name
         if source_tree.exists():
@@ -1709,6 +1958,32 @@ class MainWindow(QMainWindow):
             self.open_project(projects[0])
         elif data:
             self.import_data(data)
+
+
+def _semantic_version(value: str) -> tuple[int, int, int] | None:
+    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", value.strip())
+    if match is None:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def _update_kind(current: tuple[int, int, int], latest: tuple[int, int, int]) -> str:
+    if latest[0] != current[0]:
+        return "major"
+    if latest[1] != current[1]:
+        return "minor"
+    return "patch"
+
+
+def _update_notification_due(
+    latest: str,
+    last_notified_version: str,
+    last_notified_at: float,
+    now: float,
+) -> bool:
+    if latest != last_notified_version:
+        return True
+    return now - last_notified_at >= 10 * 24 * 60 * 60
 
 
 def _state_colour(state: CurveState) -> QColor:

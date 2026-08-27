@@ -34,6 +34,7 @@ class MaskViewBox(pg.ViewBox):
     peakPlacementPreview = Signal(float, float, float)
     peakPlacementRequested = Signal(float, float, float)
     splinePointRequested = Signal(float, float)
+    splinePointRemoveRequested = Signal(float, float)
     placementFinishRequested = Signal()
 
     def __init__(self) -> None:
@@ -49,12 +50,17 @@ class MaskViewBox(pg.ViewBox):
             return
         if self.interaction_mode == "spline":
             if event.button() == Qt.MouseButton.LeftButton:
+                if event.double():
+                    self.placementFinishRequested.emit()
+                    event.accept()
+                    return
                 point = self.mapSceneToView(event.scenePos())
                 self.splinePointRequested.emit(float(point.x()), float(point.y()))
                 event.accept()
                 return
             if event.button() == Qt.MouseButton.RightButton:
-                self.placementFinishRequested.emit()
+                point = self.mapSceneToView(event.scenePos())
+                self.splinePointRemoveRequested.emit(float(point.x()), float(point.y()))
                 event.accept()
                 return
         if self.mask_mode and event.button() == Qt.MouseButton.LeftButton:
@@ -206,6 +212,7 @@ class PlotWorkspace(QWidget):
         self.view_box.peakPlacementPreview.connect(self._preview_peak_placement)
         self.view_box.peakPlacementRequested.connect(self._finish_peak_placement)
         self.view_box.splinePointRequested.connect(self._add_spline_point)
+        self.view_box.splinePointRemoveRequested.connect(self._remove_spline_point)
         self.view_box.placementFinishRequested.connect(self.finish_placement)
         self.residual_toggle.toggled.connect(self.residual_plot.setVisible)
         self._mouse_proxy = pg.SignalProxy(
@@ -518,6 +525,23 @@ class PlotWorkspace(QWidget):
         self._render_placement_preview()
         self._update_spline_instruction()
 
+    def _remove_spline_point(self, x: float, y: float) -> None:
+        if self._placement_mode != "spline" or not self._spline_points:
+            return
+        x, y = self._from_display_coordinates(x, y)
+        x_scale = max(self._active_x_span(), np.finfo(float).eps)
+        y_scale = max(self._active_y_span(), np.finfo(float).eps)
+        index = min(
+            range(len(self._spline_points)),
+            key=lambda item: (
+                ((self._spline_points[item][0] - x) / x_scale) ** 2
+                + ((self._spline_points[item][1] - y) / y_scale) ** 2
+            ),
+        )
+        self._spline_points.pop(index)
+        self._render_placement_preview()
+        self._update_spline_instruction()
+
     def _render_placement_preview(self) -> None:
         self._clear_placement_items()
         if self._placement_mode is None or self._project is None or not self._active_curve_id:
@@ -602,9 +626,12 @@ class PlotWorkspace(QWidget):
     def _update_spline_instruction(self) -> None:
         count = len(self._spline_points)
         self.placement_label.setText(
-            self.tr("Place spline background nodes: left-click the graph; the curve updates live. ")
+            self.tr(
+                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "
+                "and a left double-click accepts the spline. The curve updates live. "
+            )
             + f"{count} "
-            + self.tr("point(s). Add at least two, then right-click or press Finish. Esc cancels.")
+            + self.tr("point(s). Add at least two, then double-click or press Finish. Esc cancels.")
         )
         self.undo_point_button.setEnabled(count > 0)
         self.finish_placement_button.setEnabled(count >= 2)
@@ -628,6 +655,13 @@ class PlotWorkspace(QWidget):
             return 0.0
         curve = self._project.dataset.curve(self._active_curve_id)
         finite = curve.x[np.isfinite(curve.x)]
+        return float(np.ptp(finite)) if len(finite) else 0.0
+
+    def _active_y_span(self) -> float:
+        if self._project is None or not self._active_curve_id:
+            return 0.0
+        curve = self._project.dataset.curve(self._active_curve_id)
+        finite = curve.y[np.isfinite(curve.y)]
         return float(np.ptp(finite)) if len(finite) else 0.0
 
     def _default_peak_width(self) -> float:
