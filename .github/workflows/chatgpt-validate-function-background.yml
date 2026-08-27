@@ -21,6 +21,24 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Align patcher with current spline interaction text
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('.chatgpt/apply_function_background_patch.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              '''                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n                "and a left double-click accepts the spline. The curve updates live. "\n''',
+              '''                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "\n                "and a left double-click accepts the spline. Masked regions are allowed and the curve updates live. "\n''',
+          )
+          marker = '# Manual: explain component-level background semantics and spline navigation.\n'
+          extra = '''replace_once(\n    "src/curvemole/gui/plot.py",\n    ''' + repr('''    def _update_interaction_state(self) -> None:\n        interactive = self._placement_mode is not None\n        enabled = not interactive and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n''') + ''',\n    ''' + repr('''    def _update_interaction_state(self) -> None:\n        spline_navigation = self._placement_mode == "spline"\n        interactive = self._placement_mode is not None\n        enabled = (spline_navigation or not interactive) and not self._view_locked and not self.view_box.mask_mode\n        self.plot.setMouseEnabled(x=enabled, y=enabled)\n''') + ''',\n)\n\n'''
+          if marker not in text:
+              raise SystemExit('Could not locate manual marker in patcher')
+          text = text.replace(marker, extra + marker, 1)
+          path.write_text(text, encoding='utf-8')
+          PY
+
       - name: Apply reviewed patch
         run: python .chatgpt/apply_function_background_patch.py
 
