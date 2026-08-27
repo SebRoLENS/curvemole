@@ -377,9 +377,14 @@ and **State** columns.
 - Click a curve to activate it.
 - Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
+- Use **New series** to create an empty named series. Empty series are retained when the project is saved.
+- Right-click one or more selected spectra and choose **Move selected to series** to reorganize them.
+- Right-click selected spectra and choose **Move selected up/down** to change their order inside a series. Multiple adjacent spectra move as a stable group.
+- Right-click a series and choose **Merge series into** to append all its spectra to another series and remove the source series.
+- Moving, merging, creating, and reordering series are all Undo/Redo operations and do not invalidate fitted parameters.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays.
-- Double-click an editable name to rename a series or curve.
+- Double-click an editable name to rename a series or curve. Series names must remain unique.
 - Right-click a **curve** and choose **Choose spectrum colour…** to set its colour. Red is
   reserved for the fitted Model sum and cannot be assigned to a spectrum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series

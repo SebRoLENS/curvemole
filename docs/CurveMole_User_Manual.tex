@@ -804,10 +804,27 @@ The left dock contains a search field and a tree with \textbf{Visible},
   Use \textbf{Remove selected} to delete one or more accidentally
   imported curves. Removal is undoable.
 \item
+  Use \textbf{New series} to create an empty named series. Empty series
+  are retained when the project is saved.
+\item
+  Right-click one or more selected spectra and choose \textbf{Move
+  selected to series} to reorganize them.
+\item
+  Right-click selected spectra and choose \textbf{Move selected up/down}
+  to change their order inside a series. Multiple adjacent spectra move
+  as a stable group.
+\item
+  Right-click a series and choose \textbf{Merge series into} to append
+  all its spectra to another series and remove the source series.
+\item
+  Moving, merging, creating, and reordering series are all Undo/Redo
+  operations and do not invalidate fitted parameters.
+\item
   Use the visibility checkbox to include or exclude it from Overlay and
   Waterfall displays.
 \item
-  Double-click an editable name to rename a series or curve.
+  Double-click an editable name to rename a series or curve. Series
+  names must remain unique.
 \item
   Right-click a \textbf{curve} and choose \textbf{Choose spectrum
   colour\ldots{}} to set its colour. Red is reserved for the fitted
