@@ -1,0 +1,45 @@
+name: Validate export redesign
+
+on:
+  push:
+    branches:
+      - chatgpt/export-selection-20260827
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/export-selection-20260827
+          fetch-depth: 0
+      - name: Install GUI libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: uv sync --locked --group dev
+      - name: Apply patch
+        run: uv run python .chatgpt/apply_export_selection.py
+      - name: Lint
+        run: uv run ruff check .
+      - name: Tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: uv run pytest
+      - name: Commit validated patch
+        run: |
+          rm -rf .chatgpt
+          rm -f .github/workflows/chatgpt-export-redesign.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Redesign selective export outputs [skip release]'
+          git push origin HEAD:chatgpt/export-selection-20260827
