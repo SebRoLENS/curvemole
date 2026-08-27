@@ -30,7 +30,7 @@ permissions:
 
 concurrency:
   group: automatic-release
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # Administrative metadata updates carry [skip release] to preserve the current version.
