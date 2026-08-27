@@ -1,0 +1,126 @@
+name: Release rescue
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".release-rescue-trigger"
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-dejavu-core latexmk \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Prepare patch release metadata
+        id: prepare
+        run: |
+          VERSION="$(uv run python .github/scripts/prepare_release.py --bump patch)"
+          uv lock
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Preparing CurveMole v$VERSION"
+
+      - name: Build LaTeX and PDF manuals
+        run: python scripts/build_manual.py
+
+      - name: Validate release source
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          uv run ruff check .
+          uv run pytest
+          uv build
+
+      - name: Commit release metadata
+        id: commit
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add \
+            src/curvemole/version.py pyproject.toml uv.lock README.md CITATION.cff \
+            docs/manual.md docs/CurveMole_User_Manual.tex \
+            docs/CurveMole_User_Manual.pdf
+          if ! git diff --cached --quiet; then
+            git commit -m "Prepare v${VERSION} release [skip release]"
+            git push origin HEAD:main
+          fi
+          echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Create annotated tag
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          git tag -a "v${VERSION}" -m "CurveMole v${VERSION}"
+          git push origin "v${VERSION}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          cat > /tmp/release-notes.md <<EOF
+          ## CurveMole v${VERSION}
+
+          Maintenance release with bug fixes and interface improvements.
+
+          Desktop packages are being built for Linux x86_64, Windows x86_64,
+          macOS Apple Silicon, and macOS Intel. Python packages will also be attached.
+
+          **Zenodo DOI:** pending archival or repository integration.
+          EOF
+          gh release create "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "CurveMole v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            --verify-tag
+
+      - name: Dispatch and monitor desktop builds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.prepare.outputs.version }}
+          RELEASE_SHA: ${{ steps.commit.outputs.commit_sha }}
+        run: |
+          gh workflow run build-desktop.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref main \
+            -f "source_ref=v${VERSION}"
+
+          RUN_ID=""
+          for attempt in $(seq 1 30); do
+            RUN_ID="$(gh api \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/build-desktop.yml/runs?event=workflow_dispatch&head_sha=${RELEASE_SHA}&per_page=10" \
+              --jq '.workflow_runs[0].id // empty')"
+            if [ -n "$RUN_ID" ]; then break; fi
+            sleep 4
+          done
+          if [ -z "$RUN_ID" ]; then
+            echo "Could not locate the dispatched desktop-build run."
+            exit 1
+          fi
+          gh run watch "$RUN_ID" --repo "$GITHUB_REPOSITORY" --exit-status
