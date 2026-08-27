@@ -1,0 +1,60 @@
+name: Validate CurveMole UX patch
+
+on:
+  push:
+    branches:
+      - chatgpt/ux-links-select-all-update-fix-20260827
+    paths:
+      - ".chatgpt/ux-trigger"
+
+permissions:
+  contents: write
+
+jobs:
+  apply-test-commit:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: chatgpt/ux-links-select-all-update-fix-20260827
+          fetch-depth: 0
+
+      - name: Apply reviewed UX patch
+        run: python .chatgpt/apply_ux_patch.py
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fonts-dejavu-core latexmk \
+            libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
+            pandoc texlive-xetex texlive-latex-extra texlive-fonts-recommended
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --group dev
+
+      - name: Regenerate manual editions
+        run: python scripts/build_manual.py
+
+      - name: Validate source
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          uv run ruff check .
+          uv run pytest
+
+      - name: Commit validated patch
+        run: |
+          rm -rf .chatgpt
+          rm -f .github/workflows/chatgpt-ux-patch.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m "Improve bulk selection, parameter linking, and update checks [skip release]"
+          git push origin HEAD:chatgpt/ux-links-select-all-update-fix-20260827
