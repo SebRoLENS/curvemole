@@ -6,10 +6,16 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from curvemole import Component, Curve, Project
-from curvemole.gui.main_window import MainWindow
+from curvemole.core.fitting import FitPlan
+from curvemole.gui.main_window import (
+    MainWindow,
+    _semantic_version,
+    _update_kind,
+    _update_notification_due,
+)
 from curvemole.gui.plot import MaskViewBox
 from curvemole.version import __version__
 
@@ -19,6 +25,88 @@ def test_main_window_starts_offscreen() -> None:
     window = MainWindow()
     assert window.windowTitle().endswith(f"CurveMole {__version__}")
     assert window.plot_workspace is not None
+    window.close()
+    app.processEvents()
+
+
+def test_update_version_classification_and_reminder_policy() -> None:
+    current = _semantic_version("v1.2.3")
+    assert current == (1, 2, 3)
+    assert _update_kind(current, (1, 2, 4)) == "patch"
+    assert _update_kind(current, (1, 3, 0)) == "minor"
+    assert _update_kind(current, (2, 0, 0)) == "major"
+
+    day = 24 * 60 * 60
+    assert _update_notification_due("1.2.4", "", 0.0, 100.0)
+    assert not _update_notification_due("1.2.4", "1.2.4", 100.0, 100.0 + 9 * day)
+    assert _update_notification_due("1.2.4", "1.2.4", 100.0, 100.0 + 10 * day)
+    # A still newer release bypasses the ten-day quiet period immediately.
+    assert _update_notification_due("1.2.5", "1.2.4", 100.0, 101.0)
+
+
+def test_file_actions_do_not_forward_qaction_checked_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow()
+    calls = {"open": 0, "import": 0}
+
+    def fake_open(*args: object, **kwargs: object) -> tuple[str, str]:
+        calls["open"] += 1
+        return "", ""
+
+    def fake_import(*args: object, **kwargs: object) -> tuple[list[str], str]:
+        calls["import"] += 1
+        return [], ""
+
+    monkeypatch.setattr(QFileDialog, "getOpenFileName", fake_open)
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", fake_import)
+
+    window.open_action.trigger()
+    window.import_action.trigger()
+
+    assert calls == {"open": 1, "import": 1}
+    window.close()
+    app.processEvents()
+
+
+def test_quick_peak_reuses_last_peak_function() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("Quick peak")
+    curve = Curve("curve", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    project.add_curve(curve)
+    project.dirty = False
+    window = MainWindow(project)
+    window.last_peak_function_id = "lorentzian"
+
+    window.quick_peak()
+
+    assert window._pending_component is not None
+    assert window._pending_component.function_id == "lorentzian"
+    assert window.plot_workspace._placement_mode == "peak"
+    window.plot_workspace.cancel_placement()
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_quick_fit_reuses_settings_on_current_curve(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("Quick fit")
+    curve = Curve("curve", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    project.add_curve(curve)
+    project.dirty = False
+    window = MainWindow(project)
+    previous = FitPlan(["old-curve-id"])
+    previous.settings.loss = "huber"
+    window.last_fit_plan = previous
+    plans: list[FitPlan] = []
+    monkeypatch.setattr(window, "_run_fit", lambda plan: plans.append(plan))
+
+    window.quick_fit()
+
+    assert len(plans) == 1
+    assert plans[0].curve_ids == [curve.id]
+    assert plans[0].settings.loss == "huber"
+    project.dirty = False
     window.close()
     app.processEvents()
 
@@ -105,3 +193,50 @@ def test_right_drag_requests_interval_mask() -> None:
 
     assert requested == [(1.25, 4.75)]
     assert event.accepted
+
+
+def test_spline_click_contract() -> None:
+    class TestViewBox(MaskViewBox):
+        def mapSceneToView(self, point: QPointF) -> QPointF:
+            return point
+
+    class ClickEvent:
+        accepted = False
+
+        def __init__(self, button: Qt.MouseButton, point: QPointF, *, double: bool = False) -> None:
+            self._button = button
+            self._point = point
+            self._double = double
+
+        def button(self) -> Qt.MouseButton:
+            return self._button
+
+        def scenePos(self) -> QPointF:
+            return self._point
+
+        def double(self) -> bool:
+            return self._double
+
+        def accept(self) -> None:
+            self.accepted = True
+
+    view_box = TestViewBox()
+    view_box.interaction_mode = "spline"
+    added: list[tuple[float, float]] = []
+    removed: list[tuple[float, float]] = []
+    finished: list[bool] = []
+    view_box.splinePointRequested.connect(lambda x, y: added.append((x, y)))
+    view_box.splinePointRemoveRequested.connect(lambda x, y: removed.append((x, y)))
+    view_box.placementFinishRequested.connect(lambda: finished.append(True))
+
+    left = ClickEvent(Qt.MouseButton.LeftButton, QPointF(1.0, 2.0))
+    right = ClickEvent(Qt.MouseButton.RightButton, QPointF(3.0, 4.0))
+    double_left = ClickEvent(Qt.MouseButton.LeftButton, QPointF(5.0, 6.0), double=True)
+    view_box.mouseClickEvent(left)
+    view_box.mouseClickEvent(right)
+    view_box.mouseClickEvent(double_left)
+
+    assert added == [(1.0, 2.0)]
+    assert removed == [(3.0, 4.0)]
+    assert finished == [True]
+    assert left.accepted and right.accepted and double_left.accepted
