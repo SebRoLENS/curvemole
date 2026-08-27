@@ -107,13 +107,7 @@ class Project:
                 existing = self.models.get(target_id)
                 selected = []
                 for component in source_model.components:
-                    definition_is_background = component.function_id in {
-                        "constant",
-                        "linear",
-                        "polynomial",
-                        "cubic_spline",
-                    }
-                    if definition_is_background and not background:
+                    if component.is_background and not background:
                         continue
                     clone = Component.from_dict(copy.deepcopy(component.to_dict()))
                     matching = None
@@ -150,6 +144,10 @@ class Project:
                 for source_component, target_component in zip(
                     source_model.components, target_model.components, strict=False
                 ):
+                    if source_component.is_background and not background:
+                        continue
+                    if background:
+                        target_component.is_background = source_component.is_background
                     for name, source_parameter in source_component.parameters.items():
                         if name not in target_component.parameters:
                             continue

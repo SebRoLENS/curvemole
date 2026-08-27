@@ -28,6 +28,7 @@ class Component:
     parameters: dict[str, Parameter]
     operator: str = "add"
     enabled: bool = True
+    is_background: bool = False
     group: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     id: str = field(default_factory=lambda: _identifier("component"))
@@ -61,6 +62,7 @@ class Component:
             "name": self.name,
             "operator": self.operator,
             "enabled": self.enabled,
+            "is_background": self.is_background,
             "group": self.group,
             "metadata": self.metadata,
             "parameters": {name: parameter.to_dict() for name, parameter in self.parameters.items()},
@@ -74,6 +76,7 @@ class Component:
             name=str(value["name"]),
             operator=str(value.get("operator", "add")),
             enabled=bool(value.get("enabled", True)),
+            is_background=bool(value.get("is_background", False)),
             group=str(value["group"]) if value.get("group") else None,
             metadata=dict(value.get("metadata", {})),
             parameters={
@@ -192,22 +195,34 @@ class Model:
         curve_id: str | None = None,
         values: Mapping[str, float] | None = None,
         registry: FunctionRegistry | None = None,
+        component_ids: set[str] | None = None,
     ) -> np.ndarray:
+        """Evaluate marked background components, or an explicit selected subset."""
         registry = registry or default_registry()
         prefix = curve_id or self.id
         if values is None:
             values = resolve_parameter_values(self.parameter_map(prefix))
+        selected = set(component_ids) if component_ids is not None else None
         result = np.zeros_like(x, dtype=float)
         for component in self.components:
-            definition = registry.get(component.function_id)
-            if not component.enabled or definition.kind != "background":
+            if not component.enabled:
                 continue
+            if selected is None:
+                if not component.is_background:
+                    continue
+            elif component.id not in selected:
+                continue
+            if component.operator not in {"add", "subtract"}:
+                raise DataValidationError(
+                    f"Background component '{component.name}' must use add or subtract composition."
+                )
+            definition = registry.get(component.function_id)
             parameters = {
                 name: values.get(self.parameter_path(prefix, component.id, name), parameter.value)
                 for name, parameter in component.parameters.items()
             }
-            evaluated = definition.evaluate(x, parameters, component.metadata)
-            result += evaluated if component.operator != "subtract" else -evaluated
+            evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
+            result += evaluated if component.operator == "add" else -evaluated
         return result
 
     def derived_quantities(

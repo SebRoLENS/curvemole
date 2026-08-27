@@ -637,6 +637,24 @@ spreadsheet editor and does not modify source arrays.
 
 ## 8. Building models
 
+All entries in the function library are fitting functions. Constant, linear, polynomial,
+cubic-spline, peak-shaped, and custom formulas are not separated into a special
+background-function class. Background is instead a property of a model component.
+Select a component in **Model and parameters** and enable **Mark as background** when
+that component represents the experimental baseline or background.
+
+**Data > Subtract background...** uses these component-level marks. If no component is
+marked, CurveMole first asks which model functions should be designated as background.
+If background components already exist, it asks which of the marked components should
+be subtracted. The subtraction uses the current resolved/fitted parameter values, is
+reversible with Undo, applies over the complete data array, and disables the subtracted
+components afterwards to prevent double-counting.
+
+During graphical cubic-spline placement, nodes may be placed anywhere in plot
+coordinates, including outside the x/y extent of the measured data. Adding nodes does
+not auto-range the graph. Left-drag continues to pan and the mouse wheel continues to
+zoom while placement is active.
+
 ### 8.1 Component composition
 
 Components are evaluated in list order. Available operators are:

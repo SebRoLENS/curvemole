@@ -81,7 +81,8 @@ class MaskViewBox(pg.ViewBox):
             event.accept()
             return
         if self.interaction_mode == "spline" and event.button() == Qt.MouseButton.LeftButton:
-            event.accept()
+            # Preserve normal ViewBox left-drag panning while spline placement is active.
+            super().mouseDragEvent(event, axis=axis)
             return
         if self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
             if event.isFinish():
@@ -463,6 +464,8 @@ class PlotWorkspace(QWidget):
         self._placement_name = name
         self._spline_points = []
         self.view_box.interaction_mode = "spline"
+        # Placement graphics must never force a new view range. Manual pan/zoom stays active.
+        self.view_box.disableAutoRange()
         self.mask_toggle.setChecked(False)
         self.mask_toggle.setEnabled(False)
         self.undo_point_button.show()
@@ -598,11 +601,16 @@ class PlotWorkspace(QWidget):
         finite = np.isfinite(curve.x)
         if not np.any(finite):
             return
+        data_x = np.asarray(curve.x[finite], dtype=float)
+        lower = float(min(np.min(data_x), np.min(node_x)))
+        upper = float(max(np.max(data_x), np.max(node_x)))
+        preview_count = max(400, min(4000, len(data_x) * 2))
+        preview_x = np.linspace(lower, upper, preview_count)
         metadata = {"x_nodes": node_x.tolist()}
         values = {f"y{index}": value for index, value in enumerate(node_y)}
-        preview = self.registry.get("cubic_spline").evaluate(curve.x[finite], values, metadata)
+        preview = self.registry.get("cubic_spline").evaluate(preview_x, values, metadata)
         line = self.plot.plot(
-            curve.x[finite] + x_offset,
+            preview_x + x_offset,
             preview + y_offset,
             pen=pg.mkPen("#009E73", width=2, style=Qt.PenStyle.DashLine),
         )
@@ -630,8 +638,9 @@ class PlotWorkspace(QWidget):
         count = len(self._spline_points)
         self.placement_label.setText(
             self.tr(
-                "Place spline background nodes: left-click adds a point, right-click removes the nearest point, "
-                "and a left double-click accepts the spline. Masked regions are allowed and the curve updates live. "
+                "Place spline nodes anywhere: left-click adds a point, right-click removes the nearest point, "
+                "left-drag pans, the mouse wheel zooms, and a left double-click accepts the spline. "
+                "Adding points never changes the current zoom. The curve updates live. "
             )
             + f"{count} "
             + self.tr("point(s). Add at least two, then double-click or press Finish. Esc cancels.")
@@ -676,8 +685,9 @@ class PlotWorkspace(QWidget):
         return max(self._active_x_span() * 0.05, spacing * 4, np.finfo(float).eps)
 
     def _update_interaction_state(self) -> None:
+        spline_navigation = self._placement_mode == "spline"
         interactive = self._placement_mode is not None
-        enabled = not interactive and not self._view_locked and not self.view_box.mask_mode
+        enabled = (spline_navigation or not interactive) and not self._view_locked and not self.view_box.mask_mode
         self.plot.setMouseEnabled(x=enabled, y=enabled)
 
     def _set_mask_mode(self, enabled: bool) -> None:
