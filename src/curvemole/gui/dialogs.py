@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.data import Curve
+from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 from curvemole.core.importers import ColumnMapping, ImportConfig, inspect_file
 from curvemole.core.models import Component
@@ -42,6 +43,22 @@ from curvemole.core.plugins import PluginCandidate, PluginManager
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.version import __version__
+
+
+def _set_list_checked(widget: QListWidget, checked: bool) -> None:
+    state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+    for index in range(widget.count()):
+        item = widget.item(index)
+        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            item.setCheckState(state)
+
+
+def _set_table_checked(table: QTableWidget, column: int, checked: bool) -> None:
+    state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
+    for row in range(table.rowCount()):
+        item = table.item(row, column)
+        if item is not None and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            item.setCheckState(state)
 
 
 class ImportMappingDialog(QDialog):
@@ -115,6 +132,15 @@ class ImportMappingDialog(QDialog):
         uncertainty_row.addWidget(self.uncertainty_column)
         mapping.addLayout(uncertainty_row, 2, 1, 1, 2)
         layout.addWidget(mapping_box)
+        y_buttons = QHBoxLayout()
+        self.select_all_y_button = QPushButton(self.tr("Select all Y columns"))
+        self.deselect_all_y_button = QPushButton(self.tr("Deselect all Y columns"))
+        self.select_all_y_button.clicked.connect(lambda: _set_list_checked(self.y_columns, True))
+        self.deselect_all_y_button.clicked.connect(lambda: _set_list_checked(self.y_columns, False))
+        y_buttons.addWidget(self.select_all_y_button)
+        y_buttons.addWidget(self.deselect_all_y_button)
+        y_buttons.addStretch(1)
+        layout.addLayout(y_buttons)
 
         self.apply_all = QCheckBox(self.tr("Apply this mapping to all files in this batch"))
         self.apply_all.setChecked(batch_size > 1)
@@ -290,6 +316,210 @@ class AddComponentDialog(QDialog):
             self.name.setPlaceholderText(definition.display_name)
 
 
+class ParameterLinkDialog(QDialog):
+    """Graphical editor for a parameter dependency."""
+
+    def __init__(
+        self,
+        project: Project,
+        target_curve_id: str,
+        target_component_id: str,
+        target_parameter: str,
+        current_link: str | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.project = project
+        self.target_curve_id = target_curve_id
+        self.target_component_id = target_component_id
+        self.target_parameter = target_parameter
+        self._result_link = current_link
+        target_curve = project.dataset.curve(target_curve_id)
+        target_component = project.model_for(target_curve_id).component(target_component_id)
+
+        self.setWindowTitle(self.tr("Link parameter"))
+        self.resize(620, 360)
+        layout = QVBoxLayout(self)
+        title = QLabel(
+            self.tr("Link ")
+            + f"<b>{target_curve.name} / {target_component.name} / {target_parameter}</b>"
+        )
+        title.setWordWrap(True)
+        layout.addWidget(title)
+        explanation = QLabel(
+            self.tr(
+                "Choose the parameter that should control this value. CurveMole creates the "
+                "internal reference automatically. Links between different spectra require a "
+                "Global simultaneous fit."
+            )
+        )
+        explanation.setWordWrap(True)
+        layout.addWidget(explanation)
+
+        form = QFormLayout()
+        self.source_curve = QComboBox()
+        self.source_component = QComboBox()
+        self.source_parameter = QComboBox()
+        self.mode = QComboBox()
+        self.mode.addItem(self.tr("Equal to source"), "equal")
+        self.mode.addItem(self.tr("Advanced expression"), "advanced")
+        self.advanced = QLineEdit()
+        self.advanced.setPlaceholderText("2 * ${source} + 1")
+        self.advanced_help = QLabel(
+            self.tr("Use ${source} for the selected source parameter, for example: 2 * ${source} + 1")
+        )
+        self.advanced_help.setWordWrap(True)
+        form.addRow(self.tr("Source spectrum"), self.source_curve)
+        form.addRow(self.tr("Source component"), self.source_component)
+        form.addRow(self.tr("Source parameter"), self.source_parameter)
+        form.addRow(self.tr("Relationship"), self.mode)
+        form.addRow(self.tr("Expression"), self.advanced)
+        form.addRow("", self.advanced_help)
+        layout.addLayout(form)
+
+        for curve in project.curves:
+            self.source_curve.addItem(curve.name, curve.id)
+        self.source_curve.currentIndexChanged.connect(self._populate_components)
+        self.source_component.currentIndexChanged.connect(self._populate_parameters)
+        self.mode.currentIndexChanged.connect(self._update_mode)
+        self._populate_components()
+        self._load_current(current_link)
+        self._update_mode()
+
+        action_row = QHBoxLayout()
+        remove = QPushButton(self.tr("Remove link"))
+        remove.clicked.connect(self._remove_link)
+        action_row.addWidget(remove)
+        action_row.addStretch(1)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        action_row.addWidget(buttons)
+        layout.addLayout(action_row)
+
+    def _populate_components(self) -> None:
+        curve_id = self.source_curve.currentData()
+        previous = self.source_component.currentData()
+        self.source_component.clear()
+        if curve_id:
+            for component in self.project.model_for(str(curve_id)).components:
+                self.source_component.addItem(component.name, component.id)
+        index = self.source_component.findData(previous)
+        if index >= 0:
+            self.source_component.setCurrentIndex(index)
+        self._populate_parameters()
+
+    def _populate_parameters(self) -> None:
+        curve_id = self.source_curve.currentData()
+        component_id = self.source_component.currentData()
+        previous = self.source_parameter.currentData()
+        self.source_parameter.clear()
+        if not curve_id or not component_id:
+            return
+        component = self.project.model_for(str(curve_id)).component(str(component_id))
+        for name in component.parameters:
+            if (
+                str(curve_id) == self.target_curve_id
+                and str(component_id) == self.target_component_id
+                and name == self.target_parameter
+            ):
+                continue
+            self.source_parameter.addItem(name, name)
+        index = self.source_parameter.findData(previous)
+        if index >= 0:
+            self.source_parameter.setCurrentIndex(index)
+
+    def _source_path(self) -> str | None:
+        curve_id = self.source_curve.currentData()
+        component_id = self.source_component.currentData()
+        parameter = self.source_parameter.currentData()
+        if not curve_id or not component_id or not parameter:
+            return None
+        return f"{curve_id}.{component_id}.{parameter}"
+
+    def _select_source_path(self, path: str) -> bool:
+        parts = path.split(".", 2)
+        if len(parts) != 3:
+            return False
+        curve_id, component_id, parameter = parts
+        curve_index = self.source_curve.findData(curve_id)
+        if curve_index < 0:
+            return False
+        self.source_curve.setCurrentIndex(curve_index)
+        component_index = self.source_component.findData(component_id)
+        if component_index < 0:
+            return False
+        self.source_component.setCurrentIndex(component_index)
+        parameter_index = self.source_parameter.findData(parameter)
+        if parameter_index < 0:
+            return False
+        self.source_parameter.setCurrentIndex(parameter_index)
+        return True
+
+    def _load_current(self, current_link: str | None) -> None:
+        if not current_link:
+            return
+        try:
+            expression = SafeExpression.compile(current_link)
+        except Exception:
+            self.mode.setCurrentIndex(self.mode.findData("advanced"))
+            self.advanced.setText(current_link)
+            return
+        references = expression.references
+        if references:
+            self._select_source_path(references[0])
+        exact = len(references) == 1 and current_link.strip() == f"${{{references[0]}}}"
+        if exact:
+            self.mode.setCurrentIndex(self.mode.findData("equal"))
+        else:
+            self.mode.setCurrentIndex(self.mode.findData("advanced"))
+            if references:
+                self.advanced.setText(current_link.replace(f"${{{references[0]}}}", "${source}", 1))
+            else:
+                self.advanced.setText(current_link)
+
+    def _update_mode(self) -> None:
+        advanced = self.mode.currentData() == "advanced"
+        self.advanced.setVisible(advanced)
+        self.advanced_help.setVisible(advanced)
+
+    def link_expression(self) -> str | None:
+        source = self._source_path()
+        if source is None:
+            return None
+        reference = f"${{{source}}}"
+        if self.mode.currentData() == "equal":
+            return reference
+        expression = self.advanced.text().strip() or "${source}"
+        return expression.replace("${source}", reference)
+
+    def selected_link(self) -> str | None:
+        return self._result_link
+
+    def _remove_link(self) -> None:
+        self._result_link = None
+        self.accept()
+
+    def _accept(self) -> None:
+        link = self.link_expression()
+        if not link:
+            QMessageBox.warning(
+                self,
+                self.tr("Link parameter"),
+                self.tr("Choose a source parameter or use Remove link."),
+            )
+            return
+        try:
+            SafeExpression.compile(link)
+        except Exception as exc:
+            QMessageBox.warning(self, self.tr("Link parameter"), str(exc))
+            return
+        self._result_link = link
+        self.accept()
+
+
 class FitPlanDialog(QDialog):
     def __init__(
         self,
@@ -327,6 +557,15 @@ class FitPlanDialog(QDialog):
             self.curves.setItem(row, 2, QTableWidgetItem("1"))
         self.curves.resizeColumnsToContents()
         layout.addWidget(self.curves)
+        curve_buttons = QHBoxLayout()
+        self.select_all_curves_button = QPushButton(self.tr("Select all"))
+        self.deselect_all_curves_button = QPushButton(self.tr("Deselect all"))
+        self.select_all_curves_button.clicked.connect(lambda: _set_table_checked(self.curves, 0, True))
+        self.deselect_all_curves_button.clicked.connect(lambda: _set_table_checked(self.curves, 0, False))
+        curve_buttons.addWidget(self.select_all_curves_button)
+        curve_buttons.addWidget(self.deselect_all_curves_button)
+        curve_buttons.addStretch(1)
+        layout.addLayout(curve_buttons)
         self.equal_contribution = QCheckBox(self.tr("Scale each spectrum to equal numerical contribution"))
         self.equal_contribution.setChecked(False)
         layout.addWidget(self.equal_contribution)
@@ -379,9 +618,38 @@ class FitPlanDialog(QDialog):
             self.equal_contribution.isChecked(),
         )
 
+    def _validate_link_scope(self, plan: FitPlan) -> None:
+        selected = set(plan.curve_ids)
+        for curve_id in plan.curve_ids:
+            model = self.project.model_for(curve_id)
+            for component in model.components:
+                for parameter in component.parameters.values():
+                    if not parameter.link:
+                        continue
+                    for reference in SafeExpression.compile(parameter.link).references:
+                        source_curve_id = reference.split(".", 1)[0]
+                        if source_curve_id == curve_id:
+                            continue
+                        if source_curve_id not in selected:
+                            raise ValueError(
+                                self.tr(
+                                    "A linked parameter depends on another spectrum that is not selected. "
+                                    "Select both the source and target spectra."
+                                )
+                            )
+                        if plan.mode != FitMode.GLOBAL:
+                            raise ValueError(
+                                self.tr(
+                                    "This fit contains parameter links between different spectra. "
+                                    "Choose Global simultaneous mode to apply those constraints."
+                                )
+                            )
+
     def _accept(self) -> None:
         try:
-            self.plan().validate()
+            plan = self.plan()
+            plan.validate()
+            self._validate_link_scope(plan)
         except Exception as exc:
             QMessageBox.warning(self, self.tr("Fit plan"), str(exc))
             return
@@ -405,6 +673,15 @@ class CopyFitDialog(QDialog):
             item.setCheckState(Qt.CheckState.Unchecked)
             self.targets.addItem(item)
         layout.addWidget(self.targets)
+        target_buttons = QHBoxLayout()
+        self.select_all_targets_button = QPushButton(self.tr("Select all"))
+        self.deselect_all_targets_button = QPushButton(self.tr("Deselect all"))
+        self.select_all_targets_button.clicked.connect(lambda: _set_list_checked(self.targets, True))
+        self.deselect_all_targets_button.clicked.connect(lambda: _set_list_checked(self.targets, False))
+        target_buttons.addWidget(self.select_all_targets_button)
+        target_buttons.addWidget(self.deselect_all_targets_button)
+        target_buttons.addStretch(1)
+        layout.addLayout(target_buttons)
         self.structure = QCheckBox(self.tr("Component structure"))
         self.structure.setChecked(True)
         self.values = QCheckBox(self.tr("Current/best values"))

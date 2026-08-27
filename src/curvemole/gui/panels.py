@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.diagnostics import residual_diagnostics
-from curvemole.core.expressions import expression_parameters
+from curvemole.core.expressions import SafeExpression, expression_parameters
 from curvemole.core.functions import formula_definition
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
@@ -46,6 +46,7 @@ class ModelPanel(QWidget):
     moveRequested = Signal(str, int)
     enabledRequested = Signal(str, bool)
     parameterChangeRequested = Signal(str, str, str, object)
+    parameterLinkRequested = Signal(str, str)
     copyFitRequested = Signal()
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
@@ -195,9 +196,14 @@ class ModelPanel(QWidget):
                 upper = QTableWidgetItem("" if math.isinf(parameter.maximum) else f"{parameter.maximum:.12g}")
                 upper.setData(Qt.ItemDataRole.UserRole, (component.id, name, "maximum"))
                 self.parameters.setItem(row, 5, upper)
-                link = QTableWidgetItem(parameter.link or "")
-                link.setData(Qt.ItemDataRole.UserRole, (component.id, name, "link"))
-                self.parameters.setItem(row, 6, link)
+                link_button = QPushButton(self._link_button_text(parameter.link))
+                link_button.setToolTip(parameter.link or self.tr("Choose a source parameter"))
+                link_button.clicked.connect(
+                    lambda checked=False, component_id=component.id, parameter_name=name: (
+                        self.parameterLinkRequested.emit(component_id, parameter_name)
+                    )
+                )
+                self.parameters.setCellWidget(row, 6, link_button)
             self.parameters.resizeColumnsToContents()
             definition = self.registry.get(component.function_id)
             values = {name: parameter.value for name, parameter in component.parameters.items()}
@@ -209,6 +215,25 @@ class ModelPanel(QWidget):
             self.derived.setText(self.tr("Derived: ") + "; ".join(parts) if parts else "")
         finally:
             self._updating = False
+
+    def _link_button_text(self, link: str | None) -> str:
+        if not link:
+            return self.tr("Set link…")
+        if self.project is None:
+            return self.tr("Linked…")
+        try:
+            expression = SafeExpression.compile(link)
+            references = expression.references
+            if len(references) != 1:
+                return self.tr("Linked (advanced)…")
+            curve_id, component_id, parameter_name = references[0].split(".", 2)
+            curve = self.project.dataset.curve(curve_id)
+            component = self.project.model_for(curve_id).component(component_id)
+            exact = link.strip() == f"${{{references[0]}}}"
+            prefix = self.tr("Linked → ") if exact else self.tr("Linked (advanced) → ")
+            return prefix + f"{curve.name} / {component.name} / {parameter_name}"
+        except Exception:
+            return self.tr("Linked (advanced)…")
 
     def _component_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
         if self._updating or current is None:
@@ -234,8 +259,6 @@ class ModelPanel(QWidget):
         try:
             if field == "fixed":
                 value: Any = item.checkState() == Qt.CheckState.Checked
-            elif field == "link":
-                value = item.text().strip() or None
             elif field == "minimum":
                 value = float(item.text()) if item.text().strip() else -math.inf
             elif field == "maximum":

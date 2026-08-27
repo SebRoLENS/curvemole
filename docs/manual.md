@@ -371,7 +371,7 @@ The left dock contains a search field and a tree with **Visible**, **Series / Cu
 and **State** columns.
 
 - Click a curve to activate it.
-- Use Ctrl-click or Shift-click for a multi-selection.
+- Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays.
 - Double-click an editable name to rename a series or curve.
@@ -497,8 +497,9 @@ locale-specific exports.
 ### 6.3 Column mapping
 
 Choose exactly one x column and one or more y columns. Each selected y column becomes
-a separate curve sharing the selected x column. The Python API additionally supports
-explicit x-y column pairs.
+a separate curve sharing the selected x column. Use **Select all Y columns** or
+**Deselect all Y columns** when importing tables with many signals. The Python API
+additionally supports explicit x-y column pairs.
 
 Optional columns are:
 
@@ -818,8 +819,8 @@ other than addition or subtraction.
 
 ### 8.9 Copying a fit to other curves
 
-**Model > Copy fit** copies selected information from the active curve. Options
-include:
+**Model > Copy fit** copies selected information from the active curve. Use **Select all**
+or **Deselect all** when choosing many target curves. Options include:
 
 - component structure;
 - current or best values;
@@ -847,7 +848,11 @@ The table columns are:
 | Fixed | Exclude the parameter from optimization |
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
-| Link | Restricted expression controlling this parameter |
+| Link | Graphical **Set link…** control; linked parameters show their source in readable form |
+
+Press **Set link…** to choose a source spectrum, component, and parameter. The default
+relationship is **Equal to source**. Choose **Advanced expression** for relationships such
+as `2 * ${source} + 1`. Use **Remove link** to make the parameter independent again.
 
 An edit is validated immediately. CurveMole rejects a value outside its bounds, a
 lower bound above an upper bound, an invalid expression, a missing referenced
@@ -888,11 +893,12 @@ or a derived relation:
 ${curve_ab12.component_cd34.center} + 12.5
 ```
 
-Internal curve and component identifiers are preserved in `.fitproj`, YAML-derived
-objects, Python objects, and machine-readable exports. In Preview 0.2.3, the GUI does
-not yet provide a dedicated path picker. Complex cross-curve links are therefore
-most reliably prepared through the Python API or a reproducible workflow and then
-inspected in the GUI.
+The graphical **Set link…** dialog creates these paths automatically, so normal GUI
+use does not require knowing curve or component identifiers. The canonical expression is
+still shown as a tooltip and remains available to advanced workflows, Python code, and
+machine-readable exports. For a link between different spectra, select both spectra and
+use **Global simultaneous** mode; CurveMole blocks incompatible fit modes with an explicit
+message.
 
 ### 9.4 Link evaluation
 
@@ -929,7 +935,7 @@ access, and network access are not part of the expression language.
 
 Before pressing **F5**:
 
-1. confirm the active and selected curves;
+1. confirm the active and selected curves; use **Select all** / **Deselect all** when appropriate;
 2. inspect invalid and masked points;
 3. choose a physically defensible background and peak count;
 4. provide reasonable initial values;
