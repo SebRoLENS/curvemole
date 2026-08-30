@@ -1,13 +1,19 @@
-# CurveMole
+<p align="center">
+  <img src="src/curvemole/resources/curvemole.png" width="112" alt="CurveMole icon">
+</p>
 
-[![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![Windows](https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![Linux](https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![macOS](https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22132337.svg)](https://doi.org/10.5281/zenodo.22132337)
-[![CI](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg)](https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml)
+<h1 align="center">CurveMole</h1>
 
-**Scientific curve and peak fitting for spectroscopy, diffraction, kinetics, and general x-y data.**
+<p align="center">
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" alt="Version"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
+  <a href="https://doi.org/10.5281/zenodo.22132337"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22132337.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
+
+<p align="center"><strong>Scientific curve and peak fitting for spectroscopy, diffraction, kinetics, and general x-y data.</strong></p>
 
 CurveMole is a desktop-first, scriptable scientific data-analysis application for
 one-dimensional spectra and curves. It provides interactive curve fitting, peak fitting,
