@@ -10,5 +10,6 @@ authors:
     affiliation: "European Laboratory for Non-Linear Spectroscopy (LENS), University of Florence (UNIFI)"
     email: romi@lens.unifi.it
 repository-code: "https://github.com/SebRoLENS/curvemole"
-url: "https://github.com/SebRoLENS/curvemole/releases/tag/v0.9.2"
+doi: "10.5281/zenodo.22253367"
+url: "https://doi.org/10.5281/zenodo.22253367"
 license: GPL-3.0-or-later
