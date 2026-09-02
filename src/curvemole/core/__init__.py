@@ -5,6 +5,7 @@ from curvemole.core.fitting import FitPlan, FitResult, FitSettings, Fitter
 from curvemole.core.models import Component, Model
 from curvemole.core.parameters import Parameter
 from curvemole.core.project import Project
+from curvemole.core.sequential_fit import SequentialFitPlan
 
 __all__ = [
     "Component",
@@ -18,6 +19,7 @@ __all__ = [
     "Model",
     "Parameter",
     "Project",
+    "SequentialFitPlan",
     "Series",
     "Transformation",
 ]
