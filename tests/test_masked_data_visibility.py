@@ -6,7 +6,6 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-import pyqtgraph as pg
 from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QApplication
 
