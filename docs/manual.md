@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.10.2
+# CurveMole User Manual - Preview 0.11.0
 
-**Current manual version: 0.10.2**
+**Current manual version: 0.11.0**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.10.2 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.11.0 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.10.2 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.11.0 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.10.2 describes CurveMole 0.10.2.
+version. For example, a manual marked 0.11.0 describes CurveMole 0.11.0.
 
 The release automation performs four checks:
 
@@ -184,14 +184,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.10.2-linux-x86_64.AppImage
-./CurveMole-0.10.2-linux-x86_64.AppImage
+chmod +x CurveMole-0.11.0-linux-x86_64.AppImage
+./CurveMole-0.11.0-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.10.2-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.11.0-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -212,13 +212,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.10.2-macos-arm64.dmg
+shasum -a 256 CurveMole-0.11.0-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.10.2-windows-x86_64.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.11.0-windows-x86_64.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -230,7 +230,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.10.2-py3-none-any.whl
+python -m pip install ./curvemole-0.11.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -239,7 +239,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.10.2-py3-none-any.whl
+python -m pip install .\curvemole-0.11.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -535,7 +535,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.10.2 optimizer.
+stored in the project but is not used by the version 0.11.0 optimizer.
 
 ### 6.4 Batch import
 
@@ -848,7 +848,7 @@ both signs. CurveMole:
 - estimates width at half prominence;
 - sorts suggestions by prominence.
 
-Choose how many suggestions to add. Version 0.10.2 creates Gaussian components from
+Choose how many suggestions to add. Version 0.11.0 creates Gaussian components from
 this graphical command. Suggestions are initial estimates, not a scientific decision
 about the number or identity of peaks.
 
@@ -1089,7 +1089,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.10.2 does not yet provide a single comprehensive on-screen results table, so use the
+0.11.0 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -1187,7 +1187,7 @@ refits all remaining free parameters, and compares chi-square with the baseline.
 The default grid spans approximately three covariance standard errors on either side,
 or a fallback span when no standard error is available, while respecting bounds.
 
-Preview 0.10.2 uses 31 grid points and a one-parameter chi-square threshold. Failed
+Preview 0.11.0 uses 31 grid points and a one-parameter chi-square threshold. Failed
 grid points are counted. A profile interval is more informative than a symmetric
 standard error near bounds or in nonlinear problems, but grid resolution should be
 considered when interpreting endpoints.
@@ -1248,7 +1248,7 @@ valid, distinct recovery files for a project are retained.
 
 Recovery files end in `.fitproj` and can be opened through the normal Open Project
 dialog if needed. Saving the project normally clears its recovery files. Preview
-0.10.2 does not yet show an automatic recovery chooser at startup, so after an abnormal
+0.11.0 does not yet show an automatic recovery chooser at startup, so after an abnormal
 termination inspect the CurveMole user cache before clearing application data.
 
 ### 13.6 Unsaved changes
@@ -1842,9 +1842,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.10.2)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.11.0)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.10.2
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.11.0
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -1908,7 +1908,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.exe` | Windows desktop executable |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.10.2 limitations
+## Appendix D. Preview 0.11.0 limitations
 
 The following boundaries are important when evaluating this release:
 
