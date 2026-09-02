@@ -27,13 +27,20 @@ from curvemole.core.parameters import Parameter, resolve_parameter_values
 
 @dataclass(slots=True)
 class SequentialFitPlan(FitPlan):
-    """Fit plan carrying monitoring preferences for propagating sequential fits."""
+    """Fit plan carrying monitoring and propagation preferences for sequential fits."""
 
     monitor_residuals: bool = True
     residual_ratio_limit: float = 2.5
     residual_nrmse_delta: float = 0.02
     monitor_parameters: bool = True
     parameter_change_limit: float = 0.75
+    propagate_bounds: bool = True
+    propagate_fixed: bool = True
+    propagate_links: bool = True
+    propagate_background: bool = True
+    propagate_enabled: bool = True
+    propagate_composition: bool = True
+    ignored_component_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
         FitPlan.validate(self)
@@ -45,19 +52,52 @@ class SequentialFitPlan(FitPlan):
             raise FitError("Sequential parameter-change threshold must be finite and positive.")
 
 
-def _clone_model_for_target(source: Model, source_curve_id: str, target: Curve) -> Model:
+def _clone_model_for_target(
+    source: Model,
+    source_curve_id: str,
+    target: Curve,
+    *,
+    propagate_bounds: bool = True,
+    propagate_fixed: bool = True,
+    propagate_links: bool = True,
+    propagate_background: bool = True,
+    propagate_enabled: bool = True,
+    propagate_composition: bool = True,
+) -> Model:
+    """Clone the source model while optionally dropping non-numerical fit state.
+
+    Function identity, names, parameter values and structural metadata are always
+    copied. Structural metadata is required by functions such as splines and
+    custom functions. Constraints and presentation/fit-state flags can be reset
+    independently by the sequential-fit plan.
+    """
     clone = Model.from_dict(copy.deepcopy(source.to_dict()))
     clone.name = f"Model for {target.name}"
     for component in clone.components:
+        if not propagate_background:
+            component.is_background = False
+        if not propagate_enabled:
+            component.enabled = True
+        if not propagate_composition:
+            component.operator = "add"
+            component.group = None
         for parameter in component.parameters.values():
-            if parameter.link:
+            if propagate_links and parameter.link:
                 parameter.link = parameter.link.replace(
                     "${" + source_curve_id + ".",
                     "${" + target.id + ".",
                 )
+            elif not propagate_links:
+                parameter.link = None
+            if not propagate_bounds:
+                parameter.minimum = -math.inf
+                parameter.maximum = math.inf
+            if not propagate_fixed:
+                parameter.fixed = False
             parameter.standard_error = None
             parameter.ci_low = None
             parameter.ci_high = None
+            parameter.validate()
     return clone
 
 
@@ -120,14 +160,18 @@ def _largest_parameter_jump(
     seed: Model,
     fitted: Model,
     curve: Curve,
+    ignored_component_ids: frozenset[str] | set[str] | None = None,
 ) -> tuple[float, str | None, float, float]:
     seed_by_id = {component.id: component for component in seed.components}
+    ignored = set(ignored_component_ids or ())
     largest = 0.0
     label: str | None = None
     before_value = 0.0
     after_value = 0.0
 
     for component in fitted.components:
+        if component.id in ignored:
+            continue
         source_component = seed_by_id.get(component.id)
         if source_component is None:
             continue
@@ -202,6 +246,15 @@ def _fit_sequential_propagating(
     residual_nrmse_delta = float(getattr(plan, "residual_nrmse_delta", 0.02))
     monitor_parameters = bool(getattr(plan, "monitor_parameters", True))
     parameter_change_limit = float(getattr(plan, "parameter_change_limit", 0.75))
+    propagate_bounds = bool(getattr(plan, "propagate_bounds", True))
+    propagate_fixed = bool(getattr(plan, "propagate_fixed", True))
+    propagate_links = bool(getattr(plan, "propagate_links", True))
+    propagate_background = bool(getattr(plan, "propagate_background", True))
+    propagate_enabled = bool(getattr(plan, "propagate_enabled", True))
+    propagate_composition = bool(getattr(plan, "propagate_composition", True))
+    ignored_component_ids = frozenset(
+        str(value) for value in getattr(plan, "ignored_component_ids", ())
+    )
 
     previous_nrmse = _model_nrmse(source_curve, source_model, fitter.registry)
     results: list[FitResult] = []
@@ -211,7 +264,17 @@ def _fit_sequential_propagating(
         cancellation.raise_if_cancelled()
         previous_curve = curves[index - 1]
         previous_model = models[previous_curve.id]
-        propagated = _clone_model_for_target(previous_model, previous_curve.id, curve)
+        propagated = _clone_model_for_target(
+            previous_model,
+            previous_curve.id,
+            curve,
+            propagate_bounds=propagate_bounds,
+            propagate_fixed=propagate_fixed,
+            propagate_links=propagate_links,
+            propagate_background=propagate_background,
+            propagate_enabled=propagate_enabled,
+            propagate_composition=propagate_composition,
+        )
         models[curve.id] = propagated
         seed_model = Model.from_dict(copy.deepcopy(propagated.to_dict()))
 
@@ -283,7 +346,12 @@ def _fit_sequential_propagating(
             )
 
         if monitor_parameters:
-            jump, label, before, after = _largest_parameter_jump(seed_model, models[curve.id], curve)
+            jump, label, before, after = _largest_parameter_jump(
+                seed_model,
+                models[curve.id],
+                curve,
+                ignored_component_ids,
+            )
             if label is not None and jump >= parameter_change_limit:
                 reasons.append(
                     f"parameter {label} changed strongly: {before:.6g} → {after:.6g} "
