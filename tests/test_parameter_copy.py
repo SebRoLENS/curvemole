@@ -6,11 +6,12 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Component, Curve, Project
 from curvemole.gui.main_window import MainWindow
-from curvemole.gui.parameter_copy import copy_parameter_to_refs
+from curvemole.gui.parameter_copy import CopyParameterDialog, copy_parameter_to_refs
 
 
 def _window_with_two_curves() -> tuple[QApplication, MainWindow, Curve, Curve, Component, Component, Component]:
@@ -31,6 +32,18 @@ def _window_with_two_curves() -> tuple[QApplication, MainWindow, Curve, Curve, C
     project.dirty = False
     window = MainWindow(project)
     return app, window, first, second, source, anchor, target
+
+
+def _select_parameter_row(window: MainWindow, parameter_name: str) -> None:
+    table = window.model_panel.parameters
+    for row in range(table.rowCount()):
+        value_item = table.item(row, 1)
+        metadata = value_item.data(Qt.ItemDataRole.UserRole) if value_item is not None else None
+        if metadata and metadata[1] == parameter_name:
+            table.setCurrentCell(row, 0)
+            QApplication.processEvents()
+            return
+    raise AssertionError(f"Parameter row not found: {parameter_name}")
 
 
 def test_value_only_copy_preserves_target_constraints_and_is_undoable() -> None:
@@ -143,9 +156,49 @@ def test_targets_without_parameter_or_with_incompatible_bounds_are_skipped() -> 
     app.processEvents()
 
 
+def test_model_panel_remembers_source_parameter_before_target_multiselection() -> None:
+    app, window, first, _second, source, anchor, _target = _window_with_two_curves()
+    panel = window.model_panel
+
+    assert panel.selected_component_refs() == [(first.id, source.id)]
+    _select_parameter_row(window, "center")
+
+    assert panel._parameter_copy_source_ref == (first.id, source.id)
+    assert panel._parameter_copy_parameter_name == "center"
+    assert "center" in panel.copy_parameter_button.text()
+    assert not panel.copy_parameter_button.isEnabled()
+
+    panel.components.item(1).setSelected(True)
+    app.processEvents()
+
+    refs = panel.selected_component_refs()
+    assert refs == [(first.id, source.id), (first.id, anchor.id)]
+    assert panel._parameter_copy_source_ref == (first.id, source.id)
+    assert panel._parameter_copy_parameter_name == "center"
+    assert panel.copy_parameter_button.isEnabled()
+    assert "center" in panel.copy_parameter_button.text()
+    assert "1" in panel.copy_parameter_button.text()
+
+    dialog = CopyParameterDialog(
+        window,
+        refs,
+        panel._parameter_copy_source_ref,
+        panel._parameter_copy_parameter_name,
+    )
+    assert dialog.source_ref() == (first.id, source.id)
+    assert dialog.parameter_name() == "center"
+    assert dialog.target_refs() == [(first.id, anchor.id)]
+    assert "center" in dialog.copy_button.text()
+    dialog.close()
+
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
 def test_model_panel_exposes_parameter_copy_action() -> None:
     app, window, *_ = _window_with_two_curves()
-    assert window.model_panel.copy_parameter_button.text() == "Copy parameter to selected…"
+    assert window.model_panel.copy_parameter_button.text() == "Select a parameter, then select target functions"
     assert not window.model_panel.copy_parameter_button.isEnabled()
     window.project.dirty = False
     window.close()
