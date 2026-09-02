@@ -19,12 +19,21 @@ CITATION = ROOT / "CITATION.cff"
 
 VERSION_RE = re.compile(r'^__version__\s*=\s*"(\d+\.\d+\.\d+)"', re.M)
 VERSION_BADGE_RE = re.compile(
-    r"^\[!\[(?:Latest release|Version)\]\([^)]+\)\]\([^)]+\)[ \t]*$", re.M
+    r'^(?:\[!\[(?:Latest release|Version)\]\([^)]+\)\]\([^)]+\)|'
+    r'[ \t]*<a href="https://github\.com/SebRoLENS/curvemole/releases/latest">'
+    r'<img src="https://img\.shields\.io/github/v/release/SebRoLENS/curvemole" '
+    r'alt="Version"></a>)[ \t]*$',
+    re.M,
 )
-DOI_BADGE_RE = re.compile(r"^\[!\[DOI\]\([^)]+\)\]\([^)]+\)[ \t]*$", re.M)
+DOI_BADGE_RE = re.compile(
+    r'^(?:\[!\[DOI\]\([^)]+\)\]\([^)]+\)|'
+    r'[ \t]*<a href="[^"]+"><img src="[^"]+" alt="DOI"></a>)[ \t]*$',
+    re.M,
+)
 VERSION_BADGE = (
-    "[![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)]"
-    "(https://github.com/SebRoLENS/curvemole/releases/latest)"
+    '  <a href="https://github.com/SebRoLENS/curvemole/releases/latest">'
+    '<img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" '
+    'alt="Version"></a>'
 )
 VALID_TITLES = {"curvemole", "curvemole: modular scientific curve fitting"}
 
@@ -113,7 +122,10 @@ def replace_section(text: str, heading: str, next_heading: str, body: str) -> st
 
 def apply_metadata(version: str, doi: str) -> None:
     doi_url = f"https://doi.org/{doi}"
-    doi_badge = f"[![DOI](https://zenodo.org/badge/DOI/{doi}.svg)]({doi_url})"
+    doi_badge = (
+        f'  <a href="{doi_url}"><img src="https://zenodo.org/badge/DOI/{doi}.svg" '
+        'alt="DOI"></a>'
+    )
 
     readme = README.read_text(encoding="utf-8")
     if not VERSION_BADGE_RE.search(readme):

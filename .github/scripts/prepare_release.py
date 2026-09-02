@@ -32,17 +32,26 @@ PUBLIC_VERSION_RE = re.compile(
     r"^Current public version: \*\*\d+\.\d+\.\d+\*\*$", re.M
 )
 VERSION_BADGE_RE = re.compile(
-    r"^\[!\[(?:Latest release|Version)\]\([^)]+\)\]\([^)]+\)[ \t]*$", re.M
+    r'^(?:\[!\[(?:Latest release|Version)\]\([^)]+\)\]\([^)]+\)|'
+    r'[ \t]*<a href="https://github\.com/SebRoLENS/curvemole/releases/latest">'
+    r'<img src="https://img\.shields\.io/github/v/release/SebRoLENS/curvemole" '
+    r'alt="Version"></a>)[ \t]*$',
+    re.M,
 )
-DOI_BADGE_RE = re.compile(r"^\[!\[DOI\]\([^)]+\)\]\([^)]+\)[ \t]*$", re.M)
+DOI_BADGE_RE = re.compile(
+    r'^(?:\[!\[DOI\]\([^)]+\)\]\([^)]+\)|'
+    r'[ \t]*<a href="[^"]+"><img src="[^"]+" alt="DOI"></a>)[ \t]*$',
+    re.M,
+)
 
 VERSION_BADGE = (
-    "[![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)]"
-    "(https://github.com/SebRoLENS/curvemole/releases/latest)"
+    '  <a href="https://github.com/SebRoLENS/curvemole/releases/latest">'
+    '<img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" '
+    'alt="Version"></a>'
 )
 DOI_PENDING_BADGE = (
-    "[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)]"
-    "(https://github.com/SebRoLENS/curvemole/releases/latest)"
+    '  <a href="https://github.com/SebRoLENS/curvemole/releases/latest">'
+    '<img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>'
 )
 
 
