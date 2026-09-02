@@ -6,10 +6,12 @@ import hashlib
 import json
 import os
 import platform
+import re
 import stat
 import subprocess
 import sys
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -35,8 +37,6 @@ class ReleaseAsset:
 
 def semantic_version(value: str) -> tuple[int, int, int] | None:
     """Parse the supported three-component semantic version form."""
-    import re
-
     match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", value.strip())
     if match is None:
         return None
@@ -135,10 +135,8 @@ class UpdateController(QObject):
         window.statusBar().addPermanentWidget(self.badge)
 
         # Reuse the existing Help menu action, but route it through the new checker.
-        try:
+        with suppress(RuntimeError, TypeError):
             window.update_action.triggered.disconnect()
-        except (RuntimeError, TypeError):
-            pass
         window.update_action.triggered.connect(
             lambda checked=False: self.check(force=True)
         )
