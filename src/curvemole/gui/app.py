@@ -6,7 +6,6 @@ import os
 import sys
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QApplication
@@ -28,29 +27,6 @@ class CurveMoleMainWindow(MainWindow):
     def _fit_finished(self, result: FitResult) -> None:
         _normalise_fit_result_mode(result)
         super()._fit_finished(result)
-
-
-class MenuBarUpdateController(UpdateController):
-    """Display the release badge prominently in the menu bar."""
-
-    _BADGE_STYLES = {
-        state: style.replace(
-            "padding:2px 8px;",
-            "padding:4px 12px;font-weight:600;",
-        )
-        for state, style in UpdateController._BADGE_STYLES.items()
-    }
-
-    def __init__(self, window: Any) -> None:
-        super().__init__(window)
-        window.statusBar().removeWidget(self.badge)
-        window.menuBar().setCornerWidget(self.badge, Qt.Corner.TopRightCorner)
-        self.badge.setText(f"CurveMole v{__version__}")
-        self.badge.setStyleSheet(self._BADGE_STYLES["checking"])
-
-    def _set_badge(self, state: str, tooltip: str) -> None:
-        super()._set_badge(state, tooltip)
-        self.badge.setText(f"CurveMole v{__version__}")
 
 
 def _missing_toolbar_icons(window: MainWindow) -> list[str]:
@@ -78,7 +54,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
     window = CurveMoleMainWindow()
-    window._release_update_controller = MenuBarUpdateController(window)
+    window._release_update_controller = UpdateController(window)
     window.show()
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
         from PySide6.QtCore import QTimer
