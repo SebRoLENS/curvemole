@@ -9,3 +9,7 @@ from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,
 
 # Extend the multi-selection model panel with source-to-many parameter copying.
 from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
+
+# Add propagating sequential-fit controls plus pause/resume state that survives
+# manual intervention on a suspicious spectrum.
+from curvemole.gui import sequential_fit_ui as _sequential_fit_ui  # noqa: F401,E402
