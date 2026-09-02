@@ -8,7 +8,10 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+import pyqtgraph as pg
 from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QApplication
 
 from curvemole.core.fitting import FitMode, FitResult
@@ -22,6 +25,8 @@ PlotViewState = tuple[
     tuple[float, float],
     tuple[float, float],
 ]
+
+_ADAPTIVE_RENDER_MIN_POINTS = 1500
 
 
 def _normalise_fit_result_mode(result: FitResult) -> None:
@@ -58,6 +63,54 @@ def _restore_plot_view(workspace: PlotWorkspace, state: PlotViewState | None) ->
     )
 
 
+def _normalise_display_x(item: pg.PlotDataItem) -> bool:
+    """Ensure monotonic display X data is ascending so clip-to-view is safe."""
+    x_data, y_data = item.getOriginalDataset()
+    if x_data is None or y_data is None or len(x_data) < 2:
+        return False
+    x = np.asarray(x_data)
+    if not np.all(np.isfinite(x)):
+        return False
+    delta = np.diff(x)
+    if np.all(delta >= 0) and np.any(delta > 0):
+        return True
+    if np.all(delta <= 0) and np.any(delta < 0):
+        item.setData(x=x[::-1], y=np.asarray(y_data)[::-1])
+        return True
+    return False
+
+
+def _optimise_plot_data_item(item: pg.PlotDataItem, *, adaptive: bool) -> None:
+    """Configure one line item for pixel-aware rendering without changing source data."""
+    if item.opts.get("pen") is None:
+        return
+    x_data, _ = item.getOriginalDataset()
+    if x_data is None:
+        return
+    monotonic = _normalise_display_x(item)
+    item.setClipToView(monotonic)
+    use_downsampling = adaptive and monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
+    item.setDownsampling(
+        ds=None if use_downsampling else 1,
+        auto=use_downsampling,
+        method="peak",
+    )
+    if adaptive:
+        pen = item.opts.get("pen")
+        if isinstance(pen, QPen) and not np.isclose(pen.widthF(), 1.0):
+            fast_pen = QPen(pen)
+            fast_pen.setWidthF(1.0)
+            item.setPen(fast_pen)
+
+
+def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
+    """Apply adaptive rendering to dense Overlay/Waterfall views after each refresh."""
+    adaptive = workspace.display_mode.currentIndex() != 0
+    for plot in (workspace.plot, workspace.residual_plot):
+        for item in plot.listDataItems():
+            _optimise_plot_data_item(item, adaptive=adaptive)
+
+
 def _install_view_preserving_refresh() -> None:
     """Make redraws preserve navigation while retaining explicit View all behaviour."""
     if getattr(PlotWorkspace, "_curvemole_preserves_view", False):
@@ -73,6 +126,7 @@ def _install_view_preserving_refresh() -> None:
             delattr(workspace, "_preserve_view_on_refresh")
         state = _capture_plot_view(workspace) if preserve else None
         original_refresh(workspace, *args)
+        _optimise_plot_rendering(workspace)
         _restore_plot_view(workspace, state)
 
     def set_context(
