@@ -6,6 +6,7 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -13,6 +14,8 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QLabel,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QVBoxLayout,
@@ -132,18 +135,19 @@ class CopyParameterDialog(QDialog):
         window: MainWindow,
         refs: list[tuple[str, str]],
         current_ref: tuple[str, str] | None,
+        current_parameter: str | None = None,
     ) -> None:
         super().__init__(window)
         self.window = window
         self.refs = list(refs)
         self.setWindowTitle(self.tr("Copy parameter to selected functions"))
-        self.resize(520, 300)
+        self.resize(600, 520)
 
         layout = QVBoxLayout(self)
         intro = QLabel(
             self.tr(
-                "Choose the source function and parameter. The numerical value is always copied "
-                "to the other selected functions that contain a parameter with the same name."
+                "Copy one parameter from one source function to the selected target functions. "
+                "Follow the four numbered steps below."
             )
         )
         intro.setWordWrap(True)
@@ -156,11 +160,19 @@ class CopyParameterDialog(QDialog):
         if current_ref in self.refs:
             self.source.setCurrentIndex(self.refs.index(current_ref))
         self.parameter = QComboBox()
-        self.source.currentIndexChanged.connect(self._refresh_parameters)
-        form.addRow(self.tr("Source function"), self.source)
-        form.addRow(self.tr("Parameter"), self.parameter)
+        form.addRow(self.tr("1. Source function"), self.source)
+        form.addRow(self.tr("2. Parameter to copy"), self.parameter)
         layout.addLayout(form)
 
+        targets_label = QLabel(self.tr("3. Target functions — uncheck any function you do not want to modify"))
+        targets_label.setWordWrap(True)
+        layout.addWidget(targets_label)
+        self.targets = QListWidget()
+        self.targets.setMinimumHeight(120)
+        layout.addWidget(self.targets)
+
+        options_label = QLabel(self.tr("4. Choose what is copied"))
+        layout.addWidget(options_label)
         value_note = QLabel(self.tr("✓ Numerical value (always copied)"))
         layout.addWidget(value_note)
         self.copy_fixed = QCheckBox(self.tr("Also copy fixed/free state"))
@@ -190,14 +202,23 @@ class CopyParameterDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText(self.tr("Copy"))
+        self.copy_button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+        self.copy_button.setText(self.tr("Copy parameter"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+        self.source.currentIndexChanged.connect(self._source_changed)
         self.parameter.currentIndexChanged.connect(self._refresh_summary)
         self.copy_bounds.toggled.connect(self._refresh_summary)
+        self.targets.itemChanged.connect(lambda *_: self._refresh_summary())
         self._refresh_parameters()
+        if current_parameter:
+            index = self.parameter.findData(current_parameter)
+            if index >= 0:
+                self.parameter.setCurrentIndex(index)
+        self._refresh_targets()
+        self._refresh_summary()
 
     def source_ref(self) -> tuple[str, str]:
         value = self.source.currentData()
@@ -207,10 +228,23 @@ class CopyParameterDialog(QDialog):
         return str(self.parameter.currentData())
 
     def target_refs(self) -> list[tuple[str, str]]:
-        source = self.source_ref()
-        return [ref for ref in self.refs if ref != source]
+        result: list[tuple[str, str]] = []
+        for row in range(self.targets.count()):
+            item = self.targets.item(row)
+            if item.checkState() != Qt.CheckState.Checked:
+                continue
+            value = item.data(Qt.ItemDataRole.UserRole)
+            if value is not None:
+                result.append((str(value[0]), str(value[1])))
+        return result
+
+    def _source_changed(self) -> None:
+        self._refresh_parameters()
+        self._refresh_targets()
+        self._refresh_summary()
 
     def _refresh_parameters(self) -> None:
+        previous = self.parameter.currentData()
         self.parameter.clear()
         if not self.refs:
             return
@@ -218,11 +252,31 @@ class CopyParameterDialog(QDialog):
         component = self.window.project.model_for(curve_id).component(component_id)
         for name in component.parameters:
             self.parameter.addItem(name, name)
-        self._refresh_summary()
+        if previous is not None:
+            index = self.parameter.findData(previous)
+            if index >= 0:
+                self.parameter.setCurrentIndex(index)
+
+    def _refresh_targets(self) -> None:
+        self.targets.blockSignals(True)
+        try:
+            self.targets.clear()
+            source = self.source_ref()
+            for ref in self.refs:
+                if ref == source:
+                    continue
+                item = QListWidgetItem(_component_label(self.window, ref))
+                item.setData(Qt.ItemDataRole.UserRole, ref)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked)
+                self.targets.addItem(item)
+        finally:
+            self.targets.blockSignals(False)
 
     def _refresh_summary(self) -> None:
         if self.parameter.count() == 0:
             self.summary.clear()
+            self.copy_button.setEnabled(False)
             return
         name = self.parameter_name()
         source_curve_id, source_component_id = self.source_ref()
@@ -230,7 +284,8 @@ class CopyParameterDialog(QDialog):
         compatible = 0
         missing = 0
         bound_conflicts = 0
-        for curve_id, component_id in self.target_refs():
+        targets = self.target_refs()
+        for curve_id, component_id in targets:
             component = self.window.project.model_for(curve_id).component(component_id)
             target = component.parameters.get(name)
             if target is None:
@@ -245,6 +300,10 @@ class CopyParameterDialog(QDialog):
         if bound_conflicts:
             parts.append(f"{bound_conflicts} " + self.tr("outside existing bounds"))
         self.summary.setText(" · ".join(parts))
+        self.copy_button.setEnabled(bool(targets))
+        self.copy_button.setText(
+            self.tr("Copy '") + name + self.tr("' to ") + str(len(targets)) + self.tr(" target(s)")
+        )
 
 
 def _show_copy_result(window: MainWindow, result: ParameterCopyResult, parameter_name: str) -> None:
@@ -281,11 +340,14 @@ def _install_parameter_copy() -> None:
 
     def init(panel: ModelPanel, *args: Any, **kwargs: Any) -> None:
         original_init(panel, *args, **kwargs)
-        panel.copy_parameter_button = QPushButton(panel.tr("Copy parameter to selected…"))
+        panel._parameter_copy_source_ref = None
+        panel._parameter_copy_parameter_name = None
+        panel.copy_parameter_button = QPushButton(panel.tr("Select a parameter, then select target functions"))
         panel.copy_parameter_button.setToolTip(
             panel.tr(
-                "Copy one parameter from a source function to all other selected functions. "
-                "The value is copied by default; fixed state, bounds and relations are optional."
+                "Workflow: 1) select the source function; 2) click the parameter row you want to copy; "
+                "3) Ctrl/Shift-select the target functions; 4) press this button. The value is copied "
+                "by default; fixed state, bounds and relations are optional."
             )
         )
         single = panel.stack.widget(0)
@@ -293,12 +355,61 @@ def _install_parameter_copy() -> None:
         single.layout().insertWidget(index, panel.copy_parameter_button)
         panel.copy_parameter_button.clicked.connect(panel._copy_parameter_to_selected)
         panel.components.itemSelectionChanged.connect(panel._update_copy_parameter_button)
+        panel.parameters.currentCellChanged.connect(panel._remember_parameter_copy_source)
+        panel._update_copy_parameter_button()
+
+    def remember_source(
+        panel: ModelPanel,
+        row: int,
+        column: int,
+        previous_row: int,
+        previous_column: int,
+    ) -> None:
+        del column, previous_row, previous_column
+        if panel._updating or row < 0:
+            return
+        refs = panel.selected_component_refs()
+        if len(refs) != 1:
+            return
+        value_item = panel.parameters.item(row, 1)
+        metadata = value_item.data(Qt.ItemDataRole.UserRole) if value_item is not None else None
+        if not metadata:
+            return
+        panel._parameter_copy_source_ref = refs[0]
+        panel._parameter_copy_parameter_name = str(metadata[1])
         panel._update_copy_parameter_button()
 
     def update_button(panel: ModelPanel) -> None:
         button = getattr(panel, "copy_parameter_button", None)
-        if button is not None:
-            button.setEnabled(len(panel.selected_component_refs()) >= 2)
+        if button is None:
+            return
+        refs = panel.selected_component_refs()
+        source_ref = getattr(panel, "_parameter_copy_source_ref", None)
+        parameter_name = getattr(panel, "_parameter_copy_parameter_name", None)
+        if len(refs) < 2:
+            button.setEnabled(False)
+            if parameter_name and source_ref in refs:
+                button.setText(
+                    panel.tr("Parameter '")
+                    + parameter_name
+                    + panel.tr("' selected — Ctrl/Shift-select target functions")
+                )
+            else:
+                button.setText(panel.tr("Select a parameter, then select target functions"))
+            return
+
+        button.setEnabled(True)
+        if source_ref in refs and parameter_name:
+            targets = len(refs) - 1
+            button.setText(
+                panel.tr("Copy '")
+                + parameter_name
+                + panel.tr("' to ")
+                + str(targets)
+                + panel.tr(" selected function(s)…")
+            )
+        else:
+            button.setText(panel.tr("Choose source parameter and copy to selected functions…"))
 
     def copy_selected(panel: ModelPanel) -> None:
         refs = panel.selected_component_refs()
@@ -306,13 +417,19 @@ def _install_parameter_copy() -> None:
             QMessageBox.information(
                 panel,
                 panel.tr("Copy parameter"),
-                panel.tr("Select at least two functions first."),
+                panel.tr(
+                    "First select the source function and parameter, then Ctrl/Shift-select at least one target function."
+                ),
             )
             return
         window = panel.window()
         if not isinstance(window, MainWindow):
             return
-        dialog = CopyParameterDialog(window, refs, _current_ref(panel))
+        remembered_source = getattr(panel, "_parameter_copy_source_ref", None)
+        remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
+        source_hint = remembered_source if remembered_source in refs else _current_ref(panel)
+        parameter_hint = remembered_parameter if source_hint == remembered_source else None
+        dialog = CopyParameterDialog(window, refs, source_hint, parameter_hint)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         try:
@@ -331,6 +448,7 @@ def _install_parameter_copy() -> None:
         _show_copy_result(window, result, dialog.parameter_name())
 
     ModelPanel.__init__ = init
+    ModelPanel._remember_parameter_copy_source = remember_source
     ModelPanel._update_copy_parameter_button = update_button
     ModelPanel._copy_parameter_to_selected = copy_selected
     ModelPanel._curvemole_parameter_copy = True
