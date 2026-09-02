@@ -36,7 +36,7 @@ class SequentialFitPlan(FitPlan):
     parameter_change_limit: float = 0.75
 
     def validate(self) -> None:
-        super().validate()
+        FitPlan.validate(self)
         if self.residual_ratio_limit <= 1 or not math.isfinite(self.residual_ratio_limit):
             raise FitError("Sequential residual ratio must be finite and greater than 1.")
         if self.residual_nrmse_delta < 0 or not math.isfinite(self.residual_nrmse_delta):
