@@ -4,16 +4,20 @@ from __future__ import annotations
 
 import math
 import re
-from copy import deepcopy
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from scipy.optimize import least_squares
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QMessageBox
+from PySide6.QtWidgets import QCheckBox
+from scipy.optimize import least_squares
 
-from curvemole.core.initialization import PeakSuggestion, initialise_peak_component, initialise_spline_component
+from curvemole.core.initialization import (
+    PeakSuggestion,
+    initialise_peak_component,
+    initialise_spline_component,
+)
 from curvemole.core.models import Component
 from curvemole.gui.dialogs import AddComponentDialog
 from curvemole.gui.main_window import MainWindow
