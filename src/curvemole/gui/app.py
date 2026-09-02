@@ -12,10 +12,11 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QCoreApplication, QLocale, Qt
-from PySide6.QtGui import QPen
-from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QKeySequence, QPen, QShortcut
+from PySide6.QtWidgets import QApplication, QInputDialog
 
 from curvemole.core.fitting import FitMode, FitResult
+from curvemole.core.models import Component
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.updates import UpdateController
@@ -235,11 +236,98 @@ def _install_view_preserving_refresh() -> None:
     PlotWorkspace._curvemole_preserves_view = True
 
 
+def _install_continuous_peak_placement() -> None:
+    """Keep Quick Peak placement active until the user explicitly finishes it."""
+    if getattr(PlotWorkspace, "_curvemole_continuous_peaks", False):
+        return
+
+    original_init = PlotWorkspace.__init__
+    original_begin_peak = PlotWorkspace.begin_peak_placement
+    original_finish_peak = PlotWorkspace._finish_peak_placement
+    original_finish_placement = PlotWorkspace.finish_placement
+    original_cancel_placement = PlotWorkspace.cancel_placement
+
+    def init(workspace: PlotWorkspace, *args: Any, **kwargs: Any) -> None:
+        original_init(workspace, *args, **kwargs)
+        workspace._continuous_peak_placement = False
+        workspace._continuous_peak_done = False
+        workspace._continuous_peak_return = QShortcut(QKeySequence("Return"), workspace)
+        workspace._continuous_peak_enter = QShortcut(QKeySequence("Enter"), workspace)
+        workspace._continuous_peak_return.activated.connect(
+            lambda: workspace.finish_placement()
+            if getattr(workspace, "_continuous_peak_placement", False)
+            else None
+        )
+        workspace._continuous_peak_enter.activated.connect(
+            lambda: workspace.finish_placement()
+            if getattr(workspace, "_continuous_peak_placement", False)
+            else None
+        )
+
+    def begin_continuous_peak_placement(workspace: PlotWorkspace, name: str) -> None:
+        original_begin_peak(workspace, name)
+        workspace._continuous_peak_placement = True
+        workspace._continuous_peak_done = False
+        workspace.finish_placement_button.show()
+        workspace.finish_placement_button.setEnabled(True)
+        workspace.placement_label.setText(
+            workspace.tr("Quick Peak — ")
+            + name
+            + workspace.tr(
+                ": click/drag to add peaks repeatedly. Press Enter, Esc, or Finish when done."
+            )
+        )
+
+    def finish_peak(workspace: PlotWorkspace, x: float, y: float, fwhm: float) -> None:
+        if not getattr(workspace, "_continuous_peak_placement", False):
+            original_finish_peak(workspace, x, y, fwhm)
+            return
+        x, y = workspace._from_display_coordinates(x, y)
+        selected_width = fwhm if fwhm > 0 else workspace._default_peak_width()
+        workspace._peak_preview = None
+        workspace.peakPlacementFinished.emit(x, y, selected_width)
+        workspace._render_placement_preview()
+
+    def finish_placement(workspace: PlotWorkspace) -> None:
+        if not getattr(workspace, "_continuous_peak_placement", False):
+            original_finish_placement(workspace)
+            return
+        workspace._continuous_peak_placement = False
+        workspace._continuous_peak_done = True
+        workspace._end_placement()
+        workspace.placementCancelled.emit()
+
+    def cancel_placement(workspace: PlotWorkspace) -> None:
+        if getattr(workspace, "_continuous_peak_placement", False):
+            # In continuous Quick Peak mode Esc means "done", not "discard".
+            finish_placement(workspace)
+            return
+        original_cancel_placement(workspace)
+
+    PlotWorkspace.__init__ = init
+    PlotWorkspace.begin_continuous_peak_placement = begin_continuous_peak_placement
+    PlotWorkspace._finish_peak_placement = finish_peak
+    PlotWorkspace.finish_placement = finish_placement
+    PlotWorkspace.cancel_placement = cancel_placement
+    PlotWorkspace._curvemole_continuous_peaks = True
+
+
 _install_view_preserving_refresh()
+_install_continuous_peak_placement()
 
 
 class CurveMoleMainWindow(MainWindow):
-    """Main window with defensive fit normalisation and stable plot navigation."""
+    """Main window with stable navigation and continuous quick peak placement."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self._continuous_quick_peak_function_id: str | None = None
+        super().__init__(*args, **kwargs)
+        self.quick_peak_action.setToolTip(
+            self.tr(
+                "Quick Peak\nChoose a peak function, then add as many peaks as needed. "
+                "Press Enter, Esc, or Finish to stop."
+            )
+        )
 
     def _fit_finished(self, result: FitResult) -> None:
         view_state = _capture_plot_view(self.plot_workspace)
@@ -250,6 +338,78 @@ class CurveMoleMainWindow(MainWindow):
         finally:
             self.plot_workspace._suppress_automatic_auto_range = False
             _restore_plot_view(self.plot_workspace, view_state)
+
+    def quick_peak(self) -> None:
+        if not self._ensure_editable():
+            return
+        if not self.active_curve_id:
+            self._notify(self.tr("Activate a curve first."), warning=True)
+            return
+
+        self.plot_workspace.cancel_placement()
+        definitions = [definition for definition in self.registry.values() if definition.kind == "peak"]
+        if not definitions:
+            self._notify(self.tr("No peak function is available in the current registry."), warning=True)
+            return
+
+        current_index = next(
+            (
+                index
+                for index, definition in enumerate(definitions)
+                if definition.identifier == self.last_peak_function_id
+            ),
+            0,
+        )
+        labels = [definition.display_name for definition in definitions]
+        selected, accepted = QInputDialog.getItem(
+            self,
+            self.tr("Quick Peak"),
+            self.tr("Peak function:"),
+            labels,
+            current_index,
+            False,
+        )
+        if not accepted:
+            return
+
+        definition = definitions[labels.index(selected)]
+        self.last_peak_function_id = definition.identifier
+        self.settings.setValue("last_peak_function", definition.identifier)
+        self._continuous_quick_peak_function_id = definition.identifier
+        self._prepare_next_quick_peak()
+        self.plot_workspace.begin_continuous_peak_placement(definition.display_name)
+        self._notify(
+            self.tr(
+                "Quick Peak is active: add peaks repeatedly, then press Enter, Esc, or Finish."
+            )
+        )
+
+    def _prepare_next_quick_peak(self) -> None:
+        function_id = self._continuous_quick_peak_function_id
+        if not function_id or not self.active_curve_id:
+            return
+        self._pending_component = Component.create(function_id, registry=self.registry)
+        self._pending_component_curve_id = self.active_curve_id
+
+    def _graphical_peak_placed(self, centre: float, height: float, fwhm: float) -> None:
+        continuous = bool(
+            self._continuous_quick_peak_function_id
+            and getattr(self.plot_workspace, "_continuous_peak_placement", False)
+        )
+        super()._graphical_peak_placed(centre, height, fwhm)
+        if continuous and getattr(self.plot_workspace, "_continuous_peak_placement", False):
+            self._prepare_next_quick_peak()
+
+    def _graphical_placement_cancelled(self) -> None:
+        if getattr(self.plot_workspace, "_continuous_peak_done", False):
+            self.plot_workspace._continuous_peak_done = False
+            self._pending_component = None
+            self._pending_component_curve_id = None
+            self._continuous_quick_peak_function_id = None
+            self._notify(self.tr("Quick Peak finished."))
+            return
+        self._continuous_quick_peak_function_id = None
+        super()._graphical_placement_cancelled()
 
 
 def _missing_toolbar_icons(window: MainWindow) -> list[str]:
