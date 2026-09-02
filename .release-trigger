@@ -1,4 +1,4 @@
 # Commit a change to this file to create a release without changing source code.
 # Default: patch. Add [minor] or [major] to the commit message when appropriate.
 initial-release=0.1.0
-release-request=5
+release-request=6
