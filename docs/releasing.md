@@ -2,14 +2,21 @@
 
 CurveMole releases use semantic versioning: `MAJOR.MINOR.PATCH`.
 
+The project policy is:
+
+- bug fixes and maintenance corrections increment `PATCH` (`x.x.y`)
+- new backward-compatible features increment `MINOR` (`x.y.x`)
+- incompatible or major-line changes increment `MAJOR` (`y.x.x`)
+
 ## Normal development
 
 A push to `main` that changes application source, packaging, dependencies, or
-`.release-trigger` starts the release workflow. The default increment is `PATCH`.
+`.release-trigger` starts the release workflow. The default increment is `PATCH`, so
+ordinary corrective commits are treated as bug-fix releases.
 
-- ordinary commit: `0.1.0` → `0.1.1`
-- commit message containing `[minor]`: `0.1.1` → `0.2.0`
-- commit message containing `[major]`: `0.2.0` → `1.0.0`
+- ordinary/bug-fix commit: `0.1.0` → `0.1.1`
+- feature commit with `[minor]`: `0.1.1` → `0.2.0`
+- incompatible change with `[major]`: `0.2.0` → `1.0.0`
 - a version manually raised in both source and `pyproject.toml` is respected
 
 The workflow can also be started from GitHub Actions with an explicit patch, minor,
