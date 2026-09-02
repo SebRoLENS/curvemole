@@ -18,6 +18,7 @@ from PySide6.QtWidgets import QApplication, QInputDialog
 from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.models import Component
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.updates import UpdateController
 from curvemole.version import __version__
@@ -314,6 +315,7 @@ def _install_continuous_peak_placement() -> None:
 
 _install_view_preserving_refresh()
 _install_continuous_peak_placement()
+install_manual_point_support()
 
 
 class CurveMoleMainWindow(MainWindow):
