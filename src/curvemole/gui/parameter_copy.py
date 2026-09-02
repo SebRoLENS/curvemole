@@ -6,7 +6,6 @@ import copy
 from dataclasses import dataclass
 from typing import Any
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -69,11 +68,7 @@ def copy_parameter_to_refs(
         raise KeyError(parameter_name)
     source = source_component.parameters[parameter_name]
 
-    unique_targets = [
-        ref
-        for ref in dict.fromkeys(target_refs)
-        if ref != source_ref
-    ]
+    unique_targets = [ref for ref in dict.fromkeys(target_refs) if ref != source_ref]
     compatible: list[tuple[str, str]] = []
     missing: list[tuple[str, str]] = []
     incompatible_bounds: list[tuple[str, str]] = []
