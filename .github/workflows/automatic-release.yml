@@ -67,7 +67,10 @@ jobs:
       - name: Prepare release metadata
         id: prepare
         env:
-          REQUESTED_BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || '' }}
+          # Always derive the requested bump from the event that triggered this run,
+          # not from whatever administrative commit happens to be latest on main
+          # when the queued job finally checks out the repository.
+          REQUESTED_BUMP: ${{ github.event_name == 'workflow_dispatch' && inputs.bump || contains(github.event.head_commit.message, '[major]') && 'major' || contains(github.event.head_commit.message, '[minor]') && 'minor' || 'patch' }}
         run: |
           args=()
           if [ -n "$REQUESTED_BUMP" ]; then args+=(--bump "$REQUESTED_BUMP"); fi
