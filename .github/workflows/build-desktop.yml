@@ -267,13 +267,25 @@ jobs:
 
       - name: Create DMG
         run: |
-          mkdir dmg-stage
+          set -euo pipefail
+          mkdir -p dmg-stage
           ditto dist/CurveMole.app "dmg-stage/CurveMole.app"
-          hdiutil create \
-            -volname CurveMole \
-            -srcfolder dmg-stage \
-            -ov -format UDZO \
-            "CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
+          DMG="CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
+          for attempt in 1 2 3; do
+            if hdiutil create \
+              -volname CurveMole \
+              -srcfolder dmg-stage \
+              -ov -format UDZO \
+              "$DMG"; then
+              exit 0
+            fi
+            echo "hdiutil create failed (attempt ${attempt}/3); cleaning up before retry."
+            hdiutil detach "/Volumes/CurveMole" -force >/dev/null 2>&1 || true
+            rm -f "$DMG"
+            sleep $((attempt * 5))
+          done
+          echo "hdiutil create failed after 3 attempts."
+          exit 1
 
       - uses: actions/upload-artifact@v7
         with:
