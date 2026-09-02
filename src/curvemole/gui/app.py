@@ -27,6 +27,8 @@ PlotViewState = tuple[
 ]
 
 _ADAPTIVE_RENDER_MIN_POINTS = 1500
+_MASK_REGION_Z = -20.0
+_MASK_BOUNDARY_Z = -10.0
 
 
 def _normalise_fit_result_mode(result: FitResult) -> None:
@@ -111,6 +113,60 @@ def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
             _optimise_plot_data_item(item, adaptive=adaptive)
 
 
+def _is_dense_mask_marker(kwargs: dict[str, Any]) -> bool:
+    """Identify the legacy per-point mask marker render call."""
+    return (
+        kwargs.get("pen") is None
+        and kwargs.get("symbol") == "o"
+        and kwargs.get("symbolSize") == 5
+        and kwargs.get("symbolPen") is None
+    )
+
+
+def _render_lightweight_mask_boundaries(workspace: PlotWorkspace) -> None:
+    """Replace filled mask overlays with cheap, non-ranging dashed boundary lines."""
+    for item in tuple(workspace.plot.items):
+        if isinstance(item, pg.LinearRegionItem) and np.isclose(item.zValue(), _MASK_REGION_Z):
+            workspace.plot.removeItem(item)
+
+    project = workspace._project
+    if project is None or not project.curves:
+        return
+
+    mode = workspace.display_mode.currentText()
+    if mode == workspace.tr("Single"):
+        curves = [project.dataset.curve(workspace._active_curve_id)] if workspace._active_curve_id else []
+    else:
+        curves = [curve for curve in project.curves if curve.visible]
+    x_step = workspace.x_offset.value() if mode == workspace.tr("Waterfall") else 0.0
+    pen = pg.mkPen(105, 105, 105, 155, width=1.0, style=Qt.PenStyle.DashLine)
+    positions_seen: set[float] = set()
+
+    for index, curve in enumerate(curves):
+        x_offset = index * x_step
+        for mask in curve.masks.values():
+            for lower, upper in mask.ranges:
+                lo, hi = sorted((float(lower), float(upper)))
+                positions = (lo + x_offset,) if math.isclose(lo, hi) else (lo + x_offset, hi + x_offset)
+                for position in positions:
+                    if not np.isfinite(position):
+                        continue
+                    key = round(position, 12)
+                    if key in positions_seen:
+                        continue
+                    positions_seen.add(key)
+                    line = pg.InfiniteLine(
+                        pos=position,
+                        angle=90,
+                        movable=False,
+                        pen=pen,
+                    )
+                    line.setZValue(_MASK_BOUNDARY_Z)
+                    line.setToolTip(workspace.tr("Masked / excluded region boundary"))
+                    line._curvemole_mask_boundary = True
+                    workspace.plot.addItem(line, ignoreBounds=True)
+
+
 def _install_view_preserving_refresh() -> None:
     """Make redraws preserve navigation while retaining explicit View all behaviour."""
     if getattr(PlotWorkspace, "_curvemole_preserves_view", False):
@@ -125,7 +181,21 @@ def _install_view_preserving_refresh() -> None:
         if hasattr(workspace, "_preserve_view_on_refresh"):
             delattr(workspace, "_preserve_view_on_refresh")
         state = _capture_plot_view(workspace) if preserve else None
-        original_refresh(workspace, *args)
+
+        original_plot = workspace.plot.plot
+
+        def lightweight_plot(*plot_args: Any, **plot_kwargs: Any) -> pg.PlotDataItem:
+            if _is_dense_mask_marker(plot_kwargs):
+                return pg.PlotDataItem()
+            return original_plot(*plot_args, **plot_kwargs)
+
+        workspace.plot.plot = lightweight_plot
+        try:
+            original_refresh(workspace, *args)
+        finally:
+            workspace.plot.plot = original_plot
+
+        _render_lightweight_mask_boundaries(workspace)
         _optimise_plot_rendering(workspace)
         _restore_plot_view(workspace, state)
 
