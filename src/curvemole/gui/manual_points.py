@@ -44,6 +44,33 @@ def minimum_manual_points(component: Component) -> int:
     return max(2, len(component.parameters))
 
 
+def _make_mask_visuals_mouse_transparent(workspace: PlotWorkspace) -> None:
+    """Keep mask rendering visual-only so placement clicks always reach the ViewBox."""
+    no_button = Qt.MouseButton.NoButton
+    for item in tuple(workspace.plot.items):
+        is_mask_region = isinstance(item, pg.LinearRegionItem) and np.isclose(item.zValue(), -20.0)
+        is_mask_boundary = bool(getattr(item, "_curvemole_mask_boundary", False))
+        is_mask_points = False
+        if isinstance(item, pg.PlotDataItem):
+            options = item.opts
+            is_mask_points = (
+                options.get("pen") is None
+                and options.get("symbol") == "o"
+                and options.get("symbolSize") == 5
+                and options.get("symbolPen") is None
+            )
+
+        if not (is_mask_region or is_mask_boundary or is_mask_points):
+            continue
+
+        item.setAcceptedMouseButtons(no_button)
+        for child in item.childItems():
+            child.setAcceptedMouseButtons(no_button)
+        if isinstance(item, pg.PlotDataItem):
+            item.curve.setAcceptedMouseButtons(no_button)
+            item.scatter.setAcceptedMouseButtons(no_button)
+
+
 def initialise_component_from_points(
     component: Component,
     points: Iterable[tuple[float, float]],
@@ -207,6 +234,11 @@ def _install_plot_workspace() -> None:
     original_render = PlotWorkspace._render_placement_preview
     original_finish = PlotWorkspace.finish_placement
     original_cancel = PlotWorkspace.cancel_placement
+    original_refresh = PlotWorkspace.refresh
+
+    def refresh(workspace: PlotWorkspace, *args: Any) -> None:
+        original_refresh(workspace, *args)
+        _make_mask_visuals_mouse_transparent(workspace)
 
     def begin_manual_point_placement(
         workspace: PlotWorkspace,
@@ -218,6 +250,7 @@ def _install_plot_workspace() -> None:
         workspace._manual_points_active = True
         workspace._manual_points_function_id = function_id
         workspace._manual_points_minimum = max(1, int(minimum_points))
+        _make_mask_visuals_mouse_transparent(workspace)
         workspace._update_spline_instruction()
 
     def update_instruction(workspace: PlotWorkspace) -> None:
@@ -278,6 +311,7 @@ def _install_plot_workspace() -> None:
         workspace._manual_points_active = False
         original_cancel(workspace)
 
+    PlotWorkspace.refresh = refresh
     PlotWorkspace.begin_manual_point_placement = begin_manual_point_placement
     PlotWorkspace._update_spline_instruction = update_instruction
     PlotWorkspace._render_placement_preview = render
