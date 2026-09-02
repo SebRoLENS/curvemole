@@ -11,6 +11,7 @@ from PySide6.QtCore import QCoreApplication, Qt
 from PySide6.QtWidgets import QApplication
 
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.updates import UpdateController
 from curvemole.version import __version__
 
 
@@ -39,6 +40,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
     window = MainWindow()
+    window._release_update_controller = UpdateController(window)
     window.show()
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
         from PySide6.QtCore import QTimer
