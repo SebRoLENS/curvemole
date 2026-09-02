@@ -27,7 +27,8 @@ def test_continuous_peak_placement_stays_active_until_finish() -> None:
 
     workspace.begin_continuous_peak_placement("Gaussian")
     assert workspace._continuous_peak_placement is True
-    assert workspace.finish_placement_button.isVisible() is True
+    assert workspace.finish_placement_button.isHidden() is False
+    assert workspace.finish_placement_button.isEnabled() is True
 
     workspace._finish_peak_placement(2.0, 3.0, 0.8)
     assert len(placed) == 1
