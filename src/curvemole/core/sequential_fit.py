@@ -104,7 +104,7 @@ def _parameter_floor(name: str, curve: Curve, parameter: Parameter) -> float:
 
     lowered = name.casefold()
     x_scale = _robust_span(curve.x)
-    y_scale = _robust_span(curve.current_y)
+    y_scale = _robust_span(curve.y)
     if any(token in lowered for token in ("center", "centre", "position", "location", "x0")):
         return 0.05 * x_scale
     if any(token in lowered for token in ("sigma", "width", "gamma", "fwhm", "tau")):
