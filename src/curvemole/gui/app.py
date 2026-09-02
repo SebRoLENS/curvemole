@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QCoreApplication, Qt
+from PySide6.QtCore import QCoreApplication, QLocale, Qt
 from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QApplication
 
@@ -30,6 +30,15 @@ PlotViewState = tuple[
 _ADAPTIVE_RENDER_MIN_POINTS = 1500
 _MASK_REGION_Z = -20.0
 _MASK_BOUNDARY_Z = -10.0
+
+
+def _configure_gui_defaults() -> None:
+    """Use scientific numeric formatting and single-button plot navigation by default."""
+    # CurveMole's numerical parameters are scientific data, not localized prose.
+    # Keep decimal input/output stable and portable regardless of the OS locale.
+    QLocale.setDefault(QLocale.c())
+    # pyqtgraph's RectMode is the context-menu "Mouse Mode -> 1 button" mode.
+    pg.setConfigOption("leftButtonPan", False)
 
 
 def _normalise_fit_result_mode(result: FitResult) -> None:
@@ -260,6 +269,7 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(argv) if argv is not None else sys.argv
+    _configure_gui_defaults()
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
