@@ -2,3 +2,7 @@
 
 # Install lightweight masked-data rendering before the main window imports PlotWorkspace.
 from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
+
+# Install model-panel multi-selection and project-wide function browsing before
+# the desktop entry point constructs its MainWindow instance.
+from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,E402
