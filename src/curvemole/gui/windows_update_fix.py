@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import platform
 import subprocess
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -119,10 +120,8 @@ def _cleanup_stale_update_files(current: Path | None) -> None:
         return
     for pattern in (".curvemole-update-*.ps1", ".curvemole-update-*.cmd", ".CurveMole-*.download-*"):
         for path in current.parent.glob(pattern):
-            try:
+            with suppress(OSError):
                 path.unlink(missing_ok=True)
-            except OSError:
-                pass
 
 
 def _install_windows_download(
