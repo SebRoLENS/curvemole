@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.calculator import apply_background_subtraction
 from curvemole.core.data import Curve, CurveState, Transformation
-from curvemole.gui import background_navigation as _background_navigation
+from curvemole.gui import background_navigation as _background_navigation  # noqa: F401
 from curvemole.gui.dialogs import BackgroundComponentsDialog
 from curvemole.gui.main_window import CallbackCommand, MainWindow
 
