@@ -28,6 +28,10 @@ from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
 # target picker, without changing the established copy/undo engine.
 from curvemole.gui import parameter_copy_redesign as _parameter_copy_redesign  # noqa: F401,E402
 
+# Wrap manual-point installation so point-created functions update live while
+# placing nodes and expose their original points as draggable controls afterwards.
+from curvemole.gui import manual_points_live as _manual_points_live  # noqa: F401,E402
+
 # Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
 from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
 
