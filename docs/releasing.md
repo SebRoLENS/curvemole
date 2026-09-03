@@ -40,6 +40,46 @@ A second workflow builds and smoke-tests:
 
 All downloadable files and `SHA256SUMS.txt` are attached to the same release.
 
+## macOS signing and notarization
+
+The macOS build supports Developer ID code signing, hardened runtime, Apple
+notarization, ticket stapling, and Gatekeeper verification for both Apple Silicon and
+Intel packages. The signing helper is `packaging/macos/package_and_notarize.sh`.
+
+Add these repository secrets under **Settings → Secrets and variables → Actions**:
+
+- `MACOS_CERTIFICATE`: the base64-encoded `.p12` containing a **Developer ID Application** certificate and its private key
+- `MACOS_CERTIFICATE_PASSWORD`: the password used when exporting that `.p12`
+- `APPLE_ID`: the Apple ID used for notarization
+- `APPLE_APP_SPECIFIC_PASSWORD`: an app-specific password for that Apple ID
+- `APPLE_TEAM_ID`: the Apple Developer Team ID associated with the Developer ID certificate
+
+A convenient way to encode the certificate without line breaks is:
+
+```bash
+openssl base64 -A -in DeveloperIDApplication.p12
+```
+
+Copy the complete output into `MACOS_CERTIFICATE`. Never commit the `.p12`, its
+password, the app-specific password, or other signing credentials to the repository.
+
+When all five secrets are configured, GitHub Actions:
+
+1. imports the certificate into a temporary keychain;
+2. signs `CurveMole.app` with hardened runtime and a trusted timestamp;
+3. notarizes and staples the application bundle;
+4. creates and signs the DMG;
+5. notarizes and staples the DMG;
+6. validates both artifacts with Apple's Gatekeeper tooling.
+
+The temporary keychain and certificate are deleted at the end of the job. If one or
+more secrets are absent, the workflow deliberately falls back to the previous unsigned
+DMG build and emits a GitHub Actions warning instead of breaking development builds.
+
+A Developer ID certificate suitable for public distribution requires membership in
+Apple's Developer Program. Without a Developer ID identity, macOS cannot provide the
+same Gatekeeper-clean first-launch experience to downloaded third-party builds.
+
 ## Documentation-only updates
 
 `docs/manual.md` is the sole hand-edited manual source. Run:
