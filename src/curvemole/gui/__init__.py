@@ -10,6 +10,10 @@ from curvemole.gui import background_controls_fix as _background_controls_fix  #
 # Add plot-focused spectrum keyboard navigation plus background-aware rendering.
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
 
+# Ensure multi-file imports follow human/numeric filename order rather than the
+# lexical order returned by the platform file dialog.
+from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
+
 # Keep the lightweight masked-data renderer available as the canonical module alias.
 from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
 
