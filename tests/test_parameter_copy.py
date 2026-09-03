@@ -46,6 +46,15 @@ def _select_parameter_row(window: MainWindow, parameter_name: str) -> None:
     raise AssertionError(f"Parameter row not found: {parameter_name}")
 
 
+def _target_item(dialog: CopyParameterDialog, ref: tuple[str, str]):
+    for row in range(dialog.targets.count()):
+        item = dialog.targets.item(row)
+        value = item.data(Qt.ItemDataRole.UserRole)
+        if value is not None and (str(value[0]), str(value[1])) == ref:
+            return item
+    raise AssertionError(f"Target not found: {ref}")
+
+
 def test_value_only_copy_preserves_target_constraints_and_is_undoable() -> None:
     app, window, first, second, source, _anchor, target = _window_with_two_curves()
     source_parameter = window.project.model_for(first.id).component(source.id).parameters["center"]
@@ -156,39 +165,42 @@ def test_targets_without_parameter_or_with_incompatible_bounds_are_skipped() -> 
     app.processEvents()
 
 
-def test_model_panel_remembers_source_parameter_before_target_multiselection() -> None:
-    app, window, first, _second, source, anchor, _target = _window_with_two_curves()
+def test_single_source_enables_copy_and_dialog_lists_project_targets() -> None:
+    app, window, first, second, source, anchor, target = _window_with_two_curves()
     panel = window.model_panel
 
     assert panel.selected_component_refs() == [(first.id, source.id)]
-    _select_parameter_row(window, "center")
-
-    assert panel._parameter_copy_source_ref == (first.id, source.id)
-    assert panel._parameter_copy_parameter_name == "center"
-    assert "center" in panel.copy_parameter_button.text()
-    assert not panel.copy_parameter_button.isEnabled()
-
-    panel.components.item(1).setSelected(True)
-    app.processEvents()
-
-    refs = panel.selected_component_refs()
-    assert refs == [(first.id, source.id), (first.id, anchor.id)]
-    assert panel._parameter_copy_source_ref == (first.id, source.id)
-    assert panel._parameter_copy_parameter_name == "center"
     assert panel.copy_parameter_button.isEnabled()
-    assert "center" in panel.copy_parameter_button.text()
-    assert "1" in panel.copy_parameter_button.text()
+    assert source.name in panel.copy_parameter_button.text()
 
+    _select_parameter_row(window, "center")
+    assert panel._parameter_copy_source_ref == (first.id, source.id)
+    assert panel._parameter_copy_parameter_name == "center"
+    assert "center" in panel.copy_parameter_button.text()
+
+    source_parameter = window.project.model_for(first.id).component(source.id).parameters["center"]
+    source_parameter.value = 1.2345
     dialog = CopyParameterDialog(
         window,
-        refs,
-        panel._parameter_copy_source_ref,
-        panel._parameter_copy_parameter_name,
+        (first.id, source.id),
+        current_parameter="center",
     )
     assert dialog.source_ref() == (first.id, source.id)
     assert dialog.parameter_name() == "center"
-    assert dialog.target_refs() == [(first.id, anchor.id)]
-    assert "center" in dialog.copy_button.text()
+    assert dialog.targets.count() == 2
+    assert dialog.target_refs() == []
+    assert "center" in dialog.source_summary.text()
+    assert source.name in dialog.source_summary.text()
+    assert "1.2345" in dialog.source_summary.text()
+
+    anchor_item = _target_item(dialog, (first.id, anchor.id))
+    target_item = _target_item(dialog, (second.id, target.id))
+    anchor_item.setCheckState(Qt.CheckState.Checked)
+    target_item.setCheckState(Qt.CheckState.Checked)
+    app.processEvents()
+    assert dialog.target_refs() == [(first.id, anchor.id), (second.id, target.id)]
+    assert dialog.copy_button.isEnabled()
+    assert "2" in dialog.copy_button.text()
     dialog.close()
 
     window.project.dirty = False
@@ -196,10 +208,24 @@ def test_model_panel_remembers_source_parameter_before_target_multiselection() -
     app.processEvents()
 
 
-def test_model_panel_exposes_parameter_copy_action() -> None:
-    app, window, *_ = _window_with_two_curves()
-    assert window.model_panel.copy_parameter_button.text() == "Select a parameter, then select target functions"
-    assert not window.model_panel.copy_parameter_button.isEnabled()
+def test_copy_button_requires_exactly_one_source_function() -> None:
+    app, window, first, _second, _source, anchor, _target = _window_with_two_curves()
+    panel = window.model_panel
+
+    assert panel.copy_parameter_button.isEnabled()
+
+    panel.components.clearSelection()
+    app.processEvents()
+    assert not panel.copy_parameter_button.isEnabled()
+    assert panel.copy_parameter_button.text() == "First select a function"
+
+    panel.components.item(0).setSelected(True)
+    panel.components.item(1).setSelected(True)
+    app.processEvents()
+    assert panel.selected_component_refs()[1] == (first.id, anchor.id)
+    assert not panel.copy_parameter_button.isEnabled()
+    assert panel.copy_parameter_button.text() == "Select a single source function"
+
     window.project.dirty = False
     window.close()
     app.processEvents()

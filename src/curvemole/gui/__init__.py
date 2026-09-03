@@ -24,6 +24,13 @@ from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,
 # Extend the multi-selection model panel with source-to-many parameter copying.
 from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
 
+# Present parameter copying as a source-first action with an explicit project-wide
+# target picker, without changing the established copy/undo engine.
+from curvemole.gui import parameter_copy_redesign as _parameter_copy_redesign  # noqa: F401,E402
+
+# Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
+from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
+
 # Add propagating sequential-fit controls plus pause/resume state that survives
 # manual intervention on a suspicious spectrum.
 from curvemole.gui import sequential_fit_ui as _sequential_fit_ui  # noqa: F401,E402
