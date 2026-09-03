@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -227,7 +228,7 @@ def _apply_background_aware_display(
         and _item_name(item).endswith(" Model sum")
     ]
     used_sum_items: set[int] = set()
-    for index, curve in enumerate(curves):
+    for curve in curves:
         model = project.models.get(curve.id)
         if model is None or not model.components:
             continue
@@ -626,12 +627,10 @@ def _install_window_controls(window: MainWindow) -> None:
     graphics = window.plot_workspace.graphics
     graphics.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     graphics.viewport().setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-    try:
+    with suppress(AttributeError):
         graphics.scene().sigMouseClicked.connect(
             lambda _event, graphics=graphics: graphics.setFocus(Qt.FocusReason.MouseFocusReason)
         )
-    except AttributeError:
-        pass
 
     window._spectrum_up_shortcut = QShortcut(QKeySequence("Up"), graphics)
     window._spectrum_down_shortcut = QShortcut(QKeySequence("Down"), graphics)
