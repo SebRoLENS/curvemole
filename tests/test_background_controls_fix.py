@@ -35,9 +35,12 @@ def test_background_dialog_apply_all_is_present_and_off_by_default() -> None:
     app = QApplication.instance() or QApplication([])
     project, _, _ = _two_background_curves()
     curve = project.curves[0]
-    dialog = BackgroundComponentsDialog(project, curve.id, CurveMoleMainWindow(project).registry)
+    window = CurveMoleMainWindow(project)
+    dialog = BackgroundComponentsDialog(project, curve.id, window.registry)
     assert dialog.apply_to_all_spectra.isChecked() is False
     dialog.close()
+    project.dirty = False
+    window.close()
     app.processEvents()
 
 
