@@ -38,3 +38,8 @@ from curvemole.gui import sequential_resume_button as _sequential_resume_button 
 # and make background Undo visibly restore the original spectrum even if the
 # visual-only background preview was left enabled.
 from curvemole.gui import undo_action_fix as _undo_action_fix  # noqa: F401,E402
+
+# Harden the frozen Windows self-updater. PyInstaller onefile keeps a bootloader
+# process alive briefly after the Python process exits, so replacement must wait
+# for the executable itself to be fully released before moving/removing files.
+from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F401,E402
