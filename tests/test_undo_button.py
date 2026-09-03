@@ -6,7 +6,9 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication, QDialog
+from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication, QDialog, QToolBar, QToolButton
 
 from curvemole import Component, Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -25,7 +27,16 @@ def _background_project() -> tuple[Project, np.ndarray, Component]:
     return project, curve.y.copy(), background
 
 
-def test_toolbar_undo_action_triggers_stack_for_generic_change() -> None:
+def _click_undo(window: CurveMoleMainWindow) -> None:
+    toolbar = window.findChild(QToolBar, "Main_toolbar")
+    assert toolbar is not None
+    button = toolbar.widgetForAction(window.undo_action)
+    assert isinstance(button, QToolButton)
+    assert button.isEnabled()
+    QTest.mouseClick(button, Qt.MouseButton.LeftButton)
+
+
+def test_toolbar_undo_button_triggers_stack_for_generic_change() -> None:
     app = QApplication.instance() or QApplication([])
     project, _, _ = _background_project()
     window = CurveMoleMainWindow(project)
@@ -42,7 +53,7 @@ def test_toolbar_undo_action_triggers_stack_for_generic_change() -> None:
     assert window.undo_stack.canUndo()
     assert window.undo_action.isEnabled()
 
-    window.undo_action.trigger()
+    _click_undo(window)
     app.processEvents()
 
     assert marker["value"] == 0
@@ -53,7 +64,7 @@ def test_toolbar_undo_action_triggers_stack_for_generic_change() -> None:
     app.processEvents()
 
 
-def test_toolbar_undo_action_restores_background_subtraction(
+def test_toolbar_undo_button_restores_background_subtraction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     app = QApplication.instance() or QApplication([])
@@ -72,7 +83,7 @@ def test_toolbar_undo_action_restores_background_subtraction(
     assert background.enabled is False
     assert window.undo_action.isEnabled()
 
-    window.undo_action.trigger()
+    _click_undo(window)
     app.processEvents()
 
     np.testing.assert_allclose(project.curves[0].y, original)
@@ -83,7 +94,7 @@ def test_toolbar_undo_action_restores_background_subtraction(
     app.processEvents()
 
 
-def test_toolbar_undo_action_restores_global_background_subtraction() -> None:
+def test_toolbar_undo_button_restores_global_background_subtraction() -> None:
     app = QApplication.instance() or QApplication([])
     project, original, background = _background_project()
     window = CurveMoleMainWindow(project)
@@ -95,11 +106,43 @@ def test_toolbar_undo_action_restores_global_background_subtraction() -> None:
     assert background.enabled is False
     assert window.undo_action.isEnabled()
 
-    window.undo_action.trigger()
+    _click_undo(window)
     app.processEvents()
 
     np.testing.assert_allclose(project.curves[0].y, original)
     assert background.enabled is True
+
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_background_undo_turns_off_visual_only_preview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    project, original, background = _background_project()
+    window = CurveMoleMainWindow(project)
+
+    window.background_subtracted_view_action.setChecked(True)
+    app.processEvents()
+    assert window.background_subtracted_view_action.isChecked()
+
+    monkeypatch.setattr(
+        BackgroundComponentsDialog,
+        "exec",
+        lambda _dialog: QDialog.DialogCode.Accepted,
+    )
+    window.subtract_background()
+    app.processEvents()
+    np.testing.assert_allclose(project.curves[0].y, original - 2.0)
+
+    _click_undo(window)
+    app.processEvents()
+
+    np.testing.assert_allclose(project.curves[0].y, original)
+    assert background.enabled is True
+    assert window.background_subtracted_view_action.isChecked() is False
 
     project.dirty = False
     window.close()
