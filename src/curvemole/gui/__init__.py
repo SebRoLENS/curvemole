@@ -33,3 +33,8 @@ from curvemole.gui import (
 # Keep a persistent, directly visible Continue button in the status bar while a
 # sequential fit is paused for manual intervention.
 from curvemole.gui import sequential_resume_button as _sequential_resume_button  # noqa: F401,E402
+
+# Replace the implicit QUndoStack action with an explicit, directly tested action
+# and make background Undo visibly restore the original spectrum even if the
+# visual-only background preview was left enabled.
+from curvemole.gui import undo_action_fix as _undo_action_fix  # noqa: F401,E402
