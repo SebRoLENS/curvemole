@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -94,10 +95,13 @@ def test_windows_startup_cleanup_removes_old_versions_and_legacy_partials(tmp_pa
 
 @pytest.mark.skipif(os.name != "nt", reason="Exercises the real Windows PowerShell helper")
 def test_windows_helper_keeps_new_executable_and_removes_every_old_release(tmp_path: Path) -> None:
+    parent_pid = 2_000_000_000
     current = tmp_path / "CurveMole-0.12.3-windows-x86_64.exe"
     stale = tmp_path / "CurveMole-0.12.2-windows-x86_64.exe"
     destination = tmp_path / "CurveMole-0.12.5-windows-x86_64.exe"
     helper = tmp_path / "CurveMole-update-test.ps1"
+    log_path = Path(tempfile.gettempdir()) / f"CurveMole-update-{parent_pid}.log"
+    log_path.unlink(missing_ok=True)
     current.write_bytes(b"old executable")
     stale.write_bytes(b"older executable")
     destination.write_bytes(b"new executable")
@@ -107,7 +111,7 @@ def test_windows_helper_keeps_new_executable_and_removes_every_old_release(tmp_p
             current,
             destination,
             destination,
-            parent_pid=2_000_000_000,
+            parent_pid=parent_pid,
             restart=False,
             source_preinstalled=True,
             expected_sha256=digest,
@@ -132,7 +136,18 @@ def test_windows_helper_keeps_new_executable_and_removes_every_old_release(tmp_p
         timeout=30,
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
+    if result.returncode != 0:
+        helper_log = (
+            log_path.read_text(encoding="utf-8-sig", errors="replace")
+            if log_path.exists()
+            else "<no updater log was created>"
+        )
+        pytest.fail(
+            "Windows updater helper failed\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}\n"
+            f"helper log:\n{helper_log}"
+        )
     assert destination.read_bytes() == b"new executable"
     assert not current.exists()
     assert not stale.exists()
