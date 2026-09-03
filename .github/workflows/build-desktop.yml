@@ -265,27 +265,17 @@ jobs:
           CURVEMOLE_ICON: ${{ github.workspace }}/generated-icons/curvemole.icns
         run: uv run python scripts/build_desktop.py
 
-      - name: Create DMG
+      - name: Package, sign, and notarize macOS application
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          set -euo pipefail
-          mkdir -p dmg-stage
-          ditto dist/CurveMole.app "dmg-stage/CurveMole.app"
-          DMG="CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
-          for attempt in 1 2 3; do
-            if hdiutil create \
-              -volname CurveMole \
-              -srcfolder dmg-stage \
-              -ov -format UDZO \
-              "$DMG"; then
-              exit 0
-            fi
-            echo "hdiutil create failed (attempt ${attempt}/3); cleaning up before retry."
-            hdiutil detach "/Volumes/CurveMole" -force >/dev/null 2>&1 || true
-            rm -f "$DMG"
-            sleep $((attempt * 5))
-          done
-          echo "hdiutil create failed after 3 attempts."
-          exit 1
+          bash packaging/macos/package_and_notarize.sh \
+            "dist/CurveMole.app" \
+            "CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
 
       - uses: actions/upload-artifact@v7
         with:
