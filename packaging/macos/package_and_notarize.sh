@@ -71,6 +71,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Decode with Python to avoid BSD/GNU base64 flag differences between runners.
+export CERTIFICATE_PATH="$certificate_path"
 python3 - <<'PY'
 import base64
 import os
