@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -95,10 +96,8 @@ def _generic_fit_component(
             prominence=float(abs(y_values[peak_index] - baseline)),
             sign=1,
         )
-        try:
+        with suppress(Exception):
             initialise_peak_component(fitted, suggestion, registry=registry)
-        except Exception:
-            pass
 
     names = [
         name
