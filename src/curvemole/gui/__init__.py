@@ -1,6 +1,11 @@
 """Qt desktop client for the CurveMole scientific engine."""
 
-# Install lightweight masked-data rendering before the main window imports PlotWorkspace.
+# Add plot-focused spectrum keyboard navigation plus explicit global and visual
+# background-subtraction controls. The extension imports the mask renderer before
+# patching PlotWorkspace, preserving the required rendering order.
+from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
+
+# Keep the lightweight masked-data renderer available as the canonical module alias.
 from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
 
 # Install model-panel multi-selection and project-wide function browsing before
@@ -23,7 +28,3 @@ from curvemole.gui import (
 # Keep a persistent, directly visible Continue button in the status bar while a
 # sequential fit is paused for manual intervention.
 from curvemole.gui import sequential_resume_button as _sequential_resume_button  # noqa: F401,E402
-
-# Add plot-focused spectrum keyboard navigation plus explicit global and visual
-# background-subtraction controls.
-from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
