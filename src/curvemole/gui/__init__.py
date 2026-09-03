@@ -58,3 +58,9 @@ from curvemole.gui import undo_action_fix as _undo_action_fix  # noqa: F401,E402
 # process alive briefly after the Python process exits, so replacement must wait
 # for the executable itself to be fully released before moving/removing files.
 from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F401,E402
+
+# Keep the Windows updater compatible with Windows PowerShell installations where
+# the Get-FileHash cmdlet is unavailable by using .NET SHA-256 primitives instead.
+from curvemole.gui import (  # noqa: F401,E402
+    windows_update_powershell_compat as _windows_update_powershell_compat,
+)
