@@ -38,7 +38,12 @@ def test_quick_fit_completion_preserves_current_plot_range(monkeypatch: pytest.M
 
     monkeypatch.setattr(quick_fit_zoom_fix, "_ORIGINAL_FIT_FINISHED", fake_finished)
     window._curvemole_quick_fit_running = True
-    window._fit_finished(object())
+
+    # Exercise the Quick Fit wrapper directly. MainWindow._fit_finished is wrapped
+    # again by the sequential-fit UI after this module is installed, and those
+    # wrappers correctly require a real FitResult (with mode/success fields).
+    # This unit test is specifically for the zoom-preservation wrapper itself.
+    quick_fit_zoom_fix._fit_finished(window, object())
 
     actual = quick_fit_zoom_fix._capture_view_range(window)
     assert actual[0] == pytest.approx(expected[0])
