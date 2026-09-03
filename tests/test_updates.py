@@ -1,13 +1,24 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
-from curvemole.gui.updates import asset_suffix, semantic_version, should_notify, update_kind
-from curvemole.gui.windows_update_fix import windows_update_script
+from curvemole.gui.updates import (
+    ReleaseAsset,
+    asset_suffix,
+    semantic_version,
+    should_notify,
+    update_kind,
+)
+from curvemole.gui.windows_update_fix import (
+    _cleanup_stale_update_files,
+    _windows_temp_download_path,
+    windows_update_script,
+)
 
 
 def test_semantic_version_and_update_kind() -> None:
@@ -33,39 +44,73 @@ def test_self_update_asset_suffixes() -> None:
     assert asset_suffix("Linux", "aarch64") is None
 
 
-def test_windows_helper_waits_for_the_executable_not_only_the_python_pid(tmp_path: Path) -> None:
-    current = tmp_path / "CurveMole-0.12.1-windows-x86_64.exe"
-    destination = tmp_path / "CurveMole-0.12.2-windows-x86_64.exe"
-    downloaded = tmp_path / ".CurveMole-0.12.2-windows-x86_64.exe.download-123"
+def test_windows_partial_download_is_not_a_dot_file_beside_the_application() -> None:
+    asset = ReleaseAsset(
+        name="CurveMole-0.12.5-windows-x86_64.exe",
+        url="https://example.invalid/CurveMole.exe",
+    )
+    path = _windows_temp_download_path(asset, pid=123)
+
+    assert path.name == "CurveMole-update-123-CurveMole-0.12.5-windows-x86_64.exe.part"
+    assert not path.name.startswith(".")
+
+
+def test_windows_helper_waits_for_executable_and_removes_all_old_releases(tmp_path: Path) -> None:
+    current = tmp_path / "CurveMole-0.12.3-windows-x86_64.exe"
+    destination = tmp_path / "CurveMole-0.12.5-windows-x86_64.exe"
     script = windows_update_script(
         current,
         destination,
-        downloaded,
+        destination,
         parent_pid=123,
+        source_preinstalled=True,
     )
 
     assert "OldExecutableStillRunning" in script
     assert "$_.Path" in script
-    assert "Move-Item -LiteralPath $downloaded" in script
-    assert "Remove-Item -LiteralPath $current" in script
+    assert "Remove-WithRetry $current 120" in script
+    assert "CurveMole-*-windows-x86_64.exe" in script
+    assert ".CurveMole-*.download-*" in script
     assert "Start-Process -FilePath $destination" in script
 
 
+def test_windows_startup_cleanup_removes_old_versions_and_legacy_partials(tmp_path: Path) -> None:
+    current = tmp_path / "CurveMole-0.12.5-windows-x86_64.exe"
+    old = tmp_path / "CurveMole-0.12.4-windows-x86_64.exe"
+    partial = tmp_path / ".CurveMole-0.12.5-windows-x86_64.exe.download-123"
+    helper = tmp_path / ".curvemole-update-123.ps1"
+    current.write_bytes(b"current")
+    old.write_bytes(b"old")
+    partial.write_bytes(b"partial")
+    helper.write_text("stale", encoding="utf-8")
+
+    _cleanup_stale_update_files(current)
+
+    assert current.exists()
+    assert not old.exists()
+    assert not partial.exists()
+    assert not helper.exists()
+
+
 @pytest.mark.skipif(os.name != "nt", reason="Exercises the real Windows PowerShell helper")
-def test_windows_helper_replaces_and_removes_files_on_windows(tmp_path: Path) -> None:
-    current = tmp_path / "CurveMole-0.12.1-windows-x86_64.exe"
-    destination = tmp_path / "CurveMole-0.12.2-windows-x86_64.exe"
-    downloaded = tmp_path / ".CurveMole-0.12.2-windows-x86_64.exe.download-123"
-    helper = tmp_path / ".curvemole-update-test.ps1"
+def test_windows_helper_keeps_new_executable_and_removes_every_old_release(tmp_path: Path) -> None:
+    current = tmp_path / "CurveMole-0.12.3-windows-x86_64.exe"
+    stale = tmp_path / "CurveMole-0.12.2-windows-x86_64.exe"
+    destination = tmp_path / "CurveMole-0.12.5-windows-x86_64.exe"
+    helper = tmp_path / "CurveMole-update-test.ps1"
     current.write_bytes(b"old executable")
-    downloaded.write_bytes(b"new executable")
+    stale.write_bytes(b"older executable")
+    destination.write_bytes(b"new executable")
+    digest = hashlib.sha256(destination.read_bytes()).hexdigest()
     helper.write_text(
         windows_update_script(
             current,
             destination,
-            downloaded,
+            destination,
             parent_pid=2_000_000_000,
             restart=False,
+            source_preinstalled=True,
+            expected_sha256=digest,
         ),
         encoding="utf-8-sig",
     )
@@ -90,5 +135,5 @@ def test_windows_helper_replaces_and_removes_files_on_windows(tmp_path: Path) ->
     assert result.returncode == 0, result.stderr or result.stdout
     assert destination.read_bytes() == b"new executable"
     assert not current.exists()
-    assert not downloaded.exists()
+    assert not stale.exists()
     assert not helper.exists()
