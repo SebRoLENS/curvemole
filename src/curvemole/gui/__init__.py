@@ -2,7 +2,9 @@
 
 # Preserve the established BackgroundComponentsDialog injection point used by
 # tests/plugins while loading the corrected background-control semantics.
-from curvemole.gui import background_controls_compat as _background_controls_compat  # noqa: F401,E402
+from curvemole.gui import (
+    background_controls_compat as _background_controls_compat,  # noqa: F401,E402
+)
 from curvemole.gui import background_controls_fix as _background_controls_fix  # noqa: F401,E402
 
 # Add plot-focused spectrum keyboard navigation plus background-aware rendering.
