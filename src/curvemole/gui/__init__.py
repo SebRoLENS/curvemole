@@ -57,6 +57,10 @@ from curvemole.gui import (
 # sequential fit is paused for manual intervention.
 from curvemole.gui import sequential_resume_button as _sequential_resume_button  # noqa: F401,E402
 
+# Add per-spectrum numeric export for data, fitted components, total fit, background,
+# and residuals while preserving the original source extension.
+from curvemole.gui import spectrum_export_ui as _spectrum_export_ui  # noqa: F401,E402
+
 # Replace the implicit QUndoStack action with an explicit, directly tested action
 # and make background Undo visibly restore the original spectrum even if the
 # visual-only background preview was left enabled.
