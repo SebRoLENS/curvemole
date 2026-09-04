@@ -83,18 +83,22 @@ def spectrum_export_dataframe(
         for component in model.components:
             if not component.enabled or component.id not in components:
                 continue
-            suffix = " | background" if component.is_background else ""
-            columns[
-                f"Component | {component.name} | {component.function_id}{suffix}"
-            ] = components[component.id]
+            parts = ["Component", component.name, component.function_id]
+            if component.is_background:
+                parts.append("background")
+            columns[_header_token(*parts)] = components[component.id]
 
     if total is not None and options.include_total_fit:
         displayed_total = total - background if options.subtract_background else total
-        label = "Total fit - background" if options.subtract_background else "Total fit"
+        label = (
+            _header_token("Total_fit", "background_subtracted")
+            if options.subtract_background
+            else "Total_fit"
+        )
         columns[label] = displayed_total
 
     if total is not None and options.include_residual:
-        columns["Residual (data - fit)"] = data - total
+        columns["Residual_data_minus_fit"] = data - total
 
     frame = pd.DataFrame(columns)
     if options.unmasked_only:
@@ -173,13 +177,25 @@ def _source_delimiter(curve: Curve) -> str:
     return "\t"
 
 
+def _header_token(*parts: str) -> str:
+    """Return a readable single-token column name safe for whitespace parsers."""
+    raw = "_".join(str(part).strip() for part in parts if str(part).strip())
+    token = re.sub(r"[^\w.+-]+", "_", raw, flags=re.UNICODE)
+    token = re.sub(r"_+", "_", token).strip("_")
+    return token or "column"
+
+
 def _axis_label(label: str, unit: str) -> str:
-    return f"{label} [{unit}]" if unit else label
+    return _header_token(label, unit) if unit else _header_token(label)
 
 
 def _data_label(curve: Curve, background_subtracted: bool) -> str:
-    base = f"Spectrum | {_axis_label(curve.y_label, curve.y_unit)}"
-    return f"{base} - background" if background_subtracted else base
+    parts = ["Spectrum", curve.y_label]
+    if curve.y_unit:
+        parts.append(curve.y_unit)
+    if background_subtracted:
+        parts.append("background_subtracted")
+    return _header_token(*parts)
 
 
 def _deduplicate_filename(filename: str, used_names: set[str]) -> str:
