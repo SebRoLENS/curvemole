@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import suppress
 from typing import Any
 
 from PySide6.QtGui import QAction
@@ -14,15 +15,13 @@ def _install_revert_background_action_fix(window: MainWindow) -> None:
     if not isinstance(action, QAction):
         return
 
-    # QAction.triggered emits a boolean `checked` argument.  The existing
+    # QAction.triggered emits a boolean `checked` argument. The existing
     # revert_backgrounds method has an optional `curve_ids` argument, so a direct
-    # signal connection accidentally passes False as curve_ids.  That skips the
-    # chooser and returns immediately.  Replace the connection with one that
+    # signal connection accidentally passes False as curve_ids. That skips the
+    # chooser and returns immediately. Replace the connection with one that
     # explicitly discards the QAction payload.
-    try:
+    with suppress(RuntimeError, TypeError):
         action.triggered.disconnect()
-    except (RuntimeError, TypeError):
-        pass
     action.triggered.connect(lambda _checked=False: window.revert_backgrounds())
 
 
