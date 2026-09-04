@@ -86,3 +86,7 @@ from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F40
 from curvemole.gui import (  # noqa: F401,E402
     windows_update_powershell_compat as _windows_update_powershell_compat,
 )
+
+# Unify Quick Add, automatic peak detection, and Function Builder around the shared
+# function registry, with a persistent user-selected function-library directory.
+from curvemole.gui import quick_function_library as _quick_function_library  # noqa: F401,E402
