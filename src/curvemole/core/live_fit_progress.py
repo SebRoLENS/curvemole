@@ -12,7 +12,12 @@ from typing import Any
 
 from curvemole.core import fitting
 
-DEFAULT_MAX_EVALUATIONS = 250
+DEFAULT_MAX_EVALUATIONS = 1000
+# A fit should not burn through the full budget once successive solver steps are
+# numerically negligible. SciPy treats xtol convergence as a successful fit and
+# still returns the final Jacobian/covariance inputs, unlike aborting residual()
+# with a custom exception.
+DEFAULT_XTOL = 1e-8
 LIVE_REFRESH_EVERY = 20
 
 _THREAD_STATE = threading.local()
@@ -24,10 +29,12 @@ _ORIGINAL_RESIDUAL = fitting._Problem.residual
 
 @functools.wraps(_ORIGINAL_SETTINGS_INIT)
 def _fit_settings_init(self: fitting.FitSettings, *args: Any, **kwargs: Any) -> None:
-    # max_nfev is the fifth dataclass field. Preserve explicit positional or
-    # keyword choices while changing only the default used by new fit plans.
+    # max_nfev is the fifth dataclass field and xtol is the seventh. Preserve
+    # explicit positional or keyword choices while changing only new-plan defaults.
     if len(args) < 5 and "max_nfev" not in kwargs:
         kwargs["max_nfev"] = DEFAULT_MAX_EVALUATIONS
+    if len(args) < 7 and "xtol" not in kwargs:
+        kwargs["xtol"] = DEFAULT_XTOL
     _ORIGINAL_SETTINGS_INIT(self, *args, **kwargs)
 
 
@@ -98,6 +105,7 @@ def _install() -> None:
         return
     fitting.FitSettings.__init__ = _fit_settings_init
     fitting.FitSettings.__dataclass_fields__["max_nfev"].default = DEFAULT_MAX_EVALUATIONS
+    fitting.FitSettings.__dataclass_fields__["xtol"].default = DEFAULT_XTOL
     fitting.Fitter.fit = _fitter_fit
     fitting._Problem.__init__ = _problem_init
     fitting._Problem.residual = _residual
