@@ -72,3 +72,51 @@ def test_quick_fit_marks_only_a_started_worker(monkeypatch: pytest.MonkeyPatch) 
     window.project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_quick_fit_disables_linked_autorange_so_wheel_zoom_persists(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, window = _window()
+    worker_marker = object()
+    main_view = window.plot_workspace.view_box
+    residual_view = window.plot_workspace.residual_plot.getViewBox()
+
+    main_view.enableAutoRange()
+    residual_view.enableAutoRange()
+    main_view.setRange(xRange=(-4.0, 4.0), yRange=(-0.5, 1.5), padding=0)
+
+    def fake_quick_fit(instance: MainWindow) -> None:
+        instance._thread = worker_marker  # type: ignore[assignment]
+
+    monkeypatch.setattr(quick_fit_zoom_fix, "_ORIGINAL_QUICK_FIT", fake_quick_fit)
+    window._thread = None
+    window.quick_fit()
+
+    assert not any(main_view.autoRangeEnabled())
+    assert not any(residual_view.autoRangeEnabled())
+
+    before = quick_fit_zoom_fix._capture_view_range(window)
+    main_view.scaleBy((0.5, 0.5))
+    app.processEvents()
+    zoomed = quick_fit_zoom_fix._capture_view_range(window)
+
+    assert zoomed[0][1] - zoomed[0][0] < before[0][1] - before[0][0]
+    assert zoomed[1][1] - zoomed[1][0] < before[1][1] - before[1][0]
+
+    # Replacing residual data must not re-enable linked auto-ranging and undo the
+    # user's manual zoom while the Quick Fit worker is still active.
+    window.plot_workspace.residual_plot.clear()
+    window.plot_workspace.residual_plot.plot(
+        np.linspace(-50.0, 50.0, 101), np.linspace(-1.0, 1.0, 101)
+    )
+    app.processEvents()
+    after_redraw = quick_fit_zoom_fix._capture_view_range(window)
+    assert after_redraw[0] == pytest.approx(zoomed[0])
+    assert after_redraw[1] == pytest.approx(zoomed[1])
+
+    window._thread = None
+    window._curvemole_quick_fit_running = False
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
