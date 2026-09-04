@@ -22,6 +22,7 @@ import curvemole.core.initialization as initialization_module
 import curvemole.core.plugins as plugins_module
 import curvemole.gui.main_window as main_window_module
 import curvemole.gui.quick_function_library as quick_library
+from curvemole.core.expressions import expression_parameters
 from curvemole.core.functions import formula_definition
 from curvemole.core.initialization import PeakSuggestion
 from curvemole.core.models import Component
@@ -164,7 +165,7 @@ def _panel_init(
     panel.peak_roles_table.setMaximumHeight(230)
 
     layout = panel.layout()
-    # FunctionBuilderPanel uses QFormLayout.  Insert directly after Detected parameters.
+    # FunctionBuilderPanel uses QFormLayout. Insert directly after Detected parameters.
     layout.insertRow(5, panel.peak_roles_note)
     layout.insertRow(6, panel.tr("Peak parameter roles"), panel.peak_roles_table)
     panel.kind.currentIndexChanged.connect(lambda *_: _update_role_visibility(panel))
@@ -220,7 +221,7 @@ def _definition_from_builder(panel: FunctionBuilderPanel, identifier: str) -> An
         derived_formulas=_derived_formulas(panel, roles),
     )
     if kind == "peak":
-        # Store the key even when empty.  Its presence means the user explicitly
+        # Store the key even when empty. Its presence means the user explicitly
         # chose role-based semantics, so the legacy parameter-name heuristic is not used.
         definition.custom_metadata["peak_roles"] = dict(roles)
     return definition
