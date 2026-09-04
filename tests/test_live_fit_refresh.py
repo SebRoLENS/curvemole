@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 
 from curvemole import Component, Curve, Model, Project
-from curvemole.core.fitting import CancellationToken, FitMode, FitPlan, FitSettings, Fitter, _Problem
+from curvemole.core.fitting import (
+    CancellationToken,
+    FitMode,
+    FitPlan,
+    FitSettings,
+    Fitter,
+    _Problem,
+)
 from curvemole.core.registry import default_registry
 
 
