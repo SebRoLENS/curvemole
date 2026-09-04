@@ -1,5 +1,8 @@
 """GUI-independent scientific engine."""
 
+# Keep the standard fit budget modest and emit deterministic progress snapshots
+# every 20 model evaluations for interactive clients.
+from curvemole.core import live_fit_progress as _live_fit_progress  # noqa: F401,E402
 from curvemole.core.data import Curve, Dataset, Mask, Series, Transformation
 from curvemole.core.fitting import FitPlan, FitResult, FitSettings, Fitter
 from curvemole.core.models import Component, Model
