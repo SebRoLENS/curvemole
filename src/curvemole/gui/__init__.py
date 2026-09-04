@@ -66,6 +66,10 @@ from curvemole.gui import spectrum_export_ui as _spectrum_export_ui  # noqa: F40
 # visual-only background preview was left enabled.
 from curvemole.gui import undo_action_fix as _undo_action_fix  # noqa: F401,E402
 
+# QAction.triggered emits a checked boolean. The Revert background method also has
+# an optional curve-id argument, so discard the signal payload explicitly.
+from curvemole.gui import revert_background_action_fix as _revert_background_action_fix  # noqa: F401,E402
+
 # Harden the frozen Windows self-updater. PyInstaller onefile keeps a bootloader
 # process alive briefly after the Python process exits, so replacement must wait
 # for the executable itself to be fully released before moving/removing files.
