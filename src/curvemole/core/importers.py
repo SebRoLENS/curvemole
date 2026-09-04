@@ -353,9 +353,8 @@ def _first_numeric_data_position(indexed_lines: list[tuple[int, str]]) -> int | 
     for position, (_, line) in enumerate(indexed_lines):
         if not _looks_like_numeric_row(line):
             continue
-        if position + 1 >= len(indexed_lines):
-            return position
-        if _looks_like_numeric_row(indexed_lines[position + 1][1]):
+        following = indexed_lines[position + 1 : position + 4]
+        if not following or any(_looks_like_numeric_row(row) for _, row in following):
             return position
     return None
 
