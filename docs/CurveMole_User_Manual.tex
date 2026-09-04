@@ -135,7 +135,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.16.0}
+\ohead{Version 0.17.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -148,7 +148,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.16.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.17.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -173,9 +173,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.16.0}
+\subtitle{Preview 0.17.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.16.0}
+\date{Updated for CurveMole 0.17.0}
 
 \begin{document}
 \maketitle
@@ -188,12 +188,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.16.0 Preview. The Markdown file is the authoritative source.
+CurveMole 0.17.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.16.0 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.17.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -255,8 +255,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.16.0
-describes CurveMole 0.16.0.
+an independent document version. For example, a manual marked 0.17.0
+describes CurveMole 0.17.0.
 
 The release automation performs four checks:
 
@@ -496,8 +496,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.16.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.16.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.17.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.17.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -505,7 +505,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.16.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.17.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -535,7 +535,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.16.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.17.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -543,7 +543,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{16}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{17}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -560,7 +560,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.16.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.17.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -571,7 +571,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{16}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{17}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1060,7 +1060,7 @@ Optional columns are:
 Only one of \texttt{sigma\_y}, generic weight, variance, or inverse
 variance can be selected for a given import. Variance is converted to
 \texttt{sigma\_y} by square root. \texttt{sigma\_x} is stored in the
-project but is not used by the version 0.16.0 optimizer.
+project but is not used by the version 0.17.0 optimizer.
 
 \hypertarget{batch-import}{%
 \section{6.4 Batch import}\label{batch-import}}
@@ -1502,7 +1502,7 @@ search positive, negative, or both signs. CurveMole:
   sorts suggestions by prominence.
 \end{itemize}
 
-Choose how many suggestions to add. Version 0.16.0 creates Gaussian
+Choose how many suggestions to add. Version 0.17.0 creates Gaussian
 components from this graphical command. Suggestions are initial
 estimates, not a scientific decision about the number or identity of
 peaks.
@@ -1884,7 +1884,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.16.0 does not yet provide a single comprehensive on-screen
+Preview 0.17.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -2015,7 +2015,7 @@ chi-square with the baseline. The default grid spans approximately three
 covariance standard errors on either side, or a fallback span when no
 standard error is available, while respecting bounds.
 
-Preview 0.16.0 uses 31 grid points and a one-parameter chi-square
+Preview 0.17.0 uses 31 grid points and a one-parameter chi-square
 threshold. Failed grid points are counted. A profile interval is more
 informative than a symmetric standard error near bounds or in nonlinear
 problems, but grid resolution should be considered when interpreting
@@ -2104,7 +2104,7 @@ project are retained.
 
 Recovery files end in \texttt{.fitproj} and can be opened through the
 normal Open Project dialog if needed. Saving the project normally clears
-its recovery files. Preview 0.16.0 does not yet show an automatic
+its recovery files. Preview 0.17.0 does not yet show an automatic
 recovery chooser at startup, so after an abnormal termination inspect
 the CurveMole user cache before clearing application data.
 
@@ -2934,8 +2934,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.16.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.16.0
+(Version 0.17.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.17.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -3094,9 +3094,9 @@ one-dimensional data\tabularnewline
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.16.0-limitations}{%
-\chapter{Appendix D. Preview 0.16.0
-limitations}\label{appendix-d.-preview-0.16.0-limitations}}
+\hypertarget{appendix-d.-preview-0.17.0-limitations}{%
+\chapter{Appendix D. Preview 0.17.0
+limitations}\label{appendix-d.-preview-0.17.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 
