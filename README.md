@@ -38,16 +38,32 @@ Available packages are built automatically for:
 - macOS Intel x86_64: `.dmg`
 - Python 3.12+: wheel and source distribution
 
-> **Windows and macOS security notice**
+<p align="center">
+  <img src="https://img.shields.io/badge/%E2%9A%A0%EF%B8%8F%20macOS-FIRST%20LAUNCH%20REQUIRES%20MANUAL%20APPROVAL-critical?style=for-the-badge&logo=apple&logoColor=white" alt="macOS first launch security warning">
+</p>
+
+> ### 🔴 IMPORTANT — macOS Gatekeeper may block CurveMole on first launch
 >
-> Windows SmartScreen or macOS Gatekeeper will probably show a warning on first
-> launch because these packages are not currently code-signed or notarized with
-> certificates recognised by those platforms. Obtaining and maintaining those
-> certificates requires paid developer programmes. CurveMole is free, open-source,
-> non-profit software, and the project currently chooses not to fund commercial,
-> platform-specific signing programmes or pass those costs on to users. A warning
-> caused by a missing signature is not, by itself, evidence that malware was detected.
-> Download CurveMole only from the official release page and verify `SHA256SUMS.txt`.
+> The macOS packages are currently **not Apple-notarized or code-signed with a paid
+> Apple Developer ID**. Because of this, macOS may refuse to open CurveMole normally
+> the first time, even though no malware has been detected.
+>
+> **If macOS blocks CurveMole:** try to open it once, then go to
+> **System Settings → Privacy & Security → Security → Open Anyway** and confirm that
+> you want to open CurveMole. This approval is normally required only for the first
+> launch of that application build.
+>
+> Download CurveMole only from the **official GitHub release page** and, if desired,
+> verify the downloaded file against `SHA256SUMS.txt` included with the release.
+
+> **Windows SmartScreen notice:** the Windows package is also currently unsigned, so
+> SmartScreen may display a warning on first launch. A warning caused by a missing
+> signature is not, by itself, evidence that malware was detected.
+
+CurveMole is free, open-source, non-profit software. Obtaining and maintaining the
+platform-specific commercial signing credentials required by Apple and Microsoft
+involves paid developer programmes, which the project currently chooses not to pass
+on to users.
 
 The Linux AppImage is cryptographically signed using the free, open-source Sigstore
 infrastructure through GitHub Actions. Every release includes a detached
