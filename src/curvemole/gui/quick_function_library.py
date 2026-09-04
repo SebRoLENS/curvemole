@@ -1,7 +1,7 @@
 """Persistent user functions and function-aware Quick Add/peak search.
 
 This module intentionally follows CurveMole's established GUI compatibility-patch
-pattern.  It keeps the existing public action/method names for backwards
+pattern. It keeps the existing public action/method names for backwards
 compatibility while presenting the feature as Quick Add Function in the UI.
 """
 
@@ -161,6 +161,18 @@ def _remember_quick_function(window: MainWindow, function_id: str) -> None:
 
 
 def _selected_quick_function(window: MainWindow) -> str:
+    # Before the first use of the new selector, honour the historical peak setting.
+    # This migrates existing installations cleanly and preserves callers that set
+    # last_peak_function_id directly.
+    if not window.settings.contains("last_quick_function"):
+        legacy = str(getattr(window, "last_peak_function_id", "") or "")
+        if legacy:
+            try:
+                window.registry.get(legacy)
+                return legacy
+            except Exception:
+                pass
+
     selector = getattr(window, "quick_function_selector", None)
     if isinstance(selector, QComboBox) and selector.currentData():
         identifier = str(selector.currentData())
@@ -223,7 +235,9 @@ def _quick_add_function(window: MainWindow) -> None:
             window._pending_component_curve_id = window.active_curve_id
             window.plot_workspace.begin_peak_placement(definition.display_name)
             window._notify(
-                window.tr("Quick Add Function: click the peak centre and drag horizontally to set its initial FWHM.")
+                window.tr(
+                    "Quick Add Function: click the peak centre and drag horizontally to set its initial FWHM."
+                )
             )
             return
 
@@ -247,9 +261,7 @@ def _quick_add_function(window: MainWindow) -> None:
 
         component = Component.create(function_id, registry=window.registry)
         window._commit_component(component, window.active_curve_id)
-        window._notify(
-            window.tr("Quick Add Function: added ") + definition.display_name + "."
-        )
+        window._notify(window.tr("Quick Add Function: added ") + definition.display_name + ".")
     except Exception as exc:
         window._show_error(window.tr("Quick Add Function"), exc)
 
@@ -278,13 +290,21 @@ def _find_peaks(window: MainWindow) -> None:
         labels[2]: "both",
     }[selected_sign]
 
-    peak_definitions = [definition for definition in window.registry.values() if definition.kind == "peak"]
+    peak_definitions = [
+        definition for definition in window.registry.values() if definition.kind == "peak"
+    ]
     if not peak_definitions:
-        window._notify(window.tr("No peak function is available in the current registry."), warning=True)
+        window._notify(
+            window.tr("No peak function is available in the current registry."), warning=True
+        )
         return
     current_id = _selected_quick_function(window)
     default_index = next(
-        (index for index, definition in enumerate(peak_definitions) if definition.identifier == current_id),
+        (
+            index
+            for index, definition in enumerate(peak_definitions)
+            if definition.identifier == current_id
+        ),
         0,
     )
     function_names = [definition.display_name for definition in peak_definitions]
@@ -345,7 +365,9 @@ def _find_peaks(window: MainWindow) -> None:
 def _builder_add(panel: FunctionBuilderPanel) -> None:
     if not panel._validate():
         return
-    identifier = re.sub(r"[^a-z0-9_]+", "_", panel.identifier.text().strip().lower()).strip("_")
+    identifier = re.sub(
+        r"[^a-z0-9_]+", "_", panel.identifier.text().strip().lower()
+    ).strip("_")
     if not identifier:
         QMessageBox.warning(panel, panel.tr("Function Builder"), panel.tr("Enter an identifier."))
         return
@@ -404,8 +426,7 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
         QMessageBox.information(
             panel,
             panel.tr("Function Builder"),
-            panel.tr("Function added and saved in the reusable library:")
-            + f"\n{destination}",
+            panel.tr("Function added and saved in the reusable library:") + f"\n{destination}",
         )
     except Exception as exc:
         QMessageBox.warning(panel, panel.tr("Function Builder"), str(exc))
@@ -427,7 +448,7 @@ def _install() -> None:
         window.quick_peak_action.setText(window.tr("Quick Add Function"))
         window.quick_peak_action.setToolTip(
             window.tr(
-                "Quick Add Function\nAdd the function selected in the adjacent list without reopening the component dialog."
+                "Quick Add Function\nReplaces Quick Peak and adds the function selected in the adjacent list."
             )
         )
         window.quick_add_function_action = window.quick_peak_action
