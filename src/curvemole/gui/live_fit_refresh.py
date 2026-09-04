@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from curvemole.core.live_fit_progress import LIVE_REFRESH_EVERY
 from curvemole.gui.main_window import MainWindow
