@@ -40,16 +40,17 @@ def sort_import_paths(paths: list[str]) -> list[str]:
 
 def _import_data_natural_order(self: MainWindow, paths: list[str] | None = None) -> None:
     if paths is None:
-        # Preserve the existing user-facing import dialog, then normalise the
-        # platform-dependent selection order before handing it to the original
-        # importer.  The original method still performs all validation/mapping.
+        # Show every file by default: the importer validates the actual table
+        # contents rather than assuming the filename extension defines the format.
         if not self._ensure_editable():
             return
         paths, _ = QFileDialog.getOpenFileNames(
             self,
             self.tr("Import one-dimensional curves"),
             "",
-            self.tr("Supported data (*.txt *.dat *.csv *.tsv);;All files (*)"),
+            self.tr(
+                "All readable data (*);;Common XY/text data (*.txt *.dat *.csv *.tsv *.xy)"
+            ),
         )
         if not paths:
             return

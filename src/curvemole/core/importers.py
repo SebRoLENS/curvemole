@@ -1,9 +1,10 @@
-"""Previewable import of one-dimensional text, DAT, CSV, and TSV data."""
+"""Previewable import of one-dimensional text and delimited data files."""
 
 from __future__ import annotations
 
 import csv
 import re
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,7 +15,9 @@ import pandas as pd
 from curvemole.core.data import Curve, Series
 from curvemole.core.errors import DataValidationError
 
-SUPPORTED_EXTENSIONS = {".txt", ".dat", ".csv", ".tsv"}
+# Common extensions are kept for documentation/UI hints only. Import validity is
+# determined from file contents rather than the filename suffix.
+SUPPORTED_EXTENSIONS = {".txt", ".dat", ".csv", ".tsv", ".xy"}
 
 
 @dataclass(slots=True)
@@ -40,7 +43,9 @@ class ColumnMapping:
 
     def validate(self) -> None:
         if not self.pairs and (self.x is None or not self.y):
-            raise DataValidationError("Choose an x column and at least one y column, or x-y pairs.")
+            raise DataValidationError(
+                "Choose an x column and at least one y column, or x-y pairs."
+            )
         uncertainty_fields = [
             self.sigma_y is not None,
             self.weights is not None,
@@ -62,17 +67,24 @@ class FileInspection:
     warnings: list[str]
 
 
-def inspect_file(path: str | Path, config: ImportConfig | None = None, *, rows: int = 30) -> FileInspection:
+def inspect_file(
+    path: str | Path,
+    config: ImportConfig | None = None,
+    *,
+    rows: int = 30,
+) -> FileInspection:
     source = Path(path)
-    if source.suffix.lower() not in SUPPORTED_EXTENSIONS:
-        raise DataValidationError(
-            f"Unsupported file extension '{source.suffix}'. Use TXT, DAT, CSV, or TSV."
-        )
     if not source.is_file():
         raise DataValidationError(f"Input file does not exist: {source}")
     selected = config or detect_config(source)
     frame, warnings = _read_frame(source, selected, nrows=rows)
-    return FileInspection(source, selected, [str(value) for value in frame.columns], frame, warnings)
+    return FileInspection(
+        source,
+        selected,
+        [str(value) for value in frame.columns],
+        frame,
+        warnings,
+    )
 
 
 def detect_config(path: str | Path) -> ImportConfig:
@@ -81,26 +93,63 @@ def detect_config(path: str | Path) -> ImportConfig:
         text = source.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:
         raise DataValidationError(f"Cannot read '{source}': {exc}") from exc
-    candidate_lines = [
-        line
-        for line in text.splitlines()
-        if line.strip() and not line.lstrip().startswith(("#", "%", "!"))
-    ][:20]
-    if not candidate_lines:
+
+    indexed_lines = [
+        (index, line)
+        for index, line in enumerate(text.splitlines())
+        if line.strip() and not line.lstrip().startswith(("#", ";", "%", "!"))
+    ]
+    if not indexed_lines:
         raise DataValidationError(f"'{source}' contains no data rows.")
-    sample = "\n".join(candidate_lines)
-    delimiter: str | None
-    if source.suffix.lower() == ".tsv":
-        delimiter = "\t"
-    else:
-        try:
-            delimiter = csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
-        except csv.Error:
-            delimiter = None
-    decimal = "," if delimiter in {";", "\t", "|", None} and _looks_decimal_comma(candidate_lines) else "."
-    first = _split(candidate_lines[0], delimiter)
-    header = any(not _is_number(value, decimal) for value in first)
-    return ImportConfig(delimiter=delimiter, decimal=decimal, header=header)
+
+    data_position = _first_numeric_data_position(indexed_lines)
+    if data_position is None:
+        candidate_lines = [line for _, line in indexed_lines[:20]]
+        delimiter = _detect_delimiter(candidate_lines, source.suffix.lower())
+        decimal = (
+            ","
+            if delimiter in {";", "\t", "|", None}
+            and _looks_decimal_comma(candidate_lines)
+            else "."
+        )
+        first = _split(candidate_lines[0], delimiter)
+        header = any(not _is_number(value, decimal) for value in first)
+        return ImportConfig(delimiter=delimiter, decimal=decimal, header=header)
+
+    numeric_lines = [
+        line
+        for _, line in indexed_lines[data_position : data_position + 20]
+        if _looks_like_numeric_row(line)
+    ]
+    delimiter = _detect_delimiter(numeric_lines, source.suffix.lower())
+    decimal = (
+        ","
+        if delimiter in {";", "\t", "|", None} and _looks_decimal_comma(numeric_lines)
+        else "."
+    )
+
+    first_index, first_data_line = indexed_lines[data_position]
+    first_fields = _split(first_data_line, delimiter)
+    skip_rows = first_index
+    header = False
+
+    if data_position > 0:
+        previous_index, previous_line = indexed_lines[data_position - 1]
+        previous_fields = _split(previous_line, delimiter)
+        if (
+            len(first_fields) >= 2
+            and len(previous_fields) == len(first_fields)
+            and any(not _is_number(value, decimal) for value in previous_fields)
+        ):
+            skip_rows = previous_index
+            header = True
+
+    return ImportConfig(
+        delimiter=delimiter,
+        decimal=decimal,
+        header=header,
+        skip_rows=skip_rows,
+    )
 
 
 def import_file(
@@ -128,7 +177,11 @@ def import_file(
             with np.errstate(invalid="ignore"):
                 sigma_y = np.sqrt(variance)
         if mapping.inverse_variance is not None:
-            weights = _optional_numeric(frame, mapping.inverse_variance, selected.decimal)
+            weights = _optional_numeric(
+                frame,
+                mapping.inverse_variance,
+                selected.decimal,
+            )
         name = str(y_name).strip() or f"{source.stem} {pair_index}"
         curve = Curve(
             name=name,
@@ -147,6 +200,7 @@ def import_file(
                     "delimiter": selected.delimiter or "whitespace",
                     "decimal": selected.decimal,
                     "header": selected.header,
+                    "skip_rows": selected.skip_rows,
                     "x_column": str(x_name),
                     "y_column": str(y_name),
                     "warnings": warnings,
@@ -175,7 +229,10 @@ def import_many(
 
 
 def _read_frame(
-    path: Path, config: ImportConfig, *, nrows: int | None = None
+    path: Path,
+    config: ImportConfig,
+    *,
+    nrows: int | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
     lines = path.read_text(encoding=config.encoding, errors="replace").splitlines()
     filtered: list[str] = []
@@ -216,8 +273,18 @@ def _read_frame(
         )
     if not config.header:
         frame.columns = [f"Column {index + 1}" for index in range(frame.shape[1])]
-    frame.columns = _unique_columns([str(value).strip() or f"Column {i + 1}" for i, value in enumerate(frame.columns)])
-    warnings = [f"Ignored {comments} comment line(s)."] if comments else []
+    frame.columns = _unique_columns(
+        [
+            str(value).strip() or f"Column {index + 1}"
+            for index, value in enumerate(frame.columns)
+        ]
+    )
+
+    warnings: list[str] = []
+    if config.skip_rows:
+        warnings.append(f"Ignored {config.skip_rows} leading row(s).")
+    if comments:
+        warnings.append(f"Ignored {comments} comment line(s).")
     return frame, warnings
 
 
@@ -233,7 +300,11 @@ def _column_name(frame: pd.DataFrame, column: str | int | None) -> str:
     return column
 
 
-def _optional_numeric(frame: pd.DataFrame, column: str | int | None, decimal: str) -> np.ndarray | None:
+def _optional_numeric(
+    frame: pd.DataFrame,
+    column: str | int | None,
+    decimal: str,
+) -> np.ndarray | None:
     if column is None:
         return None
     return _numeric(frame[_column_name(frame, column)], decimal)
@@ -259,8 +330,74 @@ def _is_number(value: str, decimal: str) -> bool:
 
 
 def _looks_decimal_comma(lines: list[str]) -> bool:
-    matches = sum(bool(re.search(r"[+-]?\d+,\d+(?:[eE][+-]?\d+)?", line)) for line in lines)
+    matches = sum(
+        bool(re.search(r"[+-]?\d+,\d+(?:[eE][+-]?\d+)?", line))
+        for line in lines
+    )
     return matches >= max(1, len(lines) // 2)
+
+
+def _looks_like_numeric_row(line: str) -> bool:
+    for delimiter in (None, ",", ";", "\t", "|"):
+        values = _split(line, delimiter)
+        if len(values) < 2:
+            continue
+        if all(_is_number(value, ".") for value in values):
+            return True
+        if all(_is_number(value, ",") for value in values):
+            return True
+    return False
+
+
+def _first_numeric_data_position(indexed_lines: list[tuple[int, str]]) -> int | None:
+    for position, (_, line) in enumerate(indexed_lines):
+        if not _looks_like_numeric_row(line):
+            continue
+        following = indexed_lines[position + 1 : position + 4]
+        if not following or any(_looks_like_numeric_row(row) for _, row in following):
+            return position
+    return None
+
+
+def _detect_delimiter(lines: list[str], suffix: str = "") -> str | None:
+    if suffix == ".tsv":
+        return "\t"
+
+    best_delimiter: str | None = None
+    best_score = (-1, -1, -1)
+    for delimiter in (",", ";", "\t", "|", None):
+        split_rows = [_split(line, delimiter) for line in lines if line.strip()]
+        widths = [len(row) for row in split_rows if len(row) >= 2]
+        if not widths:
+            continue
+        common_width, common_count = Counter(widths).most_common(1)[0]
+        consistent = [row for row in split_rows if len(row) == common_width]
+        if not consistent:
+            continue
+
+        full_numeric_rows = 0
+        numeric_fields = 0
+        for row in consistent:
+            dot_numeric = sum(_is_number(value, ".") for value in row)
+            comma_numeric = sum(_is_number(value, ",") for value in row)
+            row_numeric = max(dot_numeric, comma_numeric)
+            numeric_fields += row_numeric
+            if row_numeric == len(row):
+                full_numeric_rows += 1
+
+        score = (full_numeric_rows, common_count, numeric_fields)
+        if score > best_score:
+            best_score = score
+            best_delimiter = delimiter
+
+    if best_score[0] > 0:
+        return best_delimiter
+
+    sample = "\n".join(lines[:20])
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",;\t|").delimiter
+    except csv.Error:
+        return None
 
 
 def _unique_columns(columns: list[str]) -> list[str]:
