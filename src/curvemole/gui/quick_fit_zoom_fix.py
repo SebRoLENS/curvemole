@@ -31,12 +31,28 @@ def _restore_view_range(
     )
 
 
+def _prepare_interactive_quick_fit_view(window: MainWindow) -> None:
+    """Stop linked auto-ranging from overriding mouse-wheel zoom during Quick Fit."""
+    ranges = _capture_view_range(window)
+    main_view = window.plot_workspace.view_box
+    residual_view = window.plot_workspace.residual_plot.getViewBox()
+
+    # The residual panel is X-linked to the main spectrum panel. If either view
+    # keeps auto-ranging while live fit redraws replace their plotted data, that
+    # auto-range can immediately override a manual wheel zoom on the other view.
+    # Freeze both ranges before the worker starts producing live redraws.
+    main_view.disableAutoRange()
+    residual_view.disableAutoRange()
+    _restore_view_range(window, ranges)
+
+
 def _quick_fit(window: MainWindow) -> None:
     previous_thread = window._thread
     _ORIGINAL_QUICK_FIT(window)
     # A new worker means Quick Fit really started. Do not mark early-return paths.
     if previous_thread is None and window._thread is not None:
         window._curvemole_quick_fit_running = True
+        _prepare_interactive_quick_fit_view(window)
 
 
 def _fit_finished(window: MainWindow, result: Any) -> None:
