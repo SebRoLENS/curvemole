@@ -4,11 +4,51 @@ from __future__ import annotations
 
 from typing import Any
 
+from PySide6.QtCore import QEvent, QObject
+
 from curvemole.gui.main_window import MainWindow
 
 _ORIGINAL_QUICK_FIT = MainWindow.quick_fit
 _ORIGINAL_FIT_FINISHED = MainWindow._fit_finished
 _ORIGINAL_TASK_DONE = MainWindow._task_done
+
+
+class _QuickFitWheelZoomFilter(QObject):
+    """Guarantee wheel zoom on the main plot while Quick Fit is active."""
+
+    def __init__(self, window: MainWindow) -> None:
+        super().__init__(window)
+        self.window = window
+
+    def eventFilter(self, watched: QObject, event: Any) -> bool:  # noqa: N802
+        if event.type() != QEvent.Type.Wheel:
+            return False
+        window = self.window
+        if not getattr(window, "_curvemole_quick_fit_running", False):
+            return False
+        workspace = window.plot_workspace
+        if getattr(workspace, "_view_locked", False):
+            return False
+        viewport = workspace.graphics.viewport()
+        if watched is not viewport:
+            return False
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return False
+
+        scene_pos = workspace.graphics.mapToScene(event.position().toPoint())
+        main_view = workspace.view_box
+        if not main_view.sceneBoundingRect().contains(scene_pos):
+            return False
+
+        centre = main_view.mapSceneToView(scene_pos)
+        # One ordinary wheel notch zooms by 15%; fractional/high-resolution wheel
+        # deltas scale smoothly using the same exponential rule.
+        factor = 0.85 ** (delta / 120.0)
+        main_view.disableAutoRange()
+        main_view.scaleBy((factor, factor), center=centre)
+        event.accept()
+        return True
 
 
 def _capture_view_range(window: MainWindow) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -31,19 +71,28 @@ def _restore_view_range(
     )
 
 
-def _prepare_interactive_quick_fit_view(window: MainWindow) -> None:
-    """Stop linked auto-ranging from overriding mouse-wheel zoom during Quick Fit."""
-    ranges = _capture_view_range(window)
-    main_view = window.plot_workspace.view_box
-    residual_view = window.plot_workspace.residual_plot.getViewBox()
+def _ensure_wheel_filter(window: MainWindow) -> None:
+    if getattr(window, "_curvemole_quick_fit_wheel_filter", None) is not None:
+        return
+    event_filter = _QuickFitWheelZoomFilter(window)
+    window.plot_workspace.graphics.viewport().installEventFilter(event_filter)
+    window._curvemole_quick_fit_wheel_filter = event_filter
 
-    # The residual panel is X-linked to the main spectrum panel. If either view
-    # keeps auto-ranging while live fit redraws replace their plotted data, that
-    # auto-range can immediately override a manual wheel zoom on the other view.
-    # Freeze both ranges before the worker starts producing live redraws.
+
+def _prepare_interactive_quick_fit_view(window: MainWindow) -> None:
+    """Make Quick Fit redraws unable to suppress manual wheel navigation."""
+    ranges = _capture_view_range(window)
+    workspace = window.plot_workspace
+    main_view = workspace.view_box
+    residual_view = workspace.residual_plot.getViewBox()
+
+    # Re-apply the normal interaction state in case a previous redraw left the
+    # pyqtgraph ViewBox mouse flags stale, then freeze linked auto-ranging.
+    workspace._update_interaction_state()
     main_view.disableAutoRange()
     residual_view.disableAutoRange()
     _restore_view_range(window, ranges)
+    _ensure_wheel_filter(window)
 
 
 def _quick_fit(window: MainWindow) -> None:
