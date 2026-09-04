@@ -1,6 +1,6 @@
 """Version information kept importable without optional dependencies."""
 
-__version__ = "0.14.0"
+__version__ = "0.14.1"
 
 PROJECT_SCHEMA_VERSION = 1
 FITMODEL_SCHEMA_VERSION = 1
