@@ -14,6 +14,22 @@ from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Component
 from curvemole.core.registry import FunctionRegistry, default_registry
 
+_CUSTOM_PEAK_SCALE_ALIASES = (
+    "area",
+    "amplitude",
+    "amp",
+    "a",
+    "height",
+    "peakheight",
+    "peak_height",
+    "intensity",
+    "i0",
+    "scale",
+    "norm",
+    "normalization",
+    "normalisation",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class PeakSuggestion:
@@ -142,11 +158,7 @@ def initialise_peak_component(
     set_first(("sigma",), suggestion.fwhm / 2.354820045)
     set_first(("gamma", "hwhm"), suggestion.fwhm / 2)
     scale_name = next(
-        (
-            aliases[name]
-            for name in ("area", "amplitude", "height", "intensity")
-            if name in aliases
-        ),
+        (aliases[name] for name in _CUSTOM_PEAK_SCALE_ALIASES if name in aliases),
         None,
     )
     if scale_name is not None:
