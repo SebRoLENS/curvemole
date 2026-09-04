@@ -47,6 +47,10 @@ from curvemole.gui import peak_placement_zoom_fix as _peak_placement_zoom_fix  #
 # Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
 from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
 
+# Unify Quick Add, automatic peak detection, and Function Builder around the shared
+# function registry, with a persistent user-selected function-library directory.
+from curvemole.gui import quick_function_library as _quick_function_library  # noqa: F401,E402
+
 # QAction.triggered emits a checked boolean. The Revert background method also has
 # an optional curve-id argument, so discard the signal payload explicitly.
 from curvemole.gui import (
@@ -86,7 +90,3 @@ from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F40
 from curvemole.gui import (  # noqa: F401,E402
     windows_update_powershell_compat as _windows_update_powershell_compat,
 )
-
-# Unify Quick Add, automatic peak detection, and Function Builder around the shared
-# function registry, with a persistent user-selected function-library directory.
-from curvemole.gui import quick_function_library as _quick_function_library  # noqa: F401,E402
