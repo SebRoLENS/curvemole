@@ -18,6 +18,10 @@ from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F40
 # lexical order returned by the platform file dialog.
 from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
 
+# Refresh the plotted model every 20 fit evaluations while preserving the user's
+# current zoom/range.
+from curvemole.gui import live_fit_refresh as _live_fit_refresh  # noqa: F401,E402
+
 # Wrap manual-point installation so point-created functions update live while
 # placing nodes and expose their original points as draggable controls afterwards.
 from curvemole.gui import manual_points_live as _manual_points_live  # noqa: F401,E402
