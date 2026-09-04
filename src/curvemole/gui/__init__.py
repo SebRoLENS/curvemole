@@ -43,6 +43,12 @@ from curvemole.gui import parameter_copy_redesign as _parameter_copy_redesign  #
 # Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
 from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
 
+# QAction.triggered emits a checked boolean. The Revert background method also has
+# an optional curve-id argument, so discard the signal payload explicitly.
+from curvemole.gui import (
+    revert_background_action_fix as _revert_background_action_fix,  # noqa: F401,E402
+)
+
 # Add propagating sequential-fit controls plus pause/resume state that survives
 # manual intervention on a suspicious spectrum.
 from curvemole.gui import sequential_fit_ui as _sequential_fit_ui  # noqa: F401,E402
