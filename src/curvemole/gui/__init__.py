@@ -10,13 +10,13 @@ from curvemole.gui import background_controls_fix as _background_controls_fix  #
 # Add plot-focused spectrum keyboard navigation plus background-aware rendering.
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
 
-# Ensure multi-file imports follow human/numeric filename order rather than the
-# lexical order returned by the platform file dialog.
-from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
-
 # Let import validity follow file contents rather than the filename suffix and
 # expose configurable leading-row skipping in the mapping preview.
 from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F401,E402
+
+# Ensure multi-file imports follow human/numeric filename order rather than the
+# lexical order returned by the platform file dialog.
+from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
 
 # Wrap manual-point installation so point-created functions update live while
 # placing nodes and expose their original points as draggable controls afterwards.
