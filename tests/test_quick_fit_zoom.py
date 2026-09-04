@@ -6,6 +6,8 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Component, Curve, Project
@@ -114,6 +116,58 @@ def test_quick_fit_disables_linked_autorange_so_wheel_zoom_persists(
     after_redraw = quick_fit_zoom_fix._capture_view_range(window)
     assert after_redraw[0] == pytest.approx(zoomed[0])
     assert after_redraw[1] == pytest.approx(zoomed[1])
+
+    window._thread = None
+    window._curvemole_quick_fit_running = False
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_real_wheel_event_zooms_main_canvas_while_quick_fit_is_running(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, window = _window()
+    worker_marker = object()
+    workspace = window.plot_workspace
+    main_view = workspace.view_box
+
+    def fake_quick_fit(instance: MainWindow) -> None:
+        instance._thread = worker_marker  # type: ignore[assignment]
+
+    monkeypatch.setattr(quick_fit_zoom_fix, "_ORIGINAL_QUICK_FIT", fake_quick_fit)
+    window.show()
+    app.processEvents()
+    main_view.setRange(xRange=(-4.0, 4.0), yRange=(-0.5, 1.5), padding=0)
+    window._thread = None
+    window.quick_fit()
+
+    before = quick_fit_zoom_fix._capture_view_range(window)
+    # Simulate the stale pyqtgraph mouse-disable state that used to make the wheel
+    # appear to affect only axes/scales. The Quick Fit viewport filter must still
+    # consume the physical wheel event and zoom the plot canvas itself.
+    main_view.setMouseEnabled(x=False, y=False)
+    viewport = workspace.graphics.viewport()
+    scene_center = main_view.sceneBoundingRect().center()
+    viewport_pos = workspace.graphics.mapFromScene(scene_center)
+    global_pos = viewport.mapToGlobal(viewport_pos)
+    event = QWheelEvent(
+        QPointF(viewport_pos),
+        QPointF(global_pos),
+        QPoint(),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    QApplication.sendEvent(viewport, event)
+    app.processEvents()
+
+    after = quick_fit_zoom_fix._capture_view_range(window)
+    assert event.isAccepted()
+    assert after[0][1] - after[0][0] < before[0][1] - before[0][0]
+    assert after[1][1] - after[1][0] < before[1][1] - before[1][0]
 
     window._thread = None
     window._curvemole_quick_fit_running = False
