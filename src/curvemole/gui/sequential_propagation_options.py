@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QScrollArea,
     QVBoxLayout,
 )
 
@@ -19,9 +20,9 @@ from curvemole.core.sequential_fit import SequentialFitPlan
 from curvemole.gui.dialogs import FitPlanDialog
 
 
-def _ignored_component_ids(dialog: FitPlanDialog) -> tuple[str, ...]:
+def _ignored_component_ids(dialog: FitPlanDialog, widget_name: str = "sequential_ignored_functions") -> tuple[str, ...]:
     result: list[str] = []
-    widget = getattr(dialog, "sequential_ignored_functions", None)
+    widget = getattr(dialog, widget_name, None)
     if widget is None:
         return ()
     for row in range(widget.count()):
@@ -39,6 +40,9 @@ def _refresh_ignored_functions(dialog: FitPlanDialog) -> None:
     if widget is None or source is None:
         return
     widget.clear()
+    excluded_widget = getattr(dialog, "sequential_excluded_copy_functions", None)
+    if excluded_widget is not None:
+        excluded_widget.clear()
     source_id = str(source.currentData() or "")
     if not source_id:
         return
@@ -54,10 +58,16 @@ def _refresh_ignored_functions(dialog: FitPlanDialog) -> None:
         item.setToolTip(
             dialog.tr(
                 "Check this function to ignore its parameter changes when deciding whether the "
-                "sequential refinement should pause. The function is still copied and fitted normally."
+                "sequential refinement should pause. Copy exclusions are configured separately."
             )
         )
         widget.addItem(item)
+        if excluded_widget is not None:
+            excluded = QListWidgetItem(f"{component.name}  ({component.function_id})")
+            excluded.setData(Qt.ItemDataRole.UserRole, component.id)
+            excluded.setFlags(excluded.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            excluded.setCheckState(Qt.CheckState.Unchecked)
+            excluded_widget.addItem(excluded)
 
 
 def _save_settings(dialog: FitPlanDialog) -> None:
@@ -93,9 +103,9 @@ def _install_sequential_propagation_options() -> None:
         layout = QVBoxLayout(dialog.sequential_propagation_options)
         intro = QLabel(
             dialog.tr(
-                "Parameter values and the function structure are always copied from the current "
-                "source spectrum. Choose which additional fit constraints and component states "
-                "should also be propagated to the next spectrum."
+                "Selected source functions are added to the next spectrum. Existing target functions "
+                "are never overwritten by copying and retain their fixed/free state for fitting. "
+                "Choose which constraints and states accompany newly copied functions."
             )
         )
         intro.setWordWrap(True)
@@ -154,6 +164,17 @@ def _install_sequential_propagation_options() -> None:
         structural.setWordWrap(True)
         layout.addWidget(structural)
 
+        copy_title = QLabel(dialog.tr("Functions excluded from copying (check to exclude)"))
+        copy_title.setWordWrap(True)
+        layout.addWidget(copy_title)
+        dialog.sequential_excluded_copy_functions = QListWidget()
+        dialog.sequential_excluded_copy_functions.setMinimumHeight(90)
+        dialog.sequential_excluded_copy_functions.setToolTip(dialog.tr(
+            "Checked functions are not copied. All functions already on each target are kept. "
+            "This choice is independent of the parameter-change pause monitor."
+        ))
+        layout.addWidget(dialog.sequential_excluded_copy_functions)
+
         ignore_title = QLabel(
             dialog.tr(
                 "Functions ignored by the parameter-change pause trigger "
@@ -166,25 +187,30 @@ def _install_sequential_propagation_options() -> None:
         dialog.sequential_ignored_functions.setMinimumHeight(90)
         dialog.sequential_ignored_functions.setToolTip(
             dialog.tr(
-                "Checked functions are still copied and fitted, but large changes in their "
-                "parameters will not pause the sequence. Residual-based monitoring remains active."
+                "Large changes in checked functions will not pause the sequence. This does not "
+                "change which functions are copied. Residual-based monitoring remains active."
             )
         )
         layout.addWidget(dialog.sequential_ignored_functions)
 
         note = QLabel(
             dialog.tr(
-                "Ignored functions affect only the parameter-jump monitor. They still contribute "
-                "to the total residual, so a strong deterioration of the overall fit can still pause the sequence."
+                "The residual monitor evaluates the complete target model, including retained local functions. "
+                "A strong deterioration of the overall fit can still pause the sequence."
             )
         )
         note.setWordWrap(True)
         layout.addWidget(note)
 
         parent_layout = dialog.sequential_box.layout()
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(dialog.sequential_propagation_options)
+        scroll.setMinimumHeight(200)
+        scroll.setMaximumHeight(350)
         parent_layout.insertWidget(
             max(1, parent_layout.count() - 1),
-            dialog.sequential_propagation_options,
+            scroll,
         )
         dialog.sequential_source.currentIndexChanged.connect(
             lambda *_: _refresh_ignored_functions(dialog)
@@ -204,6 +230,12 @@ def _install_sequential_propagation_options() -> None:
         result.propagate_enabled = dialog.sequential_propagate_enabled.isChecked()
         result.propagate_composition = dialog.sequential_propagate_composition.isChecked()
         result.ignored_component_ids = _ignored_component_ids(dialog)
+        result.excluded_copy_component_ids = _ignored_component_ids(dialog, "sequential_excluded_copy_functions")
+        source_model = dialog.project.model_for(str(dialog.sequential_source.currentData()))
+        result.copied_component_ids = tuple(
+            component.id for component in source_model.components
+            if component.id not in result.excluded_copy_component_ids
+        )
         return result
 
     def update_controls(dialog: FitPlanDialog) -> None:

@@ -54,6 +54,16 @@ def test_sequential_dialog_exposes_propagation_and_ignore_controls() -> None:
     dialog.sequential_ignored_functions.item(0).setCheckState(Qt.CheckState.Checked)
     plan = dialog.plan()
     assert plan.ignored_component_ids == (peak.id,)
+    assert dialog.sequential_excluded_copy_functions.count() == 2
+    dialog.sequential_excluded_copy_functions.item(1).setCheckState(Qt.CheckState.Checked)
+    dialog.sequential_monitor_parameters.setChecked(False)
+    assert dialog.sequential_excluded_copy_functions.isEnabled()
+    plan = dialog.plan()
+    assert plan.excluded_copy_component_ids == (background.id,)
+    assert plan.copied_component_ids == (peak.id,)
+    assert plan.ignored_component_ids == (peak.id,)
+    dialog.sequential_source.setCurrentIndex(dialog.sequential_source.findData(second.id))
+    assert dialog.sequential_excluded_copy_functions.count() == 0
 
     dialog.close()
     app.processEvents()

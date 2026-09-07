@@ -350,14 +350,11 @@ You may enter a tighter scientifically motivated range, but it is not required.
 
 ### 4.5 Mask an interval if needed
 
-To exclude a region directly, drag over it with the right mouse button. This works
-without enabling Mask mode. The current **Mask/Unmask** operation and **Target**
-selection are respected.
-
-Alternatively:
+Mask editing is active only while the **Mask** toggle is enabled. The current
+**Mask/Unmask** operation and **Target** selection are respected:
 
 1. enable **Mask** above the plot;
-2. left-click to mask the nearest point, or left-drag an interval;
+2. left-click to mask the nearest point, or left/right-drag an interval;
 3. change the operation to **Unmask** to restore points;
 4. disable Mask mode when finished.
 
@@ -661,10 +658,11 @@ markers, and masked intervals are shaded.
 There are two interaction styles:
 
 1. Enable **Mask**, then left-click a point or left-drag an interval.
-2. At any time, right-drag an interval without enabling Mask mode.
+2. With **Mask** enabled, right-drag an interval.
 
 Both use the current operation and target. Select **Unmask** before dragging to
-restore an interval.
+restore an interval. Turn **Mask** off when finished: mouse navigation then leaves
+the exclusions unchanged, including right-drag gestures.
 
 ### 7.3 Mask targets
 
@@ -1104,7 +1102,15 @@ re-fitted. Its model is cloned to the next selected spectrum, fitted there, and 
 result becomes the source for the following spectrum. Selected spectra before the
 chosen source are excluded; target spectra do not need models in advance.
 
-Parameter values and the function structure are always propagated. The dialog
+Use **Functions excluded from copying** to select any source functions to leave out.
+Functions already present on each target retain their values, metadata, constraints,
+and order during copying; the fit still respects their fixed/free state. A function
+with the same internal identity is kept rather than duplicated. Distinct functions
+remain distinct even if their names match. Target-local functions are not carried
+into later spectra. The selection is also preserved when resuming a paused sequence.
+This is independent of ignoring functions in the parameter-change pause monitor.
+
+For newly copied functions, parameter values and structure are propagated. The dialog
 separately controls whether to preserve bounds, fixed/free state, internal links,
 background tags, enabled/disabled state, and composition/grouping. Internal links are
 remapped to corresponding target parameters. Structural metadata required by the

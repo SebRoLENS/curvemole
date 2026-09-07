@@ -92,7 +92,7 @@ class MaskViewBox(pg.ViewBox):
             # Preserve normal ViewBox left-drag panning while spline placement is active.
             super().mouseDragEvent(event, axis=axis)
             return
-        if self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
+        if self.mask_mode and self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
             if event.isFinish():
                 start = self.mapSceneToView(event.buttonDownScenePos())
                 end = self.mapSceneToView(event.scenePos())
@@ -163,7 +163,7 @@ class PlotWorkspace(QWidget):
         self.mask_toggle.setText(self.tr("Mask"))
         self.mask_toggle.setCheckable(True)
         self.mask_toggle.setToolTip(
-            self.tr("Click for point/range masking, or right-drag the graph to mask an interval directly.")
+            self.tr("Enable Mask/Unmask to edit exclusions. Then click a point or drag an interval. Turn off to navigate normally.")
         )
         self.mask_toggle.toggled.connect(self._set_mask_mode)
         controls.addWidget(self.mask_toggle)
@@ -222,11 +222,6 @@ class PlotWorkspace(QWidget):
         self.view_active_action.setToolTip(self.tr("Fit unmasked experimental data only."))
         self.view_active_action.triggered.connect(self.view_active)
         view_menu.insertAction(view_menu.actions()[1], self.view_active_action)
-        for label, callback in (("View all", self.auto_range), ("View active", self.view_active)):
-            button = QToolButton()
-            button.setText(self.tr(label))
-            button.clicked.connect(callback)
-            controls.insertWidget(0 if label == "View all" else 1, button)
         view_menu.addSeparator()
         self.component_labels_action = QAction(self.tr("Show component labels"), self)
         self.component_labels_action.setCheckable(True)

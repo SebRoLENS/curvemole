@@ -18,7 +18,6 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QPushButton,
-    QStyle,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -29,7 +28,7 @@ from curvemole.core.calculator import apply_background_subtraction
 from curvemole.core.data import Curve, CurveState, Transformation
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401
 from curvemole.gui.dialogs import BackgroundComponentsDialog
-from curvemole.gui.main_window import CallbackCommand, MainWindow
+from curvemole.gui.main_window import CallbackCommand, MainWindow, _resource_icon
 
 _BACKGROUND_METHODS = {"model_components", "model_components_global"}
 
@@ -589,6 +588,7 @@ def _install_corrected_window_controls(window: MainWindow) -> None:
 
     visual = getattr(window, "background_subtracted_view_action", None)
     if isinstance(visual, QAction):
+        visual.setIcon(_resource_icon("background-visual.svg"))
         visual.setText(window.tr("Visual only — background-subtracted"))
         visual.setToolTip(
             window.tr(
@@ -598,7 +598,7 @@ def _install_corrected_window_controls(window: MainWindow) -> None:
         )
 
     window.revert_background_action = QAction(
-        window.style().standardIcon(QStyle.StandardPixmap.SP_ArrowBack),
+        _resource_icon("background-revert.svg"),
         window.tr("Revert background…"),
         window,
     )

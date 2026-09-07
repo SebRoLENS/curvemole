@@ -4,6 +4,17 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Interface fixes awaiting release
+
+- Allow any source functions to be excluded from sequential copying independently
+  of pause monitoring. Preserve existing target functions during copying and keep
+  target-local functions out of later propagation, including after resume.
+
+- Require explicit Mask activation for all graphical masking and unmasking gestures.
+- Keep Export analysis bundle in the File menu and remove its toolbar button.
+- Add matching View all / View active toolbar icons and replace the system icons
+  for visual background subtraction and background restoration.
+
 ### Fixed
 
 - View all and initial plot bounds use full-resolution experimental data, not

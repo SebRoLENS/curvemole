@@ -565,6 +565,10 @@ class MainWindow(QMainWindow):
         self.reset_layout_action = QAction(self.tr("Reset layout"), self)
         self.reset_layout_action.triggered.connect(self.reset_layout)
         self.auto_axes_action = QAction(self.tr("View all"), self)
+        self.auto_axes_action.setIcon(_resource_icon("view-all.svg"))
+        self.auto_axes_action.setToolTip(self.tr("View all\nFrame all experimental data, including masked regions."))
+        self.plot_workspace.view_active_action.setIcon(_resource_icon("view-active.svg"))
+        self.plot_workspace.view_active_action.setToolTip(self.tr("View active\nFrame only unmasked experimental data."))
         self.auto_axes_action.triggered.connect(self.plot_workspace.auto_range)
         self.log_x_action = QAction(self.tr("Logarithmic x"), self, checkable=True)
         self.log_x_action.toggled.connect(self.plot_workspace.set_log_x)
@@ -700,19 +704,22 @@ class MainWindow(QMainWindow):
                 self.undo_action,
                 self.redo_action,
                 self.calculator_action,
+                self.auto_axes_action,
+                self.plot_workspace.view_active_action,
                 self.subtract_background_action,
                 self.add_component_action,
                 self.quick_peak_action,
                 self.fit_action,
                 self.quick_fit_action,
                 self.cancel_action,
-                self.export_action,
             ]
         )
         for action in (
             self.open_action,
             self.save_action,
             self.calculator_action,
+            self.auto_axes_action,
+            self.plot_workspace.view_active_action,
             self.subtract_background_action,
             self.add_component_action,
             self.quick_peak_action,
