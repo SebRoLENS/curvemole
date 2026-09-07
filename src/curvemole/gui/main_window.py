@@ -106,8 +106,15 @@ from curvemole.version import __version__
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
 
 
-def _resource_icon(filename: str, crop: tuple[int, int, int, int] | None = None) -> QIcon:
+def _resource_icon(
+    filename: str, crop: tuple[int, int, int, int] | None = None,
+    checked_filename: str | None = None,
+) -> QIcon:
     """Return an icon bundled with CurveMole."""
+    if filename.endswith(".svg") and crop is None:
+        from curvemole.gui.icons import vector_icon
+
+        return vector_icon(filename, checked_filename)
     pixmap = QPixmap(str(resources.files("curvemole.resources").joinpath(filename)))
     if crop is not None:
         pixmap = pixmap.copy(*crop)
@@ -566,8 +573,7 @@ class MainWindow(QMainWindow):
         self.reset_layout_action = QAction(self.tr("Reset layout"), self)
         self.reset_layout_action.triggered.connect(self.reset_layout)
         self.auto_axes_action = QAction(self.tr("View all"), self)
-        mask_icon = _resource_icon("mask.svg")
-        mask_icon.addPixmap(_resource_icon("mask-active.svg").pixmap(64, 64), QIcon.Mode.Normal, QIcon.State.On)
+        mask_icon = _resource_icon("mask.svg", checked_filename="mask-active.svg")
         self.plot_workspace.mask_action.setIcon(mask_icon)
         self.auto_axes_action.setIcon(_resource_icon("view-all.svg"))
         self.auto_axes_action.setToolTip(self.tr("View all\nFrame all experimental data, including masked regions."))

@@ -6,6 +6,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Changed
 
+- Adapt vector toolbar icons to the active palette, with brighter outlines and
+  accents in dark mode, explicit disabled colours, and a grey active Mask state.
+- Refresh screenshots as part of release preparation.
+
 - Unify toolbar icons, add a dedicated Import data icon, and group Mask beside
   Fit and Quick Fit while keeping background controls together.
 - Quick Fit now runs with default independent-fit settings on first use;

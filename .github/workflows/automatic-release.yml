@@ -82,6 +82,12 @@ jobs:
       # The generated manual embeds the package version, so it must be rebuilt
       # after prepare_release.py bumps the version and before the test suite
       # validates that generated documentation is in sync.
+      - name: Refresh release screenshots
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run python scripts/generate_screenshots.py
+
       - name: Build LaTeX and PDF manuals
         run: python scripts/build_manual.py
 
@@ -104,7 +110,7 @@ jobs:
           git add \
             src/curvemole/version.py pyproject.toml uv.lock README.md CITATION.cff \
             docs/manual.md docs/CurveMole_User_Manual.tex \
-            docs/CurveMole_User_Manual.pdf
+            docs/CurveMole_User_Manual.pdf docs/screenshots
           if ! git diff --cached --quiet; then
             git commit -m "Prepare v${VERSION} release"
             git push origin HEAD:main
