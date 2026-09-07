@@ -28,6 +28,7 @@ build_manual = load_script("build_manual", BUILD_MANUAL)
 prepare_pandoc_source = build_manual.prepare_pandoc_source
 read_package_version = build_manual.read_package_version
 validate_source = build_manual.validate_source
+normalise_pdf_document_id = build_manual.normalise_pdf_document_id
 
 
 def test_manual_is_detailed_and_matches_package_version() -> None:
@@ -68,6 +69,20 @@ def test_generated_manual_editions_are_present_and_versioned() -> None:
         document_id,
         document_id,
     )
+
+
+def test_pdf_document_id_normalisation_accepts_an_absent_optional_id(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "manual.pdf"
+    tex = tmp_path / "manual.tex"
+    original = b"%PDF-1.5\ntrailer\n<< /Size 1 >>\n%%EOF\n"
+    pdf.write_bytes(original)
+    tex.write_text("manual source", encoding="utf-8")
+
+    normalise_pdf_document_id(pdf, tex)
+
+    assert pdf.read_bytes() == original
 
 
 def test_release_bump_updates_every_manual_version(
