@@ -5,10 +5,11 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtWidgets import QApplication, QInputDialog
+from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from curvemole import Component, Curve, Project
 from curvemole.core.fitting import FitMode, FitPlan
+from curvemole.core.sequential_fit import SequentialFitPlan
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.main_window import CallbackCommand
 
@@ -130,3 +131,27 @@ def test_cancelled_fit_restores_pre_worker_model(window, monkeypatch):
     window._run_fit(FitPlan([window.active_curve_id]))
     assert parameter.value == before
     assert not window.undo_stack.canUndo()
+
+
+def test_paused_sequence_undo_restores_target_structure_and_resume_state(window, monkeypatch):
+    source, target = window.project.curves
+    original_target = window.project.model_for(target.id)
+    original_target.components.clear()
+    plan = SequentialFitPlan([source.id, target.id], FitMode.SEQUENTIAL,
+                             monitor_residuals=False, parameter_change_limit=0.001)
+    window.last_fit_plan = plan
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: None)
+    def synchronous(operation, finished, status):
+        finished(operation(lambda *_: None))
+        window._task_done()
+    monkeypatch.setattr(window, "_run_background", synchronous)
+    window._run_fit(plan)
+    assert window.project.model_for(target.id).components
+    assert window.resume_action.isEnabled()
+    window.undo_action.trigger()
+    assert window.project.model_for(target.id) is original_target
+    assert not original_target.components
+    assert not window.resume_action.isEnabled()
+    window.redo_action.trigger()
+    assert window.project.model_for(target.id).components
+    assert window.resume_action.isEnabled()
