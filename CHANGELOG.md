@@ -4,6 +4,15 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Replace Mask/Unmask selectors with a graphical mode button, an Overlay/Waterfall
+  scope prompt, right-drag masking and left-drag unmasking.
+- Make completed and paused fits undoable/redoable; restore cancelled worker state.
+  Keep at most 20 undo operations without duplicating experimental data arrays.
+- Make the real desktop Quick Add Function action follow the adjacent full registry
+  selector, including changes during placement, while preserving repeated peaks.
+
 ### Interface fixes awaiting release
 
 - Allow any source functions to be excluded from sequential copying independently

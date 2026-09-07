@@ -13,7 +13,7 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QCoreApplication, QLocale, Qt
 from PySide6.QtGui import QKeySequence, QPen, QShortcut
-from PySide6.QtWidgets import QApplication, QInputDialog
+from PySide6.QtWidgets import QApplication
 
 from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.models import Component
@@ -328,7 +328,7 @@ class CurveMoleMainWindow(MainWindow):
         super().__init__(*args, **kwargs)
         self.quick_peak_action.setToolTip(
             self.tr(
-                "Quick Peak\nChoose a peak function, then add as many peaks as needed. "
+                "Quick Add Function\nUse the function selected in the adjacent list. "
                 "Press Enter, Esc, or Finish to stop."
             )
         )
@@ -351,34 +351,14 @@ class CurveMoleMainWindow(MainWindow):
             return
 
         self.plot_workspace.cancel_placement()
-        definitions = [definition for definition in self.registry.values() if definition.kind == "peak"]
-        if not definitions:
-            self._notify(self.tr("No peak function is available in the current registry."), warning=True)
-            return
+        from curvemole.gui.quick_function_library import _selected_quick_function
 
-        current_index = next(
-            (
-                index
-                for index, definition in enumerate(definitions)
-                if definition.identifier == self.last_peak_function_id
-            ),
-            0,
-        )
-        labels = [definition.display_name for definition in definitions]
-        selected, accepted = QInputDialog.getItem(
-            self,
-            self.tr("Quick Peak"),
-            self.tr("Peak function:"),
-            labels,
-            current_index,
-            False,
-        )
-        if not accepted:
+        definition = self.registry.get(_selected_quick_function(self))
+        if definition.kind != "peak":
+            self._continuous_quick_peak_function_id = None
+            super().quick_peak()
             return
-
-        definition = definitions[labels.index(selected)]
-        self.last_peak_function_id = definition.identifier
-        self.settings.setValue("last_peak_function", definition.identifier)
+        self._remember_quick_function(definition.identifier)
         self._continuous_quick_peak_function_id = definition.identifier
         self._prepare_next_quick_peak()
         self.plot_workspace.begin_continuous_peak_placement(definition.display_name)

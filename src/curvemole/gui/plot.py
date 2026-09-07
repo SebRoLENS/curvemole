@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QSizePolicy,
     QToolButton,
@@ -39,6 +40,8 @@ class MaskViewBox(pg.ViewBox):
 
     maskPointRequested = Signal(float)
     maskRangeRequested = Signal(float, float)
+    unmaskPointRequested = Signal(float)
+    unmaskRangeRequested = Signal(float, float)
     peakPlacementPreview = Signal(float, float, float)
     peakPlacementRequested = Signal(float, float, float)
     splinePointRequested = Signal(float, float)
@@ -71,9 +74,10 @@ class MaskViewBox(pg.ViewBox):
                 self.splinePointRemoveRequested.emit(float(point.x()), float(point.y()))
                 event.accept()
                 return
-        if self.mask_mode and event.button() == Qt.MouseButton.LeftButton:
+        if self.mask_mode and event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
             point = self.mapSceneToView(event.scenePos())
-            self.maskPointRequested.emit(float(point.x()))
+            signal = self.unmaskPointRequested if event.button() == Qt.MouseButton.LeftButton else self.maskPointRequested
+            signal.emit(float(point.x()))
             event.accept()
             return
         super().mouseClickEvent(event)
@@ -105,7 +109,7 @@ class MaskViewBox(pg.ViewBox):
                 start = self.mapSceneToView(event.buttonDownScenePos())
                 end = self.mapSceneToView(event.scenePos())
                 if abs(end.x() - start.x()) > 0:
-                    self.maskRangeRequested.emit(float(start.x()), float(end.x()))
+                    self.unmaskRangeRequested.emit(float(start.x()), float(end.x()))
             event.accept()
             return
         super().mouseDragEvent(event, axis=axis)
@@ -114,6 +118,8 @@ class MaskViewBox(pg.ViewBox):
 class PlotWorkspace(QWidget):
     maskPointRequested = Signal(float)
     maskRangeRequested = Signal(float, float)
+    unmaskPointRequested = Signal(float)
+    unmaskRangeRequested = Signal(float, float)
     peakDragged = Signal(str, float, float, bool)
     widthDragged = Signal(str, float, bool)
     splineNodeDragged = Signal(str, int, float, bool)
@@ -159,22 +165,20 @@ class PlotWorkspace(QWidget):
         controls.addWidget(self.y_offset)
         self.x_offset.valueChanged.connect(self.refresh)
         self.y_offset.valueChanged.connect(self.refresh)
-        self.mask_toggle = QToolButton()
+        self.mask_toggle = QToolButton(self)
+        self.mask_toggle.hide()
         self.mask_toggle.setText(self.tr("Mask"))
         self.mask_toggle.setCheckable(True)
         self.mask_toggle.setToolTip(
-            self.tr("Enable Mask/Unmask to edit exclusions. Then click a point or drag an interval. Turn off to navigate normally.")
+            self.tr("Mask mode: right-drag to mask, left-drag to unmask. Click again to leave mask mode.")
         )
         self.mask_toggle.toggled.connect(self._set_mask_mode)
-        controls.addWidget(self.mask_toggle)
-        self.mask_operation = QComboBox()
-        self.mask_operation.addItem(self.tr("Mask"), "mask")
-        self.mask_operation.addItem(self.tr("Unmask"), "unmask")
-        controls.addWidget(self.mask_operation)
-        controls.addWidget(QLabel(self.tr("Target:")))
-        self.mask_target = QComboBox()
-        self.mask_target.addItems([self.tr("Active"), self.tr("Selected"), self.tr("All visible")])
-        controls.addWidget(self.mask_target)
+        self.mask_action = QAction(self.tr("Mask"), self, checkable=True)
+        self.mask_action.setToolTip(self.mask_toggle.toolTip())
+        self.mask_action.toggled.connect(self.mask_toggle.setChecked)
+        self.mask_toggle.toggled.connect(lambda *_: self.mask_action.setChecked(self.mask_toggle.isChecked()))
+        self._mask_scope = "active"
+        self.display_mode.currentIndexChanged.connect(lambda *_: self.mask_toggle.setChecked(False))
         self.residual_toggle = QCheckBox(self.tr("Residuals"))
         self.residual_toggle.setChecked(True)
         controls.addWidget(self.residual_toggle)
@@ -236,6 +240,8 @@ class PlotWorkspace(QWidget):
         layout.addWidget(self.graphics)
         self.view_box.maskPointRequested.connect(self.maskPointRequested)
         self.view_box.maskRangeRequested.connect(self.maskRangeRequested)
+        self.view_box.unmaskPointRequested.connect(self.unmaskPointRequested)
+        self.view_box.unmaskRangeRequested.connect(self.unmaskRangeRequested)
         self.view_box.peakPlacementPreview.connect(self._preview_peak_placement)
         self.view_box.peakPlacementRequested.connect(self._finish_peak_placement)
         self.view_box.splinePointRequested.connect(self._add_spline_point)
@@ -788,9 +794,26 @@ class PlotWorkspace(QWidget):
         self.plot.setMouseEnabled(x=enabled, y=enabled)
 
     def _set_mask_mode(self, enabled: bool) -> None:
+        if enabled:
+            if self._project is None or not self._active_curve_id:
+                self.mask_toggle.setChecked(False)
+                self.mask_action.setChecked(False)
+                return
+            self.cancel_placement()
+            self._mask_scope = "active"
+            if self.display_mode.currentIndex() != 0:
+                choices = [self.tr("Active spectrum only"), self.tr("All visible spectra")]
+                choice, accepted = QInputDialog.getItem(
+                    self, self.tr("Mask scope"), self.tr("Apply mask edits to:"), choices, 0, False,
+                )
+                if not accepted:
+                    self.mask_toggle.setChecked(False)
+                    self.mask_action.setChecked(False)
+                    return
+                self._mask_scope = "visible" if choice == choices[1] else "active"
         self.view_box.mask_mode = enabled
         self._update_interaction_state()
-        self.mask_toggle.setText(self.tr("Masking…") if enabled else self.tr("Mask"))
+        self.graphics.setToolTip(self.mask_toggle.toolTip() if enabled else "")
 
     def set_log_x(self, enabled: bool) -> None:
         self.plot.setLogMode(x=enabled, y=None)
