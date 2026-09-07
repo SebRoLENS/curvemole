@@ -30,6 +30,13 @@ from curvemole.gui.colours import MODEL_SUM_COLOUR
 
 
 class MaskViewBox(pg.ViewBox):
+    def autoRange(self, padding=None, items=None, item=None):
+        callback = getattr(self, "data_range_callback", None)
+        if callback is not None:
+            callback()
+        else:
+            super().autoRange(padding=padding, items=items, item=item)
+
     maskPointRequested = Signal(float)
     maskRangeRequested = Signal(float, float)
     peakPlacementPreview = Signal(float, float, float)
@@ -205,9 +212,21 @@ class PlotWorkspace(QWidget):
         self.graphics = pg.GraphicsLayoutWidget()
         self.graphics.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.view_box = MaskViewBox()
+        self.view_box.data_range_callback = self.auto_range
         self.plot = self.graphics.addPlot(row=0, col=0, viewBox=self.view_box)
+        self.plot.autoBtn.clicked.disconnect()
+        self.plot.autoBtn.clicked.connect(lambda: self.auto_range())
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         view_menu = self.view_box.getMenu(None)
+        self.view_active_action = QAction(self.tr("View active"), self)
+        self.view_active_action.setToolTip(self.tr("Fit unmasked experimental data only."))
+        self.view_active_action.triggered.connect(self.view_active)
+        view_menu.insertAction(view_menu.actions()[1], self.view_active_action)
+        for label, callback in (("View all", self.auto_range), ("View active", self.view_active)):
+            button = QToolButton()
+            button.setText(self.tr(label))
+            button.clicked.connect(callback)
+            controls.insertWidget(0 if label == "View all" else 1, button)
         view_menu.addSeparator()
         self.component_labels_action = QAction(self.tr("Show component labels"), self)
         self.component_labels_action.setCheckable(True)
@@ -251,6 +270,7 @@ class PlotWorkspace(QWidget):
         self.refresh()
 
     def refresh(self, *_: Any) -> None:
+        initial_view = not self._data_items
         self.plot.clear()
         self.residual_plot.clear()
         self._data_items.clear()
@@ -353,6 +373,8 @@ class PlotWorkspace(QWidget):
         self._layout_component_labels()
         self._render_placement_preview()
         self.plot.setTitle("")
+        if initial_view:
+            self.auto_range()
 
     def set_component_labels_visible(self, visible: bool) -> None:
         self._show_component_labels = bool(visible)
@@ -793,8 +815,62 @@ class PlotWorkspace(QWidget):
         self._update_interaction_state()
 
     def auto_range(self) -> None:
-        self.plot.enableAutoRange()
-        self.residual_plot.enableAutoRange()
+        self._fit_experimental_data(active_only=False)
+
+    def view_active(self) -> None:
+        self._fit_experimental_data(active_only=True)
+
+    def _fit_experimental_data(self, *, active_only: bool) -> None:
+        # Never use scene/item bounds: adaptive rendering clips those to the
+        # current viewport, while model extrapolation can dwarf the actual data.
+        from curvemole.gui.background_navigation import _background_array, _displayed_curves
+
+        curves, x_step, y_step = _displayed_curves(self)
+        log_x, log_y = self.plot.ctrl.logXCheck.isChecked(), self.plot.ctrl.logYCheck.isChecked()
+        bounds = []
+        for index, curve in enumerate(curves):
+            x = np.asarray(curve.x, dtype=float) + index * x_step
+            y = np.asarray(curve.y, dtype=float)
+            if getattr(self, "_background_subtracted_view", False):
+                y = y - _background_array(self, curve)
+            y = y + index * y_step
+            valid = np.isfinite(x) & np.isfinite(y)
+            if active_only:
+                valid &= ~curve.effective_mask
+            if log_x:
+                valid &= x > 0
+            if log_y:
+                valid &= y > 0
+            if not np.any(valid):
+                continue
+            x, y = x[valid], y[valid]
+            if log_x:
+                x = np.log10(x)
+            if log_y:
+                y = np.log10(y)
+            bounds.append((float(x.min()), float(x.max()), float(y.min()), float(y.max())))
+        # Empty/all-masked data must not fall back to model bounds.
+        if not bounds:
+            return
+        limits = np.asarray(bounds)
+        def usable_range(lower: float, upper: float) -> tuple[float, float]:
+            # pyqtgraph otherwise retains the previous (possibly huge) span
+            # for a constant signal or a single remaining unmasked sample.
+            if lower == upper:
+                half_span = max(abs(lower) * 0.05, 0.5)
+                return lower - half_span, upper + half_span
+            return lower, upper
+
+        self.view_box.disableAutoRange()
+        residual_view = self.residual_plot.getViewBox()
+        residual_view.disableAutoRange()
+        self.view_box.setRange(
+            xRange=usable_range(float(limits[:, 0].min()), float(limits[:, 1].max())),
+            yRange=usable_range(float(limits[:, 2].min()), float(limits[:, 3].max())),
+            padding=0.04,
+        )
+        # Residuals may determine only their own Y axis, never the linked X axis.
+        residual_view.enableAutoRange(axis=pg.ViewBox.YAxis)
 
     def _mouse_moved(self, event: tuple[QPointF]) -> None:
         point = event[0]

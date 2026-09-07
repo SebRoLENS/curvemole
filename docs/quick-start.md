@@ -1,5 +1,13 @@
 # CurveMole Quick Start
 
+Use **View all** above the plot (also in the plot context menu and **View > Axes**)
+to frame all experimental samples, including masked regions. **View active**,
+alongside it, frames only unmasked samples. Neither command includes model
+functions, spline extrapolation, labels, or handles in the limits. Bounds use
+full-resolution data regardless of adaptive rendering, respecting Waterfall
+offsets and visual background subtraction. With no usable samples, View active
+leaves the current view unchanged.
+
 ## 1. Import curves
 
 Choose **File → Import Data** and select one or many text-based numeric files.
