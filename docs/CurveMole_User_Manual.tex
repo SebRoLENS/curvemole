@@ -759,11 +759,9 @@ range, but it is not required.
 \section{4.5 Mask an interval if
 needed}\label{mask-an-interval-if-needed}}
 
-To exclude a region directly, drag over it with the right mouse button.
-This works without enabling Mask mode. The current \textbf{Mask/Unmask}
-operation and \textbf{Target} selection are respected.
-
-Alternatively:
+Mask editing is active only while the \textbf{Mask} toggle is enabled.
+The current \textbf{Mask/Unmask} operation and \textbf{Target} selection
+are respected:
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -771,7 +769,7 @@ Alternatively:
 \item
   enable \textbf{Mask} above the plot;
 \item
-  left-click to mask the nearest point, or left-drag an interval;
+  left-click to mask the nearest point, or left/right-drag an interval;
 \item
   change the operation to \textbf{Unmask} to restore points;
 \item
@@ -1264,11 +1262,13 @@ There are two interaction styles:
   Enable \textbf{Mask}, then left-click a point or left-drag an
   interval.
 \item
-  At any time, right-drag an interval without enabling Mask mode.
+  With \textbf{Mask} enabled, right-drag an interval.
 \end{enumerate}
 
 Both use the current operation and target. Select \textbf{Unmask} before
-dragging to restore an interval.
+dragging to restore an interval. Turn \textbf{Mask} off when finished:
+mouse navigation then leaves the exclusions unchanged, including
+right-drag gestures.
 
 \hypertarget{mask-targets}{%
 \section{7.3 Mask targets}\label{mask-targets}}
@@ -1921,12 +1921,23 @@ next selected spectrum, fitted there, and the result becomes the source
 for the following spectrum. Selected spectra before the chosen source
 are excluded; target spectra do not need models in advance.
 
-Parameter values and the function structure are always propagated. The
-dialog separately controls whether to preserve bounds, fixed/free state,
-internal links, background tags, enabled/disabled state, and
-composition/grouping. Internal links are remapped to corresponding
-target parameters. Structural metadata required by the function, such as
-spline nodes and custom-formula metadata, is always retained.
+Use \textbf{Functions excluded from copying} to select any source
+functions to leave out. Functions already present on each target retain
+their values, metadata, constraints, and order during copying; the fit
+still respects their fixed/free state. A function with the same internal
+identity is kept rather than duplicated. Distinct functions remain
+distinct even if their names match. Target-local functions are not
+carried into later spectra. The selection is also preserved when
+resuming a paused sequence. This is independent of ignoring functions in
+the parameter-change pause monitor.
+
+For newly copied functions, parameter values and structure are
+propagated. The dialog separately controls whether to preserve bounds,
+fixed/free state, internal links, background tags, enabled/disabled
+state, and composition/grouping. Internal links are remapped to
+corresponding target parameters. Structural metadata required by the
+function, such as spline nodes and custom-formula metadata, is always
+retained.
 
 Two optional safeguards can pause a sequence:
 
