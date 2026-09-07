@@ -564,7 +564,7 @@ class MainWindow(QMainWindow):
 
         self.reset_layout_action = QAction(self.tr("Reset layout"), self)
         self.reset_layout_action.triggered.connect(self.reset_layout)
-        self.auto_axes_action = QAction(self.tr("Auto axes"), self)
+        self.auto_axes_action = QAction(self.tr("View all"), self)
         self.auto_axes_action.triggered.connect(self.plot_workspace.auto_range)
         self.log_x_action = QAction(self.tr("Logarithmic x"), self, checkable=True)
         self.log_x_action.toggled.connect(self.plot_workspace.set_log_x)
@@ -665,6 +665,7 @@ class MainWindow(QMainWindow):
         axes.addActions(
             [
                 self.auto_axes_action,
+                self.plot_workspace.view_active_action,
                 self.log_x_action,
                 self.log_y_action,
                 self.reverse_x_action,

@@ -210,6 +210,8 @@ def _install_view_preserving_refresh() -> None:
         _render_lightweight_mask_boundaries(workspace)
         _optimise_plot_rendering(workspace)
         _restore_plot_view(workspace, state)
+        if state is None:
+            workspace.auto_range()
 
     def set_context(
         workspace: PlotWorkspace,

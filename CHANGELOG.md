@@ -4,6 +4,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- View all and initial plot bounds use full-resolution experimental data, not
+  viewport-clipped render samples or extrapolated model functions.
+- Added View active beside View all to frame unmasked experimental samples only.
+- Unified plot context-menu, plot auto button, and View/Axes range commands.
+
 ### Documentation
 
 - Aligned the README, Quick Start, plugin guide, changelog, and full user manual with
