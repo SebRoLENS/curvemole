@@ -6,6 +6,7 @@ from typing import Any
 
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QMenu, QToolBar
+from shiboken6 import isValid
 
 from curvemole.gui.main_window import MainWindow
 
@@ -33,6 +34,8 @@ def _install_undo_action(window: MainWindow) -> None:
     }
 
     def sync_action(*_args: Any) -> None:
+        if not isValid(stack) or not isValid(action):
+            return
         text = stack.undoText()
         label = window.tr("Undo") + (f" {text}" if text else "")
         action.setText(label)

@@ -98,7 +98,7 @@ def test_fit_undo_redo_preserves_prior_edit_references(window, monkeypatch):
     model = window.project.model_for(curve_id)
     parameter = model.components[0].parameters["intercept"]
     window.undo_stack.push(CallbackCommand("edit", lambda: setattr(parameter, "value", 0.5), lambda: setattr(parameter, "value", 0.)))
-    original_x = window.project.dataset.curve(curve_id).x
+    original_x = window.project.dataset.curve(curve_id).original_x
     def synchronous(operation, finished, status):
         finished(operation(lambda *_: None))
         window._task_done()
@@ -110,7 +110,7 @@ def test_fit_undo_redo_preserves_prior_edit_references(window, monkeypatch):
     window.undo_action.trigger()
     assert parameter.value == 0.5
     assert "last_fit" not in window.project.results
-    assert window.project.dataset.curve(curve_id).x is original_x
+    assert window.project.dataset.curve(curve_id).original_x is original_x
     window.undo_action.trigger()
     assert parameter.value == 0.
     window.redo_action.trigger()
