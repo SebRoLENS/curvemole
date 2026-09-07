@@ -472,7 +472,7 @@ def _install() -> None:
         window.quick_function_selector = selector
         _refresh_quick_function_selector(window)
         selector.currentIndexChanged.connect(lambda *_: _selector_changed(window))
-        toolbar.insertWidget(window.fit_action, selector)
+        toolbar.insertWidget(window._fit_toolbar_separator, selector)
 
     def connect_signals(window: MainWindow) -> None:
         original_connect_signals(window)

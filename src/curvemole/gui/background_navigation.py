@@ -614,8 +614,8 @@ def _install_window_controls(window: MainWindow) -> None:
 
     toolbar = window.findChild(QToolBar, "Main_toolbar")
     if toolbar is not None:
-        toolbar.insertAction(window.add_component_action, window.subtract_all_backgrounds_action)
-        toolbar.insertAction(window.add_component_action, window.background_subtracted_view_action)
+        toolbar.insertAction(window._background_toolbar_separator, window.subtract_all_backgrounds_action)
+        toolbar.insertAction(window._background_toolbar_separator, window.background_subtracted_view_action)
         for action in (
             window.subtract_all_backgrounds_action,
             window.background_subtracted_view_action,

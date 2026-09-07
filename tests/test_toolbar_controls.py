@@ -23,7 +23,12 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                for action in window.menuBar().actions() if action.menu())
     actions = (window.auto_axes_action, window.plot_workspace.view_active_action,
                window.background_subtracted_view_action, window.revert_background_action,
-               window.plot_workspace.mask_action)
+               window.plot_workspace.mask_action, window.import_action,
+               window.open_action, window.save_action, window.undo_action,
+               window.redo_action, window.calculator_action,
+               window.add_component_action, window.quick_peak_action,
+               window.fit_action, window.quick_fit_action, window.cancel_action,
+               window.subtract_background_action)
     for action in actions:
         assert action in toolbar.actions()
         assert not action.icon().isNull()
