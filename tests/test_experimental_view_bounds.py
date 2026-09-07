@@ -22,6 +22,10 @@ def plotted():
     curve = Curve("dense descending spectrum", x[::-1], y[::-1])
     project.add_curve(curve)
     project.model_for(curve.id).add(Component.create("constant", initial={"offset": 1e12}))
+    project.model_for(curve.id).add(Component.create(
+        "cubic_spline", metadata={"x_nodes": [145., 150., 155.]},
+        initial={"y0": 0., "y1": 1e9, "y2": -1e9},
+    ))
     window = CurveMoleMainWindow(project)
     app.processEvents()
     yield app, window, curve
@@ -107,3 +111,30 @@ def test_log_axes_follow_experimental_data(plotted):
     xr, yr = workspace.view_box.viewRange()
     assert xr[0] < 2 and xr[1] > np.log10(200)
     assert yr[0] < 0 and np.log10(20) < yr[1] < 2
+
+
+def test_single_active_sample_ignores_previous_span(plotted):
+    _, window, curve = plotted
+    workspace = window.plot_workspace
+    mask = curve.add_mask("all but one")
+    mask.excluded[:] = True
+    mask.excluded[10000] = False
+    workspace.view_box.setRange(xRange=(-1e9, 1e9), yRange=(-1e9, 1e9), padding=0)
+    workspace.view_active()
+    xr, yr = workspace.view_box.viewRange()
+    assert 140 < xr[0] < 150 < xr[1] < 160
+    assert 0 < yr[0] < 1 < yr[1] < 2
+
+
+def test_visual_subtraction_frames_transformed_experimental_samples(plotted):
+    _, window, curve = plotted
+    workspace = window.plot_workspace
+    background = window.project.model_for(curve.id).components[0]
+    background.parameters["offset"].value = 0.5
+    background.is_background = True
+    original = curve.y.copy()
+    workspace.set_background_subtracted_view(True)
+    workspace.auto_range()
+    _, yr = workspace.view_box.viewRange()
+    assert -1 < yr[0] < 0.5 and 19.5 < yr[1] < 21
+    np.testing.assert_array_equal(curve.y, original)

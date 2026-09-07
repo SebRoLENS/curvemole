@@ -853,12 +853,20 @@ class PlotWorkspace(QWidget):
         if not bounds:
             return
         limits = np.asarray(bounds)
+        def usable_range(lower: float, upper: float) -> tuple[float, float]:
+            # pyqtgraph otherwise retains the previous (possibly huge) span
+            # for a constant signal or a single remaining unmasked sample.
+            if lower == upper:
+                half_span = max(abs(lower) * 0.05, 0.5)
+                return lower - half_span, upper + half_span
+            return lower, upper
+
         self.view_box.disableAutoRange()
         residual_view = self.residual_plot.getViewBox()
         residual_view.disableAutoRange()
         self.view_box.setRange(
-            xRange=(float(limits[:, 0].min()), float(limits[:, 1].max())),
-            yRange=(float(limits[:, 2].min()), float(limits[:, 3].max())),
+            xRange=usable_range(float(limits[:, 0].min()), float(limits[:, 1].max())),
+            yRange=usable_range(float(limits[:, 2].min()), float(limits[:, 3].max())),
             padding=0.04,
         )
         # Residuals may determine only their own Y axis, never the linked X axis.
