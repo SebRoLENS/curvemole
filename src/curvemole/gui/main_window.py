@@ -43,9 +43,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QStyle,
     QToolBar,
-    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -473,14 +471,13 @@ class MainWindow(QMainWindow):
         return dock
 
     def _build_actions(self) -> None:
-        style = self.style()
-        self.new_action = QAction(style.standardIcon(QStyle.StandardPixmap.SP_FileIcon), self.tr("New project"), self)
+        self.new_action = QAction(_resource_icon("new-project.svg"), self.tr("New project"), self)
         self.new_action.setShortcut(QKeySequence.StandardKey.New)
         self.new_action.triggered.connect(self.new_project)
         self.open_action = QAction(_resource_icon("open-project.svg"), self.tr("Open project…"), self)
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(lambda checked=False: self.open_project())
-        self.import_action = QAction(self.tr("Import data…"), self)
+        self.import_action = QAction(_resource_icon("import-data.svg"), self.tr("Import data…"), self)
         self.import_action.setShortcut("Ctrl+I")
         self.import_action.triggered.connect(lambda checked=False: self.import_data())
         self.save_action = QAction(_resource_icon("save-project.svg"), self.tr("Save project"), self)
@@ -499,13 +496,15 @@ class MainWindow(QMainWindow):
         self.quit_action.triggered.connect(self.close)
 
         self.undo_action = self.undo_stack.createUndoAction(self, self.tr("Undo"))
+        self.undo_action.setIcon(_resource_icon("undo.svg"))
         self.undo_action.setShortcut(QKeySequence.StandardKey.Undo)
         self.redo_action = self.undo_stack.createRedoAction(self, self.tr("Redo"))
+        self.redo_action.setIcon(_resource_icon("redo.svg"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
 
         self.calculator_action = self.calculator_dock.toggleViewAction()
         self.calculator_action.setText(self.tr("Data Calculator"))
-        self.calculator_action.setIcon(_resource_icon("calculator.png"))
+        self.calculator_action.setIcon(_resource_icon("calculator.svg"))
         self.calculator_action.setToolTip(self.tr("Data Calculator"))
         self.worksheet_action = self.worksheet_dock.toggleViewAction()
         self.worksheet_action.setText(self.tr("Worksheet"))
@@ -521,12 +520,12 @@ class MainWindow(QMainWindow):
         self.plugins_action.triggered.connect(self.show_plugin_manager)
 
         self.add_component_action = QAction(self.tr("Add component…"), self)
-        self.add_component_action.setIcon(_resource_icon("add-peak.png"))
+        self.add_component_action.setIcon(_resource_icon("add-peak.svg"))
         self.add_component_action.setToolTip(self.tr("Add component…"))
         self.add_component_action.setShortcut("Ctrl++")
         self.add_component_action.triggered.connect(self.add_component)
         self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
-        self.quick_peak_action.setIcon(_resource_icon("quick-add-peak.png"))
+        self.quick_peak_action.setIcon(_resource_icon("quick-add-peak.svg"))
         self.quick_peak_action.setToolTip(
             self.tr("Quick Peak\nAdd the last selected peak function without reopening the component dialog.")
         )
@@ -538,28 +537,29 @@ class MainWindow(QMainWindow):
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
         self.mask_tolerance_action.triggered.connect(self.set_mask_tolerance)
         self.subtract_background_action = QAction(self.tr("Subtract background…"), self)
-        self.subtract_background_action.setIcon(_resource_icon("subtract-background.png"))
+        self.subtract_background_action.setIcon(_resource_icon("subtract-background.svg"))
         self.subtract_background_action.setToolTip(
             self.tr("Subtract background…\nSubtract selected model functions that are marked as background.")
         )
         self.subtract_background_action.triggered.connect(self.subtract_background)
 
         self.fit_action = QAction(self.tr("Fit…"), self)
-        # Keep the play symbol at the same visual scale as the other quick actions.
-        self.fit_action.setIcon(_resource_icon("fit.png"))
+        self.fit_action.setIcon(_resource_icon("fit.svg"))
         self.fit_action.setToolTip(self.tr("Fit…"))
         self.fit_action.setShortcut("F5")
         self.fit_action.triggered.connect(self.start_fit)
         self.quick_fit_action = QAction(self.tr("Quick Fit"), self)
-        self.quick_fit_action.setIcon(_resource_icon("quick-fit.png"))
+        self.quick_fit_action.setIcon(_resource_icon("quick-fit.svg"))
         self.quick_fit_action.setToolTip(
-            self.tr("Quick Fit\nFit the current selection with the last accepted fit settings.")
+            self.tr("Quick Fit\nFit the current selection with the last accepted settings, or defaults on first use.")
         )
         self.quick_fit_action.triggered.connect(self.quick_fit)
         self.resume_action = QAction(self.tr("Continue paused sequence"), self)
+        self.resume_action.setIcon(_resource_icon("resume.svg"))
         self.resume_action.setEnabled(False)
         self.resume_action.triggered.connect(self.resume_sequence)
         self.cancel_action = QAction(self.tr("Cancel running task"), self)
+        self.cancel_action.setIcon(_resource_icon("cancel.svg"))
         self.cancel_action.setEnabled(False)
         self.cancel_action.triggered.connect(self.cancel_task)
 
@@ -700,41 +700,26 @@ class MainWindow(QMainWindow):
         toolbar.setMovable(True)
         toolbar.setIconSize(QSize(40, 40))
         self.addToolBar(toolbar)
-        toolbar.addActions(
-            [
-                self.open_action,
-                self.import_action,
-                self.save_action,
-                self.undo_action,
-                self.redo_action,
-                self.calculator_action,
-                self.auto_axes_action,
-                self.plot_workspace.view_active_action,
-                self.subtract_background_action,
-                self.plot_workspace.mask_action,
-                self.add_component_action,
-                self.quick_peak_action,
-                self.fit_action,
-                self.quick_fit_action,
-                self.cancel_action,
-            ]
-        )
-        for action in (
-            self.open_action,
-            self.save_action,
-            self.calculator_action,
-            self.auto_axes_action,
+        toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        toolbar.addActions([self.open_action, self.import_action, self.save_action])
+        toolbar.addSeparator()
+        toolbar.addActions([self.undo_action, self.redo_action])
+        toolbar.addSeparator()
+        toolbar.addActions([
+            self.calculator_action, self.auto_axes_action,
             self.plot_workspace.view_active_action,
-            self.plot_workspace.mask_action,
-            self.subtract_background_action,
-            self.add_component_action,
-            self.quick_peak_action,
-            self.fit_action,
-            self.quick_fit_action,
-        ):
-            button = toolbar.widgetForAction(action)
-            if isinstance(button, QToolButton):
-                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        ])
+        toolbar.addSeparator()
+        toolbar.addAction(self.subtract_background_action)
+        # Background controls inserted later stay inside this group.
+        self._background_toolbar_separator = toolbar.addSeparator()
+        toolbar.addActions([self.add_component_action, self.quick_peak_action])
+        # The quick-function selector is inserted before this separator.
+        self._fit_toolbar_separator = toolbar.addSeparator()
+        toolbar.addActions([
+            self.plot_workspace.mask_action, self.fit_action,
+            self.quick_fit_action, self.cancel_action,
+        ])
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._set_active_curve)
@@ -1475,19 +1460,13 @@ class MainWindow(QMainWindow):
             return
         if self._thread is not None:
             return
-        if self.last_fit_plan is None:
-            self._notify(
-                self.tr("Run Fit… once to define the settings used by Quick Fit."),
-                warning=True,
-            )
-            return
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
             selected = {self.active_curve_id}
         if not selected:
             self._notify(self.tr("Select or activate at least one curve first."), warning=True)
             return
-        plan = copy.deepcopy(self.last_fit_plan)
+        plan = copy.deepcopy(self.last_fit_plan) if self.last_fit_plan is not None else FitPlan([])
         plan.curve_ids = [curve.id for curve in self.project.curves if curve.id in selected]
         plan.spectrum_weights = {
             curve_id: plan.spectrum_weights.get(curve_id, 1.0)

@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1100" height="800" viewBox="0 0 1100 800"><defs><symbol id="new-project" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M15 7h23l11 11v38H15Z" fill="#F5FBFF"/><path d="M38 7v12h11"/><path d="M24 36h16m-8-8v16" stroke="#0877F9"/>
+  </g>
+
+</symbol><symbol id="open-project" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 49V16h20l6 7h24v26Z" fill="#DDF3FF"/><path d="M7 49l6-19h45l-7 19Z" fill="#F5FBFF" stroke="#0877F9"/><path d="M18 55h28" stroke="#FF7A00" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="import-data" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 8h25l10 10v13M12 8v48h25"/><path d="M37 8v12h10"/><path d="M19 43l5-10 5 5 6-12" stroke="#0877F9"/><path d="M56 44H37m8-8-8 8 8 8" stroke="#FF7A00"/>
+  </g>
+
+</symbol><symbol id="save-project" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M10 8h36l9 9v39H10Z" fill="#DDF3FF"/><path d="M21 8v17h22V8" fill="#F5FBFF"/><path d="M21 56V37h23v19" fill="#F5FBFF" stroke="#0877F9"/><path d="M36 13v6" stroke="#FF7A00"/>
+  </g>
+
+</symbol><symbol id="undo" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M23 17 10 30l13 12M11 30h26c14 0 18 8 16 21" stroke="#0877F9"/><path d="M36 56h17" stroke="#FF7A00" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="redo" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m41 17 13 13-13 12M53 30H27C13 30 9 38 11 51" stroke="#0877F9"/><path d="M11 56h17" stroke="#FF7A00" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="calculator" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="13" y="6" width="38" height="52" rx="5" fill="#F5FBFF"/><path d="M21 16h22v10H21Z" fill="#DDF3FF" stroke="#0877F9"/><path d="M21 36h4m-2-2v4m12-2h7M21 47h4m10-2h7m-7 5h7" stroke="#0877F9" stroke-width="3.5"/><path d="M21 54h21" stroke="#FF7A00" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="subtract-background" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 20v36h49"/><path d="M13 46c8 0 7-23 14-23s7 23 13 23h12" stroke="#0877F9"/><path d="m14 39 38 12" stroke="#FF7A00" stroke-width="4"/><path d="M39 12h17" stroke="#FF7A00"/>
+  </g>
+
+</symbol><symbol id="add-peak" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 20v36h49"/><path d="M13 48c8 0 8-29 16-29s7 29 15 29h8" stroke="#0877F9"/><path d="M40 13h17m-8.5-8.5v17" stroke="#FF7A00" stroke-width="4"/>
+  </g>
+
+</symbol><symbol id="quick-add-peak" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 20v36h49"/><path d="M13 48c8 0 8-29 16-29s7 29 15 29h8" stroke="#0877F9"/><path d="m50 4-12 17h9l-2 13 14-19h-10Z" fill="#FF7A00" stroke="#FF7A00" stroke-width="2.5"/>
+  </g>
+
+</symbol><symbol id="fit" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 20v36h49"/><path d="M13 47c8 0 7-27 15-27s7 27 15 27h9" stroke="#0877F9"/><path d="m43 5 15 9-15 9Z" fill="#FF7A00" stroke="#FF7A00" stroke-width="2.5"/><g fill="#172735" stroke="none"><circle cx="17" cy="40" r="2.4"/><circle cx="24" cy="25" r="2.4"/><circle cx="34" cy="30" r="2.4"/><circle cx="42" cy="43" r="2.4"/></g>
+  </g>
+
+</symbol><symbol id="quick-fit" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 20v36h49"/><path d="M13 47c8 0 7-27 15-27s7 27 15 27h9" stroke="#0877F9"/><path d="m50 4-12 17h9l-2 13 14-19h-10Z" fill="#FF7A00" stroke="#FF7A00" stroke-width="2.5"/><g fill="#172735" stroke="none"><circle cx="17" cy="40" r="2.4"/><circle cx="24" cy="25" r="2.4"/><circle cx="34" cy="30" r="2.4"/><circle cx="42" cy="43" r="2.4"/></g>
+  </g>
+
+</symbol><symbol id="cancel" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="9" width="46" height="46" rx="9" fill="#F5FBFF"/><rect x="22" y="22" width="20" height="20" rx="3" fill="#FF7A00" stroke="#FF7A00"/><path d="M23 60h18" stroke="#0877F9" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="resume" viewBox="0 0 64 64">
+  <g fill="none" stroke="#172735" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 15v34M23 15v34" stroke="#0877F9"/><path d="m36 15 21 17-21 17Z" fill="#FF7A00" stroke="#FF7A00" stroke-width="3"/>
+  </g>
+
+</symbol><symbol id="view-all" viewBox="0 0 64 64">
+  <path d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29Z" fill="#DDF3FF"/>
+  <path d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round"/>
+  <path d="M19 52h26" stroke="#FF7A00" stroke-width="3" stroke-linecap="round"/>
+
+</symbol><symbol id="view-active" viewBox="0 0 64 64">
+  <path d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M7 43h12m26 0h12" stroke="#9BA9B5" stroke-width="4" stroke-dasharray="3 5" stroke-linecap="round"/>
+  <path d="M20 43c6 0 5-24 12-24s6 24 12 24Z" fill="#DDF3FF"/>
+  <path d="M20 43c6 0 5-24 12-24s6 24 12 24" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round"/>
+  <path d="M20 17v33m24-33v33" stroke="#FF7A00" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round"/>
+
+</symbol><symbol id="background-visual" viewBox="0 0 64 64">
+  <path d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M13 47c8 0 7-21 14-21s7 21 13 21h12Z" fill="#DDF3FF"/>
+  <path d="M13 47c8 0 7-21 14-21s7 21 13 21h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round"/>
+  <path d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round"/>
+  <path d="M30 14Q44-3 58 14Q44 31 30 14Z" fill="#F5FBFF" stroke="#172735" stroke-width="3.5" stroke-linejoin="round"/>
+  <circle cx="44" cy="14" r="5" fill="#0877F9"/>
+
+</symbol><symbol id="background-revert" viewBox="0 0 64 64">
+  <path d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M13 46c8 0 7-20 14-20s7 20 13 20h12Z" fill="#DDF3FF"/>
+  <path d="M13 46c8 0 7-20 14-20s7 20 13 20h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round"/>
+  <path d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round"/>
+  <path d="M34 12h12a11 11 0 0 1 10 16M40 5l-8 7 8 7" fill="none" stroke="#FF7A00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+</symbol><symbol id="mask" viewBox="0 0 64 64">
+<path d="M8 10v45h48" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round"/>
+<rect x="24" y="12" width="19" height="40" rx="3" fill="#FFE1BD"/>
+<path d="M13 47c9 0 8-23 15-23s7 23 12 23h13" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round"/>
+<path d="M24 10v43m19-43v43" stroke="#FF7A00" stroke-width="3" stroke-dasharray="4 4"/>
+
+</symbol><symbol id="mask-active" viewBox="0 0 64 64">
+<rect x="2" y="2" width="60" height="60" rx="10" fill="#CBD1D8"/>
+<path d="M8 10v45h48" fill="none" stroke="#536170" stroke-width="5" stroke-linecap="round"/>
+<rect x="24" y="12" width="19" height="40" rx="3" fill="#ADB6C1"/>
+<path d="M13 47c9 0 8-23 15-23s7 23 12 23h13" fill="none" stroke="#536170" stroke-width="5" stroke-linecap="round"/>
+<path d="M24 10v43m19-43v43" stroke="#7A8694" stroke-width="3" stroke-dasharray="4 4"/>
+
+</symbol></defs><rect width="1100" height="800" fill="#F5F7FA"/><g font-family="DejaVu Sans,sans-serif" fill="#172735"><text x="34" y="42" font-size="25" font-weight="bold">CurveMole · Toolbar restyling</text><text x="34" y="69" font-size="14" fill="#526575">Vector icons and proposed toolbar order · blue / orange / graphite</text><rect x="30" y="104" width="1040" height="76" rx="12" fill="white" stroke="#DCE3EA"/><text x="48" y="99" font-size="10" fill="#526575">Files</text><use xlink:href="#open-project" x="48" y="120" width="40" height="40"/><use xlink:href="#import-data" x="92" y="120" width="40" height="40"/><use xlink:href="#save-project" x="136" y="120" width="40" height="40"/><path d="M183 120v42" stroke="#DCE3EA"/><text x="196" y="99" font-size="10" fill="#526575">History</text><use xlink:href="#undo" x="196" y="120" width="40" height="40"/><use xlink:href="#redo" x="240" y="120" width="40" height="40"/><path d="M287 120v42" stroke="#DCE3EA"/><text x="300" y="99" font-size="10" fill="#526575">Data / view</text><use xlink:href="#calculator" x="300" y="120" width="40" height="40"/><use xlink:href="#view-all" x="344" y="120" width="40" height="40"/><use xlink:href="#view-active" x="388" y="120" width="40" height="40"/><path d="M435 120v42" stroke="#DCE3EA"/><text x="448" y="99" font-size="10" fill="#526575">Background</text><use xlink:href="#subtract-background" x="448" y="120" width="40" height="40"/><use xlink:href="#background-revert" x="492" y="120" width="40" height="40"/><use xlink:href="#background-visual" x="536" y="120" width="40" height="40"/><path d="M583 120v42" stroke="#DCE3EA"/><text x="596" y="99" font-size="10" fill="#526575">Functions</text><use xlink:href="#add-peak" x="596" y="120" width="40" height="40"/><use xlink:href="#quick-add-peak" x="640" y="120" width="40" height="40"/><rect x="684" y="126" width="132" height="32" rx="5" fill="#F5F7FA" stroke="#CCD6E0"/><text x="694" y="147" font-size="12">Gaussian</text><path d="m797 139 5 5 5-5" stroke="#526575" fill="none"/><path d="M827 120v42" stroke="#DCE3EA"/><text x="840" y="99" font-size="10" fill="#526575">Fit</text><use xlink:href="#mask" x="840" y="120" width="40" height="40"/><use xlink:href="#fit" x="884" y="120" width="40" height="40"/><use xlink:href="#quick-fit" x="928" y="120" width="40" height="40"/><use xlink:href="#cancel" x="972" y="120" width="40" height="40"/><text x="34" y="222" font-size="17" font-weight="bold">Updated icons</text><rect x="34" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#open-project" x="71" y="259" width="64" height="64"/><text x="103" y="352" text-anchor="middle" font-size="11">Open project</text><rect x="182" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#import-data" x="219" y="259" width="64" height="64"/><text x="251" y="352" text-anchor="middle" font-size="11">Import data</text><rect x="330" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#save-project" x="367" y="259" width="64" height="64"/><text x="399" y="352" text-anchor="middle" font-size="11">Save project</text><rect x="478" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#undo" x="515" y="259" width="64" height="64"/><text x="547" y="352" text-anchor="middle" font-size="11">Undo</text><rect x="626" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#redo" x="663" y="259" width="64" height="64"/><text x="695" y="352" text-anchor="middle" font-size="11">Redo</text><rect x="774" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#calculator" x="811" y="259" width="64" height="64"/><text x="843" y="352" text-anchor="middle" font-size="11">Calculator</text><rect x="922" y="245" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#new-project" x="959" y="259" width="64" height="64"/><text x="991" y="352" text-anchor="middle" font-size="11">New project</text><rect x="34" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#add-peak" x="71" y="409" width="64" height="64"/><text x="103" y="502" text-anchor="middle" font-size="11">Add function</text><rect x="182" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#quick-add-peak" x="219" y="409" width="64" height="64"/><text x="251" y="502" text-anchor="middle" font-size="11">Quick Add</text><rect x="330" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#fit" x="367" y="409" width="64" height="64"/><text x="399" y="502" text-anchor="middle" font-size="11">Fit</text><rect x="478" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#quick-fit" x="515" y="409" width="64" height="64"/><text x="547" y="502" text-anchor="middle" font-size="11">Quick Fit</text><rect x="626" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#subtract-background" x="663" y="409" width="64" height="64"/><text x="695" y="502" text-anchor="middle" font-size="11">Subtract background</text><rect x="774" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#cancel" x="811" y="409" width="64" height="64"/><text x="843" y="502" text-anchor="middle" font-size="11">Cancel</text><rect x="922" y="395" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#resume" x="959" y="409" width="64" height="64"/><text x="991" y="502" text-anchor="middle" font-size="11">Resume</text><text x="34" y="578" font-size="17" font-weight="bold">Retained icons</text><rect x="34" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#view-all" x="71" y="614" width="64" height="64"/><text x="103" y="707" text-anchor="middle" font-size="11">View all</text><rect x="182" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#view-active" x="219" y="614" width="64" height="64"/><text x="251" y="707" text-anchor="middle" font-size="11">View active</text><rect x="330" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#background-visual" x="367" y="614" width="64" height="64"/><text x="399" y="707" text-anchor="middle" font-size="11">Visual only</text><rect x="478" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#background-revert" x="515" y="614" width="64" height="64"/><text x="547" y="707" text-anchor="middle" font-size="11">Revert background</text><rect x="626" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#mask" x="663" y="614" width="64" height="64"/><text x="695" y="707" text-anchor="middle" font-size="11">Mask</text><rect x="774" y="600" width="138" height="132" rx="10" fill="white" stroke="#E2E8EF"/><use xlink:href="#mask-active" x="811" y="614" width="64" height="64"/><text x="843" y="707" text-anchor="middle" font-size="11">Mask · active</text><text x="34" y="770" font-size="12" fill="#526575">Icon and layout preview; application buttons retain native hover, pressed and disabled states.</text></g></svg>

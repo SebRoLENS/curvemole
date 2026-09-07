@@ -690,6 +690,11 @@ or failed worker operations restore the previous state. The Undo stack retains
 the latest 20 operations (fits and other edits combined); input data arrays are not
 duplicated for fit history. Undo/Redo are disabled while a worker is running.
 
+Quick Fit is available before opening Fit…: its first run uses the default
+independent-fit settings on the selected curves, falling back to the active
+curve. Later runs reuse the last configured fit settings. Open Fit… to adjust
+the solver or fitting mode.
+
 ### 7.5 Data Calculator
 
 Open **Tools > Data Calculator**. The following scalar operations are available:

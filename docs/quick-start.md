@@ -10,7 +10,8 @@ leaves the current view unchanged.
 
 ## 1. Import curves
 
-Choose **File → Import Data** and select one or many text-based numeric files.
+Press the **Import data** toolbar button (or choose **File → Import Data**) and
+select one or many text-based numeric files.
 Common `.txt`, `.dat`, `.csv`, and `.tsv` extensions are shown directly; use
 **All files** for formats such as `.xy`. CurveMole validates the contents rather
 than relying on the suffix. Confirm the automatically detected delimiter, decimal
@@ -105,6 +106,11 @@ With the spline actually subtracted, confirm that it is disabled and that only t
 new peak functions contribute to the model. Press **F5**, select the active curve,
 choose **Single / independent**, and start the fit. During optimization CurveMole
 updates the trial model periodically without resetting a zoom chosen by the user.
+
+Alternatively, press **Quick Fit**. On first use it fits the selected curves (or
+the active curve when nothing is selected) independently with the default solver
+settings, without opening a dialog. Once a fit has been configured, Quick Fit
+reuses those settings. Use **Fit…** whenever you want to change them.
 
 The other available modes are:
 
