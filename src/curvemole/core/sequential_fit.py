@@ -285,7 +285,8 @@ def _fit_sequential_propagating(
     copied_ids = getattr(plan, "copied_component_ids", None)
     if copied_ids is None:
         copied_ids = tuple(item.id for item in source_model.components if item.id not in excluded)
-        plan.copied_component_ids = copied_ids
+        if isinstance(plan, SequentialFitPlan):
+            plan.copied_component_ids = copied_ids
     results: list[FitResult] = []
 
     # The first curve is deliberately not re-fitted. It is the user-approved seed.

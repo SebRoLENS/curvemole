@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from curvemole import Component, Curve, Fitter, Model
-from curvemole.core.fitting import FitMode
+from curvemole.core.fitting import FitMode, FitPlan
 from curvemole.core.sequential_fit import SequentialFitPlan, _merge_selected_components
 
 
@@ -25,6 +25,16 @@ def test_exclude_all_keeps_target_model_unchanged():
     existing = Model(components=[Component.create("linear")])
     result = _merge_selected_components(source, existing, set(), "target")
     assert result.to_dict() == existing.to_dict()
+
+
+def test_base_fit_plan_remains_supported():
+    x = np.linspace(-5, 5, 101)
+    curves = [Curve(str(i), x, np.exp(-x*x)) for i in range(2)]
+    model = Model(components=[Component.create("gaussian")])
+    models = {curves[0].id: model, curves[1].id: Model()}
+    plan = FitPlan([c.id for c in curves], FitMode.SEQUENTIAL)
+    result = Fitter().fit(plan, curves, models)
+    assert curves[1].id in result.curve_outputs
 
 
 def test_selection_preserves_local_functions_across_steps_and_resume():
