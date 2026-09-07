@@ -4,6 +4,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Unify toolbar icons, add a dedicated Import data icon, and group Mask beside
+  Fit and Quick Fit while keeping background controls together.
+- Quick Fit now runs with default independent-fit settings on first use;
+  subsequent runs reuse the last configured fit settings.
+
 ### Fixed
 
 - Replace Mask/Unmask selectors with a graphical mode button, an Overlay/Waterfall

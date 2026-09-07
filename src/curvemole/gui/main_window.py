@@ -551,7 +551,7 @@ class MainWindow(QMainWindow):
         self.quick_fit_action = QAction(self.tr("Quick Fit"), self)
         self.quick_fit_action.setIcon(_resource_icon("quick-fit.svg"))
         self.quick_fit_action.setToolTip(
-            self.tr("Quick Fit\nFit the current selection with the last accepted fit settings.")
+            self.tr("Quick Fit\nFit the current selection with the last accepted settings, or defaults on first use.")
         )
         self.quick_fit_action.triggered.connect(self.quick_fit)
         self.resume_action = QAction(self.tr("Continue paused sequence"), self)
@@ -1460,19 +1460,13 @@ class MainWindow(QMainWindow):
             return
         if self._thread is not None:
             return
-        if self.last_fit_plan is None:
-            self._notify(
-                self.tr("Run Fit… once to define the settings used by Quick Fit."),
-                warning=True,
-            )
-            return
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
             selected = {self.active_curve_id}
         if not selected:
             self._notify(self.tr("Select or activate at least one curve first."), warning=True)
             return
-        plan = copy.deepcopy(self.last_fit_plan)
+        plan = copy.deepcopy(self.last_fit_plan) if self.last_fit_plan is not None else FitPlan([])
         plan.curve_ids = [curve.id for curve in self.project.curves if curve.id in selected]
         plan.spectrum_weights = {
             curve_id: plan.spectrum_weights.get(curve_id, 1.0)

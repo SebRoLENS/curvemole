@@ -119,7 +119,8 @@ def test_quick_peak_reuses_last_peak_function() -> None:
     app.processEvents()
 
 
-def test_quick_fit_reuses_settings_on_current_curve(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("configured", [False, True])
+def test_quick_fit_uses_defaults_or_previous_settings(monkeypatch: pytest.MonkeyPatch, configured: bool) -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("Quick fit")
     curve = Curve("curve", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
@@ -128,7 +129,7 @@ def test_quick_fit_reuses_settings_on_current_curve(monkeypatch: pytest.MonkeyPa
     window = MainWindow(project)
     previous = FitPlan(["old-curve-id"])
     previous.settings.loss = "huber"
-    window.last_fit_plan = previous
+    window.last_fit_plan = previous if configured else None
     plans: list[FitPlan] = []
     monkeypatch.setattr(window, "_run_fit", lambda plan: plans.append(plan))
 
@@ -136,7 +137,11 @@ def test_quick_fit_reuses_settings_on_current_curve(monkeypatch: pytest.MonkeyPa
 
     assert len(plans) == 1
     assert plans[0].curve_ids == [curve.id]
-    assert plans[0].settings.loss == "huber"
+    assert plans[0].settings.loss == ("huber" if configured else "linear")
+    if not configured:
+        assert plans[0].settings == FitPlan([curve.id]).settings
+    assert window.last_fit_plan is not plans[0]
+    assert window.last_fit_plan.settings == plans[0].settings
     project.dirty = False
     window.close()
     app.processEvents()
