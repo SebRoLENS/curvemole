@@ -6,6 +6,7 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon, QPalette
 from PySide6.QtWidgets import QApplication, QToolBar, QToolButton
 
 from curvemole import Curve, Project
@@ -37,6 +38,27 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
         assert isinstance(button, QToolButton)
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
     assert window.background_subtracted_view_action.isCheckable()
+    original_palette = app.palette()
+    light_palette = QPalette(original_palette)
+    light_palette.setColor(QPalette.ColorRole.Button, Qt.GlobalColor.white)
+    app.setPalette(light_palette)
+    light = window.fit_action.icon().pixmap(64, 64).toImage()
+    dark_palette = QPalette(original_palette)
+    dark_palette.setColor(QPalette.ColorRole.Button, Qt.GlobalColor.black)
+    app.setPalette(dark_palette)
+    dark = window.fit_action.icon().pixmap(64, 64).toImage()
+    assert dark != light
+    # Axes stay visible on a dark toolbar.
+    assert dark.pixelColor(7, 40).lightness() > 200
+    disabled = window.fit_action.icon().pixmap(64, 64, QIcon.Mode.Disabled).toImage()
+    assert disabled != dark
+    mask = window.plot_workspace.mask_action.icon()
+    assert mask.pixmap(64, 64, QIcon.Mode.Normal, QIcon.State.On).toImage() != (
+        mask.pixmap(64, 64, QIcon.Mode.Normal, QIcon.State.Off).toImage()
+    )
+    app.setPalette(light_palette)
+    assert window.fit_action.icon().pixmap(64, 64).toImage() == light
+    app.setPalette(original_palette)
     workspace = window.plot_workspace
     assert not workspace.view_box.mask_mode
     workspace.mask_action.trigger()
