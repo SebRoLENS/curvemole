@@ -4,6 +4,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Interface fixes awaiting release
+
+- Require explicit Mask activation for all graphical masking and unmasking gestures.
+- Keep Export analysis bundle in the File menu and remove its toolbar button.
+- Add matching View all / View active toolbar icons and replace the system icons
+  for visual background subtraction and background restoration.
+
 ### Fixed
 
 - View all and initial plot bounds use full-resolution experimental data, not

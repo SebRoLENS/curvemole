@@ -350,14 +350,11 @@ You may enter a tighter scientifically motivated range, but it is not required.
 
 ### 4.5 Mask an interval if needed
 
-To exclude a region directly, drag over it with the right mouse button. This works
-without enabling Mask mode. The current **Mask/Unmask** operation and **Target**
-selection are respected.
-
-Alternatively:
+Mask editing is active only while the **Mask** toggle is enabled. The current
+**Mask/Unmask** operation and **Target** selection are respected:
 
 1. enable **Mask** above the plot;
-2. left-click to mask the nearest point, or left-drag an interval;
+2. left-click to mask the nearest point, or left/right-drag an interval;
 3. change the operation to **Unmask** to restore points;
 4. disable Mask mode when finished.
 
@@ -661,10 +658,11 @@ markers, and masked intervals are shaded.
 There are two interaction styles:
 
 1. Enable **Mask**, then left-click a point or left-drag an interval.
-2. At any time, right-drag an interval without enabling Mask mode.
+2. With **Mask** enabled, right-drag an interval.
 
 Both use the current operation and target. Select **Unmask** before dragging to
-restore an interval.
+restore an interval. Turn **Mask** off when finished: mouse navigation then leaves
+the exclusions unchanged, including right-drag gestures.
 
 ### 7.3 Mask targets
 

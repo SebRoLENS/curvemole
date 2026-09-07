@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="952" height="450" viewBox="0 0 952 450">
+    <rect width="952" height="450" rx="20" fill="#f0f4f8"/>
+    <g font-family="DejaVu Sans" fill="#172735">
+    <text x="28" y="40" font-size="24" font-weight="bold">CurveMole · Nuovi pulsanti</text>
+    <text x="28" y="66" font-size="14" fill="#536477">Icone reali · dettaglio ingrandito e formato barra da 40 px</text>
+    
+        <rect x="28" y="92" width="212" height="245" rx="18" fill="#ffffff" stroke="#dbe3ec"/>
+        <g transform="translate(86 120) scale(1.5)"><path xmlns="http://www.w3.org/2000/svg" d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M19 52h26" stroke="#FF7A00" stroke-width="3" stroke-linecap="round" />
+</g>
+        <text x="134" y="250" text-anchor="middle" font-size="18" font-weight="bold">View all</text>
+        <text x="134" y="280" text-anchor="middle" font-size="12" fill="#536477">Tutto il dato sperimentale</text>
+        <rect x="109" y="371" width="50" height="50" rx="8" fill="#ffffff" stroke="#c9d5e2"/>
+        <g transform="translate(114 376) scale(0.625)"><path xmlns="http://www.w3.org/2000/svg" d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M12 46c8 0 7-15 14-15s5 10 9 10 4-24 10-24 3 29 7 29" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M19 52h26" stroke="#FF7A00" stroke-width="3" stroke-linecap="round" />
+</g>
+        <rect x="252" y="92" width="212" height="245" rx="18" fill="#ffffff" stroke="#dbe3ec"/>
+        <g transform="translate(310 120) scale(1.5)"><path xmlns="http://www.w3.org/2000/svg" d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M7 43h12m26 0h12" stroke="#9BA9B5" stroke-width="4" stroke-dasharray="3 5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 43c6 0 5-24 12-24s6 24 12 24Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 43c6 0 5-24 12-24s6 24 12 24" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 17v33m24-33v33" stroke="#FF7A00" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round" />
+</g>
+        <text x="358" y="250" text-anchor="middle" font-size="18" font-weight="bold">View active</text>
+        <text x="358" y="280" text-anchor="middle" font-size="12" fill="#536477">Solo punti non mascherati</text>
+        <rect x="333" y="371" width="50" height="50" rx="8" fill="#ffffff" stroke="#c9d5e2"/>
+        <g transform="translate(338 376) scale(0.625)"><path xmlns="http://www.w3.org/2000/svg" d="M8 22V8h14m20 0h14v14M8 42v14h14m20 0h14V42" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M7 43h12m26 0h12" stroke="#9BA9B5" stroke-width="4" stroke-dasharray="3 5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 43c6 0 5-24 12-24s6 24 12 24Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 43c6 0 5-24 12-24s6 24 12 24" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M20 17v33m24-33v33" stroke="#FF7A00" stroke-width="3" stroke-dasharray="4 4" stroke-linecap="round" />
+</g>
+        <rect x="476" y="92" width="212" height="245" rx="18" fill="#ffffff" stroke="#dbe3ec"/>
+        <g transform="translate(534 120) scale(1.5)"><path xmlns="http://www.w3.org/2000/svg" d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 47c8 0 7-21 14-21s7 21 13 21h12Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 47c8 0 7-21 14-21s7 21 13 21h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M30 14Q44-3 58 14Q44 31 30 14Z" fill="#F5FBFF" stroke="#172735" stroke-width="3.5" stroke-linejoin="round" />
+  <circle xmlns="http://www.w3.org/2000/svg" cx="44" cy="14" r="5" fill="#0877F9" />
+</g>
+        <text x="582" y="250" text-anchor="middle" font-size="18" font-weight="bold">Visual only</text>
+        <text x="582" y="280" text-anchor="middle" font-size="12" fill="#536477">Anteprima senza sottrazione</text>
+        <rect x="557" y="371" width="50" height="50" rx="8" fill="#ffffff" stroke="#c9d5e2"/>
+        <g transform="translate(562 376) scale(0.625)"><path xmlns="http://www.w3.org/2000/svg" d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 47c8 0 7-21 14-21s7 21 13 21h12Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 47c8 0 7-21 14-21s7 21 13 21h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M30 14Q44-3 58 14Q44 31 30 14Z" fill="#F5FBFF" stroke="#172735" stroke-width="3.5" stroke-linejoin="round" />
+  <circle xmlns="http://www.w3.org/2000/svg" cx="44" cy="14" r="5" fill="#0877F9" />
+</g>
+        <rect x="700" y="92" width="212" height="245" rx="18" fill="#ffffff" stroke="#dbe3ec"/>
+        <g transform="translate(758 120) scale(1.5)"><path xmlns="http://www.w3.org/2000/svg" d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 46c8 0 7-20 14-20s7 20 13 20h12Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 46c8 0 7-20 14-20s7 20 13 20h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M34 12h12a11 11 0 0 1 10 16M40 5l-8 7 8 7" fill="none" stroke="#FF7A00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</g>
+        <text x="806" y="250" text-anchor="middle" font-size="18" font-weight="bold">Revert background</text>
+        <text x="806" y="280" text-anchor="middle" font-size="12" fill="#536477">Ripristina il dato precedente</text>
+        <rect x="781" y="371" width="50" height="50" rx="8" fill="#ffffff" stroke="#c9d5e2"/>
+        <g transform="translate(786 376) scale(0.625)"><path xmlns="http://www.w3.org/2000/svg" d="M7 23v33h49" fill="none" stroke="#172735" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 46c8 0 7-20 14-20s7 20 13 20h12Z" fill="#DDF3FF" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 46c8 0 7-20 14-20s7 20 13 20h12" fill="none" stroke="#0877F9" stroke-width="5" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M13 36l10 4m8 3 10 4m7 2 6 2" stroke="#FF7A00" stroke-width="4" stroke-linecap="round" />
+  <path xmlns="http://www.w3.org/2000/svg" d="M34 12h12a11 11 0 0 1 10 16M40 5l-8 7 8 7" fill="none" stroke="#FF7A00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</g></g></svg>

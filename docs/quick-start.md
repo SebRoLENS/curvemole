@@ -1,6 +1,6 @@
 # CurveMole Quick Start
 
-Use **View all** above the plot (also in the plot context menu and **View > Axes**)
+Use **View all** in the main icon toolbar (also in the plot context menu and **View > Axes**)
 to frame all experimental samples, including masked regions. **View active**,
 alongside it, frames only unmasked samples. Neither command includes model
 functions, spline extrapolation, labels, or handles in the limits. Bounds use
@@ -94,8 +94,9 @@ while dragging to change the value while leaving it fixed. Use **Ctrl+Z** to und
 
 Enable **Mask** above the graph. Click a point or drag an x interval. Choose Active,
 Selected, or All visible as the target. Masked intervals are shaded and masked data
-are faded. You can also right-drag an interval at any time without enabling Mask first;
-this uses the selected Mask/Unmask operation and target. Set the explicit cross-curve x tolerance under **Data → Mask transfer
+are faded. While Mask is enabled, you can also right-drag an interval;
+this uses the selected Mask/Unmask operation and target. Turn Mask off to navigate
+without changing exclusions. Set the explicit cross-curve x tolerance under **Data → Mask transfer
 tolerance**. The worksheet never opens automatically during masking.
 
 ## 6. Fit
