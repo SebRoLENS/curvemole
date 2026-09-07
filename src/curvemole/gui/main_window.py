@@ -361,6 +361,7 @@ class MainWindow(QMainWindow):
         self._update_manager = QNetworkAccessManager(self)
         self._update_reply: Any | None = None
         self.undo_stack = QUndoStack(self)
+        self.undo_stack.setUndoLimit(20)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
 
         self.setWindowTitle(self._title())
@@ -565,6 +566,9 @@ class MainWindow(QMainWindow):
         self.reset_layout_action = QAction(self.tr("Reset layout"), self)
         self.reset_layout_action.triggered.connect(self.reset_layout)
         self.auto_axes_action = QAction(self.tr("View all"), self)
+        mask_icon = _resource_icon("mask.svg")
+        mask_icon.addPixmap(_resource_icon("mask-active.svg").pixmap(64, 64), QIcon.Mode.Normal, QIcon.State.On)
+        self.plot_workspace.mask_action.setIcon(mask_icon)
         self.auto_axes_action.setIcon(_resource_icon("view-all.svg"))
         self.auto_axes_action.setToolTip(self.tr("View all\nFrame all experimental data, including masked regions."))
         self.plot_workspace.view_active_action.setIcon(_resource_icon("view-active.svg"))
@@ -707,6 +711,7 @@ class MainWindow(QMainWindow):
                 self.auto_axes_action,
                 self.plot_workspace.view_active_action,
                 self.subtract_background_action,
+                self.plot_workspace.mask_action,
                 self.add_component_action,
                 self.quick_peak_action,
                 self.fit_action,
@@ -720,6 +725,7 @@ class MainWindow(QMainWindow):
             self.calculator_action,
             self.auto_axes_action,
             self.plot_workspace.view_active_action,
+            self.plot_workspace.mask_action,
             self.subtract_background_action,
             self.add_component_action,
             self.quick_peak_action,
@@ -756,6 +762,8 @@ class MainWindow(QMainWindow):
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
         self.plot_workspace.maskRangeRequested.connect(self.mask_range)
+        self.plot_workspace.unmaskPointRequested.connect(lambda x: self.mask_point(x, unmask=True))
+        self.plot_workspace.unmaskRangeRequested.connect(lambda a, b: self.mask_range(a, b, unmask=True))
         self.plot_workspace.peakDragged.connect(self.drag_peak)
         self.plot_workspace.widthDragged.connect(self.drag_width)
         self.plot_workspace.splineNodeDragged.connect(self.drag_spline_node)
@@ -1645,8 +1653,9 @@ class MainWindow(QMainWindow):
             )
         self._notify(self.tr("Uncertainty analysis completed."))
 
-    def mask_point(self, x_value: float) -> None:
-        unmask = self.plot_workspace.mask_operation.currentData() == "unmask"
+    def mask_point(self, x_value: float, *, unmask: bool = False) -> None:
+        x_offset, _ = self.plot_workspace._active_display_offsets()
+        x_value -= x_offset
         self._apply_mask(
             lambda curve, transfer: _unmask_transfer_point(
                 curve, x_value, self._mask_tolerance() if transfer else math.inf
@@ -1657,8 +1666,9 @@ class MainWindow(QMainWindow):
             else _mask_transfer_point(curve, x_value, self._mask_tolerance())
         )
 
-    def mask_range(self, lower: float, upper: float) -> None:
-        unmask = self.plot_workspace.mask_operation.currentData() == "unmask"
+    def mask_range(self, lower: float, upper: float, *, unmask: bool = False) -> None:
+        x_offset, _ = self.plot_workspace._active_display_offsets()
+        lower, upper = lower - x_offset, upper - x_offset
 
         def operation(curve: Curve, transfer: bool) -> int:
             return (
@@ -1670,6 +1680,8 @@ class MainWindow(QMainWindow):
         self._apply_mask(operation)
 
     def _apply_mask(self, operation: Callable[[Curve, bool], Any]) -> None:
+        if not self._ensure_editable():
+            return
         targets = self._mask_targets()
         if not targets:
             return
@@ -2588,11 +2600,8 @@ class MainWindow(QMainWindow):
     def _mask_targets(self) -> list[Curve]:
         if not self.active_curve_id:
             return []
-        mode = self.plot_workspace.mask_target.currentIndex()
-        if mode == 0:
+        if self.plot_workspace.display_mode.currentIndex() == 0 or self.plot_workspace._mask_scope == "active":
             ids = {self.active_curve_id}
-        elif mode == 1:
-            ids = self.curve_tree.selected_curve_ids() or {self.active_curve_id}
         else:
             ids = {curve.id for curve in self.project.curves if curve.visible}
         return [curve for curve in self.project.curves if curve.id in ids]

@@ -94,3 +94,7 @@ from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F40
 from curvemole.gui import (  # noqa: F401,E402
     windows_update_powershell_compat as _windows_update_powershell_compat,
 )
+
+# Install after all fit-completion wrappers so snapshots include pause/resume state.
+# isort: split
+from curvemole.gui import fit_undo as _fit_undo  # noqa: F401,E402

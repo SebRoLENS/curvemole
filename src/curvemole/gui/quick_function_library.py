@@ -201,7 +201,13 @@ def _selected_quick_function(window: MainWindow) -> str:
 def _selector_changed(window: MainWindow, *_: Any) -> None:
     selector = getattr(window, "quick_function_selector", None)
     if isinstance(selector, QComboBox) and selector.currentData():
-        _remember_quick_function(window, str(selector.currentData()))
+        identifier = str(selector.currentData())
+        _remember_quick_function(window, identifier)
+        if window.plot_workspace._placement_mode is not None:
+            window.plot_workspace.cancel_placement()
+            definition = window.registry.get(identifier)
+            if definition.kind == "peak" or identifier == "cubic_spline":
+                window.quick_peak()
 
 
 def _load_user_function_library(window: MainWindow) -> None:

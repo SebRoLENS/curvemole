@@ -350,13 +350,13 @@ You may enter a tighter scientifically motivated range, but it is not required.
 
 ### 4.5 Mask an interval if needed
 
-Mask editing is active only while the **Mask** toggle is enabled. The current
-**Mask/Unmask** operation and **Target** selection are respected:
+Mask editing is active only while the graphical **Mask** toolbar button is enabled:
 
-1. enable **Mask** above the plot;
-2. left-click to mask the nearest point, or left/right-drag an interval;
-3. change the operation to **Unmask** to restore points;
-4. disable Mask mode when finished.
+1. click **Mask**; the button becomes grey while masking is active;
+2. in Single view it acts on the displayed spectrum; in Overlay/Waterfall choose
+   the active spectrum or all visible spectra in the scope prompt;
+3. right-drag to mask an interval, left-drag to restore it;
+4. click **Mask** again to return to normal navigation.
 
 The example does not normally require masking.
 
@@ -429,10 +429,10 @@ Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
 - **X offset** and **Y offset:** display-only Waterfall spacing;
-- **Mask:** explicit masking mode;
-- **Mask/Unmask:** operation to apply;
-- **Target:** Active, Selected, or All visible curves;
 - **Residuals:** show or hide the linked residual panel.
+
+The main toolbar contains the graphical **Mask** button. Its scope is chosen on
+entry in Overlay/Waterfall; mouse buttons determine the operation.
 
 Offsets never modify data and are removed when converting pointer positions back to
 scientific coordinates. Fitting and export use the original numeric coordinates,
@@ -655,22 +655,20 @@ This design makes data preparation reversible and auditable.
 Masked points remain stored but are excluded from fitting. They are drawn as faded
 markers, and masked intervals are shaded.
 
-There are two interaction styles:
-
-1. Enable **Mask**, then left-click a point or left-drag an interval.
-2. With **Mask** enabled, right-drag an interval.
-
-Both use the current operation and target. Select **Unmask** before dragging to
-restore an interval. Turn **Mask** off when finished: mouse navigation then leaves
-the exclusions unchanged, including right-drag gestures.
+Enable the graphical **Mask** button: right-drag masks an interval and left-drag
+unmasks it. A right/left click performs the equivalent operation on a point.
+The button becomes grey while active. Turn it off to navigate without changing
+exclusions. Changing display mode also exits masking.
 
 ### 7.3 Mask targets
 
 | Target | Effect |
 |---|---|
 | Active | Changes only the active curve |
-| Selected | Changes every selected curve |
 | All visible | Changes every currently visible curve |
+
+Single view always uses the active spectrum. Overlay and Waterfall prompt for
+Active or All visible when entering Mask mode; cancelling leaves masking off.
 
 For interval masks, the same numeric x interval is applied to every target. For a
 single-point mask transferred from the active curve, CurveMole locates the nearest x
@@ -684,6 +682,13 @@ requires an exact matching x value on transferred point masks.
 A graphical mask action is placed on the application Undo stack. Press **Ctrl+Z** to
 undo it or **Ctrl+Shift+Z** on platforms that use that standard Redo binding. The
 project also stores mask arrays and numeric mask intervals.
+
+Fits, including Quick Fit and sequential fitting, also support Undo/Redo. Undo
+restores the pre-fit models, parameter values, fit results, and sequential pause
+state; Redo restores the completed fit without running the solver again. Cancelled
+or failed worker operations restore the previous state. The Undo stack retains
+the latest 20 operations (fits and other edits combined); input data arrays are not
+duplicated for fit history. Undo/Redo are disabled while a worker is running.
 
 ### 7.5 Data Calculator
 

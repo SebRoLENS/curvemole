@@ -92,12 +92,12 @@ Select a peak component. Drag its apex to change centre and area-derived height;
 drag either side handle to change width. A fixed value shows a lock: hold **Ctrl**
 while dragging to change the value while leaving it fixed. Use **Ctrl+Z** to undo.
 
-Enable **Mask** above the graph. Click a point or drag an x interval. Choose Active,
-Selected, or All visible as the target. Masked intervals are shaded and masked data
-are faded. While Mask is enabled, you can also right-drag an interval;
-this uses the selected Mask/Unmask operation and target. Turn Mask off to navigate
-without changing exclusions. Set the explicit cross-curve x tolerance under **Data → Mask transfer
-tolerance**. The worksheet never opens automatically during masking.
+Click the graphical **Mask** toolbar button; it becomes grey while active. Single
+view acts on the displayed spectrum. Overlay/Waterfall asks whether to use the
+active spectrum or all visible spectra. **Right-drag masks; left-drag unmasks.**
+Click Mask again to resume normal navigation. Masked intervals are shaded and data
+are faded. Point-transfer tolerance is under **Data → Mask transfer tolerance**.
+Undo/Redo also restore fits; the latest 20 operations are retained.
 
 ## 6. Fit
 

@@ -37,10 +37,10 @@ def _install_undo_action(window: MainWindow) -> None:
         label = window.tr("Undo") + (f" {text}" if text else "")
         action.setText(label)
         action.setToolTip(label)
-        action.setEnabled(stack.canUndo())
+        action.setEnabled(stack.canUndo() and window._thread is None)
 
     def perform_undo(_checked: bool = False) -> None:
-        if not stack.canUndo():
+        if not stack.canUndo() or window._thread is not None:
             return
         text = stack.undoText()
         stack.undo()
