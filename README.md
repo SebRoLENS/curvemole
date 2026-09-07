@@ -87,15 +87,27 @@ to releases.
 
 - Gaussian, Lorentzian, Voigt, and pseudo-Voigt peaks parameterised by signed area
 - constant, linear, arbitrary-order polynomial, and cubic-spline backgrounds
+- content-aware import of valid numeric text files regardless of extension, with
+  automatic/manual leading-row skipping and reusable batch mappings
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
-- independent, sequential, copy, and global simultaneous least-squares fitting
+- independent, propagating sequential, copy, and global simultaneous least-squares
+  fitting, with configurable safeguards and durable pause/resume
 - reversible transformations and graphical masks with immutable original data
-- click-drag peak placement, live point-by-point spline backgrounds, and direct
-  right-drag interval masking
+- function-aware Quick Add, selectable automatic peak shapes, click-drag peak
+  placement, live spline backgrounds, and direct right-drag interval masking
+- project-wide function selection and explicit, undoable parameter copying between
+  compatible functions, including optional bounds, fixed state, and links
+- reusable user-defined function libraries with explicit peak parameter roles for
+  reliable graphical and automatic initialisation
+- live fit refresh, adaptive rendering for dense spectra, background-subtracted
+  inspection, and non-destructive viewport navigation during fitting
 - covariance statistics, confidence intervals, profile likelihood, Monte Carlo,
   residual bootstrap, and block bootstrap
 - portable, versioned `.fitproj` projects without pickle
-- human-friendly Wide exports and Python-friendly Tidy exports
+- human-friendly Wide exports, Python-friendly Tidy exports, and one-file-per-spectrum
+  numeric export of data, components, total fit, background, and residuals
+- startup and hourly release checks with an in-app version badge and self-update for
+  supported Linux AppImage and Windows standalone installations
 - Python API, CLI, YAML workflows, custom formulas, and trusted plugins
 
 ## Interface and real usage examples
