@@ -1,5 +1,19 @@
 # CurveMole plugin guide
 
+## Reusable formulas and executable plugins
+
+Functions created in **Tools > Function Builder** are safe expression definitions,
+not Python plugins. CurveMole stores them as `.curvemole-function.json` files in the
+user-selected `my_curvemole_functions` folder and reloads that library at startup.
+They can include derived area/FWHM expressions and semantic peak parameter roles for
+position, height or area, and width. Use this mechanism when the required function can
+be expressed in CurveMole's restricted formula language.
+
+The rest of this guide concerns executable Python plugins. They are appropriate when
+an expression is insufficient and must be trusted explicitly.
+
+## Python function plugins
+
 Built-ins and extensions share `FunctionDefinition` and `FunctionRegistry`.
 Publicly distributed plugins must provide source under a GPL-compatible licence.
 

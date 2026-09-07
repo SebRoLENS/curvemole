@@ -273,6 +273,28 @@ The About dialog also displays the version. A project stores the application ver
 that created it, and exports include the application version in machine-readable
 metadata.
 
+### 3.8 Version badge and updates
+
+The status bar contains a clickable version badge. CurveMole checks the latest GitHub
+release at startup and once per hour while the application remains open. The badge is:
+
+- green when the installed release is current;
+- yellow when a bug-fix update (`x.x.y`) is available;
+- red when a feature (`x.y.x`) or major (`y.x.x`) update is available;
+- grey while checking or when the check cannot be completed.
+
+An automatic notification is shown only once for each newly detected release. Click
+the badge or choose **Help > Check for updates** to check again, inspect the release
+notes, or reopen the update dialog.
+
+Linux AppImage and Windows standalone installations can normally use **Update now**.
+CurveMole downloads the matching release asset, verifies the SHA-256 digest supplied
+by GitHub, replaces the old executable, and removes obsolete release files. The
+application directory must be writable and no fit or uncertainty task may be running.
+Windows closes and restarts automatically; Linux asks the user to close and reopen the
+new AppImage. Python, source, macOS, unsupported architectures, and installations whose
+executable cannot be replaced must be updated manually from the release page.
+
 ## 4. A complete first fit
 
 This tutorial uses `examples/gaussian.csv` from the source archive. It contains x,
@@ -420,8 +442,11 @@ scientific coordinates. Fitting and export use the original numeric coordinates,
 not screen offsets.
 
 The coordinate readout displays the pointer coordinate and the nearest finite point
-from the active curve. Rendering may be downsampled by the plotting library for
-speed, but fitting and export use all usable points.
+from the active curve. Overlay and Waterfall views use adaptive peak-preserving
+downsampling and clip drawing to the visible range for dense spectra. Single view
+keeps the full display resolution. Descending x arrays may be reversed only in the
+temporary display copy so that fast clipping remains available. Fitting, project
+storage, and export always use the complete original arrays.
 
 Model functions receive systematic names such as **Voigt1**, **Voigt2**, and
 **Gaussian1**. Their labels are shown above each function maximum by default and are
@@ -435,6 +460,12 @@ so a data curve can never be confused with the fitted sum.
 ### 5.3 Navigation and axes
 
 Normal plot navigation is available when neither placement nor Mask mode is active.
+The mouse wheel remains available during Quick Add peak placement, spline placement,
+Quick Fit, and live fit refreshes. A refresh preserves the current viewport instead
+of resetting a zoom chosen by the user. When the plot has keyboard focus, Up and Down
+activate the previous or next spectrum in project order, matching navigation in the
+curve tree.
+
 Use **View > Axes** for:
 
 - automatic range;
@@ -448,8 +479,11 @@ though they remain stored.
 
 ### 5.4 Model and parameters dock
 
-The right dock lists components for the active curve. Component order matters because
-composition operators are evaluated sequentially.
+The right dock normally lists components for the active curve. Enable **Show all
+functions** to list every model function in the project with its spectrum name. The
+list supports Ctrl-click and Shift-click multi-selection, including selections across
+spectra. Component order matters because composition operators are evaluated
+sequentially.
 
 The controls below the list are:
 
@@ -460,11 +494,38 @@ The controls below the list are:
 | Up / Down | Change component order |
 | Delete | Delete the component after confirmation |
 | Copy fit | Copy selected model information to other curves |
+| Copy parameter | Copy one parameter from one source function to chosen project-wide targets |
 
-Uncheck a component in the list to disable it without deleting it. Disabled
-components are not evaluated or fitted.
+Bulk actions on selected functions can delete, duplicate, reorder, enable or disable,
+mark or unmark backgrounds, and fix or free their parameters as applicable. Each bulk
+edit is one Undo/Redo operation. Uncheck a component in the list to disable it without
+deleting it. Disabled components are not evaluated or fitted.
 
-### 5.5 Dockable tools
+**Copy parameter** is enabled only when exactly one source function is selected. Select
+a row in the parameter table to make that parameter the default, open the copy window,
+and explicitly check the target functions. The window shows the source spectrum,
+function, parameter, and numeric value. By default only the value is copied; optional
+controls also copy bounds, fixed/free state, and the parameter link/relation. Targets
+without the parameter or whose retained bounds reject the source value are skipped and
+reported. The complete copy is undoable.
+
+### 5.5 Quick actions
+
+The main toolbar includes **Quick Add Function** and an adjacent function selector.
+The selector contains the complete current registry: built-ins, project formulas,
+reusable user formulas, and loaded plugin functions. CurveMole remembers the last
+selection across sessions and also updates it when a function is added through the
+ordinary Add dialog.
+
+For peak functions, Quick Add starts click-drag graphical placement. For a cubic
+spline it starts node placement. Other functions are inserted immediately with their
+default parameter values. Quick Add remains available repeatedly until the user
+changes the selected function or tool.
+
+The toolbar also provides the most common project, model, fitting, background, and
+calculator actions as icons. Hover over an icon to see its action name.
+
+### 5.6 Dockable tools
 
 The **View** and **Tools** menus show or hide these docks:
 
@@ -479,23 +540,27 @@ Docks can be moved, tabbed, resized, or floated. CurveMole remembers window geom
 dock arrangement, and theme. Use **View > Reset layout** to restore the standard
 layout.
 
-### 5.6 Themes
+### 5.7 Themes
 
 **View > Theme** provides System, Light, and Dark themes. Theme choice affects only
 presentation. It does not change plot data, exported numeric values, or fitting.
 
-### 5.7 Drag and drop
+### 5.8 Drag and drop
 
-Drop a `.fitproj` file onto the window to open it. Drop TXT, DAT, CSV, or TSV files
-to begin import. If a drop contains both a project and data files, the first project
-is opened.
+Drop a `.fitproj` file onto the window to open it. Drop any other local file to begin
+content-aware data import, regardless of its extension. If a drop contains both a
+project and data files, the first project is opened.
 
 ## 6. Importing data
 
 ### 6.1 Supported text formats
 
-The graphical importer accepts `.txt`, `.dat`, `.csv`, and `.tsv`. Files must contain
-at least two columns and at least two rows after parsing.
+The graphical importer shows `.txt`, `.dat`, `.csv`, and `.tsv` as common choices but
+can open any text-based file whose contents form a valid numeric table. For example,
+spectrometer files named `.xy`, `.xye`, or with a vendor-specific suffix can be
+selected through **All files** or dropped onto the window. The extension is not used
+as proof of validity. Files must contain at least two columns and at least two rows
+after parsing.
 
 CurveMole detects common delimiters:
 
@@ -513,6 +578,13 @@ header. Always inspect the preview before accepting the mapping.
 Blank lines are ignored. Lines whose first non-space character is `#`, `;`, `%`, or
 `!` are treated as comments by the default importer. UTF-8 with an optional byte
 order mark is the default encoding.
+
+CurveMole also detects leading instrument metadata or preamble lines before the
+rectangular table. **Ignore first rows** shows the proposed number of physical lines
+to skip and can be changed from 0 to 1,000,000. Skipping occurs before delimiter,
+decimal, and header interpretation; therefore a column-name row after the preamble
+can still be used as the first data-row header. The accepted value is stored in the
+curve import metadata for reproducibility.
 
 The semicolon can therefore be ambiguous: a line beginning with semicolon is a
 comment, while semicolons inside table rows can be delimiters. Check the preview for
@@ -674,6 +746,13 @@ be subtracted. The subtraction uses the current resolved/fitted parameter values
 reversible with Undo, applies over the complete data array, and disables the subtracted
 components afterwards to prevent double-counting.
 
+The same dialog can apply the operation to every eligible spectrum, using the enabled
+functions already marked as background in each model. **Data > Revert background...**
+lists only spectra changed by this dedicated subtraction command and restores the
+selected ones, including the relevant function states. **Visual only -
+background-subtracted** instead removes the enabled marked background only from the
+plot; it never changes curve arrays, fit inputs, or exported values.
+
 During graphical cubic-spline placement, nodes may be placed anywhere in plot
 coordinates, including outside the x/y extent of the measured data. Adding nodes does
 not auto-range the graph. Left-drag continues to pan and the mouse wheel continues to
@@ -792,7 +871,28 @@ parameters that may be fitted, fixed, bounded, or linked. Two nodes produce line
 interpolation. Three or more nodes produce a natural cubic spline, with extrapolation
 outside the node range.
 
-### 8.4 Adding a peak with the pointer
+New graphically placed spline y nodes are fixed by default so an intentionally drawn
+baseline does not move when fitting begins. Uncheck **Fixed** for individual nodes, or
+use **Lock all** / **Unlock all** below the parameter table for every parameter in the
+selected function. The spline remains continuous through masked intervals even though
+masked measurements do not contribute to the objective function.
+
+### 8.4 Quick Add Function
+
+Choose a registered function from the selector beside **Quick Add Function** in the
+main toolbar. The list includes built-in peaks and backgrounds, generic functions,
+project-contained formulas, reusable formulas, and trusted plugin functions. The last
+choice is remembered.
+
+- a peak opens graphical centre/FWHM placement;
+- a cubic spline opens point-by-point node placement;
+- every other function is added immediately with its default parameters.
+
+Quick Add therefore uses the same registry and initialization logic as the normal Add
+dialog. Selecting a function in the normal Add dialog also makes it the next Quick Add
+choice.
+
+### 8.5 Adding a peak with the pointer
 
 After choosing a peak and pressing **OK**:
 
@@ -805,11 +905,12 @@ uses a default based on 5 percent of the x span, local point spacing, and floati
 point precision.
 
 For built-in peaks, CurveMole converts the graphical height and FWHM into the native
-area and width parameters. For custom peak formulas, it recognizes conventional
-parameter names such as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`,
-`amplitude`, or `height` when possible.
+area and width parameters. New custom peaks should declare explicit semantic roles for
+their position, intensity, and width parameters in Function Builder. Older custom
+functions without role metadata retain compatibility through conventional names such
+as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`, `amplitude`, or `height`.
 
-### 8.5 Adding a spline background with the pointer
+### 8.6 Adding a spline background with the pointer
 
 After choosing **Cubic-spline background**:
 
@@ -822,7 +923,7 @@ After choosing **Cubic-spline background**:
 Nodes are sorted by x. Clicking again at effectively the same x updates that node
 instead of creating a duplicate. Exact duplicate x positions are not permitted.
 
-### 8.6 Graphical editing after placement
+### 8.7 Graphical editing after placement
 
 Select a peak component to display its handles. Drag the central target to change
 center and area-derived height. Drag a side line to change FWHM. For a Voigt peak,
@@ -836,10 +937,11 @@ Fixed values cannot normally be changed by a drag. Hold **Ctrl** while dragging 
 change the stored value while leaving the parameter fixed. Linked values cannot be
 dragged because their value is controlled by an expression.
 
-### 8.7 Automatic peak suggestions
+### 8.8 Automatic peak suggestions
 
-Choose **Model > Find positive peaks**. The dialog can search positive, negative, or
-both signs. CurveMole:
+Choose **Model > Find Peaks**. The first dialog can search positive, negative, or both
+signs. The next dialog selects any registered function classified as a peak, initially
+preferring the current Quick Add peak. CurveMole then:
 
 - subtracts the median as an initial baseline;
 - estimates noise through a robust median absolute deviation;
@@ -848,18 +950,19 @@ both signs. CurveMole:
 - estimates width at half prominence;
 - sorts suggestions by prominence.
 
-Choose how many suggestions to add. Version 0.17.0 creates Gaussian components from
-this graphical command. Suggestions are initial estimates, not a scientific decision
-about the number or identity of peaks.
+Choose how many suggestions to add. Every suggestion is initialized using the selected
+peak function's explicit parameter roles or, for legacy functions, recognized parameter
+names. Suggestions are initial estimates, not a scientific decision about the number,
+identity, or line shape of peaks.
 
-### 8.8 Duplicating, disabling, deleting, and reordering
+### 8.9 Duplicating, disabling, deleting, and reordering
 
 Duplicate a component to create an adjacent copy with a new internal identifier.
 Disable a component to compare models without losing its settings. Deletion and
 reordering are undoable. Reordering can materially change models that use operations
 other than addition or subtraction.
 
-### 8.9 Copying a fit to other curves
+### 8.10 Copying a fit to other curves
 
 **Model > Copy fit** copies selected information from the active curve. Use **Select all**
 or **Deselect all** when choosing many target curves. Options include:
@@ -995,13 +1098,31 @@ act as a simultaneous cross-curve constraint; use Global mode for that purpose.
 
 #### Sequential
 
-Curves are fitted in the listed order. Before fitting the next curve, values from
-matching components in the previous model are copied where the target parameters are
-free. Matching uses component order and function type.
+Sequential mode is a propagating refinement. Choose an **Initial source spectrum**
+whose model and parameters have already been inspected and approved. The source is not
+re-fitted. Its model is cloned to the next selected spectrum, fitted there, and the
+result becomes the source for the following spectrum. Selected spectra before the
+chosen source are excluded; target spectra do not need models in advance.
 
-If a curve fails, the sequence pauses at that curve. Correct its model manually, then
-choose **Fit > Continue paused sequence**. CurveMole does not silently skip the
-failure.
+Parameter values and the function structure are always propagated. The dialog
+separately controls whether to preserve bounds, fixed/free state, internal links,
+background tags, enabled/disabled state, and composition/grouping. Internal links are
+remapped to corresponding target parameters. Structural metadata required by the
+function, such as spline nodes and custom-formula metadata, is always retained.
+
+Two optional safeguards can pause a sequence:
+
+- normalized residual RMSE worsens by both a selected factor and a minimum fraction of
+  the signal scale; defaults are 2.5 times and 2 percent;
+- a free parameter changes by more than a selected normalized amount; the default is
+  75 percent.
+
+Specific source functions can be excluded from the parameter-change trigger while
+remaining fully copied, fitted, and included in the residual. If fitting or a safeguard
+pauses the sequence, the affected spectrum becomes active and a persistent **Continue
+sequential fit** button appears in the status bar. Inspect or edit that spectrum, then
+continue; the accepted current model becomes the new propagation source. CurveMole
+does not silently skip a paused spectrum.
 
 #### Global simultaneous
 
@@ -1029,6 +1150,11 @@ selects:
 - trust-region reflective when bounds or a robust loss require it.
 
 The graphical dialog exposes the maximum number of evaluations and confidence level.
+New fit plans default to 1,000 evaluations and use a step tolerance that permits a
+successful early stop when parameter changes become numerically negligible. During
+local optimization, the status progress is updated and the plotted trial model is
+refreshed every 20 evaluations. These refreshes preserve the user's current zoom and
+do not replace the stored parameters unless the fit completes successfully.
 The Python API and YAML settings additionally expose tolerances, scaling, local
 method, random seed, and Differential Evolution controls.
 
@@ -1351,6 +1477,27 @@ without duplicating large numeric arrays.
 
 The exported report PDF is an analysis summary, not the CurveMole software manual.
 
+### 14.8 Exporting one numeric file per spectrum
+
+Choose **File > Export spectra and fit curves...** or press **Ctrl+Shift+E** when the
+result should be immediately replottable as one multi-column table per spectrum. This
+is separate from the structured analysis bundle. Choose any project spectra and any
+of these options:
+
+- export the measured spectrum with its fitted background subtracted;
+- omit masked rows;
+- include every enabled individual model function;
+- include the combined fitted background;
+- include the total fit;
+- include residuals as data minus total fit.
+
+The x and spectrum columns are always written. Output names follow
+`<spectrum>_curvemole.<original extension>`; duplicate names receive a numeric suffix.
+The original delimiter is retained when practical, otherwise the output is
+tab-delimited. Headers describe axis labels, units, functions, background state, total
+fit, and residuals, and never contain whitespace so they remain safe for whitespace
+parsers. An unknown original extension is preserved.
+
 ## 15. Command-line interface
 
 ### 15.1 General form
@@ -1639,7 +1786,8 @@ Open **Tools > Function Builder**. Enter:
 - a display name;
 - classification as peak, background, or generic;
 - a formula in `x`;
-- optional formulas for derived area and FWHM.
+- optional formulas for derived area and FWHM;
+- for peak functions, optional semantic roles for detected parameters.
 
 CurveMole detects every non-function symbol other than x as a parameter. Newly
 detected parameters default to 1.0 and are unbounded. After adding the function to
@@ -1654,11 +1802,39 @@ offset + amplitude * exp(-x / tau)
 
 Detected parameters are `amplitude`, `offset`, and `tau`.
 
+For a function classified as a peak, the **Peak parameter roles** table can assign at
+most one of each supported meaning:
+
+- peak position / centre;
+- peak height or peak area / integral;
+- FWHM, Gaussian sigma, or HWHM/gamma.
+
+These roles tell graphical placement and automatic peak detection how to initialize
+parameters even when their names are arbitrary. Height and area roles are mutually
+exclusive. A width role also supplies the standard derived FWHM automatically when a
+separate FWHM formula was not entered. Leave genuinely unrelated parameters as **Not
+specified**. An explicitly unassigned role is respected; CurveMole does not guess a
+meaning from its name.
+
 ### 18.2 Custom function persistence
 
-Formula definitions are stored in the project. When the project reopens, CurveMole
-reconstructs and validates the restricted expression. A malformed custom function is
-skipped and recorded in the Log rather than executed.
+The first time a formula is added, CurveMole asks the user to create a dedicated
+`my_curvemole_functions` folder at a chosen location or open an existing folder with
+that exact name. Each definition is saved there as
+`<identifier>.curvemole-function.json`, registered in the current application, and
+also embedded in the project. Formula, classification, derived quantities, and peak
+roles travel together.
+
+CurveMole remembers the selected folder and loads every valid function from it at each
+startup. Reusable functions therefore appear in the normal Add dialog, Quick Add
+selector, and automatic peak-shape selector without requiring a particular project to
+be open. Copy the folder between computers to move a personal function library; open
+that folder when CurveMole asks for the library location.
+
+Project-contained definitions remain portable. When a project reopens, CurveMole
+reconstructs and validates each restricted expression. A malformed user function or
+library file is skipped and recorded in the Log rather than executed. Formula files
+use the safe expression system and are distinct from executable Python plugins.
 
 ### 18.3 Local plugin structure
 
@@ -1772,10 +1948,13 @@ may indicate that the data do not locate the optimum within the allowed region.
 
 ### 19.11 A sequential fit pauses
 
-The failed curve becomes active. Inspect its initial values, masks, and constraints.
-Correct the model and choose **Continue paused sequence**. If component structures do
-not match across curves, Copy fit may be more predictable than relying on positional
-value transfer.
+The affected curve becomes active and the status bar displays **Continue sequential
+fit**. Inspect its propagated model, initial/fitted values, masks, and constraints.
+The Log and notification identify whether fitting failed, normalized residuals
+worsened, or a monitored parameter changed beyond its threshold. Correct or approve
+the model, then continue; this spectrum becomes the new source. For a series with
+legitimate abrupt changes, adjust or disable the relevant safeguard, or exclude a
+known discontinuous function from only the parameter-change monitor.
 
 ### 19.12 A project opens read-only
 
@@ -1794,7 +1973,16 @@ The baseline may be near bounds, poorly initialized, or structurally unstable un
 perturbation. Increase robustness of the model before increasing replicate count.
 Report completed and failed counts with any interval.
 
-### 19.15 Reporting a problem
+### 19.15 An update is detected but cannot be installed automatically
+
+Automatic replacement is limited to a running Linux x86-64 AppImage or Windows x86-64
+standalone executable whose directory is writable. Finish or cancel active tasks.
+Python/source installations, macOS packages, unsupported architectures, and protected
+application directories must be updated from the GitHub release page. On Windows, a
+failed staged update records a helper log in the system temporary directory; include
+that log when reporting a reproducible updater failure.
+
+### 19.16 Reporting a problem
 
 Use [GitHub Issues](https://github.com/SebRoLENS/curvemole/issues). Include:
 
@@ -1829,9 +2017,11 @@ Archive at least:
 
 ### 20.2 Local processing and privacy
 
-CurveMole performs fitting locally. It has no telemetry and does not automatically
-upload data, projects, models, results, or formulas. Opening GitHub documentation,
-checking releases, reporting an issue, or using Zenodo is an explicit external action.
+CurveMole performs fitting locally. It has no telemetry and does not upload data,
+projects, models, results, or formulas. Its automatic startup and hourly version check
+requests only the public latest-release metadata from GitHub. Opening documentation or
+release notes, downloading an update, reporting an issue, or using Zenodo is otherwise
+an explicit external action.
 
 Plugins run locally with the user's permissions and can violate these expectations;
 trust only reviewed plugin code.
@@ -1839,12 +2029,10 @@ trust only reviewed plugin code.
 ### 20.3 Citation
 
 If CurveMole contributes to published work, cite the exact version used. The release
-DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
-Until archival completes, the versioned GitHub release is the authoritative record:
+DOI is recorded in `CITATION.cff`, the repository README, and the GitHub release:
 
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.17.0)
-> [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.17.0
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22306231
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -1873,6 +2061,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Ctrl+S | Save project |
 | Ctrl+Shift+S | Save project as on common desktop mappings |
 | Ctrl+E | Export analysis bundle |
+| Ctrl+Shift+E | Export one numeric file per selected spectrum |
 | Ctrl+Z | Undo |
 | Standard Redo shortcut | Redo |
 | Ctrl++ | Add component |
@@ -1881,6 +2070,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Esc | Cancel graphical peak or spline placement |
 | Ctrl while dragging | Change a fixed graphical parameter without unfixing it |
 | Right-drag on plot | Mask or unmask an interval directly |
+| Up / Down with plot focus | Activate previous / next spectrum |
 
 ## Appendix B. Built-in identifiers
 
@@ -1901,8 +2091,10 @@ Shortcuts use the platform's standard key sequence where applicable.
 |---|---|
 | `.fitproj` | Complete CurveMole project |
 | `.fitmodel` | Reusable model and formula definitions |
+| `.curvemole-function.json` | Reusable safe formula in `my_curvemole_functions` |
+| `.curvemole-plugin.json` | Manifest for an executable Python plugin |
 | `.yml`, `.yaml` | Reproducible workflow |
-| `.txt`, `.dat`, `.csv`, `.tsv` | Imported one-dimensional data |
+| Any text-file suffix | Imported data when the contents form a valid numeric table |
 | `.whl` | Installable Python package |
 | `.AppImage` | Linux desktop package |
 | `.exe` | Windows desktop executable |
@@ -1919,7 +2111,8 @@ The following boundaries are important when evaluating this release:
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
 - autosave recovery exists, but there is no automatic startup recovery chooser;
-- desktop packages are unsigned;
+- Windows and macOS packages may be unsigned; Linux release provenance is available
+  through GitHub artifact attestation;
 - the interface and manual are currently maintained in English;
 - plugin API and other 0.x APIs may change before 1.0.0.
 
@@ -1946,16 +2139,3 @@ docs/CurveMole_User_Manual.pdf
 GitHub Actions repeats this process for documentation changes and releases. Release
 assets use versioned filenames and include both LaTeX and PDF editions. Do not edit
 the generated files directly; changes will be replaced by the next automated build.
-
-## Background subtraction and spline controls
-
-Use **Data > Subtract background...** when the measured zero line should be corrected before or after model construction. Two methods are available:
-
-- **Constant from x interval** asks for an x interval, calculates the median y value in that interval, and subtracts that constant from the entire active curve. The interval calculation deliberately includes masked data points if they lie inside the requested x range.
-- **Spline from graph** starts the graphical spline editor. Left-click adds a node, right-click removes the nearest node, and a left double-click or **Finish** accepts the spline. Nodes may be placed inside masked regions. The resulting spline is evaluated and subtracted over the entire x array, including masked regions.
-
-Background subtraction is stored as a reversible data transformation. The original imported arrays are retained, **Undo** reverses the subtraction, and **Restore original data** in the Data Calculator removes the transformation history. Masks are not removed or changed by background subtraction: they still control which data points participate in fitting.
-
-For cubic-spline model components, the y values of newly placed spline nodes are **fixed by default**. This prevents an intentionally drawn baseline from drifting when a fit starts. Individual nodes can be unlocked with the **Fixed** checkbox in the parameter table. The **Lock all** and **Unlock all** controls below the parameter table change the fixed state of every parameter in the selected component at once. The x positions of spline nodes remain fixed; unlocking a node allows its y value to vary or be dragged.
-
-A spline is evaluated continuously through masked regions even though masked measurements are excluded from the objective function. This makes it possible to define a baseline through masked peaks or artifacts without temporarily unmasking those data.

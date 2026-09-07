@@ -122,12 +122,19 @@ def run(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> 
 
 
 def normalise_pdf_document_id(pdf: Path, tex: Path) -> None:
-    """Replace xdvipdfmx's random document ID with one derived from the source."""
+    """Replace xdvipdfmx's random document ID with one derived from the source.
+
+    Some older xdvipdfmx releases omit the optional trailer ID entirely. In
+    that case there is no random value to normalise, so the PDF is already safe
+    to keep as generated.
+    """
 
     data = pdf.read_bytes()
     document_id = hashlib.sha256(tex.read_bytes()).hexdigest()[:32].encode("ascii")
     replacement = b"/ID[<" + document_id + b"><" + document_id + b">]"
     data, count = PDF_ID_RE.subn(replacement, data, count=1)
+    if count == 0 and b"/ID" not in data:
+        return
     if count != 1:
         raise SystemExit("Could not normalise the generated PDF document ID.")
     pdf.write_bytes(data)
