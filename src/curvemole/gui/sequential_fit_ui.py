@@ -48,8 +48,8 @@ def _install_fit_plan_dialog() -> None:
         box_layout = QVBoxLayout(dialog.sequential_box)
         explanation = QLabel(
             dialog.tr(
-                "The initial spectrum is the approved source and is not re-fitted. Its complete "
-                "model is copied to the next selected spectrum, fitted there, then that result "
+                "The initial spectrum is the approved source and is not re-fitted. Selected "
+                "functions are added to the next spectrum without overwriting existing functions, fitted there, then that result "
                 "becomes the source for the following spectrum. Checked spectra before the source "
                 "are not part of the sequence."
             )

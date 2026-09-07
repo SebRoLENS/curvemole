@@ -1102,7 +1102,15 @@ re-fitted. Its model is cloned to the next selected spectrum, fitted there, and 
 result becomes the source for the following spectrum. Selected spectra before the
 chosen source are excluded; target spectra do not need models in advance.
 
-Parameter values and the function structure are always propagated. The dialog
+Use **Functions excluded from copying** to select any source functions to leave out.
+Functions already present on each target retain their values, metadata, constraints,
+and order during copying; the fit still respects their fixed/free state. A function
+with the same internal identity is kept rather than duplicated. Distinct functions
+remain distinct even if their names match. Target-local functions are not carried
+into later spectra. The selection is also preserved when resuming a paused sequence.
+This is independent of ignoring functions in the parameter-change pause monitor.
+
+For newly copied functions, parameter values and structure are propagated. The dialog
 separately controls whether to preserve bounds, fixed/free state, internal links,
 background tags, enabled/disabled state, and composition/grouping. Internal links are
 remapped to corresponding target parameters. Structural metadata required by the

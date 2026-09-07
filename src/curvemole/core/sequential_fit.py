@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -41,6 +42,10 @@ class SequentialFitPlan(FitPlan):
     propagate_enabled: bool = True
     propagate_composition: bool = True
     ignored_component_ids: tuple[str, ...] = ()
+    excluded_copy_component_ids: tuple[str, ...] = ()
+    # Stable source identities also prevent target-local functions from being
+    # propagated at later steps or after a pause/resume.
+    copied_component_ids: tuple[str, ...] | None = None
 
     def validate(self) -> None:
         FitPlan.validate(self)
@@ -99,6 +104,25 @@ def _clone_model_for_target(
             parameter.ci_high = None
             parameter.validate()
     return clone
+
+
+def _merge_selected_components(propagated: Model, existing: Model, copied_ids: set[str], target_id: str) -> Model:
+    """Add selected functions without overwriting any existing target function."""
+    result = Model.from_dict(copy.deepcopy(existing.to_dict()))
+    present = {item.id for item in result.components}
+    additions = [item for item in propagated.components if item.id in copied_ids and item.id not in present]
+    result.components.extend(additions)
+    present = {item.id for item in result.components}
+    # Do not install dangling internal links when a required function was excluded.
+    pattern = re.compile(r"\$\{" + re.escape(target_id) + r"\.([^.}]+)\.([^}]+)\}")
+    for component in additions:
+        for parameter in component.parameters.values():
+            if not parameter.link:
+                continue
+            for match in pattern.finditer(parameter.link):
+                if match.group(1) not in present:
+                    raise FitError("A copied relation needs an excluded function missing from the target. Prepare that function or disable link propagation.")
+    return result
 
 
 def _robust_span(values: np.ndarray) -> float:
@@ -257,6 +281,11 @@ def _fit_sequential_propagating(
     )
 
     previous_nrmse = _model_nrmse(source_curve, source_model, fitter.registry)
+    excluded = set(getattr(plan, "excluded_copy_component_ids", ()))
+    copied_ids = getattr(plan, "copied_component_ids", None)
+    if copied_ids is None:
+        copied_ids = tuple(item.id for item in source_model.components if item.id not in excluded)
+        plan.copied_component_ids = copied_ids
     results: list[FitResult] = []
 
     # The first curve is deliberately not re-fitted. It is the user-approved seed.
@@ -275,6 +304,13 @@ def _fit_sequential_propagating(
             propagate_enabled=propagate_enabled,
             propagate_composition=propagate_composition,
         )
+        if copied_ids is not None:
+            try:
+                propagated = _merge_selected_components(
+                    propagated, models.get(curve.id) or Model(), set(copied_ids), curve.id,
+                )
+            except FitError as exc:
+                return _pause_result(results, plan, curve, str(exc), status=-2, failed=True)
         models[curve.id] = propagated
         seed_model = Model.from_dict(copy.deepcopy(propagated.to_dict()))
 
