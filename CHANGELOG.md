@@ -6,6 +6,9 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
+- Open an explicit, prefilled name dialog from Rename series instead of starting
+  an inline editor while the context menu still owns focus.
+
 - Keep background workers alive until their thread exits, including when Abort
   cancels bootstrap uncertainty analysis. Retain the previous valid fit.
 - Dispatch background progress, results, errors and cleanup through GUI-thread
