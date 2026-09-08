@@ -137,7 +137,14 @@ In **Sequential** mode, the chosen initial source is treated as already approved
 is not re-fitted. Its model is propagated along the selected spectra. Choose which
 constraints and component states to preserve, and configure residual/parameter-change
 pause safeguards. If the sequence pauses, adjust the current spectrum and use the
-visible **Continue sequential fit** button.
+visible **Continue sequential fit** button. The adjacent **Terminate sequential fit**
+button discards the paused queue and keeps completed fits and manual corrections.
+
+Fit progress uses the configured **Maximum evaluations** budget, excluding
+numerical Jacobian probes. For a sequential fit, the prepared source is excluded:
+each completed target counts for its entire budget even if it converges early,
+and the current target contributes the fraction of its budget already used.
+Continuing a paused sequence retains the completed portion of this total.
 
 If you used only the visual background-subtracted view instead, leave the marked
 background functions enabled: CurveMole fits the original data using background plus

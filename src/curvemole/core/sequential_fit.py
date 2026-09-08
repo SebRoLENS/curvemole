@@ -20,6 +20,7 @@ from curvemole.core.fitting import (
     FitResult,
     Fitter,
     ProgressCallback,
+    _batch_progress,
     _merge_results,
 )
 from curvemole.core.models import Model
@@ -29,6 +30,9 @@ from curvemole.core.parameters import Parameter, resolve_parameter_values
 @dataclass(slots=True)
 class SequentialFitPlan(FitPlan):
     """Fit plan carrying monitoring and propagation preferences for sequential fits."""
+
+    progress_completed: int = 0
+    progress_total: int | None = None
 
     monitor_residuals: bool = True
     residual_ratio_limit: float = 2.5
@@ -288,6 +292,8 @@ def _fit_sequential_propagating(
         if isinstance(plan, SequentialFitPlan):
             plan.copied_component_ids = copied_ids
     results: list[FitResult] = []
+    completed = getattr(plan, "progress_completed", 0)
+    total = getattr(plan, "progress_total", None) or max(1, len(curves) - 1)
 
     # The first curve is deliberately not re-fitted. It is the user-approved seed.
     for index, curve in enumerate(curves[1:], start=1):
@@ -317,7 +323,7 @@ def _fit_sequential_propagating(
 
         if progress:
             progress(
-                index / max(1, len(curves) - 1),
+                (completed + index - 1) / total,
                 f"Sequential fit: copy {previous_curve.name} → {curve.name}, then fit",
             )
 
@@ -334,7 +340,7 @@ def _fit_sequential_propagating(
                 models,
                 local_plan,
                 cancellation,
-                progress=None,
+                progress=_batch_progress(progress, completed + index - 1, total),
             )
         except (FitError, ConstraintError) as exc:
             return _pause_result(
@@ -360,6 +366,8 @@ def _fit_sequential_propagating(
             )
 
         results.append(current)
+        if progress:
+            progress((completed + index) / total, f"Completed {curve.name}")
         reasons: list[str] = []
 
         output = current.curve_outputs.get(curve.id)

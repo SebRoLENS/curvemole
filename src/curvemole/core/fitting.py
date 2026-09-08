@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 from scipy import optimize, stats
+from scipy.optimize._numdiff import approx_derivative
 
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
@@ -22,6 +23,16 @@ from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.core.registry import FunctionRegistry, default_registry
 
 ProgressCallback = Callable[[float | None, str], None]
+
+
+def _batch_progress(progress: ProgressCallback | None, completed: int, total: int) -> ProgressCallback | None:
+    if progress is None:
+        return None
+
+    def report(value: float | None, text: str) -> None:
+        progress((completed + (value or 0.0)) / total, text)
+
+    return report
 
 
 class FitMode(StrEnum):
@@ -293,9 +304,10 @@ class _Problem:
                 self.parameters[path].value = float(value)
         return values
 
-    def residual(self, vector: np.ndarray) -> np.ndarray:
+    def residual(self, vector: np.ndarray, *, report: bool = True) -> np.ndarray:
         self.cancellation.raise_if_cancelled()
-        self.evaluations += 1
+        if report:
+            self.evaluations += 1
         values = self.values(vector)
         residuals: list[np.ndarray] = []
         for curve in self.curves:
@@ -316,11 +328,22 @@ class _Problem:
                 residual = residual / math.sqrt(len(residual))
             residuals.append(residual)
         now = time.monotonic()
-        if self.progress and now - self._last_progress > 0.08:
+        if report and self.progress and now - self._last_progress > 0.08:
             maximum = max(1, self.plan.settings.max_nfev)
-            self.progress(min(self.evaluations / maximum, 0.99), f"Evaluation {self.evaluations}")
+            self.progress(min(self.evaluations / maximum, 1.0), f"Evaluation {self.evaluations}")
             self._last_progress = now
         return np.concatenate(residuals)
+
+    def jacobian(self, vector: np.ndarray) -> np.ndarray:
+        # Keep numerical-difference probes out of the solver's nfev budget.
+        # Use SciPy's bound-aware two-point routine, as least_squares does.
+        try:
+            return approx_derivative(
+                lambda point: self.residual(point, report=False),
+                vector, method="2-point", bounds=self.bounds,
+            )
+        finally:
+            self.values(vector)
 
     def outputs(self, values: Mapping[str, float]) -> dict[str, CurveFitOutput]:
         result: dict[str, CurveFitOutput] = {}
@@ -386,7 +409,7 @@ class Fitter:
         else:
             result = self._fit_independent(selected, models, plan, cancellation, progress)
         result.elapsed_seconds = time.monotonic() - started
-        if progress:
+        if progress and not result.paused_curve_id:
             progress(1.0, result.message)
         return result
 
@@ -429,8 +452,13 @@ class Fitter:
                 plan.equal_contribution,
             )
             results.append(
-                self._fit_problem([curve], models, local_plan, cancellation, progress=None)
+                self._fit_problem(
+                    [curve], models, local_plan, cancellation,
+                    progress=_batch_progress(progress, index, len(curves)),
+                )
             )
+            if progress:
+                progress((index + 1) / len(curves), f"Completed {curve.name}")
         return _merge_results(results, plan.mode, plan.settings)
 
     def _fit_sequential(
@@ -458,7 +486,10 @@ class Fitter:
                 plan.equal_contribution,
             )
             try:
-                current = self._fit_problem([curve], models, local_plan, cancellation, progress=None)
+                current = self._fit_problem(
+                    [curve], models, local_plan, cancellation,
+                    progress=_batch_progress(progress, index, len(curves)),
+                )
             except (FitError, ConstraintError) as exc:
                 merged = _merge_results(results, plan.mode, plan.settings)
                 merged.success = False
@@ -514,7 +545,7 @@ class Fitter:
                 if progress:
                     progress(0.0, "Differential Evolution initial search")
                 differential = optimize.differential_evolution(
-                    lambda vector: _sum_of_squares(problem.residual(vector)),
+                    lambda vector: _sum_of_squares(problem.residual(vector, report=False)),
                     list(zip(lower, upper, strict=True)),
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
@@ -530,6 +561,7 @@ class Fitter:
             least_squares = optimize.least_squares(
                 problem.residual,
                 initial,
+                jac=problem.jacobian,
                 bounds=(lower, upper),
                 method=method,
                 loss=settings.loss,
@@ -540,6 +572,11 @@ class Fitter:
                 xtol=settings.xtol,
                 gtol=settings.gtol,
             )
+            if progress:
+                progress(
+                    min(least_squares.nfev / settings.max_nfev, 1.0),
+                    f"Evaluation {least_squares.nfev}",
+                )
         except FitCancelled:
             _restore_parameters(problem.parameters if "problem" in locals() else {}, original_parameter_state)
             for curve in curves:

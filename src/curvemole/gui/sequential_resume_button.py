@@ -41,6 +41,14 @@ def install_sequential_resume_button() -> None:
             "QPushButton#sequential_resume_button:disabled {"
             f"background-color: {disabled_bg}; color: {disabled_fg}; border-color: {disabled_fg}; }}"
         )
+        stop = getattr(window, "sequential_stop_button", None)
+        if stop is not None:
+            stop.setStyleSheet(button.styleSheet().replace("sequential_resume_button", "sequential_stop_button")
+                .replace(background, "#FDA4AF" if dark else "#BE123C")
+                .replace(foreground, "#4C0519" if dark else "#FFFFFF")
+                .replace(border, "#FFE4E6" if dark else "#881337")
+                .replace(hover, "#FECDD3" if dark else "#9F1239")
+                .replace(pressed, "#FB7185" if dark else "#881337"))
 
     def theme(window: MainWindow, selected: str) -> None:
         original_theme(window, selected)
@@ -53,6 +61,20 @@ def install_sequential_resume_button() -> None:
         if button is not None:
             button.setVisible(available)
             button.setEnabled(enabled)
+        stop = getattr(window, "sequential_stop_button", None)
+        if stop is not None:
+            stop.setVisible(available)
+            stop.setEnabled(enabled)
+
+    def terminate_sequence(window: MainWindow) -> None:
+        if window._thread is not None:
+            return
+        window._sequential_resume_plan = None
+        window._sequential_pause_result = None
+        window._paused_result = None
+        window._sequential_pause_source_ids = ()
+        set_resume_available(window, False)
+        window._notify(window.tr("Sequential fit terminated. Existing fits and model edits were retained."))
 
     def sync(window: MainWindow) -> None:
         if not hasattr(window, "resume_action"):
@@ -74,8 +96,15 @@ def install_sequential_resume_button() -> None:
         button.setEnabled(False)
         button.clicked.connect(window.resume_sequence)
         window.sequential_resume_button = button
-        style_button(window)
         window.statusBar().addPermanentWidget(button)
+        stop = QPushButton("■  " + window.tr("Terminate sequential fit"), window)
+        stop.setObjectName("sequential_stop_button")
+        stop.setMinimumHeight(38)
+        stop.setToolTip(window.tr("Discard the paused sequence while keeping all existing fits and model edits."))
+        stop.clicked.connect(window.terminate_sequence)
+        window.sequential_stop_button = stop
+        window.statusBar().addPermanentWidget(stop)
+        style_button(window)
         sync(window)
 
     def fit_finished(window: MainWindow, result: Any) -> None:
@@ -101,6 +130,7 @@ def install_sequential_resume_button() -> None:
     MainWindow.__init__ = init
     MainWindow._fit_finished = fit_finished
     MainWindow.resume_sequence = resume_sequence
+    MainWindow.terminate_sequence = terminate_sequence
     MainWindow.refresh_all = refresh
     MainWindow._task_done = done
     MainWindow._run_background = background

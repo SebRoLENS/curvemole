@@ -104,3 +104,89 @@ def test_gui_refreshes_plot_on_twentieth_evaluation_and_keeps_zoom(
     window.project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("budget", [37, 2501])
+def test_progress_uses_explicit_budget_and_reports_exact_limit(budget: int) -> None:
+    x = np.arange(5.0)
+    curve = Curve("budget", x, x)
+    model = Model(components=[Component.create("constant")])
+    events = []
+    problem = _Problem(
+        [curve], {curve.id: model}, FitPlan([curve.id], settings=FitSettings(max_nfev=budget)),
+        default_registry(), CancellationToken(), lambda value, text: events.append((value, text)),
+    )
+    for _ in range(budget):
+        problem.residual(problem.initial)
+    assert events[-1] == (1.0, f"Evaluation {budget}")
+    if budget > 1000:
+        assert (1000 / budget, "Evaluation 1000") in events
+
+
+@pytest.mark.parametrize("method", ["lm", "trf", "dogbox"])
+def test_live_evaluation_budget_matches_solver_without_jacobian_probes(monkeypatch, method) -> None:
+    from curvemole.core import live_fit_progress
+
+    monkeypatch.setattr(live_fit_progress, "LIVE_REFRESH_EVERY", 1)
+    x = np.linspace(-5, 5, 101)
+    curve = Curve("budget", x, np.exp(-x * x))
+    peak = Component.create("gaussian", initial={"area": 3, "center": 1, "sigma": 2})
+    if method == "lm":
+        for parameter in peak.parameters.values():
+            parameter.minimum, parameter.maximum = -np.inf, np.inf
+    events = []
+    result = Fitter().fit_single(
+        curve, Model(components=[peak]), FitSettings(max_nfev=7, local_method=method),
+        progress=lambda value, text: events.append((value, text)),
+    )
+    evaluations = [(value, int(text.split()[1])) for value, text in events if text.startswith("Evaluation ")]
+    assert evaluations[-1] == (result.evaluations / 7, result.evaluations)
+    assert all(value == pytest.approx(count / 7) for value, count in evaluations)
+    assert max(count for _, count in evaluations) == 7
+
+
+def test_sequential_progress_credits_early_convergence_and_retains_total(monkeypatch) -> None:
+    from curvemole.core import SequentialFitPlan, live_fit_progress
+
+    monkeypatch.setattr(live_fit_progress, "LIVE_REFRESH_EVERY", 1)
+    x = np.arange(10.0)
+    curves = [Curve(str(i), x, np.full_like(x, float(i + 1))) for i in range(3)]
+    models = {curves[0].id: Model(components=[Component.create("constant", initial={"offset": 1})])}
+    plan = SequentialFitPlan(
+        [curve.id for curve in curves], FitMode.SEQUENTIAL, FitSettings(max_nfev=100),
+        monitor_residuals=False, monitor_parameters=False,
+    )
+    events = []
+    result = Fitter().fit(plan, curves, models, progress=lambda value, text: events.append((value, text)))
+    assert result.success
+    assert result.evaluations < 100
+    assert (0.5, "Completed 1") in events
+    assert events[0][0] == 0
+    assert events[-1][0] == 1
+    assert [v for v, _ in events] == sorted(v for v, _ in events)
+    assert any(0 < v < 0.5 for v, _ in events)
+    assert any(0.5 < v < 1 for v, _ in events)
+
+    plan.curve_ids = [curve.id for curve in curves[1:]]
+    plan.progress_completed, plan.progress_total = 1, 2
+    events.clear()
+    Fitter().fit(plan, curves, models, progress=lambda value, text: events.append((value, text)))
+    assert events[0][0] == 0.5
+    assert events[-1][0] == 1
+
+
+def test_sequential_pause_does_not_report_full_completion() -> None:
+    from curvemole.core import SequentialFitPlan
+
+    x = np.arange(10.0)
+    curves = [Curve(str(i), x, np.full_like(x, float(i * 10 + 1))) for i in range(3)]
+    models = {curves[0].id: Model(components=[Component.create("constant", initial={"offset": 1})])}
+    plan = SequentialFitPlan(
+        [curve.id for curve in curves], FitMode.SEQUENTIAL,
+        monitor_residuals=False, parameter_change_limit=0.01,
+    )
+    events = []
+    result = Fitter().fit(plan, curves, models, progress=lambda value, text: events.append((value, text)))
+    assert result.paused_curve_id == curves[1].id
+    assert events[-1][0] == 0.5
+    assert all(value < 1 for value, _ in events)
