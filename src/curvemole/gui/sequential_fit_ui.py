@@ -264,7 +264,7 @@ def _install_pause_resume_state() -> None:
         existing_pause = getattr(window, "_sequential_pause_result", None)
         pause_plan = None
         if result.mode == FitMode.SEQUENTIAL and result.paused_curve_id:
-            pause_plan = copy.deepcopy(window.last_fit_plan)
+            pause_plan = copy.deepcopy(getattr(window, "_running_fit_plan", None) or window.last_fit_plan)
 
         original_fit_finished(window, result)
 
@@ -272,10 +272,14 @@ def _install_pause_resume_state() -> None:
             window._sequential_resume_plan = pause_plan or existing_plan
             window._sequential_pause_result = result
             window._paused_result = result
+            window._sequential_pause_source_ids = tuple(
+                item.id for item in window.project.model_for(result.paused_curve_id).components
+            )
             window.resume_action.setEnabled(True)
         elif result.mode == FitMode.SEQUENTIAL and result.success:
             window._sequential_resume_plan = None
             window._sequential_pause_result = None
+            window._sequential_pause_source_ids = ()
         elif existing_plan is not None and existing_pause is not None:
             # A normal manual fit performed while the sequence is paused must not
             # discard the suspended sequence. The edited/fitted spectrum will be
@@ -290,6 +294,8 @@ def _install_pause_resume_state() -> None:
             )
 
     def resume_sequence(window: MainWindow) -> None:
+        if not window._ensure_editable() or window._thread is not None:
+            return
         result = getattr(window, "_sequential_pause_result", None) or window._paused_result
         plan_template = getattr(window, "_sequential_resume_plan", None) or window.last_fit_plan
         if not result or not result.paused_curve_id or not plan_template:
@@ -301,11 +307,39 @@ def _install_pause_resume_state() -> None:
         plan = copy.deepcopy(plan_template)
         # The manually approved paused spectrum becomes the new source. The
         # propagating fitter deliberately skips the first curve and starts at the next one.
-        plan.curve_ids = plan.curve_ids[start:]
+        source_id = window.active_curve_id or result.paused_curve_id
+        existing_ids = {curve.id for curve in window.project.curves}
+        if source_id not in existing_ids:
+            window._notify(window.tr("Activate the corrected source spectrum first."), warning=True)
+            return
+        remaining = [
+            curve_id for curve_id in plan.curve_ids[start + 1:]
+            if curve_id in existing_ids and curve_id != source_id
+        ]
+        if not remaining:
+            window._sequential_resume_plan = None
+            window._sequential_pause_result = None
+            window._paused_result = None
+            window._notify(window.tr("Sequential fit completed: no remaining spectra."))
+            window.refresh_all()
+            return
+        plan.curve_ids = [source_id, *remaining]
+        if getattr(plan, "copied_component_ids", None) is not None:
+            current_ids = {item.id for item in window.project.model_for(source_id).components}
+            previous_ids = set(getattr(window, "_sequential_pause_source_ids", current_ids))
+            # Include functions added during the repair, while preserving the
+            # exclusion of functions already local to the paused target.
+            copied = set(plan.copied_component_ids) | (current_ids - previous_ids)
+            if source_id != result.paused_curve_id:
+                copied = current_ids
+            plan.copied_component_ids = tuple(sorted(
+                (copied & current_ids) - set(getattr(plan, "excluded_copy_component_ids", ()))
+            ))
         plan.spectrum_weights = {
             curve_id: plan.spectrum_weights.get(curve_id, 1.0)
             for curve_id in plan.curve_ids
         }
+        window.last_fit_plan = copy.deepcopy(plan)
         window._run_fit(plan)
 
     MainWindow._fit_finished = fit_finished

@@ -1509,7 +1509,13 @@ class MainWindow(QMainWindow):
         if not selected:
             self._notify(self.tr("Select or activate at least one curve first."), warning=True)
             return
-        plan = copy.deepcopy(self.last_fit_plan) if self.last_fit_plan is not None else FitPlan([])
+        if getattr(self, "_sequential_pause_result", None) is not None:
+            # Quick Fit repairs the active spectrum without consuming the saved
+            # sequential queue or accidentally running a one-curve sequence.
+            selected = {self.active_curve_id} if self.active_curve_id else selected
+            plan = FitPlan([], settings=copy.deepcopy(self.fit_settings))
+        else:
+            plan = copy.deepcopy(self.last_fit_plan) if self.last_fit_plan is not None else FitPlan([])
         plan.curve_ids = [curve.id for curve in self.project.curves if curve.id in selected]
         plan.spectrum_weights = {
             curve_id: plan.spectrum_weights.get(curve_id, 1.0)
@@ -1525,6 +1531,10 @@ class MainWindow(QMainWindow):
         self._run_fit(plan)
 
     def _run_fit(self, plan: FitPlan) -> None:
+        if self._thread is not None:
+            self._notify(self.tr("Another task is already running."), warning=True)
+            return
+        self._running_fit_plan = copy.deepcopy(plan)
         self._cancellation = CancellationToken()
         fitter = Fitter(self.registry)
         curve_map = {curve.id: curve for curve in self.project.curves}
@@ -2652,8 +2662,8 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def _task_done(self, *_: Any) -> None:
-        if self._thread:
-            self._thread.quit()
+        # Invoked only after QThread.finished; the Qt object may already have
+        # been deleted during a modal pause notification's nested event loop.
         self._thread = None
         self._worker = None
         self._cancellation = None

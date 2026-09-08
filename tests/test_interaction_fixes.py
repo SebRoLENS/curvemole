@@ -206,3 +206,101 @@ def test_paused_sequence_undo_restores_target_structure_and_resume_state(window,
     window.redo_action.trigger()
     assert window.project.model_for(target.id).components
     assert window.resume_action.isEnabled()
+
+
+def test_pause_manual_quick_fit_parameter_edits_and_repeated_resumes(window, monkeypatch):
+    app = QApplication.instance()
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: None)
+    errors = []
+    monkeypatch.setattr(window, "_show_error", lambda *args: errors.append(args))
+    source, second = window.project.curves
+    x = source.x
+    third = Curve("third", x, 5 + 6*x)
+    fourth = Curve("fourth", x, 7 + 8*x)
+    window.project.add_curve(third)
+    window.project.add_curve(fourth)
+    window.project.model_for(second.id).components.clear()
+    component = window.project.model_for(source.id).components[0]
+    plan = SequentialFitPlan(
+        [source.id, second.id, third.id, fourth.id], FitMode.SEQUENTIAL,
+        monitor_residuals=False, parameter_change_limit=0.001,
+        copied_component_ids=(component.id,),
+    )
+    window.last_fit_plan = plan
+    seeds = []
+    original_problem = Fitter._fit_problem
+
+    def problem(fitter, curves, models, *args, **kwargs):
+        seeds.append((curves[0].id, models[curves[0].id].components[0].parameters["intercept"].value))
+        return original_problem(fitter, curves, models, *args, **kwargs)
+
+    monkeypatch.setattr(Fitter, "_fit_problem", problem)
+
+    def wait():
+        deadline = time.monotonic() + 10
+        while window._thread is not None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+        if window._thread is not None:
+            window.cancel_task()
+            window._thread.quit()
+            window._thread.wait(10000)
+            app.processEvents()
+            pytest.fail("Worker did not finish")
+        assert window._worker is None
+        assert not errors
+
+    def toggle_parameters():
+        window._set_component(component.id)
+        current = window.project.model_for(window.active_curve_id).component(component.id)
+        window.model_panel.lock_all_parameters_button.click()
+        assert all(item.fixed for item in current.parameters.values())
+        assert all(
+            not item.fixed for item in window.project.model_for(source.id).component(component.id).parameters.values()
+        )
+        window.model_panel.unlock_all_parameters_button.click()
+        assert all(not item.fixed for item in current.parameters.values())
+
+    window._run_fit(plan)
+    wait()
+    assert window._sequential_pause_result.paused_curve_id == second.id
+    assert not window.sequential_resume_button.isHidden()
+    toggle_parameters()
+    window.quick_fit_action.trigger()
+    wait()
+    assert window.project.results["last_fit"].mode == FitMode.INDEPENDENT
+    assert window._sequential_pause_result.paused_curve_id == second.id
+    assert window.sequential_resume_button.isEnabled()
+    assert not window.sequential_resume_button.isHidden()
+    toggle_parameters()
+    window.change_parameter(component.id, "intercept", "value", 3.5)
+    window.change_parameter(component.id, "intercept", "fixed", True)
+    seeds.clear()
+    window.sequential_resume_button.click()
+    wait()
+    assert seeds[0] == (third.id, 3.5)
+    assert window._sequential_pause_result.paused_curve_id == third.id
+    assert window._sequential_resume_plan.mode == FitMode.SEQUENTIAL
+    assert window._sequential_resume_plan.curve_ids == [second.id, third.id, fourth.id]
+    toggle_parameters()
+    window.quick_fit_action.trigger()
+    wait()
+    assert window._sequential_pause_result.paused_curve_id == third.id
+    toggle_parameters()
+    window.model_panel.lock_all_parameters_button.click()
+    approved = window.project.model_for(third.id).component(component.id).parameters["intercept"].value
+    seeds.clear()
+    window.sequential_resume_button.click()
+    wait()
+    assert seeds[0] == (fourth.id, approved)
+    # All propagated parameters are fixed: this is a legitimate solver pause.
+    # Repair the final spectrum, then Continue should finish an empty queue.
+    assert window._sequential_pause_result.paused_curve_id == fourth.id
+    toggle_parameters()
+    window.quick_fit_action.trigger()
+    wait()
+    assert window._sequential_pause_result.paused_curve_id == fourth.id
+    window.sequential_resume_button.click()
+    assert window._sequential_pause_result is None
+    assert window.sequential_resume_button.isHidden()
