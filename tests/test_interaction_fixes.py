@@ -6,7 +6,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtCore import QPointF, Qt
+from PySide6.QtCore import QPointF, Qt, QThread
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from curvemole import Component, Curve, Fitter, Project
@@ -25,6 +25,19 @@ def test_abort_bootstrap_waits_for_worker_exit_and_preserves_fit(window, monkeyp
     window.project.results["last_fit"] = baseline
     errors = []
     monkeypatch.setattr(window, "_show_error", lambda *args: errors.append(args))
+    callback_threads = []
+    original_failed = window._task_failed
+
+    def failed(message, details):
+        callback_threads.append(QThread.currentThread())
+        original_failed(message, details)
+
+    def progress(*_):
+        callback_threads.append(QThread.currentThread())
+        window.cancel_action.trigger()
+
+    monkeypatch.setattr(window, "_task_failed", failed)
+    monkeypatch.setattr(window, "_task_progress", progress)
     for _ in range(3):
         window.start_uncertainty("residual_bootstrap", 10000, None)
         thread = window._thread
@@ -33,7 +46,6 @@ def test_abort_bootstrap_waits_for_worker_exit_and_preserves_fit(window, monkeyp
         window.start_uncertainty("residual_bootstrap", 10, None)
         assert window._thread is thread
         assert window._cancellation is token
-        window._worker.progress.connect(lambda *_: window.cancel_action.trigger())
         deadline = time.monotonic() + 10
         while window._thread is not None and time.monotonic() < deadline:
             app.processEvents()
@@ -49,6 +61,8 @@ def test_abort_bootstrap_waits_for_worker_exit_and_preserves_fit(window, monkeyp
         assert window.project.results["last_fit"] is baseline
         assert "uncertainty" not in window.project.results
     assert not errors
+    assert callback_threads
+    assert all(thread == app.thread() for thread in callback_threads)
 
 
 @pytest.fixture
