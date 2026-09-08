@@ -25,6 +25,13 @@ def test_sequential_resume_button_is_visible_only_while_paused() -> None:
     assert window.sequential_resume_button.isHidden() is False
     assert window.sequential_resume_button.isEnabled() is True
     assert window.resume_action.isEnabled() is True
+    window.apply_theme("light")
+    assert "background-color: #0F766E" in window.sequential_resume_button.styleSheet()
+    assert "color: #FFFFFF" in window.sequential_resume_button.styleSheet()
+    window.apply_theme("dark")
+    assert "background-color: #5EEAD4" in window.sequential_resume_button.styleSheet()
+    assert "color: #083B36" in window.sequential_resume_button.styleSheet()
+    window.apply_theme("system")
 
     window._set_sequential_resume_available(False)
     assert window.sequential_resume_button.isHidden() is True

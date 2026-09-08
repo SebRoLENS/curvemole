@@ -208,7 +208,7 @@ def test_paused_sequence_undo_restores_target_structure_and_resume_state(window,
     assert window.resume_action.isEnabled()
 
 
-def test_pause_manual_quick_fit_parameter_edits_and_two_resumes(window, monkeypatch):
+def test_pause_manual_quick_fit_parameter_edits_and_repeated_resumes(window, monkeypatch):
     app = QApplication.instance()
     monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: None)
@@ -294,5 +294,13 @@ def test_pause_manual_quick_fit_parameter_edits_and_two_resumes(window, monkeypa
     window.sequential_resume_button.click()
     wait()
     assert seeds[0] == (fourth.id, approved)
+    # All propagated parameters are fixed: this is a legitimate solver pause.
+    # Repair the final spectrum, then Continue should finish an empty queue.
+    assert window._sequential_pause_result.paused_curve_id == fourth.id
+    toggle_parameters()
+    window.quick_fit_action.trigger()
+    wait()
+    assert window._sequential_pause_result.paused_curve_id == fourth.id
+    window.sequential_resume_button.click()
     assert window._sequential_pause_result is None
     assert window.sequential_resume_button.isHidden()
