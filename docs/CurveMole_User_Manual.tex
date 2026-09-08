@@ -135,7 +135,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.20.0}
+\ohead{Version 0.21.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -148,7 +148,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.20.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.21.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -173,9 +173,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.20.0}
+\subtitle{Preview 0.21.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.20.0}
+\date{Updated for CurveMole 0.21.0}
 
 \begin{document}
 \maketitle
@@ -188,12 +188,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.20.0 Preview. The Markdown file is the authoritative source.
+CurveMole 0.21.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.20.0 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.21.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -255,8 +255,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.20.0
-describes CurveMole 0.20.0.
+an independent document version. For example, a manual marked 0.21.0
+describes CurveMole 0.21.0.
 
 The release automation performs four checks:
 
@@ -496,8 +496,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.20.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.20.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.21.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.21.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -505,7 +505,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.20.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.21.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -535,7 +535,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.20.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.21.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -543,7 +543,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{20}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{21}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -560,7 +560,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.20.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.21.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -571,7 +571,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{20}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{21}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -900,8 +900,8 @@ residual plot. Controls above it provide:
 \item
   \textbf{Display:} Single, Overlay, or Waterfall;
 \item
-  \textbf{All series / Active series:} one-click scope for Overlay and
-  Waterfall;
+  \textbf{All series / Active series / Selected:} one-click scope for
+  Overlay and Waterfall;
 \item
   \textbf{X offset} and \textbf{Y offset:} display-only Waterfall
   spacing;
@@ -1183,7 +1183,7 @@ Optional columns are:
 Only one of \texttt{sigma\_y}, generic weight, variance, or inverse
 variance can be selected for a given import. Variance is converted to
 \texttt{sigma\_y} by square root. \texttt{sigma\_x} is stored in the
-project but is not used by the version 0.20.0 optimizer.
+project but is not used by the version 0.21.0 optimizer.
 
 \hypertarget{batch-import}{%
 \section{6.4 Batch import}\label{batch-import}}
@@ -2102,7 +2102,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.20.0 does not yet provide a single comprehensive on-screen
+Preview 0.21.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -2233,7 +2233,7 @@ chi-square with the baseline. The default grid spans approximately three
 covariance standard errors on either side, or a fallback span when no
 standard error is available, while respecting bounds.
 
-Preview 0.20.0 uses 31 grid points and a one-parameter chi-square
+Preview 0.21.0 uses 31 grid points and a one-parameter chi-square
 threshold. Failed grid points are counted. A profile interval is more
 informative than a symmetric standard error near bounds or in nonlinear
 problems, but grid resolution should be considered when interpreting
@@ -2320,11 +2320,24 @@ system's CurveMole user cache. An unchanged revision does not create
 another recovery. The three newest valid, distinct recovery files for a
 project are retained.
 
-Recovery files end in \texttt{.fitproj} and can be opened through the
-normal Open Project dialog if needed. Saving the project normally clears
-its recovery files. Preview 0.20.0 does not yet show an automatic
-recovery chooser at startup, so after an abnormal termination inspect
-the CurveMole user cache before clearing application data.
+Only after a crash or abnormal exit, CurveMole offers
+\textbf{Recoverable sessions} at startup. Normal launches do not prompt,
+even when older deferred copies exist. The same list is available from
+\textbf{File \textgreater{} Recoverable sessions}. Sessions are grouped
+by project name with their recovery date and copy count.
+\textbf{Recover} opens the newest valid copy by default; an older
+retained copy can also be selected. The recovered workspace is unsaved
+and does not overwrite the original project.
+
+\textbf{Decide later} retains the copies. \textbf{Delete recovery
+copies} removes all backups for the selected session after confirmation.
+Saving a project normally or explicitly choosing \textbf{Discard} when
+closing or switching projects removes its recovery copies. Cancelling a
+dialog or a failed save preserves them. Other projects' copies remain.
+
+\textbf{File \textgreater{} Recent projects} lists up to ten
+successfully opened or saved projects; choose an entry to reopen it, or
+clear the list from that menu.
 
 \hypertarget{unsaved-changes}{%
 \section{13.6 Unsaved changes}\label{unsaved-changes}}
@@ -3247,6 +3260,11 @@ export ownership rules. The notebook can be viewed and exported from a
 read-only project. Editing is unavailable while a background task runs;
 a paused sequence allows editing normally.
 
+Series headers are bold and blue, with colors adapted to light and dark
+themes. A note icon beside a series, spectrum, or fit function opens its
+description directly. Clearing the description removes its icon and
+notebook entry.
+
 \hypertarget{local-processing-and-privacy}{%
 \section{20.2 Local processing and
 privacy}\label{local-processing-and-privacy}}
@@ -3271,8 +3289,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.20.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.20.0
+(Version 0.21.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.21.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -3485,9 +3503,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.20.0-limitations}{%
-\chapter{Appendix D. Preview 0.20.0
-limitations}\label{appendix-d.-preview-0.20.0-limitations}}
+\hypertarget{appendix-d.-preview-0.21.0-limitations}{%
+\chapter{Appendix D. Preview 0.21.0
+limitations}\label{appendix-d.-preview-0.21.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 
@@ -3509,9 +3527,6 @@ The following boundaries are important when evaluating this release:
 \item
   the GUI does not yet provide one consolidated table for every fit
   statistic;
-\item
-  autosave recovery exists, but there is no automatic startup recovery
-  chooser;
 \item
   Windows and macOS packages may be unsigned; Linux release provenance
   is available through GitHub artifact attestation;
