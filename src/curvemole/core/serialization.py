@@ -21,6 +21,7 @@ import numpy as np
 from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series, Transformation
 from curvemole.core.errors import ProjectFormatError
 from curvemole.core.models import Model
+from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.project import Project
 from curvemole.version import FITMODEL_SCHEMA_VERSION, PROJECT_SCHEMA_VERSION, __version__
 
@@ -218,6 +219,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 custom_functions=list(metadata.get("custom_functions", [])),
                 ui_state=dict(metadata.get("ui_state", {})),
                 export_config=dict(metadata.get("export_config", {})),
+                notebook=LaboratoryNotebook.from_dict(metadata.get("notebook", {})),
                 created_at=str(metadata.get("created_at", datetime.now(UTC).isoformat())),
                 modified_at=str(metadata.get("modified_at", datetime.now(UTC).isoformat())),
                 application_version=str(metadata.get("application_version", "unknown")),

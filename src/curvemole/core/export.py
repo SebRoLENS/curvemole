@@ -36,6 +36,7 @@ from curvemole.core.errors import CurveMoleError
 from curvemole.core.fitting import FitResult
 from curvemole.core.functions import formula_definition
 from curvemole.core.models import Model
+from curvemole.core.notebook import export_notebook
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.serialization import save_fitmodel, save_project
@@ -74,6 +75,7 @@ class BundleExportSelection:
     uncertainty: bool = False
     diagnostics: bool = False
     readme: bool = False
+    laboratory_notebook: bool = False
 
     def any_selected(self) -> bool:
         return any(self.to_dict().values())
@@ -94,6 +96,7 @@ class BundleExportSelection:
             "uncertainty": self.uncertainty,
             "diagnostics": self.diagnostics,
             "readme": self.readme,
+            "laboratory_notebook": self.laboratory_notebook,
         }
 
 
@@ -605,6 +608,9 @@ def export_bundle(
                 }
             ).to_csv(diagnostics_path, index=False)
 
+    if selection.laboratory_notebook:
+        export_notebook(project, root / "laboratory_notebook.txt")
+
     if selection.readme:
         (root / "README.txt").write_text(
             "CurveMole selected analysis export\n\n"
@@ -674,6 +680,8 @@ def _bundle_paths(
         )
     if selection.readme:
         paths.append("README.txt")
+    if selection.laboratory_notebook:
+        paths.append("laboratory_notebook.txt")
     return paths
 
 

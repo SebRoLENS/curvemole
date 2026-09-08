@@ -4,7 +4,20 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Laboratory notebook at the end of the toolbar: project notes and editable
+  descriptions grouped by series, spectrum, and fit function. Descriptions remain
+  available and marked as deleted when their original objects are removed.
+- Add description in series, spectrum, and function context menus; notebook data
+  is saved in .fitproj projects and exported directly or through Export analysis as TXT.
+- One-click All series / Active series controls beside Display for Overlay and
+  Waterfall, shared by rendering, masks, view ranges, and placement offsets.
+
 ### Fixed
+
+- Remove selected now resolves spectra by ID instead of comparing NumPy arrays,
+  so spectra with identical names can be removed and restored with Undo/Redo.
 
 - Scale live fit progress to the configured evaluation budget, excluding numerical
   Jacobian probes; reach 100% at the exact limit, including non-multiples of 20.

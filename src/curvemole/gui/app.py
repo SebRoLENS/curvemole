@@ -146,10 +146,7 @@ def _render_lightweight_mask_boundaries(workspace: PlotWorkspace) -> None:
         return
 
     mode = workspace.display_mode.currentText()
-    if mode == workspace.tr("Single"):
-        curves = [project.dataset.curve(workspace._active_curve_id)] if workspace._active_curve_id else []
-    else:
-        curves = [curve for curve in project.curves if curve.visible]
+    curves = workspace.displayed_curves()
     x_step = workspace.x_offset.value() if mode == workspace.tr("Waterfall") else 0.0
     pen = pg.mkPen(105, 105, 105, 155, width=1.0, style=Qt.PenStyle.DashLine)
     positions_seen: set[float] = set()

@@ -60,6 +60,11 @@ gh attestation verify CurveMole-VERSION-linux-x86_64.AppImage \
 
 ## Why CurveMole?
 
+Keep experimental notes in the **Laboratory notebook**: project notes plus
+descriptions of series, individual spectra, and fit functions. Descriptions survive
+deletion with a clear status, are saved in the project, and can be exported as TXT.
+Overlay and Waterfall also offer one-click **All series / Active series** controls.
+
 CurveMole is designed for experimental scientists who want the convenience of an
 interactive desktop GUI without giving up reproducibility or scriptability. A fit can
 be explored graphically and then reproduced through the Python API, CLI, or YAML
