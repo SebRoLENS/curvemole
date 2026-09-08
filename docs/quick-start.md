@@ -109,7 +109,8 @@ Undo/Redo also restore fits; the latest 20 operations are retained.
 When a sequential fit pauses, you can edit the model, lock/unlock parameters,
 or run a manual fit. **Quick Fit** repairs only the active spectrum using
 independent fitting while the sequential queue stays suspended. The prominent
-teal **Continue sequential fit** button stays visible. Press it when ready:
+**Continue sequential fit** button stays visible (teal in light mode, bright mint
+in dark mode). Press it when ready:
 the active, corrected spectrum becomes the source for the remaining spectra;
 the saved sequential monitoring and propagation settings are retained.
 

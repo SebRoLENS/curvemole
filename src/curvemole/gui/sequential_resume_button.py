@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtGui import QPalette
+from PySide6.QtWidgets import QApplication, QPushButton
 
 from curvemole.gui.main_window import MainWindow
 
@@ -19,6 +20,31 @@ def install_sequential_resume_button() -> None:
     original_refresh = MainWindow.refresh_all
     original_done = MainWindow._task_done
     original_background = MainWindow._run_background
+    original_theme = MainWindow.apply_theme
+
+    def style_button(window: MainWindow) -> None:
+        button = getattr(window, "sequential_resume_button", None)
+        if button is None:
+            return
+        dark = QApplication.palette().color(QPalette.ColorRole.Button).lightness() < 128
+        background, foreground, border, hover, pressed = (
+            ("#5EEAD4", "#083B36", "#B5FFF1", "#99F6E4", "#2DD4BF") if dark else
+            ("#0F766E", "#FFFFFF", "#0B5F59", "#115E59", "#134E4A")
+        )
+        disabled_bg, disabled_fg = ("#475569", "#CBD5E1") if dark else ("#E2E8F0", "#64748B")
+        button.setStyleSheet(
+            "QPushButton#sequential_resume_button {"
+            f"background-color: {background}; color: {foreground}; border: 2px solid {border};"
+            "border-radius: 7px; padding: 6px 18px; font-weight: bold; }"
+            f"QPushButton#sequential_resume_button:hover {{ background-color: {hover}; }}"
+            f"QPushButton#sequential_resume_button:pressed {{ background-color: {pressed}; }}"
+            "QPushButton#sequential_resume_button:disabled {"
+            f"background-color: {disabled_bg}; color: {disabled_fg}; border-color: {disabled_fg}; }}"
+        )
+
+    def theme(window: MainWindow, selected: str) -> None:
+        original_theme(window, selected)
+        style_button(window)
 
     def set_resume_available(window: MainWindow, available: bool) -> None:
         enabled = available and window._thread is None
@@ -39,15 +65,6 @@ def install_sequential_resume_button() -> None:
         button = QPushButton("▶  " + window.tr("Continue sequential fit"), window)
         button.setObjectName("sequential_resume_button")
         button.setMinimumHeight(38)
-        button.setStyleSheet(
-            "QPushButton#sequential_resume_button {"
-            "background-color: #0F766E; color: #FFFFFF; border: 2px solid #5EEAD4;"
-            "border-radius: 7px; padding: 6px 18px; font-weight: bold; }"
-            "QPushButton#sequential_resume_button:hover { background-color: #115E59; }"
-            "QPushButton#sequential_resume_button:pressed { background-color: #134E4A; }"
-            "QPushButton#sequential_resume_button:disabled {"
-            "background-color: #475569; color: #CBD5E1; border-color: #64748B; }"
-        )
         button.setToolTip(
             window.tr(
                 "Continue the paused sequential refinement using the current spectrum as the new source."
@@ -57,6 +74,7 @@ def install_sequential_resume_button() -> None:
         button.setEnabled(False)
         button.clicked.connect(window.resume_sequence)
         window.sequential_resume_button = button
+        style_button(window)
         window.statusBar().addPermanentWidget(button)
         sync(window)
 
@@ -86,6 +104,7 @@ def install_sequential_resume_button() -> None:
     MainWindow.refresh_all = refresh
     MainWindow._task_done = done
     MainWindow._run_background = background
+    MainWindow.apply_theme = theme
     MainWindow._set_sequential_resume_available = set_resume_available
     MainWindow._curvemole_visible_sequential_resume = True
 
