@@ -169,6 +169,36 @@ def render_screenshots() -> None:
     _settle(app)
     _save_window(window, app, "dark-mode-fit.png")
 
+    from PySide6.QtWidgets import QTreeWidgetItemIterator
+
+    from curvemole.gui.notebook import LaboratoryNotebookDialog
+
+    series = project.dataset.series[0]
+    curve = series.curves[0]
+    project.notebook.notes = "Temperature: 295 K\nCheck the residuals before interpreting peak shifts."
+    project.notebook.set_description(project, "series", series.id, "Reference sample measured under identical acquisition conditions.")
+    project.notebook.set_description(project, "spectrum", curve.id, "Reference spectrum. Inspect the baseline and compare with the later measurements.")
+    component = project.model_for(curve.id).components[0]
+    project.notebook.set_description(project, "function", component.id, "Background contribution retained in the model during fitting.", curve.id)
+    for entry in project.notebook.descriptions.values():
+        entry.updated_at = "2026-01-15T10:30:00+00:00"
+    for theme in ("light", "dark"):
+        window.apply_theme(theme)
+        notebook = LaboratoryNotebookDialog(project, window)
+        notebook.tabs.setCurrentIndex(1)
+        iterator = QTreeWidgetItemIterator(notebook.tree)
+        while iterator.value():
+            key = iterator.value().data(0, Qt.ItemDataRole.UserRole)
+            if key and key.startswith("spectrum:"):
+                notebook.tree.setCurrentItem(iterator.value())
+                break
+            iterator += 1
+        notebook.show()
+        _settle(app)
+        if not notebook.grab().save(str(OUTPUT_DIR / f"laboratory-notebook-{theme}.png"), "PNG"):
+            raise RuntimeError("Could not save laboratory notebook screenshot")
+        notebook.close()
+
     project.dirty = False
     window.close()
     _settle(app, 2)

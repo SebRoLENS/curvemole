@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QToolBar, QTreeWidgetItemIterator
 
 from curvemole import Component, Curve, Project, Series
