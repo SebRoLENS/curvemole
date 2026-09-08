@@ -185,6 +185,7 @@ class CallbackCommand(QUndoCommand):
 
 
 class CurveTree(QTreeWidget):
+    noteRequested = Signal(object)
     activeCurveChanged = Signal(object)
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
@@ -213,6 +214,9 @@ class CurveTree(QTreeWidget):
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
         self.setEditTriggers(self.EditTrigger.DoubleClicked | self.EditTrigger.EditKeyPressed)
+        from curvemole.gui.note_indicators import NoteIndicatorDelegate
+
+        self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
         self._project = project
@@ -220,12 +224,21 @@ class CurveTree(QTreeWidget):
         self.clear()
         active_item: QTreeWidgetItem | None = None
         for series in project.dataset.series:
+            from curvemole.gui.note_indicators import attach_note
+
             parent = QTreeWidgetItem(["", series.name, ""])
+            font = parent.font(1)
+            font.setBold(True)
+            parent.setFont(1, font)
+            dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
+            parent.setForeground(1, QColor("#66B5FF" if dark else "#075B9A"))
+            attach_note(parent, project, "series", series.id, column=1)
             parent.setData(1, Qt.ItemDataRole.UserRole, ("series", series.id))
             parent.setFlags(parent.flags() | Qt.ItemFlag.ItemIsEditable)
             self.addTopLevelItem(parent)
             for curve in series.curves:
                 child = QTreeWidgetItem(["", curve.name, curve.state.value])
+                attach_note(child, project, "spectrum", curve.id, column=1)
                 child.setData(1, Qt.ItemDataRole.UserRole, ("curve", curve.id))
                 child.setFlags(
                     child.flags()
@@ -553,6 +566,8 @@ class MainWindow(QMainWindow):
         self.notebook_action.triggered.connect(self.open_notebook)
         self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
         self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
+        self.recent_projects_menu = QMenu(self.tr("Recent projects"), self)
+        self.recent_projects_menu.aboutToShow.connect(self._refresh_recent_projects)
         self.quit_action = QAction(self.tr("Quit"), self)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
@@ -675,6 +690,7 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
         file_menu = menu.addMenu(self.tr("&File"))
         file_menu.addActions([self.new_action, self.open_action, self.import_action])
+        file_menu.addMenu(self.recent_projects_menu)
         file_menu.addSeparator()
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
@@ -787,7 +803,8 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.notebook_action)
 
     def _connect_signals(self) -> None:
-        self.curve_tree.activeCurveChanged.connect(self._set_active_curve)
+        self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
+        self.curve_tree.noteRequested.connect(self.open_attached_note)
         self.curve_tree.seriesActivated.connect(self._set_active_series)
         self.curve_tree.itemSelectionChanged.connect(self._selection_changed)
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
@@ -814,6 +831,7 @@ class MainWindow(QMainWindow):
         self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
         self.model_panel.descriptionRequested.connect(self.describe_function)
+        self.model_panel.noteRequested.connect(self.open_attached_note)
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
         self.plot_workspace.maskRangeRequested.connect(self.mask_range)
@@ -890,6 +908,7 @@ class MainWindow(QMainWindow):
             self._normalise_spectrum_colours()
             self.refresh_all()
             self._notify(self.tr("Project opened."))
+            self._remember_recent_project(project.path)
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
 
@@ -956,6 +975,7 @@ class MainWindow(QMainWindow):
             self._clear_recovery()
             self.setWindowTitle(self._title())
             self._notify(self.tr("Project saved."))
+            self._remember_recent_project(self.project.path)
             return True
         except Exception as exc:
             self._show_error(self.tr("Save project"), exc)
@@ -986,7 +1006,16 @@ class MainWindow(QMainWindow):
 
         dialog = LaboratoryNotebookDialog(self.project, self, editable=self._thread is None)
         dialog.exec()
-        self.setWindowTitle(self._title())
+        self.refresh_all()
+
+    def open_attached_note(self, reference) -> None:
+        kind, object_id, curve_id = reference
+        if kind == "series":
+            self.describe_series(object_id)
+        elif kind == "spectrum":
+            self.describe_spectrum(object_id)
+        elif kind == "function":
+            self.describe_function(curve_id, object_id)
 
     def describe_series(self, series_id: str) -> None:
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)
@@ -1020,7 +1049,7 @@ class MainWindow(QMainWindow):
         dialog = DescriptionDialog(title, entry.text if entry else "", self)
         if dialog.exec() == dialog.DialogCode.Accepted:
             self.project.notebook.set_description(self.project, kind, object_id, dialog.editor.toPlainText(), curve_id)
-            self.setWindowTitle(self._title())
+            self.refresh_all()
 
     def export_analysis(self) -> None:
         remembered = self.project.export_config.get("directory")
@@ -2024,6 +2053,12 @@ class MainWindow(QMainWindow):
         self.system_theme_action.setChecked(theme == "system")
         self.light_theme_action.setChecked(theme == "light")
         self.dark_theme_action.setChecked(theme == "dark")
+        if hasattr(self, "curve_tree"):
+            colour = QColor("#66B5FF" if app.palette().color(QPalette.ColorRole.Base).lightness() < 128 else "#075B9A")
+            blocked = self.curve_tree.blockSignals(True)
+            for index in range(self.curve_tree.topLevelItemCount()):
+                self.curve_tree.topLevelItem(index).setForeground(1, colour)
+            self.curve_tree.blockSignals(blocked)
 
     def reset_layout(self) -> None:
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
@@ -2241,6 +2276,16 @@ class MainWindow(QMainWindow):
         self.selected_component_id = None
         # Keep the series header selected, including its multi-curve selection.
         self._selection_changed()
+
+    def _activate_tree_curve(self, curve_id: str | None) -> None:
+        if curve_id != self.active_curve_id:
+            self.plot_workspace.cancel_placement()
+        self.active_curve_id = curve_id
+        self.selected_component_id = None
+        self._selection_changed()
+        self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
+        self.refresh_worksheet()
+        self._refresh_diagnostics()
 
     def _set_active_curve(self, curve_id: str | None) -> None:
         if curve_id != self.active_curve_id:
@@ -2835,6 +2880,9 @@ class MainWindow(QMainWindow):
         try:
             path = self.recovery.autosave(self.project)
             if path:
+                session = getattr(self, "_recovery_session", None)
+                if session is not None:
+                    session.record(self.project.id)
                 self._log(f"Recovery saved: {path.name}")
         except Exception as exc:
             self._log(f"Autosave failed: {exc}")
@@ -2845,6 +2893,31 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             self._notify(self.tr("Could not remove recovery copies: ") + str(exc), warning=True)
 
+    def _remember_recent_project(self, path) -> None:
+        if path is None:
+            return
+        path = str(Path(path).resolve())
+        recent = self.settings.value("recent_projects", [], type=list)
+        self.settings.setValue("recent_projects", [path, *[item for item in recent if item != path]][:10])
+
+    def _refresh_recent_projects(self) -> None:
+        menu = self.recent_projects_menu
+        menu.clear()
+        recent = self.settings.value("recent_projects", [], type=list)
+        if not recent:
+            menu.addAction(self.tr("No recent projects")).setEnabled(False)
+            return
+        for saved in recent:
+            path = Path(saved)
+            action = menu.addAction(f"{path.name} — {path.parent}".replace("&", "&&"))
+            action.setToolTip(str(path))
+            action.setEnabled(path.is_file())
+            action.triggered.connect(lambda checked=False, path=path: self.open_project(path))
+        menu.addSeparator()
+        menu.addAction(self.tr("Clear recent projects")).triggered.connect(
+            lambda checked=False: self.settings.setValue("recent_projects", [])
+        )
+
     def show_recovery_sessions(self, *, startup: bool = False) -> None:
         from curvemole.gui.recovery import RecoveryDialog
 
@@ -2853,6 +2926,10 @@ class MainWindow(QMainWindow):
             return
         try:
             paths = self.recovery.candidates()
+            if startup:
+                crashed = getattr(self, "_crashed_recovery_projects", set())
+                paths = [path for path in paths if path.name.split(".recovery-", 1)[0] in crashed]
+                self._crashed_recovery_projects = set()
             if not paths:
                 if not startup:
                     self._notify(self.tr("No recoverable sessions are available."))
@@ -2957,6 +3034,12 @@ class MainWindow(QMainWindow):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("window_state", self.saveState())
         self._release_lock()
+        session = getattr(self, "_recovery_session", None)
+        if session is not None:
+            try:
+                session.finish()
+            except OSError as exc:
+                self._log(f"Recovery session cleanup failed: {exc}")
         event.accept()
 
     def _release_lock(self) -> None:

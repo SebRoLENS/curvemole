@@ -428,7 +428,7 @@ The central workspace contains the data/model plot and an optional residual plot
 Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
-- **All series / Active series:** one-click scope for Overlay and Waterfall;
+- **All series / Active series / Selected:** one-click scope for Overlay and Waterfall;
 - **X offset** and **Y offset:** display-only Waterfall spacing;
 - **Residuals:** show or hide the linked residual panel.
 
@@ -1389,7 +1389,8 @@ Every ten minutes, a modified revision is written to the operating system's Curv
 user cache. An unchanged revision does not create another recovery. The three newest
 valid, distinct recovery files for a project are retained.
 
-After an unexpected shutdown, CurveMole offers **Recoverable sessions** at startup.
+Only after a crash or abnormal exit, CurveMole offers **Recoverable sessions** at startup.
+Normal launches do not prompt, even when older deferred copies exist.
 The same list is available from **File > Recoverable sessions**. Sessions are grouped
 by project name with their recovery date and copy count. **Recover** opens the newest
 valid copy by default; an older retained copy can also be selected. The recovered
@@ -2184,3 +2185,9 @@ docs/CurveMole_User_Manual.pdf
 GitHub Actions repeats this process for documentation changes and releases. Release
 assets use versioned filenames and include both LaTeX and PDF editions. Do not edit
 the generated files directly; changes will be replaced by the next automated build.
+
+Series headers are bold and blue, with colors adapted to light and dark themes.
+A note icon beside a series, spectrum, or fit function opens its description
+directly. Clearing the description removes its icon and notebook entry.
+**File > Recent projects** lists up to ten successfully opened or saved projects;
+choose an entry to reopen it, or clear the list from that menu.

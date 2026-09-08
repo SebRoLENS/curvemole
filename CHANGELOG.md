@@ -7,12 +7,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Fixed
 
 - Keep three autosave copies per project and remove them on Save or explicit Discard.
-- Offer grouped recoverable sessions at desktop startup and from the File menu,
+- Offer grouped recoverable sessions only after abnormal exits or from the File menu,
   with Recover, Decide later, and Delete recovery copies controls.
 - Track autosave revisions per project identity, retain distinct same-second
   copies, and preserve recovery when an Open or Save dialog is cancelled.
 
 ### Added
+
+- Selected display scope with stable Shift-click ranges and Ctrl-click selections.
+- Theme-aware colored series headers and clickable description icons; empty notes are removed.
+- File > Recent projects, with up to ten recent files and a clear-list action.
 
 - Laboratory notebook at the end of the toolbar: project notes and editable
   descriptions grouped by series, spectrum, and fit function. Descriptions remain

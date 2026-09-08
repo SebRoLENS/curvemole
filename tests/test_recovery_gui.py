@@ -88,6 +88,7 @@ def test_cancel_open_does_not_discard_current_recovery(tmp_path, monkeypatch):
 
 def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
     app, window = window_with_recoveries(tmp_path)
+    window._crashed_recovery_projects = {window.project.id}
     window.project = Project()
     window.refresh_all()
     seen = []
@@ -117,3 +118,39 @@ def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
     assert not window.recovery.candidates()
     window.close()
     app.processEvents()
+
+
+def test_recovery_session_only_reports_abnormal_exit(tmp_path):
+    from curvemole.gui.recovery_session import RecoverySession
+
+    live = RecoverySession(tmp_path)
+    live.record("live")
+    other = RecoverySession(tmp_path)
+    assert not other.crashed_projects
+    other.finish()
+    # Simulate process death: release its OS lock but leave the session marker.
+    live.lock.unlock()
+    after_crash = RecoverySession(tmp_path)
+    assert after_crash.crashed_projects == {"live"}
+    after_crash.finish()
+    clean_start = RecoverySession(tmp_path)
+    assert not clean_start.crashed_projects
+    clean_start.finish()
+
+
+def test_recent_projects_are_deduplicated_and_open_from_menu(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    app, window = window_with_recoveries(tmp_path)
+    window.settings = QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat)
+    path = tmp_path / "saved.fitproj"
+    window.project.path = path
+    assert window.save_project()
+    window._remember_recent_project(path)
+    assert window.settings.value("recent_projects", [], type=list) == [str(path.resolve())]
+    window.new_project()
+    window._refresh_recent_projects()
+    window.recent_projects_menu.actions()[0].trigger()
+    assert window.project.path == path
+    window.project.dirty = False
+    window.close()

@@ -128,3 +128,40 @@ def test_notebook_deleted_descriptions_edit_export_and_read_only(tmp_path, monke
     assert export_dialog.selection().any_selected()
     assert export_dialog.selection().laboratory_notebook
     export_dialog.close()
+
+
+def test_click_note_icon_and_remove_empty_description():
+    from PySide6.QtTest import QTest
+    from curvemole.gui.note_indicators import NOTE_ROLE
+
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    series = Series("Series", [Curve("A", [0., 1.], [0., 1.])])
+    project.add_series(series)
+    project.notebook.set_description(project, "series", series.id, "Open this note")
+    window = CurveMoleMainWindow(project)
+    window.show()
+    app.processEvents()
+    tree = window.curve_tree
+    item = tree.topLevelItem(0)
+    assert item.font(1).bold()
+    index = tree.indexFromItem(item, 1)
+    rect = tree.itemDelegate().note_rect(index)
+    assert rect.isValid()
+    seen = []
+
+    def edit():
+        dialog = app.activeModalWidget()
+        if isinstance(dialog, DescriptionDialog):
+            seen.append(dialog.editor.toPlainText())
+            dialog.editor.setPlainText("   ")
+            dialog.accept()
+
+    QTimer.singleShot(0, edit)
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
+    assert seen == ["Open this note"]
+    assert not project.notebook.descriptions
+    assert not tree.topLevelItem(0).data(1, NOTE_ROLE)
+    assert "Empty description" not in project.notebook.as_text(project)
+    project.dirty = False
+    window.close()

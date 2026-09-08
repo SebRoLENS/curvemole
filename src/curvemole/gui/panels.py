@@ -39,6 +39,7 @@ from curvemole.core.registry import FunctionRegistry
 
 
 class ModelPanel(QWidget):
+    noteRequested = Signal(object)
     componentSelected = Signal(str)
     addRequested = Signal()
     duplicateRequested = Signal(str)

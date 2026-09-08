@@ -437,6 +437,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     if os.environ.get("CURVEMOLE_SMOKE_TEST") != "1":
         from PySide6.QtCore import QTimer
 
+        from curvemole.gui.recovery_session import RecoverySession
+
+        try:
+            window._recovery_session = RecoverySession(window.recovery.directory)
+            window._crashed_recovery_projects = window._recovery_session.crashed_projects
+        except OSError as exc:
+            window._log(f"Recovery session tracking failed: {exc}")
         QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
     return app.exec()
 
