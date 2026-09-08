@@ -79,6 +79,14 @@ class ImportMappingDialog(QDialog):
         title = QLabel(f"<b>{self.path.name}</b>")
         layout.addWidget(title)
 
+        series_row = QFormLayout()
+        self.series_name = QLineEdit(self.tr("Series 1"))
+        self.series_name.setObjectName("import_series_name")
+        self.series_name.setToolTip(self.tr("Name of the series containing all files in this import."))
+        self.existing_series_names: set[str] = set()
+        series_row.addRow(self.tr("Series name:"), self.series_name)
+        layout.addLayout(series_row)
+
         settings = QGroupBox(self.tr("Parsing"))
         settings_layout = QHBoxLayout(settings)
         settings_layout.addWidget(QLabel(self.tr("Delimiter:")))
@@ -230,6 +238,15 @@ class ImportMappingDialog(QDialog):
             combo.setCurrentIndex(max(0, selected))
 
     def _accept(self) -> None:
+        name = self.series_name.text().strip()
+        if not name or name in self.existing_series_names:
+            QMessageBox.warning(
+                self, self.tr("Series name"),
+                self.tr("Enter a non-empty series name that is not already in use."),
+            )
+            self.series_name.setFocus()
+            return
+        self.series_name.setText(name)
         try:
             self.mapping().validate()
         except Exception as exc:
