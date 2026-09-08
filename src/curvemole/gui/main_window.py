@@ -181,6 +181,7 @@ class CurveTree(QTreeWidget):
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
+        self.setEditTriggers(self.EditTrigger.DoubleClicked | self.EditTrigger.EditKeyPressed)
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
         self._project = project
@@ -298,6 +299,8 @@ class CurveTree(QTreeWidget):
             )
         elif metadata[0] == "series":
             series_id = str(metadata[1])
+            rename_action = menu.addAction(self.tr("Rename series…"))
+            rename_action.triggered.connect(lambda checked=False: self.editItem(item, 1))
             merge_menu = menu.addMenu(self.tr("Merge series into"))
             targets = [series for series in project.dataset.series if series.id != series_id]
             merge_menu.setEnabled(bool(targets))
@@ -841,7 +844,7 @@ class MainWindow(QMainWindow):
             )
         if not paths:
             return
-        series = Series(self.tr("Imported series"))
+        series = Series(self._next_series_name())
         series.metadata["palette"] = DEFAULT_SERIES_PALETTE
         shared_mapping = None
         shared_config = None
@@ -850,8 +853,11 @@ class MainWindow(QMainWindow):
             for index, path in enumerate(paths):
                 if index == 0 or not apply_all:
                     dialog = ImportMappingDialog(path, batch_size=len(paths), parent=self)
+                    dialog.series_name.setText(series.name)
+                    dialog.existing_series_names = {item.name for item in self.project.dataset.series}
                     if dialog.exec() != dialog.DialogCode.Accepted:
                         return
+                    series.name = dialog.series_name.text().strip()
                     shared_mapping = dialog.mapping()
                     shared_config = dialog.config()
                     apply_all = dialog.apply_all.isChecked()
@@ -2302,10 +2308,17 @@ class MainWindow(QMainWindow):
             )
         )
 
+    def _next_series_name(self) -> str:
+        number = len(self.project.dataset.series) + 1
+        names = {series.name for series in self.project.dataset.series}
+        while self.tr("Series ") + str(number) in names:
+            number += 1
+        return self.tr("Series ") + str(number)
+
     def create_series(self) -> None:
         if not self._ensure_editable():
             return
-        default_name = self.tr("Series ") + str(len(self.project.dataset.series) + 1)
+        default_name = self._next_series_name()
         name, accepted = QInputDialog.getText(
             self, self.tr("New series"), self.tr("Series name:"), text=default_name
         )
@@ -2434,6 +2447,9 @@ class MainWindow(QMainWindow):
         )
 
     def _rename_series(self, series_id: str, name: str) -> None:
+        if not self._ensure_editable():
+            self.refresh_all()
+            return
         name = name.strip()
         series = next(
             (item for item in self.project.dataset.series if item.id == series_id), None

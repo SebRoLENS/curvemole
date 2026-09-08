@@ -12,6 +12,10 @@ leaves the current view unchanged.
 
 Press the **Import data** toolbar button (or choose **File → Import Data**) and
 select one or many text-based numeric files.
+The import dialog includes **Series name**: it proposes **Series 1**, **Series 2**,
+and so on, and you can replace it with your own name. All files selected in the
+same import belong to that series. Later, double-click its name in **Series /
+Curve**, or right-click it and choose **Rename series…**.
 Common `.txt`, `.dat`, `.csv`, and `.tsv` extensions are shown directly; use
 **All files** for formats such as `.xy`. CurveMole validates the contents rather
 than relying on the suffix. Confirm the automatically detected delimiter, decimal

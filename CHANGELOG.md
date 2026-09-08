@@ -4,6 +4,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Name the destination series in the import dialog, with numbered defaults shared
+  with New series. Rename existing series by double-click, F2, or the context menu.
+
 ### Changed
 
 - Adapt vector toolbar icons to the active palette, with brighter outlines and
