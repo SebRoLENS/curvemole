@@ -6,6 +6,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
+- Keep a paused sequential queue available across manual Quick Fit and model edits;
+  resume from the current corrected spectrum using the saved sequence settings.
+- Keep Continue sequential fit visible throughout the pause, with a prominent
+  teal button and correct enabled state after background work and Undo/Redo.
+
 - Open an explicit, prefilled name dialog from Rename series instead of starting
   an inline editor while the context menu still owns focus.
 

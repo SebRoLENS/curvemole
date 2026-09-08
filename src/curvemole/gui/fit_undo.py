@@ -27,6 +27,7 @@ def _capture(window):
         "resume_plan": copy.deepcopy(getattr(window, "_sequential_resume_plan", None)),
         "paused": getattr(window, "_paused_result", None),
         "sequence_pause": getattr(window, "_sequential_pause_result", None),
+        "pause_source_ids": getattr(window, "_sequential_pause_source_ids", ()),
     }
 
 
@@ -58,6 +59,7 @@ def _restore(window, state):
     window._sequential_resume_plan = copy.deepcopy(state["resume_plan"])
     window._paused_result = state["paused"]
     window._sequential_pause_result = state["sequence_pause"]
+    window._sequential_pause_source_ids = state["pause_source_ids"]
     window.resume_action.setEnabled(bool(state["paused"] or state["sequence_pause"]))
     window.project.touch()
     window.refresh_all()

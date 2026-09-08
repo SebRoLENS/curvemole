@@ -106,6 +106,13 @@ Undo/Redo also restore fits; the latest 20 operations are retained.
 
 ## 6. Fit
 
+When a sequential fit pauses, you can edit the model, lock/unlock parameters,
+or run a manual fit. **Quick Fit** repairs only the active spectrum using
+independent fitting while the sequential queue stays suspended. The prominent
+teal **Continue sequential fit** button stays visible. Press it when ready:
+the active, corrected spectrum becomes the source for the remaining spectra;
+the saved sequential monitoring and propagation settings are retained.
+
 With the spline actually subtracted, confirm that it is disabled and that only the
 new peak functions contribute to the model. Press **F5**, select the active curve,
 choose **Single / independent**, and start the fit. During optimization CurveMole
