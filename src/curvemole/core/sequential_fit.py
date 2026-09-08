@@ -31,9 +31,6 @@ from curvemole.core.parameters import Parameter, resolve_parameter_values
 class SequentialFitPlan(FitPlan):
     """Fit plan carrying monitoring and propagation preferences for sequential fits."""
 
-    progress_completed: int = 0
-    progress_total: int | None = None
-
     monitor_residuals: bool = True
     residual_ratio_limit: float = 2.5
     residual_nrmse_delta: float = 0.02
@@ -50,6 +47,8 @@ class SequentialFitPlan(FitPlan):
     # Stable source identities also prevent target-local functions from being
     # propagated at later steps or after a pause/resume.
     copied_component_ids: tuple[str, ...] | None = None
+    progress_completed: int = 0
+    progress_total: int | None = None
 
     def validate(self) -> None:
         FitPlan.validate(self)

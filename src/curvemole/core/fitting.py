@@ -269,6 +269,7 @@ class _Problem:
         self._data: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]] = {}
         self.evaluations = 0
         self._last_progress = 0.0
+        self._jacobian_base: tuple[np.ndarray, np.ndarray] | None = None
 
         for curve in self.curves:
             if curve.id not in models:
@@ -332,15 +333,20 @@ class _Problem:
             maximum = max(1, self.plan.settings.max_nfev)
             self.progress(min(self.evaluations / maximum, 1.0), f"Evaluation {self.evaluations}")
             self._last_progress = now
-        return np.concatenate(residuals)
+        residual = np.concatenate(residuals)
+        if report:
+            self._jacobian_base = (vector.copy(), residual)
+        return residual
 
     def jacobian(self, vector: np.ndarray) -> np.ndarray:
         # Keep numerical-difference probes out of the solver's nfev budget.
         # Use SciPy's bound-aware two-point routine, as least_squares does.
+        base = self._jacobian_base
+        f0 = base[1] if base is not None and np.array_equal(base[0], vector) else None
         try:
             return approx_derivative(
                 lambda point: self.residual(point, report=False),
-                vector, method="2-point", bounds=self.bounds,
+                vector, method="2-point", bounds=self.bounds, f0=f0,
             )
         finally:
             self.values(vector)
