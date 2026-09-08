@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication, QFileDialog, QMenu
+from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
 from curvemole import Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -44,6 +44,9 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
         path.write_text("x y\n0 1\n1 2\n2 3\n", encoding="utf-8")
         paths.append(str(path))
     window = CurveMoleMainWindow(Project())
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    monkeypatch.setattr(window, "_show_error", lambda title, exc: pytest.fail(f"{title}: {exc}"))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: pytest.fail(str(args)))
     proposed = []
 
     def accept(dialog):

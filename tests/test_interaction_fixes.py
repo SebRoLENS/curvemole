@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pytest
 
@@ -7,11 +9,46 @@ pytest.importorskip("pyqtgraph", exc_type=ImportError)
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
-from curvemole import Component, Curve, Project
+from curvemole import Component, Curve, Fitter, Project
 from curvemole.core.fitting import FitMode, FitPlan
 from curvemole.core.sequential_fit import SequentialFitPlan
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.main_window import CallbackCommand
+
+
+def test_abort_bootstrap_waits_for_worker_exit_and_preserves_fit(window, monkeypatch):
+    app = QApplication.instance()
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    plan = FitPlan([window.active_curve_id])
+    baseline = Fitter(window.registry).fit(plan, window.project.curves, window.project.models)
+    window.last_fit_plan = plan
+    window.project.results["last_fit"] = baseline
+    errors = []
+    monkeypatch.setattr(window, "_show_error", lambda *args: errors.append(args))
+    for _ in range(3):
+        window.start_uncertainty("residual_bootstrap", 10000, None)
+        thread = window._thread
+        token = window._cancellation
+        # A second launch must not replace the running task's cancellation token.
+        window.start_uncertainty("residual_bootstrap", 10, None)
+        assert window._thread is thread
+        assert window._cancellation is token
+        window._worker.progress.connect(lambda *_: window.cancel_action.trigger())
+        deadline = time.monotonic() + 10
+        while window._thread is not None and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.001)
+        if window._thread is not None:
+            window.cancel_task()
+            thread.quit()
+            thread.wait(10000)
+            app.processEvents()
+            pytest.fail("Cancelled bootstrap did not stop")
+        assert window._worker is None
+        assert not window.cancel_action.isEnabled()
+        assert window.project.results["last_fit"] is baseline
+        assert "uncertainty" not in window.project.results
+    assert not errors
 
 
 @pytest.fixture

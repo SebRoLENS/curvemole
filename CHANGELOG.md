@@ -4,6 +4,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep background workers alive until their thread exits, including when Abort
+  cancels bootstrap uncertainty analysis. Retain the previous valid fit.
+
 ### Added
 
 - Name the destination series in the import dialog, with numbered defaults shared

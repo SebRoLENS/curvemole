@@ -1590,6 +1590,9 @@ class MainWindow(QMainWindow):
     def start_uncertainty(self, method: str, replicates: int, option: Any) -> None:
         if not self._ensure_editable():
             return
+        if self._thread is not None:
+            self._notify(self.tr("Another task is already running."), warning=True)
+            return
         baseline = self._last_fit_result()
         if baseline is None or self.last_fit_plan is None:
             self._notify(self.tr("Run a fit before uncertainty analysis."), warning=True)
@@ -2560,9 +2563,14 @@ class MainWindow(QMainWindow):
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._task_progress)
         self._worker.finished.connect(finished)
-        self._worker.finished.connect(self._task_done)
         self._worker.failed.connect(self._task_failed)
-        self._worker.failed.connect(self._task_done)
+        # Keep the worker and thread alive until run() has actually returned.
+        # Dropping them while a completion/cancellation signal is still being
+        # emitted can destroy a live QObject and crash the application.
+        self._worker.finished.connect(self._thread.quit, Qt.ConnectionType.DirectConnection)
+        self._worker.failed.connect(self._thread.quit, Qt.ConnectionType.DirectConnection)
+        self._thread.finished.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._task_done)
         self._thread.finished.connect(self._thread.deleteLater)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
