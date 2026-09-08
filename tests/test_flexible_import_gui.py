@@ -7,7 +7,8 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
 from curvemole import Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -44,6 +45,9 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
         path.write_text("x y\n0 1\n1 2\n2 3\n", encoding="utf-8")
         paths.append(str(path))
     window = CurveMoleMainWindow(Project())
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    monkeypatch.setattr(window, "_show_error", lambda title, exc: pytest.fail(f"{title}: {exc}"))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: pytest.fail(str(args)))
     proposed = []
 
     def accept(dialog):
@@ -54,13 +58,35 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
         return dialog.result()
 
     monkeypatch.setattr(ImportMappingDialog, "exec", accept)
-    window.import_data(paths)
+    monkeypatch.setattr(QFileDialog, "getOpenFileNames", lambda *args, **kwargs: (paths, ""))
+    window.import_action.trigger()
     assert proposed == (["Series 1"] if apply_all else ["Series 1", "Raman"])
     series = window.project.dataset.series[0]
     assert series.name == "Raman"
     assert len(series.curves) == 2
     assert window._next_series_name() == "Series 2"
-    window._rename_series(series.id, "Pressure scan")
+    tree = window.curve_tree
+    window.show()
+    app.processEvents()
+    item = tree.topLevelItem(0)
+    edited = []
+    monkeypatch.setattr(tree, "editItem", lambda target, column: edited.append((target, column)))
+
+    def choose_rename():
+        menu = app.activePopupWidget()
+        if isinstance(menu, QMenu):
+            try:
+                for action in menu.actions():
+                    if action.text() == "Rename series…":
+                        action.trigger()
+                        break
+            finally:
+                menu.close()
+
+    QTimer.singleShot(0, choose_rename)
+    tree._show_context_menu(tree.visualItemRect(item).center())
+    assert edited == [(item, 1)]
+    item.setText(1, "Pressure scan")
     assert series.name == "Pressure scan"
     assert window.curve_tree.topLevelItem(0).text(1) == "Pressure scan"
 

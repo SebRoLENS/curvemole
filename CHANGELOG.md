@@ -4,6 +4,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep background workers alive until their thread exits, including when Abort
+  cancels bootstrap uncertainty analysis. Retain the previous valid fit.
+- Dispatch background progress, results, errors and cleanup through GUI-thread
+  Qt slots, preventing crashes from wrapped callbacks updating widgets off-thread.
+
 ### Added
 
 - Name the destination series in the import dialog, with numbered defaults shared
