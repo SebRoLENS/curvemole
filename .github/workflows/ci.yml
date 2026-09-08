@@ -39,7 +39,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run pytest --cov=curvemole --cov-report=term-missing
+        run: uv run pytest -s --cov=curvemole --cov-report=term-missing
 
   minimum-linux:
     name: Ubuntu 22.04 GUI smoke test
