@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import faulthandler
 from pathlib import Path
 
 import pytest
@@ -8,6 +7,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
 
 from curvemole import Project
@@ -38,7 +38,6 @@ def test_import_dialog_exposes_detected_leading_rows(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("apply_all", [False, True])
 def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_all):
-    faulthandler.dump_traceback_later(20, exit=True)
     app = QApplication.instance() or QApplication([])
     paths = []
     for index in range(2):
@@ -73,11 +72,18 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
     edited = []
     monkeypatch.setattr(tree, "editItem", lambda target, column: edited.append((target, column)))
 
-    def choose_rename(menu, position):
-        action = next(action for action in menu.actions() if action.text() == "Rename series…")
-        action.trigger()
+    def choose_rename():
+        menu = app.activePopupWidget()
+        if isinstance(menu, QMenu):
+            try:
+                for action in menu.actions():
+                    if action.text() == "Rename series…":
+                        action.trigger()
+                        break
+            finally:
+                menu.close()
 
-    monkeypatch.setattr(QMenu, "exec", choose_rename)
+    QTimer.singleShot(0, choose_rename)
     tree._show_context_menu(tree.visualItemRect(item).center())
     assert edited == [(item, 1)]
     item.setText(1, "Pressure scan")
@@ -95,4 +101,3 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
     window.project.dirty = False
     window.close()
     app.processEvents()
-    faulthandler.cancel_dump_traceback_later()
