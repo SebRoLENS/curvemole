@@ -107,6 +107,7 @@ def test_fit_completion_refreshes_and_auto_ranges(monkeypatch: pytest.MonkeyPatc
 def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
     from PySide6.QtCore import QTimer
 
+    from curvemole.core.data import Series
     from curvemole.core.notebook import description_key
     from curvemole.gui.app import CurveMoleMainWindow
 
@@ -116,6 +117,8 @@ def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
     second = Curve("same", [0., 1.], [1., 0.])
     project.add_curve(first)
     project.add_curve(second)
+    destination = Series("Other series")
+    project.add_series(destination)
     project.notebook.set_description(project, "spectrum", second.id, "Keep these observations")
     window = CurveMoleMainWindow(project)
     window._set_active_curve(second.id)
@@ -133,6 +136,8 @@ def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
     assert [curve.id for curve in project.curves] == [first.id]
     entry = project.notebook.descriptions[description_key("spectrum", second.id)]
     assert entry.deleted
+    window.move_curves_to_series([first.id], destination.id)
+    window.undo_action.trigger()
     window.undo_action.trigger()
     assert [curve.id for curve in project.curves] == [first.id, second.id]
     assert not entry.deleted

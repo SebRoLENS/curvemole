@@ -2286,7 +2286,7 @@ class MainWindow(QMainWindow):
         ) != QMessageBox.StandardButton.Yes:
             return
 
-        records: list[tuple[str, Series, int, Curve, dict[str, Any] | None, bool, Any]] = []
+        records: list[tuple[str, str, int, Curve, dict[str, Any] | None, bool, Any]] = []
         for curve_id in [curve.id for curve in self.project.curves if curve.id in selected]:
             series = self.project.dataset.series_for(curve_id)
             curve = self.project.dataset.curve(curve_id)
@@ -2297,7 +2297,7 @@ class MainWindow(QMainWindow):
             model_state = model.to_dict() if model is not None else None
             had_result = curve_id in self.project.results
             result_value = copy.deepcopy(self.project.results.get(curve_id))
-            records.append((curve_id, series, index, curve, model_state, had_result, result_value))
+            records.append((curve_id, series.id, index, curve, model_state, had_result, result_value))
         active_before = self.active_curve_id
 
         def redo() -> None:
@@ -2310,9 +2310,11 @@ class MainWindow(QMainWindow):
             self.selected_component_id = None
 
         def undo() -> None:
-            for curve_id, series, index, curve, model_state, had_result, result_value in sorted(
+            for curve_id, series_id, index, curve, model_state, had_result, result_value in sorted(
                 records, key=lambda item: item[2]
             ):
+                # Series layout Undo can recreate Series objects with the same ID.
+                series = next(item for item in self.project.dataset.series if item.id == series_id)
                 if all(existing.id != curve_id for existing in series.curves):
                     series.add(curve, index)
                 if model_state is not None:

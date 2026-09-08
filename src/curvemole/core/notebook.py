@@ -104,7 +104,7 @@ class LaboratoryNotebook:
     def ordered_descriptions(self) -> list[Description]:
         return sorted(self.descriptions.values(), key=lambda entry: (
             entry.deleted, entry.series_name.casefold(), entry.curve_name.casefold(),
-            entry.kind != "series", entry.name.casefold(), entry.key,
+            {"series": 0, "spectrum": 1, "function": 2}.get(entry.kind, 3), entry.name.casefold(), entry.key,
         ))
 
     def as_text(self, project: Project) -> str:
