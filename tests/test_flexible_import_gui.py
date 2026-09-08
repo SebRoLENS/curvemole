@@ -8,7 +8,7 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMenu, QMessageBox
 
 from curvemole import Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -69,8 +69,14 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
     window.show()
     app.processEvents()
     item = tree.topLevelItem(0)
-    edited = []
-    monkeypatch.setattr(tree, "editItem", lambda target, column: edited.append((target, column)))
+    prompted = []
+
+    def finish_rename():
+        dialog = app.activeModalWidget()
+        if isinstance(dialog, QInputDialog):
+            prompted.append(dialog.textValue())
+            dialog.setTextValue("Pressure scan")
+            dialog.accept()
 
     def choose_rename():
         menu = app.activePopupWidget()
@@ -78,6 +84,7 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
             try:
                 for action in menu.actions():
                     if action.text() == "Rename series…":
+                        QTimer.singleShot(0, finish_rename)
                         action.trigger()
                         break
             finally:
@@ -85,10 +92,18 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
 
     QTimer.singleShot(0, choose_rename)
     tree._show_context_menu(tree.visualItemRect(item).center())
-    assert edited == [(item, 1)]
-    item.setText(1, "Pressure scan")
+    assert prompted == ["Raman"]
     assert series.name == "Pressure scan"
     assert window.curve_tree.topLevelItem(0).text(1) == "Pressure scan"
+    def cancel_rename():
+        dialog = app.activeModalWidget()
+        if isinstance(dialog, QInputDialog):
+            dialog.setTextValue("Discard this")
+            dialog.reject()
+
+    QTimer.singleShot(0, cancel_rename)
+    window._prompt_rename_series(series.id)
+    assert series.name == "Pressure scan"
 
     def default(dialog):
         assert dialog.series_name.text() == "Series 2"

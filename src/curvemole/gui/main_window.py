@@ -189,6 +189,7 @@ class CurveTree(QTreeWidget):
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
     seriesRenamed = Signal(str, str)
+    seriesRenameRequested = Signal(str)
     curveColourRequested = Signal(str)
     seriesPaletteRequested = Signal(str, str)
     newSeriesRequested = Signal()
@@ -327,7 +328,9 @@ class CurveTree(QTreeWidget):
         elif metadata[0] == "series":
             series_id = str(metadata[1])
             rename_action = menu.addAction(self.tr("Rename series…"))
-            rename_action.triggered.connect(lambda checked=False: self.editItem(item, 1))
+            rename_action.triggered.connect(
+                lambda checked=False, series_id=series_id: self.seriesRenameRequested.emit(series_id)
+            )
             merge_menu = menu.addMenu(self.tr("Merge series into"))
             targets = [series for series in project.dataset.series if series.id != series_id]
             merge_menu.setEnabled(bool(targets))
@@ -763,6 +766,7 @@ class MainWindow(QMainWindow):
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
         self.curve_tree.curveRenamed.connect(self._rename_curve)
         self.curve_tree.seriesRenamed.connect(self._rename_series)
+        self.curve_tree.seriesRenameRequested.connect(self._prompt_rename_series)
         self.curve_tree.curveColourRequested.connect(self.choose_curve_colour)
         self.curve_tree.seriesPaletteRequested.connect(self.apply_series_palette)
         self.curve_tree.newSeriesRequested.connect(self.create_series)
@@ -2475,6 +2479,29 @@ class MainWindow(QMainWindow):
                 lambda: self._restore_series_layout(before),
             )
         )
+
+    def _prompt_rename_series(self, series_id: str) -> None:
+        if not self._ensure_editable():
+            return
+        series = next((item for item in self.project.dataset.series if item.id == series_id), None)
+        if series is None:
+            return
+        name = series.name
+        while True:
+            name, accepted = QInputDialog.getText(
+                self, self.tr("Rename series"), self.tr("Series name:"), text=name
+            )
+            if not accepted:
+                return
+            name = name.strip()
+            if not name:
+                QMessageBox.warning(self, self.tr("Rename series"), self.tr("Series name cannot be empty."))
+                continue
+            if any(item.id != series_id and item.name == name for item in self.project.dataset.series):
+                QMessageBox.warning(self, self.tr("Rename series"), self.tr("A series with that name already exists."))
+                continue
+            self._rename_series(series_id, name)
+            return
 
     def _rename_series(self, series_id: str, name: str) -> None:
         if not self._ensure_editable():
