@@ -167,6 +167,12 @@ data, individual functions, combined background, total fit, and residuals.
 Save the complete workspace as `.fitproj`. Original values, masks, transformations,
 models, custom functions, results, and history are embedded without pickle.
 
+After an unexpected shutdown, CurveMole offers **Recoverable sessions** at startup.
+Choose **Recover** to reopen an unsaved copy, **Decide later** to keep the backups,
+or **Delete recovery copies** to discard them. The same list is available under
+**File**. Three recovery copies per project are retained; saving the project or
+explicitly choosing **Discard** removes its copies. Cancelling keeps them.
+
 ## 8. Laboratory notebook
 
 Click **Laboratory notebook**, the last toolbar button, to write general project

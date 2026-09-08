@@ -15,17 +15,21 @@ class RecoveryManager:
     directory: Path
     keep: int = 3
     _last_revision: int = -1
+    _last_project_id: str | None = None
 
     def __post_init__(self) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
 
     def autosave(self, project: Project) -> Path | None:
-        if not project.dirty or project.revision == self._last_revision:
+        if project.read_only or not project.dirty or (
+            project.id == self._last_project_id and project.revision == self._last_revision
+        ):
             return None
-        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+        stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
         destination = self.directory / f"{project.id}.recovery-{stamp}.fitproj"
         save_project(project, destination, update_project_path=False)
         self._last_revision = project.revision
+        self._last_project_id = project.id
         self._rotate(project.id)
         return destination
 
@@ -38,11 +42,16 @@ class RecoveryManager:
         project = load_project(path)
         project.dirty = True
         project.path = None
+        self._last_revision = -1
+        self._last_project_id = None
         return project
 
     def clear(self, project_id: str) -> None:
         for path in self.directory.glob(f"{project_id}.recovery-*.fitproj"):
             path.unlink(missing_ok=True)
+        if self._last_project_id == project_id:
+            self._last_revision = -1
+            self._last_project_id = None
 
     def _rotate(self, project_id: str) -> None:
         for obsolete in self.candidates(project_id)[self.keep :]:

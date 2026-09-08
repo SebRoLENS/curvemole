@@ -551,6 +551,8 @@ class MainWindow(QMainWindow):
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
         self.notebook_action.triggered.connect(self.open_notebook)
+        self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
+        self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
         self.quit_action = QAction(self.tr("Quit"), self)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
@@ -677,6 +679,7 @@ class MainWindow(QMainWindow):
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
         file_menu.addAction(self.notebook_action)
+        file_menu.addAction(self.recovery_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
 
@@ -860,8 +863,6 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def open_project(self, path: str | Path | None = None) -> None:
-        if not self._confirm_discard_or_save():
-            return
         if path is None:
             selected, _ = QFileDialog.getOpenFileName(
                 self, self.tr("Open CurveMole project"), "", self.tr("CurveMole projects (*.fitproj)")
@@ -871,6 +872,8 @@ class MainWindow(QMainWindow):
             path = selected
         try:
             project = load_project(path)
+            if not self._confirm_discard_or_save():
+                return
             self._release_lock()
             lock = ProjectLock(Path(path))
             lock.__enter__()
@@ -950,7 +953,7 @@ class MainWindow(QMainWindow):
         try:
             save_project(self.project, path)
             self.project.read_only = False
-            self.recovery.clear(self.project.id)
+            self._clear_recovery()
             self.setWindowTitle(self._title())
             self._notify(self.tr("Project saved."))
             return True
@@ -2836,6 +2839,44 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._log(f"Autosave failed: {exc}")
 
+    def _clear_recovery(self) -> None:
+        try:
+            self.recovery.clear(self.project.id)
+        except OSError as exc:
+            self._notify(self.tr("Could not remove recovery copies: ") + str(exc), warning=True)
+
+    def show_recovery_sessions(self, *, startup: bool = False) -> None:
+        from curvemole.gui.recovery import RecoveryDialog
+
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the running task before recovering another session."))
+            return
+        try:
+            paths = self.recovery.candidates()
+            if not paths:
+                if not startup:
+                    self._notify(self.tr("No recoverable sessions are available."))
+                return
+            dialog = RecoveryDialog(self.recovery, paths, self)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            project = self.recovery.recover(dialog.selected_path)
+            if not self._confirm_discard_or_save():
+                return
+            self._release_lock()
+            self.project = project
+            self.active_curve_id = project.curves[0].id if project.curves else None
+            self.selected_component_id = None
+            self.undo_stack.clear()
+            self._load_custom_functions()
+            self._normalise_component_names()
+            self._normalise_spectrum_colours()
+            self.refresh_all()
+            self._notify(self.tr("Session recovered. Save the project to keep this work."))
+            self._autosave()
+        except Exception as exc:
+            self._show_error(self.tr("Recover session"), exc)
+
     def _confirm_discard_or_save(self) -> bool:
         if not self.project.dirty:
             return True
@@ -2851,7 +2892,10 @@ class MainWindow(QMainWindow):
             return False
         if answer == QMessageBox.StandardButton.Save:
             return self.save_project()
-        return True
+        if answer == QMessageBox.StandardButton.Discard:
+            self._clear_recovery()
+            return True
+        return False
 
     def _ensure_editable(self) -> bool:
         if not self.project.read_only:

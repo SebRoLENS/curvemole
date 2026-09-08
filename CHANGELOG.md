@@ -4,6 +4,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep three autosave copies per project and remove them on Save or explicit Discard.
+- Offer grouped recoverable sessions at desktop startup and from the File menu,
+  with Recover, Decide later, and Delete recovery copies controls.
+- Track autosave revisions per project identity, retain distinct same-second
+  copies, and preserve recovery when an Open or Save dialog is cancelled.
+
 ### Added
 
 - Laboratory notebook at the end of the toolbar: project notes and editable
