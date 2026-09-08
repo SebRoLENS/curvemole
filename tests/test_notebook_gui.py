@@ -166,3 +166,14 @@ def test_click_note_icon_and_remove_empty_description():
     assert "Empty description" not in project.notebook.as_text(project)
     project.dirty = False
     window.close()
+
+
+def test_legacy_empty_notes_are_not_loaded():
+    from curvemole.core.notebook import LaboratoryNotebook
+
+    notebook = LaboratoryNotebook.from_dict({"descriptions": [
+        {"kind": "series", "object_id": "old", "text": "  "},
+        {"kind": "series", "object_id": "kept", "text": "Remember"},
+    ]})
+    assert len(notebook.descriptions) == 1
+    assert next(iter(notebook.descriptions.values())).text == "Remember"

@@ -1,6 +1,6 @@
 """Reusable clickable note decorations for item views."""
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
 
 from curvemole.core.notebook import description_key
@@ -31,6 +31,8 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
 
     def note_rect(self, index):
         option = QStyleOptionViewItem()
+        size = self.view.iconSize()
+        option.decorationSize = size if size.isValid() else QSize(16, 16)
         self.initStyleOption(option, index)
         option.rect = self.view.visualRect(index)
         option.widget = self.view
