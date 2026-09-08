@@ -12,12 +12,14 @@ from PySide6.QtCore import QPointF, Qt, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
+    QButtonGroup,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
     QHBoxLayout,
     QInputDialog,
     QLabel,
+    QRadioButton,
     QSizePolicy,
     QToolButton,
     QVBoxLayout,
@@ -157,6 +159,19 @@ class PlotWorkspace(QWidget):
         self.display_mode.addItems([self.tr("Single"), self.tr("Overlay"), self.tr("Waterfall")])
         self.display_mode.currentIndexChanged.connect(self.refresh)
         controls.addWidget(self.display_mode)
+        self._active_series_id: str | None = None
+        self.scope_project = QRadioButton(self.tr("All series"))
+        self.scope_series = QRadioButton(self.tr("Active series"))
+        self.scope_project.setToolTip(self.tr("Overlay / Waterfall: all visible spectra in the project"))
+        self.scope_series.setToolTip(self.tr("Overlay / Waterfall: visible spectra in the active series only"))
+        self.scope_group = QButtonGroup(self)
+        for button in (self.scope_project, self.scope_series):
+            self.scope_group.addButton(button)
+            controls.addWidget(button)
+            button.setEnabled(False)
+        self.scope_project.setChecked(True)
+        self.scope_series.toggled.connect(self._scope_changed)
+        self.display_mode.currentIndexChanged.connect(self._scope_enabled)
         controls.addWidget(QLabel(self.tr("X offset:")))
         self.x_offset = _offset_spin()
         controls.addWidget(self.x_offset)
@@ -266,9 +281,41 @@ class PlotWorkspace(QWidget):
     ) -> None:
         self._project = project
         self._active_curve_id = active_curve_id
+        if project is not None:
+            if active_curve_id:
+                self._active_series_id = project.dataset.series_for(active_curve_id).id
+            elif self._active_series_id not in {series.id for series in project.dataset.series}:
+                self._active_series_id = project.dataset.series[0].id if project.dataset.series else None
+            self.scope_series.blockSignals(True)
+            target = self.scope_series if project.ui_state.get("display_scope") == "series" else self.scope_project
+            target.setChecked(True)
+            self.scope_series.blockSignals(False)
         self._selected_curve_ids = set(selected_curve_ids or ())
         self._selected_component_id = selected_component_id
         self.refresh()
+
+    def _scope_enabled(self, index: int) -> None:
+        self.scope_project.setEnabled(index != 0)
+        self.scope_series.setEnabled(index != 0)
+
+    def _scope_changed(self, series_only: bool) -> None:
+        if self._project is not None:
+            self._project.ui_state["display_scope"] = "series" if series_only else "project"
+        self.mask_toggle.setChecked(False)
+        self.refresh()
+        self.auto_range()
+
+    def displayed_curves(self) -> list:
+        project = self._project
+        if project is None:
+            return []
+        if self.display_mode.currentIndex() == 0:
+            return [curve for curve in project.curves if curve.id == self._active_curve_id]
+        curves = project.curves
+        if self.scope_series.isChecked():
+            series = next((item for item in project.dataset.series if item.id == self._active_series_id), None)
+            curves = series.curves if series is not None else []
+        return [curve for curve in curves if curve.visible]
 
     def refresh(self, *_: Any) -> None:
         initial_view = not self._data_items
@@ -285,10 +332,7 @@ class PlotWorkspace(QWidget):
             self.plot.setTitle(self.tr("Import data to begin"))
             return
         mode = self.display_mode.currentText()
-        if mode == self.tr("Single"):
-            curves = [project.dataset.curve(self._active_curve_id)] if self._active_curve_id else []
-        else:
-            curves = [curve for curve in project.curves if curve.visible]
+        curves = self.displayed_curves()
         x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
         y_step = self.y_offset.value() if mode == self.tr("Waterfall") else 0.0
         global_values = project.resolved_parameter_values()
@@ -754,7 +798,7 @@ class PlotWorkspace(QWidget):
     def _active_display_offsets(self) -> tuple[float, float]:
         if self.display_mode.currentText() != self.tr("Waterfall") or self._project is None:
             return 0.0, 0.0
-        curves = [curve for curve in self._project.curves if curve.visible]
+        curves = self.displayed_curves()
         index = next(
             (position for position, curve in enumerate(curves) if curve.id == self._active_curve_id),
             0,

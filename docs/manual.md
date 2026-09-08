@@ -428,6 +428,7 @@ The central workspace contains the data/model plot and an optional residual plot
 Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
+- **All series / Active series:** one-click scope for Overlay and Waterfall;
 - **X offset** and **Y offset:** display-only Waterfall spacing;
 - **Residuals:** show or hide the linked residual panel.
 
@@ -2030,6 +2031,27 @@ Archive at least:
 - fit mode, spectrum weights, solver, and loss;
 - random seed and replicate counts for uncertainty analyses;
 - warnings, failed replicates, and residual diagnostics.
+
+### 20.1.1 Laboratory notebook
+
+The **Laboratory notebook** button at the end of the toolbar opens project notes
+and a searchable description browser. Use **Add description** from the context menu
+of a series, individual spectrum, or added fit function to create or edit its
+description. Function descriptions are specific to the spectrum containing that
+function, including when sequential propagation preserves a component ID.
+
+Descriptions are grouped by series and spectrum. Names follow renaming and moves.
+When an object is removed, its description remains in **Deleted items** with the
+last known name and an explicit deleted status. Restoring the same object with
+Undo restores its live status. Copying a function does not duplicate its notes.
+
+Edits in the notebook are kept in the current project as you type; save the
+`.fitproj` file to persist them. Notebook contents are also included in portable
+project copies. **Save notebook as text** writes the complete notebook as UTF-8.
+Alternatively, select **Laboratory notebook (TXT)** in **Export analysis bundle**;
+this writes `laboratory_notebook.txt` and follows the usual export ownership rules.
+The notebook can be viewed and exported from a read-only project. Editing is
+unavailable while a background task runs; a paused sequence allows editing normally.
 
 ### 20.2 Local processing and privacy
 

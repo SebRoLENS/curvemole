@@ -50,6 +50,7 @@ class ModelPanel(QWidget):
     parameterLinkRequested = Signal(str, str)
     bulkFixedRequested = Signal(str, bool)
     copyFitRequested = Signal()
+    descriptionRequested = Signal(str, str)
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)

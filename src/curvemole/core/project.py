@@ -13,6 +13,7 @@ import numpy as np
 
 from curvemole.core.data import Curve, Dataset, Mask, Series
 from curvemole.core.models import Component, Model
+from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.version import __version__
 
@@ -35,6 +36,7 @@ class Project:
     read_only: bool = False
     dirty: bool = False
     revision: int = 0
+    notebook: LaboratoryNotebook = field(default_factory=LaboratoryNotebook)
 
     @property
     def curves(self) -> list[Curve]:
@@ -201,6 +203,7 @@ class Project:
         self.dirty = True
         self.revision += 1
         self.modified_at = datetime.now(UTC).isoformat()
+        self.notebook.sync(self)
 
     def mark_saved(self, path: str | Path | None = None) -> None:
         if path is not None:
@@ -219,6 +222,7 @@ class Project:
         self.touch()
 
     def to_metadata(self) -> dict[str, Any]:
+        self.notebook.sync(self)
         return {
             "id": self.id,
             "name": self.name,
@@ -241,4 +245,5 @@ class Project:
             "custom_functions": self.custom_functions,
             "ui_state": self.ui_state,
             "export_config": self.export_config,
+            "notebook": self.notebook.to_dict(),
         }

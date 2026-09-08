@@ -190,6 +190,9 @@ class CurveTree(QTreeWidget):
     curveRenamed = Signal(str, str)
     seriesRenamed = Signal(str, str)
     seriesRenameRequested = Signal(str)
+    seriesDescriptionRequested = Signal(str)
+    curveDescriptionRequested = Signal(str)
+    seriesActivated = Signal(str)
     curveColourRequested = Signal(str)
     seriesPaletteRequested = Signal(str, str)
     newSeriesRequested = Signal()
@@ -306,6 +309,12 @@ class CurveTree(QTreeWidget):
                 self.setCurrentItem(item)
             selected_ids = self.ordered_selected_curve_ids() or [curve_id]
 
+            description_action = menu.addAction(self.tr("Add description…"))
+            description_action.setEnabled(not project.read_only)
+            description_action.triggered.connect(
+                lambda checked=False, curve_id=curve_id: self.curveDescriptionRequested.emit(curve_id)
+            )
+
             move_menu = menu.addMenu(self.tr("Move selected to series"))
             for series in project.dataset.series:
                 action = move_menu.addAction(series.name)
@@ -331,6 +340,11 @@ class CurveTree(QTreeWidget):
             rename_action.triggered.connect(
                 lambda checked=False, series_id=series_id: self.seriesRenameRequested.emit(series_id)
             )
+            description_action = menu.addAction(self.tr("Add description…"))
+            description_action.setEnabled(not project.read_only)
+            description_action.triggered.connect(
+                lambda checked=False, series_id=series_id: self.seriesDescriptionRequested.emit(series_id)
+            )
             merge_menu = menu.addMenu(self.tr("Merge series into"))
             targets = [series for series in project.dataset.series if series.id != series_id]
             merge_menu.setEnabled(bool(targets))
@@ -355,6 +369,9 @@ class CurveTree(QTreeWidget):
         if self._updating or current is None:
             return
         metadata = current.data(1, Qt.ItemDataRole.UserRole)
+        if metadata and metadata[0] == "series":
+            self.seriesActivated.emit(str(metadata[1]))
+            return
         self.activeCurveChanged.emit(metadata[1] if metadata and metadata[0] == "curve" else None)
 
     def _item_changed(self, item: QTreeWidgetItem, column: int) -> None:
@@ -531,6 +548,9 @@ class MainWindow(QMainWindow):
         self.export_action = QAction(self.tr("Export analysis bundle…"), self)
         self.export_action.setShortcut("Ctrl+E")
         self.export_action.triggered.connect(self.export_analysis)
+        self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
+        self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
+        self.notebook_action.triggered.connect(self.open_notebook)
         self.quit_action = QAction(self.tr("Quit"), self)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
@@ -656,6 +676,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
+        file_menu.addAction(self.notebook_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
 
@@ -759,14 +780,19 @@ class MainWindow(QMainWindow):
             self.plot_workspace.mask_action, self.fit_action,
             self.quick_fit_action, self.cancel_action,
         ])
+        toolbar.addSeparator()
+        toolbar.addAction(self.notebook_action)
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._set_active_curve)
+        self.curve_tree.seriesActivated.connect(self._set_active_series)
         self.curve_tree.itemSelectionChanged.connect(self._selection_changed)
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
         self.curve_tree.curveRenamed.connect(self._rename_curve)
         self.curve_tree.seriesRenamed.connect(self._rename_series)
         self.curve_tree.seriesRenameRequested.connect(self._prompt_rename_series)
+        self.curve_tree.seriesDescriptionRequested.connect(self.describe_series)
+        self.curve_tree.curveDescriptionRequested.connect(self.describe_spectrum)
         self.curve_tree.curveColourRequested.connect(self.choose_curve_colour)
         self.curve_tree.seriesPaletteRequested.connect(self.apply_series_palette)
         self.curve_tree.newSeriesRequested.connect(self.create_series)
@@ -784,6 +810,7 @@ class MainWindow(QMainWindow):
         self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
         self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
+        self.model_panel.descriptionRequested.connect(self.describe_function)
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
         self.plot_workspace.maskRangeRequested.connect(self.mask_range)
@@ -950,6 +977,47 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Portable copy saved."))
         except Exception as exc:
             self._show_error(self.tr("Save portable copy"), exc)
+
+    def open_notebook(self) -> None:
+        from curvemole.gui.notebook import LaboratoryNotebookDialog
+
+        dialog = LaboratoryNotebookDialog(self.project, self, editable=self._thread is None)
+        dialog.exec()
+        self.setWindowTitle(self._title())
+
+    def describe_series(self, series_id: str) -> None:
+        series = next((item for item in self.project.dataset.series if item.id == series_id), None)
+        if series is not None:
+            self._edit_description("series", series_id, series.name)
+
+    def describe_spectrum(self, curve_id: str) -> None:
+        curve = self.project.dataset.curve(curve_id)
+        series = self.project.dataset.series_for(curve_id)
+        self._edit_description("spectrum", curve_id, f"{series.name} / {curve.name}")
+
+    def describe_function(self, curve_id: str, component_id: str) -> None:
+        model = self.project.models.get(curve_id)
+        component = next((item for item in model.components if item.id == component_id), None) if model else None
+        if component is not None:
+            curve = self.project.dataset.curve(curve_id)
+            series = self.project.dataset.series_for(curve_id)
+            self._edit_description("function", component_id,
+                                   f"{series.name} / {curve.name} / {component.name} ({component.function_id})", curve_id)
+
+    def _edit_description(self, kind: str, object_id: str, title: str, curve_id: str = "") -> None:
+        from curvemole.core.notebook import description_key
+        from curvemole.gui.notebook import DescriptionDialog
+
+        if not self._ensure_editable():
+            return
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the current task to finish before editing descriptions."))
+            return
+        entry = self.project.notebook.descriptions.get(description_key(kind, object_id, curve_id))
+        dialog = DescriptionDialog(title, entry.text if entry else "", self)
+        if dialog.exec() == dialog.DialogCode.Accepted:
+            self.project.notebook.set_description(self.project, kind, object_id, dialog.editor.toPlainText(), curve_id)
+            self.setWindowTitle(self._title())
 
     def export_analysis(self) -> None:
         remembered = self.project.export_config.get("directory")
@@ -2159,6 +2227,18 @@ class MainWindow(QMainWindow):
                 self.project.touch()
             self._notify(self.tr("Plugin registry updated."))
 
+    def _set_active_series(self, series_id: str) -> None:
+        series = next((item for item in self.project.dataset.series if item.id == series_id), None)
+        if series is None:
+            return
+        self.plot_workspace._active_series_id = series_id
+        ids = [curve.id for curve in series.curves]
+        self.plot_workspace.cancel_placement()
+        self.active_curve_id = self.active_curve_id if self.active_curve_id in ids else (ids[0] if ids else None)
+        self.selected_component_id = None
+        # Keep the series header selected, including its multi-curve selection.
+        self._selection_changed()
+
     def _set_active_curve(self, curve_id: str | None) -> None:
         if curve_id != self.active_curve_id:
             self.plot_workspace.cancel_placement()
@@ -2184,6 +2264,9 @@ class MainWindow(QMainWindow):
     def remove_selected_curves(self) -> None:
         if not self._ensure_editable():
             return
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the current task to finish before removing spectra."))
+            return
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
             selected = {self.active_curve_id}
@@ -2196,14 +2279,20 @@ class MainWindow(QMainWindow):
             if count == 1
             else self.tr("Remove the selected curves? This action can be undone.")
         )
-        if QMessageBox.question(self, self.tr("Remove curve"), question) != QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(
+            self, self.tr("Remove curve"), question,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        ) != QMessageBox.StandardButton.Yes:
             return
 
         records: list[tuple[str, Series, int, Curve, dict[str, Any] | None, bool, Any]] = []
-        for curve_id in selected:
+        for curve_id in [curve.id for curve in self.project.curves if curve.id in selected]:
             series = self.project.dataset.series_for(curve_id)
             curve = self.project.dataset.curve(curve_id)
-            index = series.curves.index(curve)
+            # Dataclass equality compares NumPy arrays for same-named spectra.
+            # Resolve identity explicitly instead of list.index(curve).
+            index = next(index for index, item in enumerate(series.curves) if item.id == curve_id)
             model = self.project.models.get(curve_id)
             model_state = model.to_dict() if model is not None else None
             had_result = curve_id in self.project.results
@@ -2677,7 +2766,7 @@ class MainWindow(QMainWindow):
         if self.plot_workspace.display_mode.currentIndex() == 0 or self.plot_workspace._mask_scope == "active":
             ids = {self.active_curve_id}
         else:
-            ids = {curve.id for curve in self.project.curves if curve.visible}
+            ids = {curve.id for curve in self.plot_workspace.displayed_curves()}
         return [curve for curve in self.project.curves if curve.id in ids]
 
     def _calculator_targets(self, scope: int) -> list[Curve]:

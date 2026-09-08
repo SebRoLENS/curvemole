@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QWidget,
 )
@@ -147,6 +148,18 @@ def _install_model_panel() -> None:
         single.layout().insertWidget(1, row)
         panel.show_all_functions.toggled.connect(lambda *_: panel.refresh())
         panel.components.itemSelectionChanged.connect(panel._multi_selection_changed)
+        panel.components.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        panel.components.customContextMenuRequested.connect(lambda position: description_menu(panel, position))
+
+    def description_menu(panel: ModelPanel, position: Any) -> None:
+        ref = _item_ref(panel.components.itemAt(position))
+        if ref is None:
+            return
+        menu = QMenu(panel)
+        action = menu.addAction(panel.tr("Add description…"))
+        action.setEnabled(panel.project is not None and not panel.project.read_only)
+        action.triggered.connect(lambda checked=False: panel.descriptionRequested.emit(*ref))
+        menu.exec(panel.components.viewport().mapToGlobal(position))
 
     def set_context(
         panel: ModelPanel,

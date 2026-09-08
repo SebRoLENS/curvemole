@@ -166,3 +166,28 @@ data, individual functions, combined background, total fit, and residuals.
 
 Save the complete workspace as `.fitproj`. Original values, masks, transformations,
 models, custom functions, results, and history are embedded without pickle.
+
+## 8. Laboratory notebook
+
+Click **Laboratory notebook**, the last toolbar button, to write general project
+notes. Right-click a **series**, an individual **spectrum**, or an added **fit
+function** and choose **Add description** to attach observations to that object.
+The same command reopens its existing description for editing.
+
+The notebook groups descriptions by series and spectrum; its search field finds
+names and description text. Removed objects remain under **Deleted items**, with
+their last known names and descriptions. Undoing removal restores their live status.
+Descriptions belong to the particular object: copying a function to another
+spectrum does not copy its notebook entry.
+
+Notes are kept in the project as you type. Save the `.fitproj` to preserve them on
+disk, use **Save notebook as text** for a UTF-8 copy, or select **Laboratory notebook
+(TXT)** in **Export analysis bundle** to include `laboratory_notebook.txt`.
+
+## 9. Compare a series or the whole project
+
+Beside **Display**, use **All series** or **Active series** with a single click.
+These controls apply to Overlay and Waterfall. Click a series header or one of its
+spectra to make that series active; visibility checkboxes still determine which
+spectra are drawn. View All, View Active, masks targeting all visible spectra, and
+Waterfall offsets follow the displayed subset.

@@ -889,6 +889,7 @@ class ExportBundleDialog(QDialog):
         self.uncertainty = QCheckBox(self.tr("Covariance/correlation matrices"))
         self.diagnostics = QCheckBox(self.tr("Residual diagnostics"))
         self.readme = QCheckBox(self.tr("Export README"))
+        self.laboratory_notebook = QCheckBox(self.tr("Laboratory notebook (TXT)"))
 
         choices = [
             self.fit_results,
@@ -905,6 +906,7 @@ class ExportBundleDialog(QDialog):
             self.uncertainty,
             self.diagnostics,
             self.readme,
+            self.laboratory_notebook,
         ]
         for index, widget in enumerate(choices):
             export_layout.addWidget(widget, index // 2, index % 2)
@@ -941,6 +943,7 @@ class ExportBundleDialog(QDialog):
             uncertainty=self.uncertainty.isChecked(),
             diagnostics=self.diagnostics.isChecked(),
             readme=self.readme.isChecked(),
+            laboratory_notebook=self.laboratory_notebook.isChecked(),
         )
 
     def _browse(self) -> None:
