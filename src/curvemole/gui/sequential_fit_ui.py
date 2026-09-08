@@ -323,6 +323,10 @@ def _install_pause_resume_state() -> None:
             window._notify(window.tr("Sequential fit completed: no remaining spectra."))
             window.refresh_all()
             return
+        if hasattr(plan, "progress_completed"):
+            plan.progress_completed += start
+            # Removed targets no longer consume a budget; retain completed work.
+            plan.progress_total = plan.progress_completed + len(remaining)
         plan.curve_ids = [source_id, *remaining]
         if getattr(plan, "copied_component_ids", None) is not None:
             current_ids = {item.id for item in window.project.model_for(source_id).components}

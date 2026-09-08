@@ -6,6 +6,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
+- Scale live fit progress to the configured evaluation budget, excluding numerical
+  Jacobian probes; reach 100% at the exact limit, including non-multiples of 20.
+- Aggregate sequential progress over all target budgets, credit early convergence
+  in full, retain completed work on Continue, and avoid false completion on pause.
+- Add a theme-adaptive Terminate sequential fit button beside Continue to discard
+  a paused queue while retaining completed fits and manual model corrections.
+
 - Keep a paused sequential queue available across manual Quick Fit and model edits;
   resume from the current corrected spectrum using the saved sequence settings.
 - Resolve parameter edits and lock/unlock controls against the selected spectrum,

@@ -2650,7 +2650,7 @@ class MainWindow(QMainWindow):
             self.progress.setRange(0, 0)
         else:
             self.progress.setRange(0, 100)
-            self.progress.setValue(round(value * 100))
+            self.progress.setValue(int(max(0.0, min(value, 1.0)) * 100))
         self.statusBar().showMessage(text)
 
     def _task_failed(self, message: str, details: str) -> None:
