@@ -4,7 +4,17 @@ from curvemole import Project
 from curvemole.core.recovery import RecoveryManager
 
 
-def test_rotation_same_second_project_switch_and_clear(tmp_path):
+def test_rotation_same_second_project_switch_and_clear(tmp_path, monkeypatch):
+    from datetime import UTC, datetime
+
+    from curvemole.core import recovery
+
+    class FixedClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 9, 8, tzinfo=UTC)
+
+    monkeypatch.setattr(recovery, "datetime", FixedClock)
     manager = RecoveryManager(tmp_path)
     first, second = Project("First"), Project("Second")
     for index in range(5):
@@ -12,6 +22,8 @@ def test_rotation_same_second_project_switch_and_clear(tmp_path):
         first.touch()
         assert manager.autosave(first)
     assert len(manager.candidates(first.id)) == 3
+    assert manager.recover(manager.candidates(first.id)[0]).notebook.notes == "4"
+    manager._last_project_id, manager._last_revision = first.id, first.revision
     assert manager.autosave(first) is None
     second.revision = first.revision
     second.dirty = True
