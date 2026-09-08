@@ -1401,6 +1401,9 @@ for the selected session after confirmation. Saving a project normally or explic
 choosing **Discard** when closing or switching projects removes its recovery copies.
 Cancelling a dialog or a failed save preserves them. Other projects' copies remain.
 
+**File > Recent projects** lists up to ten successfully opened or saved projects;
+choose an entry to reopen it, or clear the list from that menu.
+
 ### 13.6 Unsaved changes
 
 An asterisk in the window title marks a dirty project. New Project, Open Project, and
@@ -2060,6 +2063,11 @@ this writes `laboratory_notebook.txt` and follows the usual export ownership rul
 The notebook can be viewed and exported from a read-only project. Editing is
 unavailable while a background task runs; a paused sequence allows editing normally.
 
+
+Series headers are bold and blue, with colors adapted to light and dark themes.
+A note icon beside a series, spectrum, or fit function opens its description
+directly. Clearing the description removes its icon and notebook entry.
+
 ### 20.2 Local processing and privacy
 
 CurveMole performs fitting locally. It has no telemetry and does not upload data,
@@ -2185,9 +2193,3 @@ docs/CurveMole_User_Manual.pdf
 GitHub Actions repeats this process for documentation changes and releases. Release
 assets use versioned filenames and include both LaTeX and PDF editions. Do not edit
 the generated files directly; changes will be replaced by the next automated build.
-
-Series headers are bold and blue, with colors adapted to light and dark themes.
-A note icon beside a series, spectrum, or fit function opens its description
-directly. Clearing the description removes its icon and notebook entry.
-**File > Recent projects** lists up to ten successfully opened or saved projects;
-choose an entry to reopen it, or clear the list from that menu.

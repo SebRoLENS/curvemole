@@ -132,6 +132,7 @@ def test_notebook_deleted_descriptions_edit_export_and_read_only(tmp_path, monke
 
 def test_click_note_icon_and_remove_empty_description():
     from PySide6.QtTest import QTest
+
     from curvemole.gui.note_indicators import NOTE_ROLE
 
     app = QApplication.instance() or QApplication([])

@@ -37,11 +37,12 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         return self.view.style().subElementRect(QStyle.SubElement.SE_ItemViewItemDecoration, option, self.view)
 
     def eventFilter(self, watched, event):
-        if watched is self.view.viewport() and event.type() == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton:
-                index = self.view.indexAt(event.position().toPoint())
-                ref = index.data(NOTE_ROLE)
-                if ref and self.note_rect(index).contains(event.position().toPoint()):
-                    self.callback(ref)
-                    return True
+        if (watched is self.view.viewport()
+                and event.type() == QEvent.Type.MouseButtonPress
+                and event.button() == Qt.MouseButton.LeftButton):
+            index = self.view.indexAt(event.position().toPoint())
+            ref = index.data(NOTE_ROLE)
+            if ref and self.note_rect(index).contains(event.position().toPoint()):
+                self.callback(ref)
+                return True
         return super().eventFilter(watched, event)
