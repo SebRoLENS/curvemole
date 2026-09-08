@@ -428,7 +428,7 @@ The central workspace contains the data/model plot and an optional residual plot
 Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
-- **All series / Active series:** one-click scope for Overlay and Waterfall;
+- **All series / Active series / Selected:** one-click scope for Overlay and Waterfall;
 - **X offset** and **Y offset:** display-only Waterfall spacing;
 - **Residuals:** show or hide the linked residual panel.
 
@@ -1389,10 +1389,20 @@ Every ten minutes, a modified revision is written to the operating system's Curv
 user cache. An unchanged revision does not create another recovery. The three newest
 valid, distinct recovery files for a project are retained.
 
-Recovery files end in `.fitproj` and can be opened through the normal Open Project
-dialog if needed. Saving the project normally clears its recovery files. Preview
-0.20.0 does not yet show an automatic recovery chooser at startup, so after an abnormal
-termination inspect the CurveMole user cache before clearing application data.
+Only after a crash or abnormal exit, CurveMole offers **Recoverable sessions** at startup.
+Normal launches do not prompt, even when older deferred copies exist.
+The same list is available from **File > Recoverable sessions**. Sessions are grouped
+by project name with their recovery date and copy count. **Recover** opens the newest
+valid copy by default; an older retained copy can also be selected. The recovered
+workspace is unsaved and does not overwrite the original project.
+
+**Decide later** retains the copies. **Delete recovery copies** removes all backups
+for the selected session after confirmation. Saving a project normally or explicitly
+choosing **Discard** when closing or switching projects removes its recovery copies.
+Cancelling a dialog or a failed save preserves them. Other projects' copies remain.
+
+**File > Recent projects** lists up to ten successfully opened or saved projects;
+choose an entry to reopen it, or clear the list from that menu.
 
 ### 13.6 Unsaved changes
 
@@ -2053,6 +2063,11 @@ this writes `laboratory_notebook.txt` and follows the usual export ownership rul
 The notebook can be viewed and exported from a read-only project. Editing is
 unavailable while a background task runs; a paused sequence allows editing normally.
 
+
+Series headers are bold and blue, with colors adapted to light and dark themes.
+A note icon beside a series, spectrum, or fit function opens its description
+directly. Clearing the description removes its icon and notebook entry.
+
 ### 20.2 Local processing and privacy
 
 CurveMole performs fitting locally. It has no telemetry and does not upload data,
@@ -2150,7 +2165,6 @@ The following boundaries are important when evaluating this release:
 - the GUI does not yet provide a dedicated parameter-path picker for complex links;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
-- autosave recovery exists, but there is no automatic startup recovery chooser;
 - Windows and macOS packages may be unsigned; Linux release provenance is available
   through GitHub artifact attestation;
 - the interface and manual are currently maintained in English;

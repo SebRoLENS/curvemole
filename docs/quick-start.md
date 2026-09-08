@@ -167,6 +167,13 @@ data, individual functions, combined background, total fit, and residuals.
 Save the complete workspace as `.fitproj`. Original values, masks, transformations,
 models, custom functions, results, and history are embedded without pickle.
 
+Only after a crash or abnormal exit, CurveMole offers **Recoverable sessions** at startup.
+Normal launches do not prompt, even when older deferred copies exist.
+Choose **Recover** to reopen an unsaved copy, **Decide later** to keep the backups,
+or **Delete recovery copies** to discard them. The same list is available under
+**File**. Three recovery copies per project are retained; saving the project or
+explicitly choosing **Discard** removes its copies. Cancelling keeps them.
+
 ## 8. Laboratory notebook
 
 Click **Laboratory notebook**, the last toolbar button, to write general project
@@ -186,8 +193,16 @@ disk, use **Save notebook as text** for a UTF-8 copy, or select **Laboratory not
 
 ## 9. Compare a series or the whole project
 
-Beside **Display**, use **All series** or **Active series** with a single click.
+Beside **Display**, use **All series**, **Active series**, or **Selected** with a single click.
+**Selected** shows only selected spectra: Shift-click selects a range, while
+Ctrl-click adds or removes individual spectra.
 These controls apply to Overlay and Waterfall. Click a series header or one of its
 spectra to make that series active; visibility checkboxes still determine which
 spectra are drawn. View All, View Active, masks targeting all visible spectra, and
 Waterfall offsets follow the displayed subset.
+
+Series headers are bold and blue, with colors adapted to light and dark themes.
+A note icon beside a series, spectrum, or fit function opens its description
+directly. Clearing the description removes its icon and notebook entry.
+**File > Recent projects** lists up to ten successfully opened or saved projects;
+choose an entry to reopen it, or clear the list from that menu.

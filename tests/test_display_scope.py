@@ -50,3 +50,44 @@ def test_one_click_scope_limits_rendering_ranges_masks_and_waterfall_offsets():
     assert set(plot._data_items) == {second.curves[1].id}
     project.dirty = False
     window.close()
+
+
+def test_selected_scope_with_real_ctrl_and_shift_clicks():
+    from PySide6.QtCore import Qt
+    from PySide6.QtTest import QTest
+
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    curves = [Curve(str(i), [float(i), float(i + 1)], [0., 1.]) for i in range(4)]
+    project.add_series(Series("Series", curves))
+    window = CurveMoleMainWindow(project)
+    window.show()
+    app.processEvents()
+    tree = window.curve_tree
+    plot = window.plot_workspace
+    plot.display_mode.setCurrentIndex(1)
+    plot.scope_selected.click()
+
+    def click(row, modifiers=Qt.KeyboardModifier.NoModifier):
+        item = tree.topLevelItem(0).child(row)
+        rect = tree.visualItemRect(item)
+        point = rect.center()
+        point.setX(tree.columnViewportPosition(1) + 60)
+        QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, modifiers, point)
+        app.processEvents()
+
+    click(0)
+    click(2, Qt.KeyboardModifier.ControlModifier)
+    assert tree.selected_curve_ids() == {curves[0].id, curves[2].id}
+    assert set(plot._data_items) == tree.selected_curve_ids()
+    click(2, Qt.KeyboardModifier.ControlModifier)
+    assert set(plot._data_items) == {curves[0].id}
+    click(0)
+    click(3, Qt.KeyboardModifier.ShiftModifier)
+    assert tree.selected_curve_ids() == {curve.id for curve in curves}
+    assert len(plot._data_items) == 4
+    plot.display_mode.setCurrentIndex(2)
+    assert len(plot._data_items) == 4
+    assert project.ui_state["display_scope"] == "selected"
+    project.dirty = False
+    window.close()

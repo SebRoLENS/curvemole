@@ -48,6 +48,8 @@ class LaboratoryNotebook:
 
     def sync(self, project: Project) -> None:
         """Refresh live labels; retain absent objects and their last known labels."""
+        for key in [key for key, entry in self.descriptions.items() if not entry.text.strip()]:
+            del self.descriptions[key]
         if not self.descriptions:
             return
         series_by_id = {series.id: series for series in project.dataset.series}
@@ -79,6 +81,11 @@ class LaboratoryNotebook:
         if project.read_only:
             raise PermissionError("This project is open read-only.")
         key = description_key(kind, object_id, curve_id)
+        if not text.strip():
+            if key in self.descriptions:
+                del self.descriptions[key]
+                project.touch()
+            return
         entry = self.descriptions.get(key)
         if entry is None:
             if kind not in {"series", "spectrum", "function"}:
@@ -98,7 +105,7 @@ class LaboratoryNotebook:
 
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> LaboratoryNotebook:
-        entries = [Description(**entry) for entry in value.get("descriptions", [])]
+        entries = [Description(**entry) for entry in value.get("descriptions", []) if entry.get("text", "").strip()]
         return cls(str(value.get("notes", "")), {entry.key: entry for entry in entries})
 
     def ordered_descriptions(self) -> list[Description]:

@@ -162,15 +162,17 @@ class PlotWorkspace(QWidget):
         self._active_series_id: str | None = None
         self.scope_project = QRadioButton(self.tr("All series"))
         self.scope_series = QRadioButton(self.tr("Active series"))
+        self.scope_selected = QRadioButton(self.tr("Selected"))
+        self.scope_selected.setToolTip(self.tr("Overlay / Waterfall: selected visible spectra (Shift-click for a range, Ctrl-click individually)"))
         self.scope_project.setToolTip(self.tr("Overlay / Waterfall: all visible spectra in the project"))
         self.scope_series.setToolTip(self.tr("Overlay / Waterfall: visible spectra in the active series only"))
         self.scope_group = QButtonGroup(self)
-        for button in (self.scope_project, self.scope_series):
+        for button in (self.scope_project, self.scope_series, self.scope_selected):
             self.scope_group.addButton(button)
             controls.addWidget(button)
             button.setEnabled(False)
         self.scope_project.setChecked(True)
-        self.scope_series.toggled.connect(self._scope_changed)
+        self.scope_group.buttonToggled.connect(lambda button, checked: self._scope_changed() if checked else None)
         self.display_mode.currentIndexChanged.connect(self._scope_enabled)
         controls.addStretch(1)
         offset_controls = QHBoxLayout()
@@ -290,10 +292,10 @@ class PlotWorkspace(QWidget):
                 self._active_series_id = project.dataset.series_for(active_curve_id).id
             elif self._active_series_id not in {series.id for series in project.dataset.series}:
                 self._active_series_id = project.dataset.series[0].id if project.dataset.series else None
-            self.scope_series.blockSignals(True)
-            target = self.scope_series if project.ui_state.get("display_scope") == "series" else self.scope_project
+            self.scope_group.blockSignals(True)
+            target = {"series": self.scope_series, "selected": self.scope_selected}.get(project.ui_state.get("display_scope"), self.scope_project)
             target.setChecked(True)
-            self.scope_series.blockSignals(False)
+            self.scope_group.blockSignals(False)
         self._selected_curve_ids = set(selected_curve_ids or ())
         self._selected_component_id = selected_component_id
         self.refresh()
@@ -301,10 +303,11 @@ class PlotWorkspace(QWidget):
     def _scope_enabled(self, index: int) -> None:
         self.scope_project.setEnabled(index != 0)
         self.scope_series.setEnabled(index != 0)
+        self.scope_selected.setEnabled(index != 0)
 
-    def _scope_changed(self, series_only: bool) -> None:
+    def _scope_changed(self) -> None:
         if self._project is not None:
-            self._project.ui_state["display_scope"] = "series" if series_only else "project"
+            self._project.ui_state["display_scope"] = "selected" if self.scope_selected.isChecked() else ("series" if self.scope_series.isChecked() else "project")
         self.mask_toggle.setChecked(False)
         self.refresh()
         self.auto_range()
@@ -319,7 +322,7 @@ class PlotWorkspace(QWidget):
         if self.scope_series.isChecked():
             series = next((item for item in project.dataset.series if item.id == self._active_series_id), None)
             curves = series.curves if series is not None else []
-        return [curve for curve in curves if curve.visible]
+        return [curve for curve in curves if curve.visible and (not self.scope_selected.isChecked() or curve.id in self._selected_curve_ids)]
 
     def refresh(self, *_: Any) -> None:
         initial_view = not self._data_items

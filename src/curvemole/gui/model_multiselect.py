@@ -124,6 +124,9 @@ def _install_model_panel() -> None:
     def init(panel: ModelPanel, *args: Any, **kwargs: Any) -> None:
         original_init(panel, *args, **kwargs)
         panel.components.setSelectionMode(panel.components.SelectionMode.ExtendedSelection)
+        from curvemole.gui.note_indicators import NoteIndicatorDelegate
+
+        panel.components.setItemDelegate(NoteIndicatorDelegate(panel.components, panel.noteRequested.emit))
 
         panel.show_all_functions = QCheckBox(panel.tr("Show all functions"))
         panel.show_all_functions.setToolTip(
@@ -218,6 +221,9 @@ def _install_model_panel() -> None:
                 if show_all:
                     label = f"{curve.name}  ›  {label}"
                 item = QListWidgetItem(label)
+                from curvemole.gui.note_indicators import attach_note
+
+                attach_note(item, project, "function", component.id, curve.id)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setData(_CURVE_ROLE, curve.id)
                 item.setToolTip(

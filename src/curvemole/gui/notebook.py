@@ -159,6 +159,9 @@ class LaboratoryNotebookDialog(QDialog):
             entry = self.project.notebook.descriptions[self.current_key]
             self.project.notebook.set_description(self.project, entry.kind, entry.object_id,
                                                   self.description.toPlainText(), entry.curve_id)
+            if self.current_key not in self.project.notebook.descriptions:
+                self._populate()
+                return
             self.context.setText(self._context(entry))
 
     def _export(self):

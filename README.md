@@ -63,7 +63,12 @@ gh attestation verify CurveMole-VERSION-linux-x86_64.AppImage \
 Keep experimental notes in the **Laboratory notebook**: project notes plus
 descriptions of series, individual spectra, and fit functions. Descriptions survive
 deletion with a clear status, are saved in the project, and can be exported as TXT.
-Overlay and Waterfall also offer one-click **All series / Active series** controls.
+Overlay and Waterfall also offer one-click **All series / Active series / Selected** controls. Use Shift-click for ranges
+and Ctrl-click for individual selections. Note icons open attached descriptions
+directly; empty descriptions disappear. Series headers adapt their color to the
+theme. **File > Recent projects** reopens recent work, and recovery is offered
+automatically only after an abnormal exit. Three recovery copies are retained
+per project and cleared after Save or explicit Discard.
 
 CurveMole is designed for experimental scientists who want the convenience of an
 interactive desktop GUI without giving up reproducibility or scriptability. A fit can
