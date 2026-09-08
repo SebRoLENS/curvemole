@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import faulthandler
 from pathlib import Path
 
 import pytest
@@ -37,6 +38,7 @@ def test_import_dialog_exposes_detected_leading_rows(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("apply_all", [False, True])
 def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_all):
+    faulthandler.dump_traceback_later(20, exit=True)
     app = QApplication.instance() or QApplication([])
     paths = []
     for index in range(2):
@@ -93,3 +95,4 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
     window.project.dirty = False
     window.close()
     app.processEvents()
+    faulthandler.cancel_dump_traceback_later()
