@@ -13,7 +13,7 @@ from curvemole.core.serialization import load_project, save_project
 def annotated_project():
     project = Project("Pressure study")
     curves = [Curve(name, [0., 1., 2.], [1., 2., 3.]) for name in ("Ambient", "5 GPa")]
-    series = Series("Sample A", curves)
+    series = Series("Sample A", list(curves))
     project.add_series(series)
     component = Component.create("constant")
     for curve in curves:

@@ -128,7 +128,7 @@ def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
         box = app.activeModalWidget()
         if isinstance(box, QMessageBox):
             confirmations.append(box.text())
-            box.done(QMessageBox.StandardButton.Yes)
+            box.button(QMessageBox.StandardButton.Yes).click()
 
     QTimer.singleShot(0, confirm)
     window.remove_curves_button.click()
