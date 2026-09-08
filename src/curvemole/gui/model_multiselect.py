@@ -54,10 +54,25 @@ def _current_ref(panel: ModelPanel) -> tuple[str, str] | None:
 
 
 def _find_component_curve(window: MainWindow, component_id: str) -> str | None:
-    for curve_id, model in window.project.models.items():
-        if any(component.id == component_id for component in model.components):
+    # Sequential propagation deliberately preserves component IDs. Resolve the
+    # visible/selected curve first instead of editing the first original source
+    # that happens to carry the same ID.
+    candidates = [
+        curve_id for curve_id, model in window.project.models.items()
+        if any(component.id == component_id for component in model.components)
+    ]
+    panel = window.model_panel
+    current = _current_ref(panel)
+    if current and current[1] == component_id and current[0] in candidates:
+        return current[0]
+    selected = {curve_id for curve_id, selected_id in _selected_refs(panel) if selected_id == component_id}
+    if len(selected) == 1:
+        curve_id = next(iter(selected))
+        if curve_id in candidates:
             return curve_id
-    return None
+    if window.active_curve_id in candidates:
+        return window.active_curve_id
+    return candidates[0] if len(candidates) == 1 else None
 
 
 def _refs_for_request(window: MainWindow, component_id: str) -> list[tuple[str, str]]:

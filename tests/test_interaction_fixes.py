@@ -256,6 +256,9 @@ def test_pause_manual_quick_fit_parameter_edits_and_two_resumes(window, monkeypa
         current = window.project.model_for(window.active_curve_id).component(component.id)
         window.model_panel.lock_all_parameters_button.click()
         assert all(item.fixed for item in current.parameters.values())
+        assert all(
+            not item.fixed for item in window.project.model_for(source.id).component(component.id).parameters.values()
+        )
         window.model_panel.unlock_all_parameters_button.click()
         assert all(not item.fixed for item in current.parameters.values())
 
