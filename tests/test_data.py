@@ -7,6 +7,7 @@ from curvemole import Curve
 from curvemole.core.calculator import (
     apply_background_subtraction,
     apply_curve_operation,
+    apply_custom_formula,
     apply_scalar,
 )
 from curvemole.core.data import aligned_operand
@@ -74,3 +75,19 @@ def test_background_subtraction_applies_inside_masks() -> None:
     assert curve.effective_mask.tolist() == before_mask.tolist()
     assert curve.undo_transformation()
     assert curve.y.tolist() == pytest.approx([10.0, 11.0, 12.0, 13.0, 14.0])
+
+
+def test_custom_formula_transforms_selected_axis_and_is_reversible() -> None:
+    curve = Curve("formula", np.arange(4.0), np.array([1.0, 2.0, 3.0, 4.0]))
+    apply_custom_formula(curve, "x", "X = 3*x")
+    assert curve.x.tolist() == pytest.approx([0.0, 3.0, 6.0, 9.0])
+    assert curve.y.tolist() == pytest.approx([1.0, 2.0, 3.0, 4.0])
+    assert curve.undo_transformation()
+    apply_custom_formula(curve, "y", "y**2")
+    assert curve.y.tolist() == pytest.approx([1.0, 4.0, 9.0, 16.0])
+
+
+def test_custom_formula_rejects_other_symbols() -> None:
+    curve = Curve("formula", np.arange(3.0), np.ones(3))
+    with pytest.raises(DataValidationError, match="unknown symbol"):
+        apply_custom_formula(curve, "x", "x + y")

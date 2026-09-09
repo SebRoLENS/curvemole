@@ -334,6 +334,7 @@ class ModelPanel(QWidget):
 
 class CalculatorPanel(QWidget):
     applyRequested = Signal(dict)
+    saveFormulaRequested = Signal(dict)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -348,6 +349,7 @@ class CalculatorPanel(QWidget):
             (self.tr("Scale x"), "x_multiply"),
             (self.tr("Normalise by maximum"), "normalize_max"),
             (self.tr("Normalise by area"), "normalize_area"),
+            (self.tr("Custom formula"), "custom_formula"),
             (self.tr("Add another curve"), "curve_add"),
             (self.tr("Subtract another curve"), "curve_subtract"),
             (self.tr("Multiply by another curve"), "curve_multiply"),
@@ -358,6 +360,15 @@ class CalculatorPanel(QWidget):
         self.value.setDecimals(12)
         self.value.setRange(-1e100, 1e100)
         self.value.setValue(1.0)
+        self.formula_axis = QComboBox()
+        self.formula_axis.addItems([self.tr("X"), self.tr("Y")])
+        self.formula = QLineEdit()
+        self.formula.setPlaceholderText(self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
+        self.formula_name = QLineEdit()
+        self.formula_name.setPlaceholderText(self.tr("Name for saved formula"))
+        self.saved_formula = QComboBox()
+        self.saved_formula.addItem(self.tr("(not saved)"), None)
+        save_formula = QPushButton(self.tr("Save formula"))
         self.scope = QComboBox()
         self.scope.addItems([self.tr("Active curve"), self.tr("Selected curves"), self.tr("Entire series")])
         self.operand = QComboBox()
@@ -370,6 +381,11 @@ class CalculatorPanel(QWidget):
         restore.clicked.connect(lambda: self.applyRequested.emit({"restore": True, "scope": self.scope.currentIndex()}))
         layout.addRow(self.tr("Operation"), self.operation)
         layout.addRow(self.tr("Value"), self.value)
+        layout.addRow(self.tr("Formula axis"), self.formula_axis)
+        layout.addRow(self.tr("Custom formula"), self.formula)
+        layout.addRow(self.tr("Saved formulas"), self.saved_formula)
+        layout.addRow(self.tr("Formula name"), self.formula_name)
+        layout.addRow(save_formula)
         layout.addRow(self.tr("Target"), self.scope)
         layout.addRow(self.tr("Operand curve"), self.operand)
         layout.addRow(self.tr("Interpolation"), self.interpolation)
@@ -377,9 +393,21 @@ class CalculatorPanel(QWidget):
         layout.addRow(apply)
         layout.addRow(restore)
         self.operation.currentIndexChanged.connect(self._update_enabled)
+        self.saved_formula.currentIndexChanged.connect(self._load_saved_formula)
+        save_formula.clicked.connect(self._save_formula)
         self._update_enabled()
 
     def set_curves(self, project: Project | None) -> None:
+        current_formula = self.saved_formula.currentData()
+        self.saved_formula.blockSignals(True)
+        self.saved_formula.clear()
+        self.saved_formula.addItem(self.tr("(not saved)"), None)
+        if project:
+            for item in project.custom_formulas:
+                self.saved_formula.addItem(str(item.get("name", "Unnamed formula")), item)
+        index = next((i for i in range(self.saved_formula.count()) if self.saved_formula.itemData(i) == current_formula), 0)
+        self.saved_formula.setCurrentIndex(index)
+        self.saved_formula.blockSignals(False)
         current = self.operand.currentData()
         self.operand.clear()
         if project:
@@ -388,11 +416,32 @@ class CalculatorPanel(QWidget):
         index = self.operand.findData(current)
         self.operand.setCurrentIndex(max(0, index))
 
+
+    def _load_saved_formula(self, index: int) -> None:
+        item = self.saved_formula.itemData(index)
+        if not isinstance(item, dict):
+            return
+        self.formula_axis.setCurrentIndex(0 if str(item.get("axis", "x")) == "x" else 1)
+        self.formula.setText(str(item.get("formula", "")))
+        self.formula_name.setText(str(item.get("name", "")))
+        self.operation.setCurrentIndex(max(0, self.operation.findData("custom_formula")))
+
+    def _save_formula(self) -> None:
+        formula = self.formula.text().strip()
+        name = self.formula_name.text().strip()
+        if not name or not formula:
+            QMessageBox.warning(self, self.tr("Data Calculator"), self.tr("Enter a name and formula first."))
+            return
+        self.saveFormulaRequested.emit({"name": name, "axis": "x" if self.formula_axis.currentIndex() == 0 else "y", "formula": formula})
+
     def _update_enabled(self) -> None:
         operation = self.operation.currentData()
         curve_operation = str(operation).startswith("curve_")
         scalar = operation not in {"normalize_max", "normalize_area"} and not curve_operation
-        self.value.setEnabled(scalar)
+        custom = operation == "custom_formula"
+        self.value.setEnabled(scalar and not custom)
+        self.formula_axis.setEnabled(custom)
+        self.formula.setEnabled(custom)
         self.operand.setEnabled(curve_operation)
         self.interpolation.setEnabled(curve_operation)
         self.extrapolate.setEnabled(curve_operation)
@@ -402,6 +451,8 @@ class CalculatorPanel(QWidget):
             {
                 "operation": self.operation.currentData(),
                 "value": self.value.value(),
+                "formula_axis": "x" if self.formula_axis.currentIndex() == 0 else "y",
+                "formula": self.formula.text(),
                 "scope": self.scope.currentIndex(),
                 "operand_curve_id": self.operand.currentData(),
                 "interpolation": self.interpolation.currentText(),
