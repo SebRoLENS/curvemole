@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.calculator import (
     apply_background_subtraction,
     apply_curve_operation,
+    apply_custom_formula,
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
@@ -185,7 +186,6 @@ class CallbackCommand(QUndoCommand):
 
 
 class CurveTree(QTreeWidget):
-    noteRequested = Signal(object)
     activeCurveChanged = Signal(object)
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
@@ -214,9 +214,6 @@ class CurveTree(QTreeWidget):
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
         self.setEditTriggers(self.EditTrigger.DoubleClicked | self.EditTrigger.EditKeyPressed)
-        from curvemole.gui.note_indicators import NoteIndicatorDelegate
-
-        self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
         self._project = project
@@ -224,21 +221,12 @@ class CurveTree(QTreeWidget):
         self.clear()
         active_item: QTreeWidgetItem | None = None
         for series in project.dataset.series:
-            from curvemole.gui.note_indicators import attach_note
-
             parent = QTreeWidgetItem(["", series.name, ""])
-            font = parent.font(1)
-            font.setBold(True)
-            parent.setFont(1, font)
-            dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
-            parent.setForeground(1, QColor("#66B5FF" if dark else "#075B9A"))
-            attach_note(parent, project, "series", series.id, column=1)
             parent.setData(1, Qt.ItemDataRole.UserRole, ("series", series.id))
             parent.setFlags(parent.flags() | Qt.ItemFlag.ItemIsEditable)
             self.addTopLevelItem(parent)
             for curve in series.curves:
                 child = QTreeWidgetItem(["", curve.name, curve.state.value])
-                attach_note(child, project, "spectrum", curve.id, column=1)
                 child.setData(1, Qt.ItemDataRole.UserRole, ("curve", curve.id))
                 child.setFlags(
                     child.flags()
@@ -564,10 +552,6 @@ class MainWindow(QMainWindow):
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
         self.notebook_action.triggered.connect(self.open_notebook)
-        self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
-        self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
-        self.recent_projects_menu = QMenu(self.tr("Recent projects"), self)
-        self.recent_projects_menu.aboutToShow.connect(self._refresh_recent_projects)
         self.quit_action = QAction(self.tr("Quit"), self)
         self.quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         self.quit_action.triggered.connect(self.close)
@@ -609,8 +593,6 @@ class MainWindow(QMainWindow):
         self.quick_peak_action.triggered.connect(self.quick_peak)
         self.copy_fit_action = QAction(self.tr("Copy fit…"), self)
         self.copy_fit_action.triggered.connect(self.copy_fit)
-        self.copy_fit_next_action = QAction(self.tr("Copy fit to next…"), self)
-        self.copy_fit_next_action.triggered.connect(lambda: self.copy_fit(next_only=True))
         self.find_peaks_action = QAction(self.tr("Find positive peaks…"), self)
         self.find_peaks_action.triggered.connect(self.find_peaks)
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
@@ -692,12 +674,10 @@ class MainWindow(QMainWindow):
         menu = self.menuBar()
         file_menu = menu.addMenu(self.tr("&File"))
         file_menu.addActions([self.new_action, self.open_action, self.import_action])
-        file_menu.addMenu(self.recent_projects_menu)
         file_menu.addSeparator()
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
         file_menu.addAction(self.notebook_action)
-        file_menu.addAction(self.recovery_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
 
@@ -722,7 +702,6 @@ class MainWindow(QMainWindow):
                 self.add_component_action,
                 self.quick_peak_action,
                 self.copy_fit_action,
-                self.copy_fit_next_action,
                 self.find_peaks_action,
                 self.function_action,
             ]
@@ -806,8 +785,7 @@ class MainWindow(QMainWindow):
         toolbar.addAction(self.notebook_action)
 
     def _connect_signals(self) -> None:
-        self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
-        self.curve_tree.noteRequested.connect(self.open_attached_note)
+        self.curve_tree.activeCurveChanged.connect(self._set_active_curve)
         self.curve_tree.seriesActivated.connect(self._set_active_series)
         self.curve_tree.itemSelectionChanged.connect(self._selection_changed)
         self.curve_tree.curveVisibilityChanged.connect(self._set_visibility)
@@ -833,9 +811,7 @@ class MainWindow(QMainWindow):
         self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
         self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
-        self.model_panel.copyFitNextRequested.connect(lambda: self.copy_fit(next_only=True))
         self.model_panel.descriptionRequested.connect(self.describe_function)
-        self.model_panel.noteRequested.connect(self.open_attached_note)
         self.plot_workspace.componentSelected.connect(self._set_component)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
         self.plot_workspace.maskRangeRequested.connect(self.mask_range)
@@ -848,6 +824,7 @@ class MainWindow(QMainWindow):
         self.plot_workspace.splinePlacementFinished.connect(self._graphical_spline_placed)
         self.plot_workspace.placementCancelled.connect(self._graphical_placement_cancelled)
         self.calculator.applyRequested.connect(self.apply_calculator)
+        self.calculator.saveFormulaRequested.connect(self.save_custom_formula)
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
@@ -862,7 +839,6 @@ class MainWindow(QMainWindow):
             len(selected),
             self.selected_component_id,
         )
-        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,
@@ -886,6 +862,8 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def open_project(self, path: str | Path | None = None) -> None:
+        if not self._confirm_discard_or_save():
+            return
         if path is None:
             selected, _ = QFileDialog.getOpenFileName(
                 self, self.tr("Open CurveMole project"), "", self.tr("CurveMole projects (*.fitproj)")
@@ -895,8 +873,6 @@ class MainWindow(QMainWindow):
             path = selected
         try:
             project = load_project(path)
-            if not self._confirm_discard_or_save():
-                return
             self._release_lock()
             lock = ProjectLock(Path(path))
             lock.__enter__()
@@ -913,7 +889,6 @@ class MainWindow(QMainWindow):
             self._normalise_spectrum_colours()
             self.refresh_all()
             self._notify(self.tr("Project opened."))
-            self._remember_recent_project(project.path)
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
 
@@ -977,10 +952,9 @@ class MainWindow(QMainWindow):
         try:
             save_project(self.project, path)
             self.project.read_only = False
-            self._clear_recovery()
+            self.recovery.clear(self.project.id)
             self.setWindowTitle(self._title())
             self._notify(self.tr("Project saved."))
-            self._remember_recent_project(self.project.path)
             return True
         except Exception as exc:
             self._show_error(self.tr("Save project"), exc)
@@ -1011,16 +985,7 @@ class MainWindow(QMainWindow):
 
         dialog = LaboratoryNotebookDialog(self.project, self, editable=self._thread is None)
         dialog.exec()
-        self.refresh_all()
-
-    def open_attached_note(self, reference) -> None:
-        kind, object_id, curve_id = reference
-        if kind == "series":
-            self.describe_series(object_id)
-        elif kind == "spectrum":
-            self.describe_spectrum(object_id)
-        elif kind == "function":
-            self.describe_function(curve_id, object_id)
+        self.setWindowTitle(self._title())
 
     def describe_series(self, series_id: str) -> None:
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)
@@ -1054,7 +1019,7 @@ class MainWindow(QMainWindow):
         dialog = DescriptionDialog(title, entry.text if entry else "", self)
         if dialog.exec() == dialog.DialogCode.Accepted:
             self.project.notebook.set_description(self.project, kind, object_id, dialog.editor.toPlainText(), curve_id)
-            self.refresh_all()
+            self.setWindowTitle(self._title())
 
     def export_analysis(self) -> None:
         remembered = self.project.export_config.get("directory")
@@ -1403,21 +1368,12 @@ class MainWindow(QMainWindow):
             return
         self.change_parameter(component_id, name, "link", dialog.selected_link())
 
-    def copy_fit(self, *, next_only: bool = False) -> None:
+    def copy_fit(self) -> None:
         if not self._ensure_editable():
             return
         if not self.active_curve_id:
             return
-        next_id = None
-        if next_only:
-            series = self.project.dataset.series_for(self.active_curve_id)
-            ids = [curve.id for curve in series.curves]
-            index = ids.index(self.active_curve_id)
-            if index + 1 >= len(ids):
-                self._notify(self.tr("There is no next spectrum in this series."))
-                return
-            next_id = ids[index + 1]
-        dialog = CopyFitDialog(self.project, self.active_curve_id, self, next_curve_id=next_id)
+        dialog = CopyFitDialog(self.project, self.active_curve_id, self)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         targets, choices = dialog.choices()
@@ -1437,8 +1393,6 @@ class MainWindow(QMainWindow):
             self.tr("Copy fit"),
             lambda: restore(after),
             lambda: restore(before),
-            modified_curve_ids=set(targets),
-            preserve_curve_ids={self.active_curve_id},
         )
 
     def subtract_background(self) -> None:
@@ -2021,6 +1975,17 @@ class MainWindow(QMainWindow):
                             ),
                         )
                     )
+                elif operation == "custom_formula":
+                    transformations.append(
+                        (
+                            curve,
+                            apply_custom_formula(
+                                curve,
+                                request.get("formula_axis", "x"),
+                                request.get("formula", ""),
+                            ),
+                        )
+                    )
                 else:
                     transformations.append((curve, apply_scalar(curve, operation, request.get("value"))))
             for curve, _ in transformations:
@@ -2041,6 +2006,34 @@ class MainWindow(QMainWindow):
             self._push_change(self.tr("Data calculation"), redo, undo)
         except Exception as exc:
             self._show_error(self.tr("Data Calculator"), exc)
+
+    def save_custom_formula(self, formula: dict[str, Any]) -> None:
+        """Persist a named calculator formula in the current project."""
+        if not self._ensure_editable():
+            return
+        name = str(formula.get("name", "")).strip()
+        axis = str(formula.get("axis", "")).lower()
+        source = str(formula.get("formula", "")).strip()
+        if not name or axis not in {"x", "y"} or not source:
+            return
+        try:
+            # Reuse the calculator validator without changing any curve.
+            from curvemole.core.expressions import SafeExpression
+
+            expression_source = source.split("=", 1)[1].strip() if "=" in source else source
+            expression = SafeExpression.compile(expression_source)
+            unknown = set(expression.variables) - {axis}
+            if unknown:
+                raise ValueError(f"Unknown symbol(s): {', '.join(sorted(unknown))}")
+            self.project.custom_formulas = [
+                item for item in self.project.custom_formulas if item.get("name") != name
+            ]
+            self.project.custom_formulas.append({"name": name, "axis": axis, "formula": source})
+            self.project.touch()
+            self.refresh_all()
+            self._notify(self.tr("Custom formula saved."))
+        except Exception as exc:
+            self._show_error(self.tr("Save custom formula"), exc)
 
     def apply_theme(self, theme: str) -> None:
         app = QApplication.instance()
@@ -2069,14 +2062,6 @@ class MainWindow(QMainWindow):
         self.system_theme_action.setChecked(theme == "system")
         self.light_theme_action.setChecked(theme == "light")
         self.dark_theme_action.setChecked(theme == "dark")
-        if hasattr(self, "curve_tree"):
-            colour = QColor("#66B5FF" if app.palette().color(QPalette.ColorRole.Base).lightness() < 128 else "#075B9A")
-            blocked = self.curve_tree.blockSignals(True)
-            for index in range(self.curve_tree.topLevelItemCount()):
-                self.curve_tree.topLevelItem(index).setForeground(1, colour)
-            self.curve_tree.blockSignals(blocked)
-        if hasattr(self, "model_panel"):
-            self.model_panel.refresh()
 
     def reset_layout(self) -> None:
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
@@ -2295,16 +2280,6 @@ class MainWindow(QMainWindow):
         # Keep the series header selected, including its multi-curve selection.
         self._selection_changed()
 
-    def _activate_tree_curve(self, curve_id: str | None) -> None:
-        if curve_id != self.active_curve_id:
-            self.plot_workspace.cancel_placement()
-        self.active_curve_id = curve_id
-        self.selected_component_id = None
-        self._selection_changed()
-        self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
-        self.refresh_worksheet()
-        self._refresh_diagnostics()
-
     def _set_active_curve(self, curve_id: str | None) -> None:
         if curve_id != self.active_curve_id:
             self.plot_workspace.cancel_placement()
@@ -2320,7 +2295,6 @@ class MainWindow(QMainWindow):
             len(selected),
             self.selected_component_id,
         )
-        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,
@@ -2708,7 +2682,6 @@ class MainWindow(QMainWindow):
     def _set_component(self, component_id: str) -> None:
         self.selected_component_id = component_id
         self.model_panel.refresh(component_id)
-        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,
@@ -2739,40 +2712,22 @@ class MainWindow(QMainWindow):
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
         )
 
-    def _push_change(
-        self,
-        text: str,
-        redo: Callable[[], None],
-        undo: Callable[[], None],
-        *,
-        modified_curve_ids: set[str] | None = None,
-        preserve_curve_ids: set[str] | None = None,
-    ) -> None:
+    def _push_change(self, text: str, redo: Callable[[], None], undo: Callable[[], None]) -> None:
         if not self._ensure_editable():
             return
 
         def wrapped(operation: Callable[[], None]) -> None:
             operation()
-            self._after_edit(modified_curve_ids, preserve_curve_ids)
+            self._after_edit()
 
         self.undo_stack.push(CallbackCommand(text, lambda: wrapped(redo), lambda: wrapped(undo)))
 
-    def _after_edit(
-        self,
-        modified_curve_ids: set[str] | None = None,
-        preserve_curve_ids: set[str] | None = None,
-    ) -> None:
+    def _after_edit(self) -> None:
         try:
             self.project.touch()
         except PermissionError as exc:
             self._show_error(self.tr("Read-only project"), exc)
-        if modified_curve_ids is None:
-            modified_curve_ids = self.curve_tree.selected_curve_ids() or (
-                {self.active_curve_id} if self.active_curve_id else set()
-            )
-        for curve_id in modified_curve_ids:
-            if preserve_curve_ids and curve_id in preserve_curve_ids:
-                continue
+        for curve_id in self.curve_tree.selected_curve_ids() or ({self.active_curve_id} if self.active_curve_id else set()):
             try:
                 curve = self.project.dataset.curve(curve_id)
             except KeyError:
@@ -2918,79 +2873,9 @@ class MainWindow(QMainWindow):
         try:
             path = self.recovery.autosave(self.project)
             if path:
-                session = getattr(self, "_recovery_session", None)
-                if session is not None:
-                    session.record(self.project.id)
                 self._log(f"Recovery saved: {path.name}")
         except Exception as exc:
             self._log(f"Autosave failed: {exc}")
-
-    def _clear_recovery(self) -> None:
-        try:
-            self.recovery.clear(self.project.id)
-        except OSError as exc:
-            self._notify(self.tr("Could not remove recovery copies: ") + str(exc), warning=True)
-
-    def _remember_recent_project(self, path) -> None:
-        if path is None:
-            return
-        path = str(Path(path).resolve())
-        recent = self.settings.value("recent_projects", [], type=list)
-        self.settings.setValue("recent_projects", [path, *[item for item in recent if item != path]][:10])
-
-    def _refresh_recent_projects(self) -> None:
-        menu = self.recent_projects_menu
-        menu.clear()
-        recent = self.settings.value("recent_projects", [], type=list)
-        if not recent:
-            menu.addAction(self.tr("No recent projects")).setEnabled(False)
-            return
-        for saved in recent:
-            path = Path(saved)
-            action = menu.addAction(f"{path.name} — {path.parent}".replace("&", "&&"))
-            action.setToolTip(str(path))
-            action.setEnabled(path.is_file())
-            action.triggered.connect(lambda checked=False, path=path: self.open_project(path))
-        menu.addSeparator()
-        menu.addAction(self.tr("Clear recent projects")).triggered.connect(
-            lambda checked=False: self.settings.setValue("recent_projects", [])
-        )
-
-    def show_recovery_sessions(self, *, startup: bool = False) -> None:
-        from curvemole.gui.recovery import RecoveryDialog
-
-        if self._thread is not None:
-            self._notify(self.tr("Wait for the running task before recovering another session."))
-            return
-        try:
-            paths = self.recovery.candidates()
-            if startup:
-                crashed = getattr(self, "_crashed_recovery_projects", set())
-                paths = [path for path in paths if path.name.split(".recovery-", 1)[0] in crashed]
-                self._crashed_recovery_projects = set()
-            if not paths:
-                if not startup:
-                    self._notify(self.tr("No recoverable sessions are available."))
-                return
-            dialog = RecoveryDialog(self.recovery, paths, self)
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            project = self.recovery.recover(dialog.selected_path)
-            if not self._confirm_discard_or_save():
-                return
-            self._release_lock()
-            self.project = project
-            self.active_curve_id = project.curves[0].id if project.curves else None
-            self.selected_component_id = None
-            self.undo_stack.clear()
-            self._load_custom_functions()
-            self._normalise_component_names()
-            self._normalise_spectrum_colours()
-            self.refresh_all()
-            self._notify(self.tr("Session recovered. Save the project to keep this work."))
-            self._autosave()
-        except Exception as exc:
-            self._show_error(self.tr("Recover session"), exc)
 
     def _confirm_discard_or_save(self) -> bool:
         if not self.project.dirty:
@@ -3007,10 +2892,7 @@ class MainWindow(QMainWindow):
             return False
         if answer == QMessageBox.StandardButton.Save:
             return self.save_project()
-        if answer == QMessageBox.StandardButton.Discard:
-            self._clear_recovery()
-            return True
-        return False
+        return True
 
     def _ensure_editable(self) -> bool:
         if not self.project.read_only:
@@ -3072,12 +2954,6 @@ class MainWindow(QMainWindow):
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("window_state", self.saveState())
         self._release_lock()
-        session = getattr(self, "_recovery_session", None)
-        if session is not None:
-            try:
-                session.finish()
-            except OSError as exc:
-                self._log(f"Recovery session cleanup failed: {exc}")
         event.accept()
 
     def _release_lock(self) -> None:

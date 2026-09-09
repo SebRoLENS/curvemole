@@ -8,6 +8,7 @@ import numpy as np
 
 from curvemole.core.data import Curve, Transformation, aligned_operand
 from curvemole.core.errors import DataValidationError
+from curvemole.core.expressions import SafeExpression
 
 UNARY_OPERATIONS = {
     "y_add",
@@ -18,6 +19,7 @@ UNARY_OPERATIONS = {
     "x_multiply",
     "normalize_max",
     "normalize_area",
+    "custom_formula",
 }
 
 
@@ -34,6 +36,48 @@ def apply_scalar(curve: Curve, operation: str, value: float | None = None) -> Tr
         parameters,
         description=_description(operation, value),
     )
+    curve.apply_transformation(transformation)
+    return transformation
+
+
+def apply_custom_formula(curve: Curve, axis: str, formula: str) -> Transformation:
+    """Apply a validated vectorised formula to one coordinate of a curve.
+
+    ``formula`` may be entered as either ``3*x`` or ``X = 3*x``.  Only the
+    selected coordinate (``x`` or ``y``) is exposed to the expression.
+    """
+    target = str(axis).strip().lower()
+    if target not in {"x", "y"}:
+        raise DataValidationError("Custom formula target must be x or y.")
+    source = str(formula).strip()
+    if "=" in source:
+        lhs, rhs = source.split("=", 1)
+        if lhs.strip().lower() != target:
+            raise DataValidationError(f"Formula assignment must target {target.upper()}.")
+        source = rhs.strip()
+    expression = SafeExpression.compile(source)
+    unknown = set(expression.variables) - {target}
+    if unknown:
+        names = ", ".join(sorted(unknown))
+        raise DataValidationError(
+            f"Formula for {target.upper()} may only use {target}; unknown symbol(s): {names}."
+        )
+    parameters = {"axis": target, "formula": source}
+    transformation = Transformation(
+        "custom_formula",
+        parameters,
+        description=f"Custom formula {target.upper()} = {source}",
+    )
+    # Evaluate once before adding the transformation so invalid output is
+    # reported immediately, while the transformation remains replayable.
+    values = expression.evaluate({target: curve.x if target == "x" else curve.y})
+    result = np.asarray(values, dtype=np.float64)
+    if result.ndim == 0:
+        result = np.full(len(curve), float(result), dtype=np.float64)
+    if result.shape != (len(curve),):
+        raise DataValidationError("Custom formula must return one value per data point.")
+    if not np.all(np.isfinite(result)):
+        raise DataValidationError("Custom formula returned non-finite values.")
     curve.apply_transformation(transformation)
     return transformation
 

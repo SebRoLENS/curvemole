@@ -217,6 +217,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 results=_load_results(metadata.get("results", {})),
                 fit_history=list(metadata.get("fit_history", [])),
                 custom_functions=list(metadata.get("custom_functions", [])),
+                custom_formulas=list(metadata.get("custom_formulas", [])),
                 ui_state=dict(metadata.get("ui_state", {})),
                 export_config=dict(metadata.get("export_config", {})),
                 notebook=LaboratoryNotebook.from_dict(metadata.get("notebook", {})),

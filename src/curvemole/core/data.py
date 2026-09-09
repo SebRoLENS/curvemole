@@ -14,6 +14,7 @@ import numpy as np
 from scipy import integrate
 
 from curvemole.core.errors import DataValidationError
+from curvemole.core.expressions import SafeExpression
 
 
 def _identifier(prefix: str) -> str:
@@ -89,6 +90,23 @@ class Transformation:
             x_new += float(p["value"])
         elif op == "x_multiply":
             x_new *= float(p["value"])
+        elif op == "custom_formula":
+            axis = str(p.get("axis", "")).lower()
+            formula = str(p.get("formula", ""))
+            if axis not in {"x", "y"}:
+                raise DataValidationError("Custom formula target must be x or y.")
+            values = SafeExpression.compile(formula).evaluate({axis: x_new if axis == "x" else y_new})
+            result = np.asarray(values, dtype=np.float64)
+            if result.ndim == 0:
+                result = np.full(len(x_new), float(result), dtype=np.float64)
+            if result.shape != x_new.shape:
+                raise DataValidationError("Custom formula must return one value per data point.")
+            if not np.all(np.isfinite(result)):
+                raise DataValidationError("Custom formula returned non-finite values.")
+            if axis == "x":
+                x_new = result
+            else:
+                y_new = result
         elif op == "normalize_max":
             scale = np.nanmax(np.abs(y_new))
             if not np.isfinite(scale) or scale == 0:

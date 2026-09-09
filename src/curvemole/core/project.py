@@ -26,6 +26,7 @@ class Project:
     results: dict[str, Any] = field(default_factory=dict)
     fit_history: list[dict[str, Any]] = field(default_factory=list)
     custom_functions: list[dict[str, Any]] = field(default_factory=list)
+    custom_formulas: list[dict[str, Any]] = field(default_factory=list)
     ui_state: dict[str, Any] = field(default_factory=dict)
     export_config: dict[str, Any] = field(default_factory=dict)
     id: str = field(default_factory=lambda: f"project_{uuid.uuid4().hex[:12]}")
@@ -243,6 +244,7 @@ class Project:
             "results": self.results,
             "fit_history": self.fit_history,
             "custom_functions": self.custom_functions,
+            "custom_formulas": self.custom_formulas,
             "ui_state": self.ui_state,
             "export_config": self.export_config,
             "notebook": self.notebook.to_dict(),
