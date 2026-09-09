@@ -1437,6 +1437,8 @@ class MainWindow(QMainWindow):
             self.tr("Copy fit"),
             lambda: restore(after),
             lambda: restore(before),
+            modified_curve_ids=set(targets),
+            preserve_curve_ids={self.active_curve_id},
         )
 
     def subtract_background(self) -> None:
@@ -2737,22 +2739,40 @@ class MainWindow(QMainWindow):
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
         )
 
-    def _push_change(self, text: str, redo: Callable[[], None], undo: Callable[[], None]) -> None:
+    def _push_change(
+        self,
+        text: str,
+        redo: Callable[[], None],
+        undo: Callable[[], None],
+        *,
+        modified_curve_ids: set[str] | None = None,
+        preserve_curve_ids: set[str] | None = None,
+    ) -> None:
         if not self._ensure_editable():
             return
 
         def wrapped(operation: Callable[[], None]) -> None:
             operation()
-            self._after_edit()
+            self._after_edit(modified_curve_ids, preserve_curve_ids)
 
         self.undo_stack.push(CallbackCommand(text, lambda: wrapped(redo), lambda: wrapped(undo)))
 
-    def _after_edit(self) -> None:
+    def _after_edit(
+        self,
+        modified_curve_ids: set[str] | None = None,
+        preserve_curve_ids: set[str] | None = None,
+    ) -> None:
         try:
             self.project.touch()
         except PermissionError as exc:
             self._show_error(self.tr("Read-only project"), exc)
-        for curve_id in self.curve_tree.selected_curve_ids() or ({self.active_curve_id} if self.active_curve_id else set()):
+        if modified_curve_ids is None:
+            modified_curve_ids = self.curve_tree.selected_curve_ids() or (
+                {self.active_curve_id} if self.active_curve_id else set()
+            )
+        for curve_id in modified_curve_ids:
+            if preserve_curve_ids and curve_id in preserve_curve_ids:
+                continue
             try:
                 curve = self.project.dataset.curve(curve_id)
             except KeyError:
