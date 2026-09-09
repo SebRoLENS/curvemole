@@ -4,6 +4,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Improved
+
+- Add Copy fit to next with the successor in the same series preselected.
+- Default copy and fit target selectors to the active series, with one-click All
+  series scope and theme-aware colored group headings. Sequential source choices
+  follow the scope; hidden targets are excluded.
+- Group all model functions by series and spectrum while preserving multi-selection.
+- Guard note click handling during widget destruction.
+
+
 ### Fixed
 
 - Keep three autosave copies per project and remove them on Save or explicit Discard.

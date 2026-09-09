@@ -609,6 +609,8 @@ class MainWindow(QMainWindow):
         self.quick_peak_action.triggered.connect(self.quick_peak)
         self.copy_fit_action = QAction(self.tr("Copy fit…"), self)
         self.copy_fit_action.triggered.connect(self.copy_fit)
+        self.copy_fit_next_action = QAction(self.tr("Copy fit to next…"), self)
+        self.copy_fit_next_action.triggered.connect(lambda: self.copy_fit(next_only=True))
         self.find_peaks_action = QAction(self.tr("Find positive peaks…"), self)
         self.find_peaks_action.triggered.connect(self.find_peaks)
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
@@ -720,6 +722,7 @@ class MainWindow(QMainWindow):
                 self.add_component_action,
                 self.quick_peak_action,
                 self.copy_fit_action,
+                self.copy_fit_next_action,
                 self.find_peaks_action,
                 self.function_action,
             ]
@@ -830,6 +833,7 @@ class MainWindow(QMainWindow):
         self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
         self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
         self.model_panel.copyFitRequested.connect(self.copy_fit)
+        self.model_panel.copyFitNextRequested.connect(lambda: self.copy_fit(next_only=True))
         self.model_panel.descriptionRequested.connect(self.describe_function)
         self.model_panel.noteRequested.connect(self.open_attached_note)
         self.plot_workspace.componentSelected.connect(self._set_component)
@@ -858,6 +862,7 @@ class MainWindow(QMainWindow):
             len(selected),
             self.selected_component_id,
         )
+        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,
@@ -1398,12 +1403,21 @@ class MainWindow(QMainWindow):
             return
         self.change_parameter(component_id, name, "link", dialog.selected_link())
 
-    def copy_fit(self) -> None:
+    def copy_fit(self, *, next_only: bool = False) -> None:
         if not self._ensure_editable():
             return
         if not self.active_curve_id:
             return
-        dialog = CopyFitDialog(self.project, self.active_curve_id, self)
+        next_id = None
+        if next_only:
+            series = self.project.dataset.series_for(self.active_curve_id)
+            ids = [curve.id for curve in series.curves]
+            index = ids.index(self.active_curve_id)
+            if index + 1 >= len(ids):
+                self._notify(self.tr("There is no next spectrum in this series."))
+                return
+            next_id = ids[index + 1]
+        dialog = CopyFitDialog(self.project, self.active_curve_id, self, next_curve_id=next_id)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         targets, choices = dialog.choices()
@@ -2059,6 +2073,8 @@ class MainWindow(QMainWindow):
             for index in range(self.curve_tree.topLevelItemCount()):
                 self.curve_tree.topLevelItem(index).setForeground(1, colour)
             self.curve_tree.blockSignals(blocked)
+        if hasattr(self, "model_panel"):
+            self.model_panel.refresh()
 
     def reset_layout(self) -> None:
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
@@ -2302,6 +2318,7 @@ class MainWindow(QMainWindow):
             len(selected),
             self.selected_component_id,
         )
+        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,
@@ -2689,6 +2706,7 @@ class MainWindow(QMainWindow):
     def _set_component(self, component_id: str) -> None:
         self.selected_component_id = component_id
         self.model_panel.refresh(component_id)
+        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
         self.plot_workspace.set_context(
             self.project,
             self.active_curve_id,

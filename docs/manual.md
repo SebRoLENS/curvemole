@@ -974,7 +974,13 @@ other than addition or subtraction.
 ### 8.10 Copying a fit to other curves
 
 **Model > Copy fit** copies selected information from the active curve. Use **Select all**
-or **Deselect all** when choosing many target curves. Options include:
+or **Deselect all** when choosing many target curves. The dialog initially shows
+**Active series**; **All series** exposes the entire project, grouped under colored
+series headings. Only targets in the displayed scope are copied.
+
+**Copy fit to next**, beside Copy fit, opens the same options with the next spectrum
+in the source series already checked. It is unavailable at the end of that series.
+Copying remains undoable. Options include:
 
 - component structure;
 - current or best values;
@@ -1148,6 +1154,13 @@ may differ between curves. Parameter links can connect curves and express shared
 offset, scaled, or otherwise related values.
 
 ### 10.3 Per-spectrum weights
+
+The Fit dialog uses the same **Active series / All series** scope for independent,
+sequential and global fits, with colored series headings. Hidden spectra are excluded
+from the plan; the sequential source chooser follows the same scope. Weights and
+checkbox choices are retained while switching scope. In the Functions panel,
+**Show all functions** groups entries by series, then spectrum, then function;
+headings cannot be selected as functions, and multi-selection remains available.
 
 The Fit dialog accepts a positive numeric spectrum weight for every selected curve.
 If $s_j$ is the spectrum weight, all point residuals from spectrum $j$ are multiplied

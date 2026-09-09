@@ -2,6 +2,7 @@
 
 from PySide6.QtCore import QEvent, QSize, Qt
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem
+from shiboken6 import isValid
 
 from curvemole.core.notebook import description_key
 from curvemole.gui.icons import vector_icon
@@ -39,8 +40,9 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         return self.view.style().subElementRect(QStyle.SubElement.SE_ItemViewItemDecoration, option, self.view)
 
     def eventFilter(self, watched, event):
-        if (watched is self.view.viewport()
-                and event.type() == QEvent.Type.MouseButtonPress
+        if (event.type() == QEvent.Type.MouseButtonPress
+                and isValid(self.view)
+                and watched is self.view.viewport()
                 and event.button() == Qt.MouseButton.LeftButton):
             index = self.view.indexAt(event.position().toPoint())
             ref = index.data(NOTE_ROLE)

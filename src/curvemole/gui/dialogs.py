@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -50,7 +51,7 @@ def _set_list_checked(widget: QListWidget, checked: bool) -> None:
     state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
     for index in range(widget.count()):
         item = widget.item(index)
-        if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+        if not item.isHidden() and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
             item.setCheckState(state)
 
 
@@ -58,7 +59,7 @@ def _set_table_checked(table: QTableWidget, column: int, checked: bool) -> None:
     state = Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked
     for row in range(table.rowCount()):
         item = table.item(row, column)
-        if item is not None and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+        if not table.isRowHidden(row) and item is not None and item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
             item.setCheckState(state)
 
 
@@ -158,7 +159,7 @@ class ImportMappingDialog(QDialog):
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
-        self.buttons.accepted.connect(self._accept)
+        self.buttons.accepted.connect(lambda: self._accept())
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
         self._populate()
@@ -498,7 +499,7 @@ class ParameterLinkDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self._accept)
+        buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         action_row.addWidget(buttons)
         layout.addLayout(action_row)
@@ -645,22 +646,45 @@ class FitPlanDialog(QDialog):
         self.mode.addItem(self.tr("Global simultaneous"), FitMode.GLOBAL)
         form.addRow(self.tr("Mode"), self.mode)
         layout.addLayout(form)
-        self.curves = QTableWidget(len(project.curves), 3)
+        from curvemole.gui.series_groups import add_scope, style_heading
+
+        source_id = getattr(parent, "active_curve_id", None) or next(
+            (curve.id for curve in project.curves if curve.id in selected_curve_ids), None)
+        add_scope(self, layout, project, source_id, self._filter_series)
+        self.curves = QTableWidget(0, 3)
+        self.curves.setAlternatingRowColors(True)
+        self.curves.verticalHeader().hide()
+        self._series_rows = {}
+        self._heading_rows = {}
         self.curves.setHorizontalHeaderLabels([self.tr("Use"), self.tr("Curve"), self.tr("Spectrum weight")])
-        for row, curve in enumerate(project.curves):
-            use = QTableWidgetItem()
-            use.setFlags(use.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            use.setCheckState(
-                Qt.CheckState.Checked
-                if not selected_curve_ids or curve.id in selected_curve_ids
-                else Qt.CheckState.Unchecked
-            )
-            use.setData(Qt.ItemDataRole.UserRole, curve.id)
-            self.curves.setItem(row, 0, use)
-            self.curves.setItem(row, 1, QTableWidgetItem(curve.name))
-            self.curves.setItem(row, 2, QTableWidgetItem("1"))
-        self.curves.resizeColumnsToContents()
+        for series in project.dataset.series:
+            row = self.curves.rowCount()
+            self.curves.insertRow(row)
+            heading = QTableWidgetItem(series.name)
+            style_heading(heading, self.curves)
+            self.curves.setItem(row, 0, heading)
+            self.curves.setSpan(row, 0, 1, 3)
+            self._heading_rows[row] = series.id
+            for curve in series.curves:
+                row = self.curves.rowCount()
+                self.curves.insertRow(row)
+                self._series_rows[row] = series.id
+                use = QTableWidgetItem()
+                use.setFlags(use.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                use.setCheckState(
+                    Qt.CheckState.Checked
+                    if not selected_curve_ids or curve.id in selected_curve_ids
+                    else Qt.CheckState.Unchecked
+                )
+                use.setData(Qt.ItemDataRole.UserRole, curve.id)
+                self.curves.setItem(row, 0, use)
+                self.curves.setItem(row, 1, QTableWidgetItem(curve.name))
+                self.curves.setItem(row, 2, QTableWidgetItem("1"))
+        self.curves.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.curves.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.curves.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         layout.addWidget(self.curves)
+        self._filter_series()
         curve_buttons = QHBoxLayout()
         self.select_all_curves_button = QPushButton(self.tr("Select all"))
         self.deselect_all_curves_button = QPushButton(self.tr("Deselect all"))
@@ -695,16 +719,22 @@ class FitPlanDialog(QDialog):
         advanced.addRow(self.tr("Confidence level (%)"), self.confidence)
         layout.addWidget(advanced_box)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.accepted.connect(self._accept)
+        buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _filter_series(self):
+        for row, series_id in {**self._series_rows, **self._heading_rows}.items():
+            self.curves.setRowHidden(row, not self.all_series.isChecked() and series_id != self.scope_series_id)
+        if hasattr(self, "_refresh_sources"):
+            self._refresh_sources()
 
     def plan(self) -> FitPlan:
         curve_ids: list[str] = []
         weights: dict[str, float] = {}
         for row in range(self.curves.rowCount()):
             use = self.curves.item(row, 0)
-            if use.checkState() != Qt.CheckState.Checked:
+            if row not in self._series_rows or self.curves.isRowHidden(row) or use.checkState() != Qt.CheckState.Checked:
                 continue
             curve_id = str(use.data(Qt.ItemDataRole.UserRole))
             curve_ids.append(curve_id)
@@ -761,21 +791,39 @@ class FitPlanDialog(QDialog):
 
 
 class CopyFitDialog(QDialog):
-    def __init__(self, project: Project, source_curve_id: str, parent: QWidget | None = None) -> None:
+    def __init__(self, project: Project, source_curve_id: str, parent: QWidget | None = None, *, next_curve_id: str | None = None) -> None:
         super().__init__(parent)
+        self.resize(600, 580)
         self.setWindowTitle(self.tr("Copy fit"))
         layout = QVBoxLayout(self)
         source = project.dataset.curve(source_curve_id)
-        layout.addWidget(QLabel(self.tr("Source: ") + f"<b>{source.name}</b>"))
+        source_label = QLabel(self.tr("Source: ") + source.name)
+        source_label.setTextFormat(Qt.TextFormat.PlainText)
+        source_label.setWordWrap(True)
+        layout.addWidget(source_label)
+        from curvemole.gui.series_groups import add_scope, style_heading
+
+        add_scope(self, layout, project, source_curve_id, self._filter_series)
         self.targets = QListWidget()
-        for curve in project.curves:
-            if curve.id == source_curve_id:
+        self.targets.setAlternatingRowColors(True)
+        self.targets.setSpacing(3)
+        self._target_series = {}
+        for series in project.dataset.series:
+            curves = [curve for curve in series.curves if curve.id != source_curve_id]
+            if not curves:
                 continue
-            item = QListWidgetItem(curve.name)
-            item.setData(Qt.ItemDataRole.UserRole, curve.id)
-            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked)
-            self.targets.addItem(item)
+            heading = QListWidgetItem(series.name)
+            style_heading(heading, self.targets)
+            self.targets.addItem(heading)
+            self._target_series[self.targets.count() - 1] = series.id
+            for curve in curves:
+                item = QListWidgetItem("    " + curve.name)
+                item.setData(Qt.ItemDataRole.UserRole, curve.id)
+                item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setCheckState(Qt.CheckState.Checked if curve.id == next_curve_id else Qt.CheckState.Unchecked)
+                self.targets.addItem(item)
+                self._target_series[self.targets.count() - 1] = series.id
+        self._filter_series()
         layout.addWidget(self.targets)
         target_buttons = QHBoxLayout()
         self.select_all_targets_button = QPushButton(self.tr("Select all"))
@@ -805,11 +853,16 @@ class CopyFitDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
+    def _filter_series(self):
+        for row, series_id in self._target_series.items():
+            self.targets.item(row).setHidden(not self.all_series.isChecked() and series_id != self.scope_series_id)
+
     def choices(self) -> tuple[list[str], dict[str, bool]]:
         targets = [
             str(self.targets.item(index).data(Qt.ItemDataRole.UserRole))
             for index in range(self.targets.count())
-            if self.targets.item(index).checkState() == Qt.CheckState.Checked
+            if not self.targets.item(index).isHidden() and self.targets.item(index).data(Qt.ItemDataRole.UserRole)
+            and self.targets.item(index).checkState() == Qt.CheckState.Checked
         ]
         return targets, {
             "structure": self.structure.isChecked(),
@@ -923,7 +976,7 @@ class ExportBundleDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self._accept)
+        buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 

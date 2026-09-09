@@ -27,7 +27,7 @@ def _checked_curve_ids(dialog: FitPlanDialog) -> list[str]:
     result: list[str] = []
     for row in range(dialog.curves.rowCount()):
         item = dialog.curves.item(row, 0)
-        if item.checkState() == Qt.CheckState.Checked:
+        if not dialog.curves.isRowHidden(row) and item.data(Qt.ItemDataRole.UserRole) and item.checkState() == Qt.CheckState.Checked:
             result.append(str(item.data(Qt.ItemDataRole.UserRole)))
     return result
 
@@ -59,8 +59,30 @@ def _install_fit_plan_dialog() -> None:
 
         form = QFormLayout()
         dialog.sequential_source = QComboBox()
-        for curve in dialog.project.curves:
-            dialog.sequential_source.addItem(curve.name, curve.id)
+        def refresh_sources():
+            from curvemole.gui.series_groups import style_heading
+
+            combo = dialog.sequential_source
+            previous = combo.currentData()
+            combo.blockSignals(True)
+            combo.clear()
+            for series in dialog.project.dataset.series:
+                if not dialog.all_series.isChecked() and series.id != dialog.scope_series_id:
+                    continue
+                combo.addItem(series.name)
+                style_heading(combo.model().item(combo.count() - 1), combo)
+                for curve in series.curves:
+                    combo.addItem("    " + curve.name, curve.id)
+            index = combo.findData(previous) if previous else -1
+            if index < 0:
+                index = next((i for i in range(combo.count()) if combo.itemData(i)), -1)
+            combo.setCurrentIndex(index)
+            combo.blockSignals(False)
+            if previous != combo.currentData():
+                combo.currentIndexChanged.emit(index)
+
+        dialog._refresh_sources = refresh_sources
+        refresh_sources()
         selected = _checked_curve_ids(dialog)
         if selected:
             index = dialog.sequential_source.findData(selected[0])
@@ -141,6 +163,8 @@ def _install_fit_plan_dialog() -> None:
         found_source = False
         for row in range(dialog.curves.rowCount()):
             item = dialog.curves.item(row, 0)
+            if dialog.curves.isRowHidden(row) or not item.data(Qt.ItemDataRole.UserRole):
+                continue
             curve_id = str(item.data(Qt.ItemDataRole.UserRole))
             if curve_id == source_id:
                 found_source = True
@@ -156,6 +180,8 @@ def _install_fit_plan_dialog() -> None:
             include = False
             for row in range(dialog.curves.rowCount()):
                 item = dialog.curves.item(row, 0)
+                if dialog.curves.isRowHidden(row) or not item.data(Qt.ItemDataRole.UserRole):
+                    continue
                 if str(item.data(Qt.ItemDataRole.UserRole)) == source_id:
                     include = True
                 if include:

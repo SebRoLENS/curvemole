@@ -123,6 +123,7 @@ def _install_model_panel() -> None:
 
     def init(panel: ModelPanel, *args: Any, **kwargs: Any) -> None:
         original_init(panel, *args, **kwargs)
+        panel.components.setSpacing(2)
         panel.components.setSelectionMode(panel.components.SelectionMode.ExtendedSelection)
         from curvemole.gui.note_indicators import NoteIndicatorDelegate
 
@@ -173,6 +174,13 @@ def _install_model_panel() -> None:
     ) -> None:
         panel.project = project
         panel.curve_id = curve_id
+        can_copy_next = False
+        if curve_id and project is not None and not project.read_only:
+            ids = [curve.id for curve in project.dataset.series_for(curve_id).curves]
+            can_copy_next = ids.index(curve_id) + 1 < len(ids)
+        panel.copy_fit_next_button.setEnabled(can_copy_next)
+        panel.copy_fit_next_button.setToolTip(panel.tr("Copy to the next spectrum in this series") if can_copy_next
+                                              else panel.tr("No next spectrum in this series"))
         # Curve selection and function selection are independent. Keep the model
         # editor available even when several spectra are selected in the curve tree.
         panel.stack.setCurrentIndex(0)
@@ -214,12 +222,32 @@ def _install_model_panel() -> None:
 
             preferred_row: int | None = None
             first_preserved_row: int | None = None
-            for row_index, (curve, component) in enumerate(entries):
+            last_series = None
+            last_curve = None
+            first_function_row = None
+            for curve, component in entries:
+                if show_all:
+                    from curvemole.gui.series_groups import style_heading
+
+                    series = project.dataset.series_for(curve.id)
+                    if series.id != last_series:
+                        heading = QListWidgetItem(series.name)
+                        style_heading(heading, panel.components)
+                        panel.components.addItem(heading)
+                        last_series = series.id
+                    if curve.id != last_curve:
+                        heading = QListWidgetItem("    " + curve.name)
+                        style_heading(heading, panel.components, series=False)
+                        panel.components.addItem(heading)
+                        last_curve = curve.id
+                row_index = panel.components.count()
+                if first_function_row is None:
+                    first_function_row = row_index
                 label = component.name
                 if component.is_background:
                     label += panel.tr("  ·  Background")
                 if show_all:
-                    label = f"{curve.name}  ›  {label}"
+                    label = "        " + label
                 item = QListWidgetItem(label)
                 from curvemole.gui.note_indicators import attach_note
 
@@ -241,9 +269,10 @@ def _install_model_panel() -> None:
                     Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked
                 )
                 if component.is_background:
-                    from PySide6.QtGui import QColor
+                    from PySide6.QtGui import QColor, QPalette
 
-                    item.setForeground(QColor("#666666"))
+                    dark = panel.palette().color(QPalette.ColorRole.Base).lightness() < 128
+                    item.setForeground(QColor("#B4BEC9" if dark else "#555F69"))
                 panel.components.addItem(item)
 
                 ref = (str(curve.id), str(component.id))
@@ -261,8 +290,8 @@ def _install_model_panel() -> None:
                 )
             elif preferred_row is not None:
                 panel.components.setCurrentRow(preferred_row)
-            elif panel.components.count():
-                panel.components.setCurrentRow(0)
+            elif first_function_row is not None:
+                panel.components.setCurrentRow(first_function_row)
         finally:
             panel._updating = False
 

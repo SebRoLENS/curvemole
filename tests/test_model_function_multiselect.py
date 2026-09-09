@@ -29,8 +29,12 @@ def _project_with_functions() -> tuple[Project, Curve, Curve]:
 def _select_rows(window: MainWindow, rows: list[int]) -> None:
     panel = window.model_panel
     panel.components.clearSelection()
+    from PySide6.QtCore import Qt
+
+    functions = [panel.components.item(i) for i in range(panel.components.count())
+                 if panel.components.item(i).data(Qt.ItemDataRole.UserRole)]
     for row in rows:
-        panel.components.item(row).setSelected(True)
+        functions[row].setSelected(True)
     QApplication.processEvents()
 
 
@@ -72,10 +76,10 @@ def test_show_all_functions_identifies_spectrum_and_supports_cross_spectrum_sele
     panel.show_all_functions.setChecked(True)
     app.processEvents()
 
-    assert panel.components.count() == 4
+    assert panel.components.count() == 7
     labels = [panel.components.item(row).text() for row in range(panel.components.count())]
-    assert any("Spectrum A  ›" in label for label in labels)
-    assert any("Spectrum B  ›" in label for label in labels)
+    assert any("Spectrum A" in label for label in labels)
+    assert any("Spectrum B" in label for label in labels)
 
     _select_rows(window, [0, 2])
     refs = panel.selected_component_refs()
