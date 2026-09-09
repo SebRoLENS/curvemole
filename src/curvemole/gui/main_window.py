@@ -53,6 +53,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.calculator import (
     apply_background_subtraction,
     apply_curve_operation,
+    apply_custom_formula,
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
@@ -848,6 +849,7 @@ class MainWindow(QMainWindow):
         self.plot_workspace.splinePlacementFinished.connect(self._graphical_spline_placed)
         self.plot_workspace.placementCancelled.connect(self._graphical_placement_cancelled)
         self.calculator.applyRequested.connect(self.apply_calculator)
+        self.calculator.saveFormulaRequested.connect(self.save_custom_formula)
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
@@ -2021,7 +2023,9 @@ class MainWindow(QMainWindow):
                             ),
                         )
                     )
-                else:
+                elif operation == "custom_formula":
+                transformations.append((curve, apply_custom_formula(curve, request.get("formula_axis", "x"), request.get("formula", ""))))
+            else:
                     transformations.append((curve, apply_scalar(curve, operation, request.get("value"))))
             for curve, _ in transformations:
                 curve.undo_transformation()
@@ -2041,6 +2045,30 @@ class MainWindow(QMainWindow):
             self._push_change(self.tr("Data calculation"), redo, undo)
         except Exception as exc:
             self._show_error(self.tr("Data Calculator"), exc)
+
+    def save_custom_formula(self, formula: dict[str, Any]) -> None:
+        """Persist a named calculator formula in the current project."""
+        if not self._ensure_editable():
+            return
+        name = str(formula.get("name", "")).strip()
+        axis = str(formula.get("axis", "")).lower()
+        source = str(formula.get("formula", "")).strip()
+        if not name or axis not in {"x", "y"} or not source:
+            return
+        try:
+            from curvemole.core.expressions import SafeExpression
+            expression_source = source.split("=", 1)[1].strip() if "=" in source else source
+            expression = SafeExpression.compile(expression_source)
+            unknown = set(expression.variables) - {axis}
+            if unknown:
+                raise ValueError(f"Unknown symbol(s): {', '.join(sorted(unknown))}")
+            self.project.custom_formulas = [item for item in self.project.custom_formulas if item.get("name") != name]
+            self.project.custom_formulas.append({"name": name, "axis": axis, "formula": source})
+            self.project.touch()
+            self.refresh_all()
+            self._notify(self.tr("Custom formula saved."))
+        except Exception as exc:
+            self._show_error(self.tr("Save custom formula"), exc)
 
     def apply_theme(self, theme: str) -> None:
         app = QApplication.instance()
