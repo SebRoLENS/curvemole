@@ -2024,8 +2024,10 @@ class MainWindow(QMainWindow):
                         )
                     )
                 elif operation == "custom_formula":
-                transformations.append((curve, apply_custom_formula(curve, request.get("formula_axis", "x"), request.get("formula", ""))))
-            else:
+                    transformations.append(
+                        (curve, apply_custom_formula(curve, request.get("formula_axis", "x"), request.get("formula", "")))
+                    )
+                else:
                     transformations.append((curve, apply_scalar(curve, operation, request.get("value"))))
             for curve, _ in transformations:
                 curve.undo_transformation()
