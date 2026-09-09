@@ -305,12 +305,12 @@ def test_bulk_selection_controls(tmp_path) -> None:
     fit.deselect_all_curves_button.click()
     assert all(
         fit.curves.item(row, 0).checkState() == Qt.CheckState.Unchecked
-        for row in range(fit.curves.rowCount())
+        for row in fit._series_rows
     )
     fit.select_all_curves_button.click()
     assert all(
         fit.curves.item(row, 0).checkState() == Qt.CheckState.Checked
-        for row in range(fit.curves.rowCount())
+        for row in fit._series_rows
     )
 
     copy_dialog = CopyFitDialog(project, curves[0].id)

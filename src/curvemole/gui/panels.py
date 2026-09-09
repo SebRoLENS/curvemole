@@ -51,6 +51,7 @@ class ModelPanel(QWidget):
     parameterLinkRequested = Signal(str, str)
     bulkFixedRequested = Signal(str, bool)
     copyFitRequested = Signal()
+    copyFitNextRequested = Signal()
     descriptionRequested = Signal(str, str)
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
@@ -92,6 +93,9 @@ class ModelPanel(QWidget):
         copy_button = QPushButton(self.tr("Copy fit…"))
         copy_button.clicked.connect(self.copyFitRequested)
         buttons.addWidget(copy_button)
+        self.copy_fit_next_button = QPushButton(self.tr("Copy fit to next…"))
+        self.copy_fit_next_button.clicked.connect(self.copyFitNextRequested)
+        buttons.addWidget(self.copy_fit_next_button)
         single_layout.addLayout(buttons)
         self.parameters = QTableWidget(0, 7)
         self.parameters.setHorizontalHeaderLabels(
