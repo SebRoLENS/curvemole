@@ -341,6 +341,7 @@ class CalculatorPanel(QWidget):
         layout = QFormLayout(self)
         self.operation = QComboBox()
         for label, identifier in (
+            (self.tr("Custom formula"), "custom_formula"),
             (self.tr("Add to y"), "y_add"),
             (self.tr("Subtract from y"), "y_subtract"),
             (self.tr("Multiply y"), "y_multiply"),
@@ -349,13 +350,18 @@ class CalculatorPanel(QWidget):
             (self.tr("Scale x"), "x_multiply"),
             (self.tr("Normalise by maximum"), "normalize_max"),
             (self.tr("Normalise by area"), "normalize_area"),
-            (self.tr("Custom formula"), "custom_formula"),
             (self.tr("Add another curve"), "curve_add"),
             (self.tr("Subtract another curve"), "curve_subtract"),
             (self.tr("Multiply by another curve"), "curve_multiply"),
             (self.tr("Divide by another curve"), "curve_divide"),
         ):
             self.operation.addItem(label, identifier)
+        custom_index = self.operation.findData("custom_formula")
+        custom_colour = QColor("#66C7A8") if self.palette().window().color().lightness() < 128 else QColor("#087F6C")
+        custom_font = self.operation.font()
+        custom_font.setBold(True)
+        self.operation.setItemData(custom_index, custom_colour, Qt.ItemDataRole.ForegroundRole)
+        self.operation.setItemData(custom_index, custom_font, Qt.ItemDataRole.FontRole)
         self.value = QDoubleSpinBox()
         self.value.setDecimals(12)
         self.value.setRange(-1e100, 1e100)
