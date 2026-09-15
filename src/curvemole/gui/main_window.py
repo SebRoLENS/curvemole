@@ -15,7 +15,19 @@ from typing import Any
 
 import numpy as np
 from platformdirs import user_cache_path
-from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import (
+    QItemSelectionModel,
+    QObject,
+    QSettings,
+    QSignalBlocker,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    QUrl,
+    Signal,
+    Slot,
+)
 from PySide6.QtGui import (
     QAction,
     QCloseEvent,
@@ -222,44 +234,85 @@ class CurveTree(QTreeWidget):
         self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
+        # Rebuild atomically: selection signals during clear() otherwise redraw
+        # an empty selected-only plot and discard multi-selection on every edit.
+        preserve = self._project is project
+        selected_keys = {
+            tuple(item.data(1, Qt.ItemDataRole.UserRole)) for item in self.selectedItems()
+        }
+        current = self.currentItem()
+        current_key = tuple(current.data(1, Qt.ItemDataRole.UserRole)) if current else None
+        current_column = max(0, self.currentColumn())
+        previous_active = getattr(self, "_populated_active_curve_id", None)
+        expanded = {
+            self.topLevelItem(index).data(1, Qt.ItemDataRole.UserRole)[1]:
+            self.topLevelItem(index).isExpanded()
+            for index in range(self.topLevelItemCount())
+        } if preserve else {}
+        scroll_x = self.horizontalScrollBar().value()
+        scroll_y = self.verticalScrollBar().value()
         self._project = project
+        self._populated_active_curve_id = active_curve_id
         self._updating = True
-        self.clear()
-        active_item: QTreeWidgetItem | None = None
-        for series in project.dataset.series:
-            from curvemole.gui.note_indicators import attach_note
+        try:
+            with QSignalBlocker(self):
+                self.clear()
+                active_item: QTreeWidgetItem | None = None
+                items: dict[tuple[str, str], QTreeWidgetItem] = {}
+                for series in project.dataset.series:
+                    from curvemole.gui.note_indicators import attach_note
 
-            parent = QTreeWidgetItem(["", series.name, ""])
-            font = parent.font(1)
-            font.setBold(True)
-            parent.setFont(1, font)
-            dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
-            parent.setForeground(1, QColor("#66B5FF" if dark else "#075B9A"))
-            attach_note(parent, project, "series", series.id, column=1)
-            parent.setData(1, Qt.ItemDataRole.UserRole, ("series", series.id))
-            parent.setFlags(parent.flags() | Qt.ItemFlag.ItemIsEditable)
-            self.addTopLevelItem(parent)
-            for curve in series.curves:
-                child = QTreeWidgetItem(["", curve.name, curve.state.value])
-                attach_note(child, project, "spectrum", curve.id, column=1)
-                child.setData(1, Qt.ItemDataRole.UserRole, ("curve", curve.id))
-                child.setFlags(
-                    child.flags()
-                    | Qt.ItemFlag.ItemIsUserCheckable
-                    | Qt.ItemFlag.ItemIsEditable
-                    | Qt.ItemFlag.ItemIsSelectable
-                )
-                child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
-                child.setForeground(2, _state_colour(curve.state))
-                parent.addChild(child)
-                if curve.id == active_curve_id:
-                    active_item = child
-            parent.setExpanded(True)
-        self.resizeColumnToContents(0)
-        self.resizeColumnToContents(1)
-        if active_item is not None:
-            self.setCurrentItem(active_item)
-        self._updating = False
+                    parent = QTreeWidgetItem(["", series.name, ""])
+                    font = parent.font(1)
+                    font.setBold(True)
+                    parent.setFont(1, font)
+                    dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
+                    parent.setForeground(1, QColor("#66B5FF" if dark else "#075B9A"))
+                    attach_note(parent, project, "series", series.id, column=1)
+                    parent.setData(1, Qt.ItemDataRole.UserRole, ("series", series.id))
+                    parent.setFlags(parent.flags() | Qt.ItemFlag.ItemIsEditable)
+                    self.addTopLevelItem(parent)
+                    items[("series", series.id)] = parent
+                    for curve in series.curves:
+                        child = QTreeWidgetItem(["", curve.name, curve.state.value])
+                        attach_note(child, project, "spectrum", curve.id, column=1)
+                        child.setData(1, Qt.ItemDataRole.UserRole, ("curve", curve.id))
+                        child.setFlags(
+                            child.flags()
+                            | Qt.ItemFlag.ItemIsUserCheckable
+                            | Qt.ItemFlag.ItemIsEditable
+                            | Qt.ItemFlag.ItemIsSelectable
+                        )
+                        child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
+                        child.setForeground(2, _state_colour(curve.state))
+                        parent.addChild(child)
+                        items[("curve", curve.id)] = child
+                        if curve.id == active_curve_id:
+                            active_item = child
+                    parent.setExpanded(expanded.get(series.id, True))
+                self.resizeColumnToContents(0)
+                self.resizeColumnToContents(1)
+                current_item = items.get(current_key) if preserve else None
+                if current_item is None or active_curve_id != previous_active:
+                    current_item = active_item
+                if current_item is not None:
+                    self.setCurrentItem(current_item, current_column, QItemSelectionModel.SelectionFlag.NoUpdate)
+                # A single selected active spectrum follows explicit navigation;
+                # multi-selection and an intentionally empty selection stay intact.
+                if (active_item is not None and active_curve_id != previous_active
+                        and selected_keys == {("curve", previous_active)}):
+                    selected_keys = {("curve", active_curve_id)}
+                if preserve:
+                    for key in selected_keys:
+                        if key in items:
+                            items[key].setSelected(True)
+                elif active_item is not None:
+                    active_item.setSelected(True)
+                if preserve:
+                    self.verticalScrollBar().setValue(scroll_y)
+                    self.horizontalScrollBar().setValue(scroll_x)
+        finally:
+            self._updating = False
 
     def selected_curve_ids(self) -> set[str]:
         result: set[str] = set()
