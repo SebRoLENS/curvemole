@@ -36,10 +36,11 @@ jobs:
       - name: Lint
         run: uv run ruff check .
       - name: Tests
+        timeout-minutes: 4
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run pytest --cov=curvemole --cov-report=term-missing
+        run: uv run pytest -vv -o faulthandler_timeout=60 --cov=curvemole --cov-report=term-missing
 
   minimum-linux:
     name: Ubuntu 22.04 GUI smoke test
