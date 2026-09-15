@@ -702,6 +702,9 @@ class FitPlanDialog(QDialog):
         self.solver = QComboBox()
         self.solver.addItem(self.tr("Local constrained least squares"), "local")
         self.solver.addItem(self.tr("Differential Evolution + local refinement"), "differential_evolution")
+        from curvemole.core.extensions import extensions
+        for entry in extensions.values("fit_solvers"):
+            self.solver.addItem(entry.label, entry.identifier)
         self.solver.setCurrentIndex(max(0, self.solver.findData(settings.solver)))
         self.loss = QComboBox()
         self.loss.addItems(["linear", "soft_l1", "huber", "cauchy"])
@@ -1063,7 +1066,7 @@ class PluginManagerDialog(QDialog):
         explanation = QLabel(
             self.tr(
                 "Python plugins can execute arbitrary code. CurveMole reads local JSON metadata first "
-                "and loads code only after your explicit approval."
+                "and loads code only after your explicit approval. ◆ marks plugin contributions."
             )
         )
         explanation.setWordWrap(True)
@@ -1091,6 +1094,12 @@ class PluginManagerDialog(QDialog):
         close = QPushButton(self.tr("Close"))
         close.clicked.connect(self.accept)
         buttons_row.addWidget(load)
+        disable = QPushButton(self.tr("Disable"))
+        disable.clicked.connect(lambda: self._remove(False))
+        remove = QPushButton(self.tr("Remove"))
+        remove.clicked.connect(lambda: self._remove(True))
+        buttons_row.addWidget(disable)
+        buttons_row.addWidget(remove)
         buttons_row.addStretch(1)
         buttons_row.addWidget(close)
         layout.addLayout(buttons_row)
@@ -1105,12 +1114,15 @@ class PluginManagerDialog(QDialog):
             self.scan()
 
     def scan(self) -> None:
-        self.candidates = self.manager.discover_local(self.directory.text())
+        candidates = self.manager.installed_candidates() + self.manager.discover_local(self.directory.text())
+        # A freshly discovered manifest takes precedence when re-approving an update.
+        self.candidates = list({c.metadata.identifier: c for c in candidates}.values())
         self.candidates.extend(self.manager.discover_entry_points())
         self.list.clear()
         for candidate in self.candidates:
             self.list.addItem(
-                f"{candidate.metadata.identifier}  {candidate.metadata.version}  [{candidate.kind}]"
+                f"◆ {candidate.metadata.identifier}  {candidate.metadata.version}  "
+                + ("[loaded]" if candidate.metadata.identifier in self.manager.loaded else "[not loaded]")
             )
         if self.candidates:
             self.list.setCurrentRow(0)
@@ -1124,8 +1136,34 @@ class PluginManagerDialog(QDialog):
         self.details.setPlainText(
             f"Identifier: {value.identifier}\nVersion: {value.version}\n"
             f"API compatibility: {value.api_compatibility}\nLicence: {value.licence}\n"
-            f"Capabilities: {', '.join(value.capabilities)}\nSource: {value.source}"
+            f"Capabilities: {', '.join(value.capabilities)}\nSource: {value.source}\n"
+            + str(self.manager.installed.get(value.identifier, {}).get("error", ""))
         )
+
+    def _remove(self, forget: bool) -> None:
+        row = self.list.currentRow()
+        if not 0 <= row < len(self.candidates):
+            return
+        identifier = self.candidates[row].metadata.identifier
+        parent = self.parent()
+        functions = {key for key, owner in self.manager.function_owners.items() if owner == identifier}
+        if parent is not None and any(component.function_id in functions
+                for model in parent.project.models.values() for component in model.components):
+            QMessageBox.warning(self, "Plugin in use", "Remove this plugin's functions from the project first.")
+            return
+        if forget:
+            self.manager.remove(identifier)
+        else:
+            self.manager.disable(identifier)
+        if parent is not None and hasattr(parent, "plugin_host"):
+            for key, dialog in list(parent.plugin_host.dialogs.items()):
+                if key.startswith(identifier + ":"):
+                    try:
+                        dialog.close()
+                    except RuntimeError:
+                        parent._log("Plugin panel was already closed.")
+                    del parent.plugin_host.dialogs[key]
+        self.scan()
 
     def _load(self) -> None:
         row = self.list.currentRow()
@@ -1146,6 +1184,7 @@ class PluginManagerDialog(QDialog):
         try:
             metadata = self.manager.load(candidate, trust=True)
             self.loaded_identifiers.append(metadata.identifier)
+            self.scan()
             QMessageBox.information(
                 self, self.tr("Plugin Manager"), self.tr("Plugin loaded: ") + metadata.identifier
             )

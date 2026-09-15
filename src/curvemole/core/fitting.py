@@ -61,7 +61,9 @@ class FitSettings:
     absolute_sigma: bool | None = None
 
     def validate(self) -> None:
-        if self.solver not in {"local", "differential_evolution"}:
+        from curvemole.core.extensions import extensions
+        if self.solver not in {"local", "differential_evolution"} and not any(
+                entry.identifier == self.solver for entry in extensions.values("fit_solvers")):
             raise FitError(f"Unknown solver: {self.solver}")
         if self.local_method not in {"auto", "trf", "dogbox", "lm"}:
             raise FitError(f"Unknown local method: {self.local_method}")
@@ -563,21 +565,41 @@ class Fitter:
                 )
                 cancellation.raise_if_cancelled()
                 initial = differential.x
-            method = _select_method(settings, lower, upper)
-            least_squares = optimize.least_squares(
-                problem.residual,
-                initial,
-                jac=problem.jacobian,
-                bounds=(lower, upper),
-                method=method,
-                loss=settings.loss,
-                f_scale=settings.f_scale,
-                x_scale=settings.x_scale,
-                max_nfev=settings.max_nfev,
-                ftol=settings.ftol,
-                xtol=settings.xtol,
-                gtol=settings.gtol,
-            )
+            from curvemole.core.extensions import extensions
+            custom = next((entry for entry in extensions.values("fit_solvers")
+                           if entry.identifier == settings.solver), None)
+            if custom is not None:
+                from types import SimpleNamespace
+                request = SimpleNamespace(residual=problem.residual, jacobian=problem.jacobian,
+                    initial=initial.copy(), bounds=(lower.copy(), upper.copy()),
+                    settings=copy.deepcopy(settings), cancellation=cancellation)
+                least_squares = custom.callback(request)
+                cancellation.raise_if_cancelled()
+                vector = np.asarray(least_squares.x, dtype=float)
+                if (vector.shape != initial.shape or not np.all(np.isfinite(vector))
+                        or np.any(vector < lower) or np.any(vector > upper)):
+                    raise FitError("Plugin solver returned invalid or out-of-bounds parameters.")
+                # Recompute residuals/Jacobian through the standard constrained problem.
+                least_squares = SimpleNamespace(x=vector, fun=problem.residual(vector, report=False),
+                    jac=problem.jacobian(vector), nfev=int(least_squares.nfev),
+                    success=bool(least_squares.success), status=int(least_squares.status),
+                    message=str(least_squares.message))
+            else:
+                method = _select_method(settings, lower, upper)
+                least_squares = optimize.least_squares(
+                    problem.residual,
+                    initial,
+                    jac=problem.jacobian,
+                    bounds=(lower, upper),
+                    method=method,
+                    loss=settings.loss,
+                    f_scale=settings.f_scale,
+                    x_scale=settings.x_scale,
+                    max_nfev=settings.max_nfev,
+                    ftol=settings.ftol,
+                    xtol=settings.xtol,
+                    gtol=settings.gtol,
+                )
             if progress:
                 progress(
                     min(least_squares.nfev / settings.max_nfev, 1.0),

@@ -1,56 +1,239 @@
-# CurveMole plugin guide
+# Creating and managing CurveMole plugins
 
-## Reusable formulas and executable plugins
+Plugins add features to CurveMole. They do not replace built-in commands, exporters,
+solvers or functions through the supported API. Every contribution has a diamond
+symbol (◆) in its menu or selector and identifies its providing plugin in the tooltip.
+Executable Python plugins are different from safe custom-function/formula JSON files.
 
-Functions created in **Tools > Function Builder** are safe expression definitions,
-not Python plugins. CurveMole stores them as `.curvemole-function.json` files in the
-user-selected `my_curvemole_functions` folder and reloads that library at startup.
-They can include derived area/FWHM expressions and semantic peak parameter roles for
-position, height or area, and width. Use this mechanism when the required function can
-be expressed in CurveMole's restricted formula language.
+## Install, enable, disable and remove
 
-The rest of this guide concerns executable Python plugins. They are appropriate when
-an expression is insufficient and must be trusted explicitly.
+1. Keep the plugin's `.curvemole-plugin.json` manifest and its Python module together
+   in a permanent directory. Review the source and install any dependencies in the
+   Python environment running CurveMole. The manager does not download dependencies.
+2. Open **File > Plugin Manager**, **Choose folder**, then **Scan**.
+3. Select the plugin and inspect its identifier, version, API, licence and source.
+4. Choose **Review and trust selected plugin…** and approve execution. Contributions
+   appear after closing the manager. Enabled plugins load automatically next time,
+   independently of the project you open.
+5. **Disable** unloads its registrations and keeps the installation for later use.
+   **Remove** also forgets the installation and trust decision. Neither deletes your
+   source files. Scanning that directory can still show the plugin as available.
+   Choose the trust/load button to enable it again.
 
-## Python function plugins
+Before disabling a plugin whose functions are used in the current project, remove
+those components or switch to an empty project. Existing plugin data in saved
+projects is retained. Manager changes are unavailable while a fit/task is running.
 
-Built-ins and extensions share `FunctionDefinition` and `FunctionRegistry`.
-Publicly distributed plugins must provide source under a GPL-compatible licence.
+The application configuration directory (reported by Python's
+`platformdirs.user_config_path("CurveMole")`) contains `plugins/installed.json`.
+This stores manifest paths and enabled state, not a copy of the module. Moving or
+changing the local manifest/module requires review again. Keep helper files and
+external dependencies under your own version control: the fingerprint checks the
+manifest and primary module, not every imported dependency. Legacy Python package
+entry points in `curvemole.functions` remain discoverable; their version is checked.
 
-Local plugins use a manifest that can be inspected without executing Python:
+## Recovery and trust
+
+A Python exception in a hosted callback disables its owner for future calls and
+restarts, and identifies it in the error. Failed registration rolls back everything
+registered by that plugin. `SystemExit` is also contained at these boundaries.
+Fit cancellation is not treated as a broken plugin.
+
+A session marker remains after a crash or forced termination. On the next launch,
+CurveMole disables all persisted plugins before importing their code, displays a
+recovery explanation and lets you review them in **File > Plugin Manager**. Re-enable
+one at a time. A normal window close removes the marker. A still-running second
+CurveMole process is not treated as a crashed session.
+
+For a manual safe start, set `CURVEMOLE_DISABLE_PLUGINS=1` before launching CurveMole.
+This skips automatic loading without deleting the installation list.
+
+**This is failure recovery, not a Python sandbox.** Plugins run with your account's
+permissions and can read/write files, import native libraries or deliberately bypass
+APIs. Native crashes, infinite loops, callbacks connected directly by a custom Qt
+panel, and process termination cannot all be caught in-process. The next-start
+recovery prevents repeated automatic loading after such a crash. Only load trusted
+code. Frozen desktop builds include CurveMole's dependencies; arbitrary third-party
+packages are not installed by copying a plugin. Use a Python installation of
+CurveMole when your plugin requires extra packages.
+
+## Minimal plugin
+
+Create two files in one directory:
+
+`my_tools.curvemole-plugin.json`:
 
 ```json
 {
-  "identifier": "org.example.my-lineshape",
+  "identifier": "org.example.my-tools",
   "version": "1.0.0",
   "api_compatibility": "1",
-  "licence": "GPL-3.0-or-later",
-  "capabilities": ["functions"],
-  "module": "my_lineshape.py"
+  "licence": "MIT",
+  "capabilities": ["exporters"],
+  "module": "my_tools.py"
 }
 ```
 
-The Python module exposes one function:
+`my_tools.py`:
 
 ```python
-from curvemole.core.functions import FunctionDefinition, ParameterSpec
+import numpy as np
 
-def evaluate(x, p, metadata):
-    return p["scale"] * x
 
-def register(registry):
-    registry.register(FunctionDefinition(
-        "org.example.linear_scale",
-        "Example scale",
-        "generic",
-        evaluate,
-        (ParameterSpec("scale", 1.0),),
+def export_csv(context):
+    curve = context.project.dataset.curve(context.active_curve_id)
+    np.savetxt(context.path, np.column_stack([curve.x, curve.y]),
+               delimiter=",", header="x,y", comments="")
+    return f"Exported {curve.name}"
+
+
+def register(api):
+    api.add("exporters", "csv", "My CSV export", export_csv,
+            description="Active spectrum, comma-separated x/y with header")
+```
+
+This adds **File > ◆ Exporters > ◆ My CSV export**. CurveMole asks for a destination;
+the built-in export commands remain available. The callback owns the external file
+write; use a temporary file followed by atomic replacement if partial output would
+be a problem. File writes cannot be undone by CurveMole's Undo.
+
+## Registration API
+
+`register(api)` runs once per load. Do registration here, not calculations or dialogs.
+`api.version` is `"1"`; `api.identifier` is the manifest identifier.
+
+`api.add(kind, local_id, label, callback, description="...")` returns an identifier
+`<plugin identifier>:<local_id>`. Local IDs must be unique across a plugin's kinds.
+Duplicate IDs are rejected. The manifest capabilities describe the extension; they
+are not operating-system permissions. New optional extension kinds retain API 1
+compatibility with existing function plugins.
+
+| Kind | Visible location | Callback contract |
+| --- | --- | --- |
+| `exporters` | File / plugin Exporters | `callback(context)`; `context.path` is the chosen destination |
+| `importers` | File / plugin Importers | `callback(context)`; chosen input in `context.path`; add curves/series to snapshot |
+| `transformations` | Data / plugin Transformations | `callback(context)`; edit the snapshot |
+| `analysis` | Tools / plugin Analysis | `callback(context)`; return text for a result window |
+| `actions` | Tools / plugin Actions | `callback(context)`; edit the snapshot |
+| `workflows` | Tools / plugin Workflows | `callback(context)`; perform multiple changes on the snapshot |
+| `panels` | View / plugin Panels | `callback(context)` returns a new `PySide6.QtWidgets.QWidget` |
+| `plot_layers` | View / plugin Plot Layers | `callback(context)` returns a list of `{x, y, colour}` lines |
+| `fit_solvers` | Fit dialog / Solver | `callback(request)` returns a solver result described below |
+| `hooks` | No command; notification only | `callback(event, context)` |
+
+Menus with no contributions are hidden. Plot lines must have finite, matching 1D
+arrays. They are excluded from automatic view bounds, and cleared on the next plot
+refresh; invoke the command again to redraw. Panel widgets are hosted in independent
+windows and closed when their plugin is removed. Panel snapshots do not track later
+project changes; reconnecting arbitrary internal Qt methods is outside this API.
+
+### Project context and safe edits
+
+Callbacks receive a detached deep copy of the current project, not the main window.
+
+- `context.project`: a `curvemole.core.project.Project` snapshot.
+- `context.active_curve_id`: active spectrum ID, or `None` in an empty project.
+- `context.selected_curve_ids`: tuple of selected spectrum IDs.
+- `context.path`: import/export path, otherwise `None`.
+- `context.owner`: providing plugin identifier.
+- `context.data`: JSON-compatible dictionary owned by this plugin, stored inside
+  the project's `ui_state["plugin_data"]`. It survives saving, reopening and removal
+  of the plugin; other plugins' keys should not be touched.
+
+Importers, transformations, actions and workflows commit their snapshot on successful
+return as one Undo step. Exceptions discard the snapshot. Read-only projects cannot
+run these commands. Changed data should invalidate associated fit results; the host
+conservatively invalidates all curves for these general commands. Returning from an
+analysis, exporter, panel, plot layer or hook does **not** commit snapshot changes.
+Persist annotations/settings from a mutating command, using `context.data`.
+
+Check for empty projects and selections before accessing a curve. Use standard
+`Project.add_curve`, `add_series` and model APIs; do not change raw data into an
+invalid shape. Host callbacks run on the GUI thread except fit solvers: keep menu
+callbacks short. Long computations should currently be implemented as fit solvers
+when appropriate; there is no general background-job API in this version.
+
+### Adding a fitting algorithm
+
+```python
+from scipy.optimize import least_squares
+
+
+def solve(request):
+    request.cancellation.raise_if_cancelled()
+    return least_squares(
+        request.residual, request.initial,
+        jac=request.jacobian, bounds=request.bounds,
+        max_nfev=request.settings.max_nfev,
+        loss=request.settings.loss,
+    )
+
+
+def register(api):
+    api.add("fit_solvers", "my_solver", "My solver", solve)
+```
+
+The request provides `initial` (free-parameter vector), `bounds` (lower/upper arrays),
+`residual(vector)`, `jacobian(vector)`, a copied `FitSettings`, and `cancellation`.
+Use the supplied residual to retain masks, weights and linked/fixed parameters,
+and to report progress and check cancellation. Check `raise_if_cancelled()` in any
+long loop that does not call the residual. GUI widgets must not be accessed here.
+
+Return an object with `x`, `success`, `status`, `message`, and non-negative integer
+`nfev`. A SciPy `OptimizeResult` supplies these. The host validates the vector and
+bounds and recomputes residual/Jacobian, covariance and standard fit statistics.
+It does not run the built-in optimizer after your solver. The algorithm must respect
+the requested evaluation budget and document any settings it cannot honour.
+The same solver is usable in independent, sequential and global fits.
+
+### Adding model functions
+
+Existing `register(registry)` function plugins can keep using
+`registry.register(FunctionDefinition(...))`: the argument is now an additive facade.
+Reading or replacing the global registry is not part of this contract.
+
+```python
+from curvemole.core.functions import formula_definition
+
+
+def register(api):
+    api.register(formula_definition(
+        "org.example.my-tools.line", "Laboratory line", "slope*x + offset",
+        defaults={"slope": 1.0, "offset": 0.0},
     ))
 ```
 
-Place both files in a plugin directory. CurveMole reads the JSON first and executes
-the `.py` file only after an explicit trust decision. Unattended workflows require
-the matching `--trust-plugin` identifier.
+Use a namespaced function identifier. Functions receive the diamond symbol in their
+display names. Registering an existing identifier or passing `replace=True` fails,
+with no changes to built-ins. Custom function JSON import/export remains separate.
 
-Installed packages may expose the `curvemole.functions` Python entry-point group.
-Entry points are likewise never loaded before trust is explicit.
+### Hooks and project data
+
+Hooks receive `startup`, `project_refreshed`, and `shutdown`. Refresh notifications
+can be frequent. They are observations on snapshots: no implicit mutation of normal
+application operations. A failing hook is quarantined and logged. For example,
+register `api.add("hooks", "events", "Project events", on_event)` with
+`def on_event(event, context): ...`.
+
+## Runnable examples and testing
+
+The repository's `examples/plugins/lab_tools.py` and adjacent manifest demonstrate
+all extension kinds without additional dependencies. Copy both to a permanent
+folder and install through the manager. For a packaged/offline installation, the
+minimal examples above can also be copied directly from this guide.
+
+Before distributing your plugin, test:
+
+1. An empty project, one spectrum, several series, and masked spectra.
+2. Loading twice, disabling, enabling, removing, and restarting.
+3. A deliberate exception during registration and during an action: no partial
+   registration or project edit should remain.
+4. A controlled forced termination in a disposable session, then a safe restart.
+5. Undo/Redo and project save/reopen, including reopening without the plugin.
+6. Solver cancellation, fixed/linked parameters, bounds, early convergence, and
+   sequential/global fitting when providing an algorithm.
+7. Light/dark themes, clear labels, and no modification of built-in entries.
+
+This is an extensible additive interface, not a promise that arbitrary internal
+methods are stable. If a feature needs a new supported contract, extend this API
+rather than monkey-patching CurveMole internals.

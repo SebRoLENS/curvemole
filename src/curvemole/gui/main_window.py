@@ -458,7 +458,15 @@ class MainWindow(QMainWindow):
         self.autosave_timer.setInterval(10 * 60 * 1000)
         self.autosave_timer.timeout.connect(self._autosave)
         self.autosave_timer.start()
+        from platformdirs import user_config_path
+        self.plugin_manager = PluginManager(self.registry, storage=user_config_path("CurveMole") / "plugins")
+        plugin_recovery = self.plugin_manager.start_session()
         self._load_custom_functions()
+        self.plugin_manager.autoload()
+        from curvemole.gui.plugin_host import PluginHost
+        self.plugin_host = PluginHost(self)
+        self.plugin_host.startup_notice(plugin_recovery)
+        self.plugin_host.emit("startup")
         self._normalise_component_names()
         self._normalise_spectrum_colours()
         self._restore_layout()
@@ -699,6 +707,7 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.export_action)
         file_menu.addAction(self.notebook_action)
         file_menu.addAction(self.recovery_action)
+        file_menu.addAction(self.plugins_action)
         file_menu.addSeparator()
         file_menu.addAction(self.quit_action)
 
@@ -769,7 +778,7 @@ class MainWindow(QMainWindow):
 
         tools_menu = menu.addMenu(self.tr("&Tools"))
         tools_menu.addActions(
-            [self.calculator_action, self.function_action, self.uncertainty_action, self.plugins_action]
+            [self.calculator_action, self.function_action, self.uncertainty_action]
         )
 
         help_menu = menu.addMenu(self.tr("&Help"))
@@ -876,6 +885,8 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.refresh_worksheet()
         self._refresh_diagnostics()
+        if hasattr(self, "plugin_host"):
+            self.plugin_host.emit("project_refreshed")
 
     def new_project(self) -> None:
         if not self._confirm_discard_or_save():
@@ -2301,17 +2312,15 @@ class MainWindow(QMainWindow):
         AboutDialog(_resource_path("curvemole.png"), self).exec()
 
     def show_plugin_manager(self) -> None:
-        trusted = set(self.project.ui_state.get("trusted_plugins", []))
-        manager = PluginManager(self.registry, trusted_identifiers=trusted)
-        directory = self.project.ui_state.get("plugin_directory", "")
-        dialog = PluginManagerDialog(manager, directory, self)
+        if self._thread is not None:
+            QMessageBox.information(self, "Plugin Manager", "Wait for the running task to finish.")
+            return
+        dialog = PluginManagerDialog(self.plugin_manager,
+                                     self.settings.value("plugin_directory", ""), self)
         dialog.exec()
-        if dialog.directory.text().strip() != directory or dialog.loaded_identifiers:
-            self.project.ui_state["plugin_directory"] = dialog.directory.text().strip()
-            self.project.ui_state["trusted_plugins"] = sorted(manager.trusted_identifiers)
-            if not self.project.read_only:
-                self.project.touch()
-            self._notify(self.tr("Plugin registry updated."))
+        self.settings.setValue("plugin_directory", dialog.directory.text().strip())
+        self.plugin_host.refresh()
+        self.refresh_all()
 
     def _set_active_series(self, series_id: str) -> None:
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)
@@ -3108,6 +3117,8 @@ class MainWindow(QMainWindow):
                 session.finish()
             except OSError as exc:
                 self._log(f"Recovery session cleanup failed: {exc}")
+        self.plugin_host.emit("shutdown")
+        self.plugin_manager.finish_session()
         event.accept()
 
     def _release_lock(self) -> None:

@@ -4,6 +4,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Additive plugin API for exporters, importers, fit solvers, data commands, analyses,
+  workflows, panels, plot layers and notification hooks, with marked contributions.
+- File Plugin Manager with persistent installations, disable/remove controls,
+  transactional loading and safe startup after abnormal termination.
+- Plugin author manual, contracts and runnable examples.
+
 ### Improved
 
 - Add Copy fit to next with the successor in the same series preselected.

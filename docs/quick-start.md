@@ -206,3 +206,14 @@ A note icon beside a series, spectrum, or fit function opens its description
 directly. Clearing the description removes its icon and notebook entry.
 **File > Recent projects** lists up to ten successfully opened or saved projects;
 choose an entry to reopen it, or clear the list from that menu.
+
+
+## Optional plugins
+
+Open **File > Plugin Manager**, choose the folder containing a plugin manifest and
+Python module, scan, review the source and explicitly trust it. Loaded plugins add
+entries marked with a diamond symbol; built-in commands stay available. Enabled
+plugins load again on restart. Use **Disable** or **Remove** in the manager to stop
+loading them. After an abnormal exit, automatic plugin loading is disabled so you
+can recover safely. See [the plugin guide](plugins.md) for installation details,
+security limitations and complete examples for writing an exporter or fit algorithm.

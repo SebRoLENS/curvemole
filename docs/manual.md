@@ -1892,8 +1892,12 @@ module in the same directory. Example manifest:
 }
 ```
 
-The module must expose `register(registry)` and may register
-`FunctionDefinition` objects. Full details are in [plugins.md](plugins.md).
+The module exposes `register(api)`. Use `api.register(FunctionDefinition(...))` for
+model functions or `api.add(kind, id, label, callback)` for exporters, importers,
+fit algorithms, transformations, analyses, commands, workflows, panels, plot layers
+and lifecycle notifications. Full contracts and runnable examples are in
+[Creating and managing plugins](plugins.md). Built-ins cannot be replaced through
+this API; contributed entries carry a diamond symbol.
 
 ### 18.4 Trust boundary
 
@@ -1906,10 +1910,62 @@ plugin merely because its identifier resembles a known package.
 
 ### 18.5 Plugin Manager
 
-Open **Tools > Plugin Manager**, choose a directory, and scan. Select a candidate to
-review its metadata, then explicitly trust and load it. Trusted identifiers and the
-plugin directory are stored with project UI state. Trust should be reconsidered when
-plugin source or version changes.
+Open **File > Plugin Manager**, choose a permanent directory, and scan. Review a
+candidate, then explicitly trust and load it. Enabled plugins load again on restart,
+independently of projects. **Disable** unloads contributions; **Remove** also forgets
+the installation. Source files and project plugin data are retained. Remove any
+components using a plugin before unloading it. Close the manager to refresh menus.
+
+Changed local source needs approval again. Callback errors disable the plugin;
+failed registration rolls back additions. After a crash or forced termination,
+CurveMole disables persisted plugins before importing their code and explains recovery.
+Normal closure clears the session marker. Set `CURVEMOLE_DISABLE_PLUGINS=1` to skip
+automatic loading manually. This is failure recovery, not a sandbox for Python code.
+
+\newpage
+
+### 18.6 Creating extensions beyond model functions
+
+Use `api.add("exporters", "csv", "Laboratory CSV", export_csv)` to add an exporter.
+Its callback receives the chosen destination in `context.path` and a project
+snapshot in `context.project`. Built-in export commands remain available.
+`fit_solvers` callbacks receive constrained residuals, Jacobian, initial values,
+bounds, settings and cancellation. CurveMole computes standard statistics from the
+returned result without a second built-in optimization.
+
+Importers, transformations, actions and workflows commit snapshot edits as one
+undoable operation on success. Other callbacks observe snapshots. JSON data in
+`context.data` is scoped to the plugin and saved with the project. The
+[complete plugin author guide](plugins.md) provides manifests, exporter and solver
+code, all callback contracts, limitations and testing instructions.
+
+For a complete exporter, set the manifest's `module` to `my_exporter.py` and its
+`capabilities` to `["exporters"]`, then create this module beside the manifest:
+
+```python
+import numpy as np
+
+
+def export_csv(context):
+    if context.active_curve_id is None:
+        return "Select a spectrum first."
+    curve = context.project.dataset.curve(context.active_curve_id)
+    np.savetxt(
+        context.path,
+        np.column_stack([curve.x, curve.y]),
+        delimiter=",", header="x,y", comments="",
+    )
+    return f"Exported {curve.name}"
+
+
+def register(api):
+    api.add("exporters", "csv", "Laboratory CSV", export_csv)
+```
+
+After loading this plugin, choose **File > Exporters > Laboratory CSV** (marked with
+the plugin symbol). CurveMole asks for a destination and then runs the callback.
+The integrated export commands stay available. The module uses NumPy, already
+included with CurveMole; no additional dependencies are required.
 
 ## 19. Troubleshooting
 
