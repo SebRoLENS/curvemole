@@ -6,6 +6,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
+- Preserve spectrum multi-selection, selected-only overlay/waterfall views and tree
+  expansion/scroll position across masks, edits and undo/redo; suppress intermediate
+  selection signals while rebuilding the spectrum tree.
+
 - Clarify Advanced Calculator destinations versus formula inputs, require an explicit
   Insert click, show a live destination/expression summary, and label spectrum scope clearly.
 
