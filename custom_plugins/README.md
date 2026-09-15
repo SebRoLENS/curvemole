@@ -74,7 +74,7 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 | `test_file` | Local pytest filename such as `test_plugin.py` |
 
 Allowed capabilities: `functions`, `importers`, `exporters`, `transformations`,
-`analysis`, `actions`, `workflows`, `panels`, `plot_layers`, `hooks`, `fit_solvers`.
+`analysis`, `actions`, `workflows`, `import_processors`, `panels`, `plot_layers`, `hooks`, `fit_solvers`.
 Unknown fields are allowed for author metadata. Registration must match the declared
 capabilities. Empty test suites, failing tests, timeouts, invalid manifests,
 syntax errors, duplicate identifiers, symlinks and changed files during validation
