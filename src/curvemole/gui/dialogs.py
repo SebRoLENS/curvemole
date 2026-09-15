@@ -6,8 +6,8 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QPixmap
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -1072,6 +1072,24 @@ class PluginManagerDialog(QDialog):
         self.setWindowTitle(self.tr("Plugin Manager"))
         self.resize(720, 460)
         layout = QVBoxLayout(self)
+        install_help = QLabel(self.tr(
+            "Install your own plugin: choose the folder containing its .curvemole-plugin.json "
+            "manifest and Python module, then select it below and choose Review and trust. "
+            "This installs it locally; it does not upload it to GitHub."
+        ))
+        install_help.setWordWrap(True)
+        layout.addWidget(install_help)
+        community = QHBoxLayout()
+        for label, address in (
+            (self.tr("Browse validated plugins"),
+             "https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml"),
+            (self.tr("Share my plugin on GitHub…"),
+             "https://github.com/SebRoLENS/curvemole/tree/main/custom_plugins#submit-a-plugin"),
+        ):
+            button = QPushButton(label)
+            button.clicked.connect(lambda checked=False, url=address: QDesktopServices.openUrl(QUrl(url)))
+            community.addWidget(button)
+        layout.addLayout(community)
         explanation = QLabel(
             self.tr(
                 "Python plugins can execute arbitrary code. CurveMole reads local JSON metadata first "
@@ -1082,7 +1100,7 @@ class PluginManagerDialog(QDialog):
         layout.addWidget(explanation)
         row = QHBoxLayout()
         self.directory = QLineEdit(str(directory or ""))
-        browse = QPushButton(self.tr("Choose folder…"))
+        browse = QPushButton(self.tr("Choose plugin folder…"))
         browse.clicked.connect(self._browse)
         scan = QPushButton(self.tr("Scan"))
         scan.clicked.connect(self.scan)

@@ -2058,6 +2058,13 @@ included with CurveMole; no additional dependencies are required.
 
 ### 18.7 Community plugin submissions and validation
 
+To share a plugin, open **File > Plugin manager > Share my plugin on GitHub...**.
+This opens the submission guide: fork the repository, upload your complete plugin
+folder at `custom_plugins/your_plugin/`, then open a pull request to main.
+For private use, **Choose plugin folder...** installs it on your computer only;
+loading a plugin does not publish its source. **Browse validated plugins** opens
+the downloads that have passed the checks.
+
 The repository's [custom_plugins folder](../custom_plugins/README.md) contains the
 submission guide and a tested TSV exporter example. Authors submit a folder with
 manifest, module, licence, README and functional tests through a pull request.

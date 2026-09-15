@@ -25,6 +25,22 @@ line, and reproducible YAML workflows.
 > **Status:** Version **0.23.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
+## Custom plugins: install or share yours
+
+**[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
+[Browse the community folder](custom_plugins) ·
+[Download validated plugins](https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml) ·
+[Plugin author guide](docs/plugins.md)
+
+- **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,
+  select the folder containing your manifest and Python module, then **Review and trust**.
+- **Share it with other users:** submit a folder at **`custom_plugins/your_plugin/`**
+  through a GitHub pull request. Follow the upload steps linked above. GitHub tests
+  the submission; only successful main runs produce the validated catalog bundle.
+
+The Plugin Manager also includes **Share my plugin on GitHub…**, which opens these
+submission instructions. Loading a plugin locally does not upload it publicly.
+
 ## Download
 
 **[Download the latest release](https://github.com/SebRoLENS/curvemole/releases/latest)**

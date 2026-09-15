@@ -240,6 +240,13 @@ rather than monkey-patching CurveMole internals.
 
 ## Contributing a community plugin
 
+**Where to send it:** create `custom_plugins/your_plugin/` in your GitHub fork,
+then open a pull request to `SebRoLENS/curvemole:main`. For browser upload steps,
+see [Submit a plugin](../custom_plugins/README.md#submit-a-plugin).
+Inside CurveMole, **File > Plugin manager > Share my plugin on GitHub...** opens
+these instructions. **Choose plugin folder...** installs locally and never uploads
+anything to the public repository.
+
 Follow [custom_plugins/README.md](../custom_plugins/README.md). A submission needs
 its own folder, clear manifest, README, licence and functional pytest tests.
 The TSV exporter there is a complete minimal example. Run

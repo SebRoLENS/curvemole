@@ -1,5 +1,12 @@
 # Community plugins for CurveMole
 
+**Created your own plugin? [Start here: submit your plugin](#submit-a-plugin).**
+
+The destination in this repository is **`custom_plugins/your_plugin/`**.
+For example, a plugin called My Exporter belongs in `custom_plugins/my_exporter/`.
+To use a private plugin only on your own computer, use **File > Plugin manager >
+Choose plugin folder...** instead; you do not need to submit it to GitHub.
+
 Users can contribute plugins here through a pull request. Each plugin lives in
 its own directory. Submissions remain proposals until reviewed and merged;
 this source directory is **not itself a validation badge**.
@@ -21,10 +28,30 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 
 ## Submit a plugin
 
+### Where to upload, using GitHub in the browser
+
+1. Open [this repository](https://github.com/SebRoLENS/curvemole) and use **Fork** to
+   create your own copy. An ordinary contributor does not upload directly to main.
+2. In **your fork**, open `custom_plugins`, then **Add file > Upload files**.
+   Upload your complete plugin folder, for example `my_exporter`, containing the
+   files listed below. Do not scatter its files directly inside `custom_plugins`.
+3. Commit the uploaded files in your fork. Then choose **Contribute > Open pull
+   request**, targeting `SebRoLENS/curvemole`, branch `main`. Describe what the plugin
+   does and how you tested it.
+4. The pull request's **Checks** tab shows the automatic validation results.
+   Fix any failures in your fork; pushing the correction updates the same PR.
+   A maintainer reviews and merges the contribution.
+5. After the merged code passes the main workflow, the plugin is included in the
+   **validated-community-plugins** download. Opening a PR or uploading to a fork
+   alone does not make it part of that catalog.
+
+### What your plugin folder must contain
+
+
 1. Fork CurveMole. Copy `custom_plugins/tsv_exporter` into a new directory with a
    simple unique name. Do not upload directly to main.
 2. Rename the module and manifest, assign your own identifier, and implement
-   `register(api)` using the [plugin author guide](../docs/plugins.md).
+   `register(api)` using the [plugin author guide](https://github.com/SebRoLENS/curvemole/blob/main/docs/plugins.md).
 3. Include exactly one `*.curvemole-plugin.json`, the Python module, `README.md`,
    `LICENSE`, and a test file. See the field table below.
 4. Write functional tests that execute each added feature and verify its result:
