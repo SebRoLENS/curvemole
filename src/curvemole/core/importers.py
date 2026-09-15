@@ -17,7 +17,7 @@ from curvemole.core.errors import DataValidationError
 
 # Common extensions are kept for documentation/UI hints only. Import validity is
 # determined from file contents rather than the filename suffix.
-SUPPORTED_EXTENSIONS = {".txt", ".dat", ".csv", ".tsv", ".xy"}
+SUPPORTED_EXTENSIONS = {".txt", ".dat", ".csv", ".tsv", ".xy", ".spe"}
 
 
 @dataclass(slots=True)
@@ -89,6 +89,12 @@ def inspect_file(
 
 def detect_config(path: str | Path) -> ImportConfig:
     source = Path(path)
+    from curvemole.core.spe import is_spe
+    if is_spe(source):
+        return ImportConfig(header=True)
+    with source.open("rb") as stream:
+        if b"\x00" in stream.read(4096):
+            raise DataValidationError("Incomplete or unsupported binary spectrum; use SPE 2.x or X/Y text.")
     try:
         text = source.read_text(encoding="utf-8-sig", errors="replace")
     except OSError as exc:
@@ -259,6 +265,10 @@ def _read_frame(
     *,
     nrows: int | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
+    from curvemole.core.spe import is_spe, read_spe_frame
+    if is_spe(path):
+        frame = read_spe_frame(path)
+        return (frame if nrows is None else frame.head(nrows)), []
     lines = path.read_text(encoding=config.encoding, errors="replace").splitlines()
     filtered: list[str] = []
     comments = 0

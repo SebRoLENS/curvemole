@@ -9,7 +9,7 @@ from typing import Any
 from curvemole.core.errors import CurveMoleError
 
 KINDS = frozenset({"importers", "exporters", "transformations", "analysis", "actions",
-                   "workflows", "panels", "plot_layers", "hooks", "fit_solvers"})
+                   "workflows", "import_processors", "panels", "plot_layers", "hooks", "fit_solvers"})
 
 
 @dataclass(frozen=True)

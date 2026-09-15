@@ -27,6 +27,7 @@ class PluginContext:
     selected_curve_ids: tuple[str, ...]
     owner: str
     path: str | None = None
+    cancellation: Any = None
 
     @property
     def data(self) -> dict:
