@@ -155,3 +155,10 @@ def _description(operation: str, value: float | None) -> str:
         "normalize_area": "Normalise y by signed integrated area",
     }
     return names[operation] if value is None else f"{names[operation]}: {value:.17g}"
+
+
+def apply_column_formula(curve: Curve, target: str, formula: str) -> Transformation:
+    transformation = Transformation("column_formula", {"target": target, "formula": formula},
+                                    description=f"Advanced formula {target} = {formula}")
+    curve.apply_transformation(transformation)
+    return transformation

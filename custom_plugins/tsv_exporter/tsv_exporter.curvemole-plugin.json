@@ -1,0 +1,12 @@
+{
+  "identifier": "org.curvemole.community.tsv-exporter",
+  "name": "TSV spectrum exporter",
+  "description": "Export the active spectrum to a tab-separated text file with x/y headers.",
+  "author": "CurveMole contributors",
+  "version": "1.0.0",
+  "api_compatibility": "1",
+  "licence": "MIT",
+  "capabilities": ["exporters"],
+  "module": "tsv_exporter.py",
+  "test_file": "test_plugin.py"
+}

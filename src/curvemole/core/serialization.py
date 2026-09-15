@@ -72,6 +72,8 @@ def save_project(
                 ):
                     if array is not None:
                         _write_array(archive, f"{prefix}/{name}", array, checksums)
+                for index, array in enumerate(curve.original_columns.values()):
+                    _write_array(archive, f"{prefix}/columns/{index}.npy", array, checksums)
                 for mask in curve.masks.values():
                     _write_array(
                         archive,
@@ -168,6 +170,10 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                     name=str(curve_meta["name"]),
                     original_x=original_x,
                     original_y=original_y,
+                    original_columns={key: _read_array(archive, f"{prefix}/columns/{index}.npy")
+                                      for index, key in enumerate(curve_meta.get("column_keys", []))},
+                    column_labels=dict(curve_meta.get("column_labels", {})),
+                    column_axes=dict(curve_meta.get("column_axes", {})),
                     sigma_x=optional["sigma_x"],
                     sigma_y=optional["sigma_y"],
                     weights=optional["weights"],

@@ -8,7 +8,7 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import QTimer
-from PySide6.QtWidgets import QApplication, QFileDialog, QInputDialog, QMenu, QMessageBox
+from PySide6.QtWidgets import QApplication, QInputDialog, QMenu, QMessageBox
 
 from curvemole import Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -58,7 +58,7 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
         return dialog.result()
 
     monkeypatch.setattr(ImportMappingDialog, "exec", accept)
-    monkeypatch.setattr(QFileDialog, "getOpenFileNames", lambda *args, **kwargs: (paths, ""))
+    monkeypatch.setattr("curvemole.gui.import_file_picker.choose_import_files", lambda *args: (paths, {}))
     window.import_action.trigger()
     assert proposed == (["Series 1"] if apply_all else ["Series 1", "Raman"])
     series = window.project.dataset.series[0]

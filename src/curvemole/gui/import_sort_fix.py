@@ -11,8 +11,6 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from PySide6.QtWidgets import QFileDialog
-
 from curvemole.gui.main_window import MainWindow
 
 _ORIGINAL_IMPORT_DATA = MainWindow.import_data
@@ -39,23 +37,18 @@ def sort_import_paths(paths: list[str]) -> list[str]:
 
 
 def _import_data_natural_order(self: MainWindow, paths: list[str] | None = None) -> None:
+    preview_columns = {}
     if paths is None:
         # Show every file by default: the importer validates the actual table
         # contents rather than assuming the filename extension defines the format.
         if not self._ensure_editable():
             return
-        paths, _ = QFileDialog.getOpenFileNames(
-            self,
-            self.tr("Import one-dimensional curves"),
-            "",
-            self.tr(
-                "All readable data (*);;Common XY/text data (*.txt *.dat *.csv *.tsv *.xy)"
-            ),
-        )
+        from curvemole.gui.import_file_picker import choose_import_files
+        paths, preview_columns = choose_import_files(self)
         if not paths:
             return
 
-    _ORIGINAL_IMPORT_DATA(self, sort_import_paths(list(paths)))
+    _ORIGINAL_IMPORT_DATA(self, sort_import_paths(list(paths)), preview_columns=preview_columns)
 
 
 MainWindow.import_data = _import_data_natural_order

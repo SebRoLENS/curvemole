@@ -7,7 +7,7 @@ import re
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -344,6 +344,7 @@ class CalculatorPanel(QWidget):
         layout = QFormLayout(self)
         self.operation = QComboBox()
         for label, identifier in (
+            (self.tr("Advanced — column formula"), "column_formula"),
             (self.tr("Custom formula"), "custom_formula"),
             (self.tr("Add to y"), "y_add"),
             (self.tr("Subtract from y"), "y_subtract"),
@@ -359,18 +360,19 @@ class CalculatorPanel(QWidget):
             (self.tr("Divide by another curve"), "curve_divide"),
         ):
             self.operation.addItem(label, identifier)
-        custom_index = self.operation.findData("custom_formula")
-        custom_colour = QColor("#66C7A8") if self.palette().window().color().lightness() < 128 else QColor("#087F6C")
-        custom_font = self.operation.font()
-        custom_font.setBold(True)
-        self.operation.setItemData(custom_index, custom_colour, Qt.ItemDataRole.ForegroundRole)
-        self.operation.setItemData(custom_index, custom_font, Qt.ItemDataRole.FontRole)
+        self._style_formula_entries()
         self.value = QDoubleSpinBox()
         self.value.setDecimals(12)
         self.value.setRange(-1e100, 1e100)
         self.value.setValue(1.0)
         self.formula_axis = QComboBox()
         self.formula_axis.addItems([self.tr("X"), self.tr("Y")])
+        self.column_target = QComboBox()
+        self.column_input = QComboBox()
+        self.column_input.activated.connect(self._insert_column)
+        self.column_help = QLabel()
+        self.column_help.setTextFormat(Qt.TextFormat.PlainText)
+        self.column_help.setWordWrap(True)
         self.formula = QLineEdit()
         self.formula.setPlaceholderText(self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
         self.formula_name = QLineEdit()
@@ -379,7 +381,7 @@ class CalculatorPanel(QWidget):
         self.saved_formula.addItem(self.tr("(not saved)"), None)
         save_formula = QPushButton(self.tr("Save formula"))
         self.scope = QComboBox()
-        self.scope.addItems([self.tr("Active curve"), self.tr("Selected curves"), self.tr("Entire series")])
+        self.scope.addItems([self.tr("Active curve"), self.tr("Choose multiple spectra…")])
         self.operand = QComboBox()
         self.interpolation = QComboBox()
         self.interpolation.addItems(["linear", "nearest", "cubic"])
@@ -391,6 +393,9 @@ class CalculatorPanel(QWidget):
         layout.addRow(self.tr("Operation"), self.operation)
         layout.addRow(self.tr("Value"), self.value)
         layout.addRow(self.tr("Formula axis"), self.formula_axis)
+        layout.addRow(self.tr("Insert column"), self.column_input)
+        layout.addRow(self.tr("Advanced destination"), self.column_target)
+        layout.addRow(self.column_help)
         layout.addRow(self.tr("Custom formula"), self.formula)
         layout.addRow(self.tr("Saved formulas"), self.saved_formula)
         layout.addRow(self.tr("Formula name"), self.formula_name)
@@ -406,7 +411,40 @@ class CalculatorPanel(QWidget):
         save_formula.clicked.connect(self._save_formula)
         self._update_enabled()
 
-    def set_curves(self, project: Project | None) -> None:
+    def _style_formula_entries(self) -> None:
+        colour = QColor("#66C7A8") if self.palette().window().color().lightness() < 128 else QColor("#087F6C")
+        font = self.operation.font()
+        font.setBold(True)
+        for identifier in ("column_formula", "custom_formula"):
+            index = self.operation.findData(identifier)
+            self.operation.setItemData(index, colour, Qt.ItemDataRole.ForegroundRole)
+            self.operation.setItemData(index, font, Qt.ItemDataRole.FontRole)
+        normal = self.palette().text().color().name()
+        selected = colour.name() if self.operation.currentData() in {"column_formula", "custom_formula"} else normal
+        self.operation.setStyleSheet(f"QComboBox {{ color: {selected}; }} QComboBox QAbstractItemView {{ color: {normal}; }}")
+
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange and hasattr(self, "operation"):
+            self._style_formula_entries()
+
+    def set_curves(self, project: Project | None, active_id: str | None = None) -> None:
+        target = self.column_target.currentData() or "y"
+        self.column_target.clear()
+        self.column_target.addItem("X (plotted)", "x")
+        self.column_target.addItem("Y (plotted)", "y")
+        self.column_input.clear()
+        self.column_input.addItem(self.tr("Choose a column to insert…"), None)
+        self.column_input.addItem("X (current plotted axis)", "x")
+        self.column_input.addItem("Y (current plotted axis)", "y")
+        if project and active_id:
+            curve = project.dataset.curve(active_id)
+            for key in curve.original_columns:
+                label = curve.column_labels.get(key, key)
+                self.column_target.addItem(f"{key} — {label}", key)
+                self.column_input.addItem(f"{key} — {label}", key)
+        self.column_target.setCurrentIndex(max(0, self.column_target.findData(target)))
+        self.column_help.setText(self.tr("Use c1, c2, … for imported columns; x and y for current axes.\nExample: y / c3**2. Choose a destination for the result."))
         current_formula = self.saved_formula.currentData()
         self.saved_formula.blockSignals(True)
         self.saved_formula.clear()
@@ -426,6 +464,13 @@ class CalculatorPanel(QWidget):
         self.operand.setCurrentIndex(max(0, index))
 
 
+    def _insert_column(self, index: int) -> None:
+        key = self.column_input.itemData(index)
+        if key:
+            self.formula.insert(key)
+            self.formula.setFocus()
+        self.column_input.setCurrentIndex(0)
+
     def _load_saved_formula(self, index: int) -> None:
         item = self.saved_formula.itemData(index)
         if not isinstance(item, dict):
@@ -433,7 +478,8 @@ class CalculatorPanel(QWidget):
         self.formula_axis.setCurrentIndex(0 if str(item.get("axis", "x")) == "x" else 1)
         self.formula.setText(str(item.get("formula", "")))
         self.formula_name.setText(str(item.get("name", "")))
-        self.operation.setCurrentIndex(max(0, self.operation.findData("custom_formula")))
+        self.operation.setCurrentIndex(max(0, self.operation.findData(item.get("mode", "custom_formula"))))
+        self.column_target.setCurrentIndex(max(0, self.column_target.findData(item.get("target", "y"))))
 
     def _save_formula(self) -> None:
         formula = self.formula.text().strip()
@@ -441,19 +487,31 @@ class CalculatorPanel(QWidget):
         if not name or not formula:
             QMessageBox.warning(self, self.tr("Data Calculator"), self.tr("Enter a name and formula first."))
             return
-        self.saveFormulaRequested.emit({"name": name, "axis": "x" if self.formula_axis.currentIndex() == 0 else "y", "formula": formula})
+        self.saveFormulaRequested.emit({"name": name, "axis": "x" if self.formula_axis.currentIndex() == 0 else "y", "formula": formula, "mode": self.operation.currentData(), "target": self.column_target.currentData()})
 
     def _update_enabled(self) -> None:
+        self._style_formula_entries()
         operation = self.operation.currentData()
         curve_operation = str(operation).startswith("curve_")
         scalar = operation not in {"normalize_max", "normalize_area"} and not curve_operation
-        custom = operation == "custom_formula"
+        advanced = operation == "column_formula"
+        custom = operation in {"custom_formula", "column_formula"}
+        self.column_target.setEnabled(advanced)
+        self.column_input.setEnabled(advanced)
+        self.column_help.setVisible(advanced)
+        for widget, visible in ((self.column_input, advanced), (self.column_target, advanced),
+                                (self.formula_axis, custom and not advanced),
+                                (self.value, scalar and not custom)):
+            self.layout().setRowVisible(widget, visible)
+        self.formula_name.setEnabled(custom)
+        self.formula.setPlaceholderText(self.tr("e.g. y / c3**2, c2 - c4, sqrt(c5)") if advanced
+                                        else self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
         self.value.setEnabled(scalar and not custom)
-        self.formula_axis.setEnabled(custom)
+        self.formula_axis.setEnabled(custom and not advanced)
         self.formula.setEnabled(custom)
-        self.operand.setEnabled(curve_operation)
-        self.interpolation.setEnabled(curve_operation)
-        self.extrapolate.setEnabled(curve_operation)
+        for widget in (self.operand, self.interpolation, self.extrapolate):
+            self.layout().setRowVisible(widget, curve_operation)
+            widget.setEnabled(curve_operation)
 
     def _apply(self) -> None:
         self.applyRequested.emit(
@@ -461,6 +519,7 @@ class CalculatorPanel(QWidget):
                 "operation": self.operation.currentData(),
                 "value": self.value.value(),
                 "formula_axis": "x" if self.formula_axis.currentIndex() == 0 else "y",
+                "column_target": self.column_target.currentData(),
                 "formula": self.formula.text(),
                 "scope": self.scope.currentIndex(),
                 "operand_curve_id": self.operand.currentData(),

@@ -89,7 +89,7 @@ def test_file_actions_do_not_forward_qaction_checked_state(monkeypatch: pytest.M
         return [], ""
 
     monkeypatch.setattr(QFileDialog, "getOpenFileName", fake_open)
-    monkeypatch.setattr(QFileDialog, "getOpenFileNames", fake_import)
+    monkeypatch.setattr("curvemole.gui.import_file_picker.choose_import_files", fake_import)
 
     window.open_action.trigger()
     window.import_action.trigger()

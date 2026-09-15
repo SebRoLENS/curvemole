@@ -1,0 +1,94 @@
+name: Community plugins
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Community code never receives secrets or a writable repository token.
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Validate plugins / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Preserve source line endings for cross-platform fingerprints
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Linux Qt libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+          enable-cache: false
+      - run: uv sync --locked --group dev
+      - name: Manifest, registration, removal and functional tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: uv run python scripts/validate_community_plugins.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-check-${{ matrix.os }}
+          path: build/community-catalog.json
+          if-no-files-found: error
+          retention-days: 14
+
+  catalog:
+    name: Validated community catalog
+    needs: validate
+    # PR artifacts are test reports only. The public install bundle is built
+    # exclusively from main, after every supported platform passes.
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: plugin-check-*
+          path: reports
+      - name: Verify platform agreement and package the tested sources
+        shell: python
+        run: |
+          import hashlib, json, pathlib, shutil
+          reports = sorted(pathlib.Path('reports').glob('*/community-catalog.json'))
+          assert len(reports) == 3, 'Missing platform report'
+          content = reports[0].read_bytes()
+          assert all(p.read_bytes() == content for p in reports), 'Platform catalogs differ'
+          destination = pathlib.Path('build/validated-community-plugins')
+          destination.mkdir(parents=True)
+          (destination / 'catalog.json').write_bytes(content)
+          (destination / 'README.md').write_bytes(pathlib.Path('custom_plugins/README.md').read_bytes())
+          for plugin in json.loads(content)['plugins']:
+              folder = plugin['folder']
+              assert pathlib.Path(folder).name == folder and folder not in ('.', '..')
+              source = pathlib.Path('custom_plugins') / folder
+              digest = hashlib.sha256()
+              for path in sorted(source.rglob('*'), key=lambda item: item.relative_to(source).as_posix()):
+                  assert not path.is_symlink()
+                  if path.is_file():
+                      digest.update(path.relative_to(source).as_posix().encode())
+                      digest.update(b'\0')
+                      digest.update(path.read_bytes())
+              assert digest.hexdigest() == plugin['sha256'], 'Untested source change'
+              shutil.copytree(source, destination / folder)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validated-community-plugins
+          path: build/validated-community-plugins
+          if-no-files-found: error
+          retention-days: 90
