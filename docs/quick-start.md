@@ -22,6 +22,9 @@ than relying on the suffix. Confirm the automatically detected delimiter, decima
 separator, header, and number of leading rows to ignore. Then choose the x column,
 one or more y columns, and any available `sigma_x`, `sigma_y`, weight, variance, or
 inverse-variance column.
+The small spectrum preview updates when you change the selected columns or parsing
+settings. It uses the full file with the same peak-preserving adaptive display
+algorithm as the main graph, including safe handling of descending/nonmonotonic X.
 Use **Apply this mapping to all files in this batch** only when the files share the
 same layout.
 
@@ -217,3 +220,12 @@ plugins load again on restart. Use **Disable** or **Remove** in the manager to s
 loading them. After an abnormal exit, automatic plugin loading is disabled so you
 can recover safely. See [the plugin guide](plugins.md) for installation details,
 security limitations and complete examples for writing an exporter or fit algorithm.
+
+
+## Run an existing automation
+
+Use **Run automation** in the separate bottom toolbar. The first click asks for a
+YAML workflow; subsequent clicks rerun the remembered file, including after restart.
+The adjacent arrow offers **Choose automation** and **Stop automation**. Workflows
+run independently of the open project and save to the outputs configured in YAML.
+See [manual section 16](manual.md) for the format, plugin trust and output behaviour.

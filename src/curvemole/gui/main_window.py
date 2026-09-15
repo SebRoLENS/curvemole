@@ -467,6 +467,8 @@ class MainWindow(QMainWindow):
         self.plugin_host = PluginHost(self)
         self.plugin_host.startup_notice(plugin_recovery)
         self.plugin_host.emit("startup")
+        from curvemole.gui.automation import AutomationRunner
+        self.automation_runner = AutomationRunner(self)
         self._normalise_component_names()
         self._normalise_spectrum_colours()
         self._restore_layout()
@@ -3101,6 +3103,10 @@ class MainWindow(QMainWindow):
         self.apply_theme(str(self.settings.value("theme", "system")))
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        if self.automation_runner.process is not None:
+            QMessageBox.information(self, "Automation running", "Stop the automation or wait for it to finish before closing.")
+            event.ignore()
+            return
         if self._thread is not None:
             QMessageBox.warning(self, self.tr("Task running"), self.tr("Cancel the running task before quitting."))
             event.ignore()
