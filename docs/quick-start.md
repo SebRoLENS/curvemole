@@ -236,7 +236,7 @@ See [manual section 16](manual.md) for the format, plugin trust and output behav
 
 Open **Tools > Data Calculator**, choose the green **Advanced - column formula**
 entry at the top, and select a destination (Y, X or another source column).
-Use **Insert column** to insert available columns by name: `c1`, `c2`, etc.
+Use **Insert into formula** to insert available columns by name: `c1`, `c2`, etc.
 For example, `c2 / c3**2` divides column 2 by the square of column 3.
 All imported numeric columns are available, including unplotted ones.
 Name and save a formula to reuse it later in the project.
@@ -245,3 +245,8 @@ Every calculator operation offers **Active curve** or **Choose multiple spectra.
 The picker defaults to the active series; **All series** shows colored series groups.
 A failed formula leaves the whole selection unchanged, and one Undo reverts a batch.
 Older projects need re-importing to obtain columns they did not originally store.
+
+In Advanced, **Write result to** selects the column that will receive the result.
+**Insert into formula** only selects a reference: press **Insert** to add it at the
+cursor. The live arrow summary shows the destination and expression together.
+**Spectra to modify** controls which spectra receive the calculation.

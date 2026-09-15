@@ -369,7 +369,26 @@ class CalculatorPanel(QWidget):
         self.formula_axis.addItems([self.tr("X"), self.tr("Y")])
         self.column_target = QComboBox()
         self.column_input = QComboBox()
-        self.column_input.activated.connect(self._insert_column)
+        self.column_insert = QPushButton(self.tr("Insert"))
+        self.column_insert.setEnabled(False)
+        self.column_insert.clicked.connect(lambda: self._insert_column(self.column_input.currentIndex()))
+        self.column_input.currentIndexChanged.connect(
+            lambda: self.column_insert.setEnabled(self.column_input.currentData() is not None))
+        self.column_insert_row = QWidget()
+        insert_layout = QHBoxLayout(self.column_insert_row)
+        insert_layout.setContentsMargins(0, 0, 0, 0)
+        insert_layout.addWidget(self.column_input, 1)
+        insert_layout.addWidget(self.column_insert)
+        self.destination_help = QLabel(self.tr("The formula will update this column when you apply it."))
+        self.destination_help.setWordWrap(True)
+        self.insert_help = QLabel(self.tr("Insert adds a column reference at the cursor. It does not choose where the result is written."))
+        self.insert_help.setWordWrap(True)
+        self.formula_summary = QLabel()
+        self.formula_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.formula_summary.setWordWrap(True)
+        summary_font = self.formula_summary.font()
+        summary_font.setBold(True)
+        self.formula_summary.setFont(summary_font)
         self.column_help = QLabel()
         self.column_help.setTextFormat(Qt.TextFormat.PlainText)
         self.column_help.setWordWrap(True)
@@ -393,19 +412,24 @@ class CalculatorPanel(QWidget):
         layout.addRow(self.tr("Operation"), self.operation)
         layout.addRow(self.tr("Value"), self.value)
         layout.addRow(self.tr("Formula axis"), self.formula_axis)
-        layout.addRow(self.tr("Insert column"), self.column_input)
-        layout.addRow(self.tr("Advanced destination"), self.column_target)
+        layout.addRow(self.tr("Write result to"), self.column_target)
+        layout.addRow(self.destination_help)
+        layout.addRow(self.tr("Formula"), self.formula)
+        layout.addRow(self.tr("Insert into formula"), self.column_insert_row)
+        layout.addRow(self.insert_help)
         layout.addRow(self.column_help)
-        layout.addRow(self.tr("Custom formula"), self.formula)
+        layout.addRow(self.formula_summary)
         layout.addRow(self.tr("Saved formulas"), self.saved_formula)
         layout.addRow(self.tr("Formula name"), self.formula_name)
         layout.addRow(save_formula)
-        layout.addRow(self.tr("Target"), self.scope)
+        layout.addRow(self.tr("Spectra to modify"), self.scope)
         layout.addRow(self.tr("Operand curve"), self.operand)
         layout.addRow(self.tr("Interpolation"), self.interpolation)
         layout.addRow("", self.extrapolate)
         layout.addRow(apply)
         layout.addRow(restore)
+        self.formula.textChanged.connect(self._update_formula_summary)
+        self.column_target.currentIndexChanged.connect(self._update_formula_summary)
         self.operation.currentIndexChanged.connect(self._update_enabled)
         self.saved_formula.currentIndexChanged.connect(self._load_saved_formula)
         save_formula.clicked.connect(self._save_formula)
@@ -439,12 +463,14 @@ class CalculatorPanel(QWidget):
         self.column_input.addItem("Y (current plotted axis)", "y")
         if project and active_id:
             curve = project.dataset.curve(active_id)
+            self.column_target.setItemText(0, f"X — {curve.x_label}")
+            self.column_target.setItemText(1, f"Y — {curve.y_label}")
             for key in curve.original_columns:
                 label = curve.column_labels.get(key, key)
                 self.column_target.addItem(f"{key} — {label}", key)
                 self.column_input.addItem(f"{key} — {label}", key)
         self.column_target.setCurrentIndex(max(0, self.column_target.findData(target)))
-        self.column_help.setText(self.tr("Use c1, c2, … for imported columns; x and y for current axes.\nExample: y / c3**2. Choose a destination for the result."))
+        self.column_help.setText(self.tr("Use c1, c2, … for imported columns; x and y for current axes. Example: c2 / c3**2."))
         current_formula = self.saved_formula.currentData()
         self.saved_formula.blockSignals(True)
         self.saved_formula.clear()
@@ -463,6 +489,12 @@ class CalculatorPanel(QWidget):
         index = self.operand.findData(current)
         self.operand.setCurrentIndex(max(0, index))
 
+
+    def _update_formula_summary(self) -> None:
+        destination = self.column_target.currentText()
+        formula = self.formula.text().strip()
+        self.formula_summary.setText(f"{destination} ← {formula}" if formula and destination
+                                     else self.tr("Enter a formula to see where its result will be written."))
 
     def _insert_column(self, index: int) -> None:
         key = self.column_input.itemData(index)
@@ -498,8 +530,10 @@ class CalculatorPanel(QWidget):
         custom = operation in {"custom_formula", "column_formula"}
         self.column_target.setEnabled(advanced)
         self.column_input.setEnabled(advanced)
-        self.column_help.setVisible(advanced)
-        for widget, visible in ((self.column_input, advanced), (self.column_target, advanced),
+        for widget in (self.column_help, self.destination_help, self.insert_help, self.formula_summary):
+            self.layout().setRowVisible(widget, advanced)
+        self._update_formula_summary()
+        for widget, visible in ((self.column_insert_row, advanced), (self.column_target, advanced),
                                 (self.formula_axis, custom and not advanced),
                                 (self.value, scalar and not custom)):
             self.layout().setRowVisible(widget, visible)

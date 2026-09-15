@@ -4,6 +4,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Clarify Advanced Calculator destinations versus formula inputs, require an explicit
+  Insert click, show a live destination/expression summary, and label spectrum scope clearly.
+
 ### Added
 
 - Advanced column formulas with named column insertion/destination dropdowns, retained
