@@ -147,8 +147,12 @@ def test_save_advanced_formula_and_insert_dropdown(tmp_path, monkeypatch):
     assert panel.column_target.currentData() == "c3"
     panel.formula.setText("y / ")
     panel.formula.setCursorPosition(4)
-    panel._insert_column(panel.column_input.findData("c3"))
+    panel.column_input.setCurrentIndex(panel.column_input.findData("c3"))
+    panel.column_input.activated.emit(panel.column_input.currentIndex())
+    assert panel.formula.text() == "y / "
+    panel.column_insert.click()
     assert panel.formula.text() == "y / c3"
+    assert panel.formula_summary.text() == "c3 — Monitor counts ← y / c3"
     saved = load_project(save_project(window.project, tmp_path / "saved.fitproj"))
     assert saved.custom_formulas[0]["target"] == "c3"
     assert saved.custom_formulas[0]["mode"] == "column_formula"

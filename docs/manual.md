@@ -742,16 +742,19 @@ followed by the green **Custom formula** for a single plotted axis.
 New imports retain every source column as numeric data in the project, including
 columns not plotted. Original column order and row alignment are preserved.
 `c1`, `c2`, `c3`, etc. refer to one-based source columns; `x` and `y` refer to the
-current plotted axes. **Insert column** lists the available codes with original
-column names; choosing an entry inserts its code at the cursor. **Advanced
-destination** chooses X, Y or any retained column for the result.
+current plotted axes. **Insert into formula** lists the available codes with original
+column names; choose an entry, then press **Insert** to add its code at the cursor. **Write result to** chooses X, Y or any retained column for the result. The hint below it explains
+that Apply writes the formula result into this column. Merely selecting an input
+column does not edit the formula or change its destination. A live summary such as
+`Y - Counts <- c2 / c3**2` makes the direction explicit. **Spectra to modify**
+separately chooses which spectra receive the operation.
 
 ![Advanced calculator with column insertion and destination controls in dark mode.](screenshots/advanced-calculator-dark.png)
 
 For a file with Energy, Counts and Monitor columns, plotting c1 against c2:
 
 1. choose **Advanced - column formula**;
-2. choose **Y (plotted)** as the destination;
+2. choose **Y - Counts** as the destination;
 3. insert `c2` and `c3` from the dropdown to enter `c2 / c3**2`;
 4. choose Active curve or multiple spectra, then Apply non-destructively.
 
