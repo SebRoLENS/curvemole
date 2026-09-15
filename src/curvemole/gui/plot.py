@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.errors import CurveMoleError
 from curvemole.core.models import component_height
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
@@ -378,13 +379,17 @@ class PlotWorkspace(QWidget):
                     self.plot.addItem(region)
             model = project.models.get(curve.id)
             if model and model.components:
-                total, component_arrays = model.evaluate(
-                    curve.x,
-                    curve_id=curve.id,
-                    values=global_values,
-                    registry=self.registry,
-                    components=True,
-                )
+                try:
+                    total, component_arrays = model.evaluate(
+                        curve.x,
+                        curve_id=curve.id,
+                        values=global_values,
+                        registry=self.registry,
+                        components=True,
+                    )
+                except CurveMoleError as exc:
+                    self.plot.setToolTip(f"Model unavailable: {exc}. Review File → Plugin Manager.")
+                    continue
                 total = total + index * y_step
                 self.plot.plot(
                     x,
@@ -491,6 +496,8 @@ class PlotWorkspace(QWidget):
         try:
             component = model.component(self._selected_component_id)
         except KeyError:
+            return
+        if component.function_id not in self.registry.identifiers():
             return
         definition = self.registry.get(component.function_id)
         if component.function_id == "cubic_spline":

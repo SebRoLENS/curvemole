@@ -243,6 +243,9 @@ class ModelPanel(QWidget):
                 )
                 self.parameters.setCellWidget(row, 6, link_button)
             self.parameters.resizeColumnsToContents()
+            if component.function_id not in self.registry.identifiers():
+                self.derived.setText(self.tr("Function unavailable — enable its plugin in File → Plugin Manager."))
+                return
             definition = self.registry.get(component.function_id)
             values = {name: parameter.value for name, parameter in component.parameters.items()}
             derived = definition.derived_values(values, component.metadata)
