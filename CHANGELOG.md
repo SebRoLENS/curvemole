@@ -15,6 +15,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Opt-in File menu folder import with stable-file polling, filename substring
+  filtering, asynchronous plugin processing, newest-spectrum display and undo.
+- Calibrated one-dimensional WinSpec SPE 2.x import and headless import processor API.
+
 - Advanced column formulas with named column insertion/destination dropdowns, retained
   import columns in projects, saved expressions and reversible transformation replay.
 - Grouped multi-spectrum selection for every calculator operation, with atomic batches.

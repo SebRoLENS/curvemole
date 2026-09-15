@@ -524,6 +524,8 @@ class MainWindow(QMainWindow):
         self.plugin_host.emit("startup")
         from curvemole.gui.automation import AutomationRunner
         self.automation_runner = AutomationRunner(self)
+        from curvemole.gui.folder_import import FolderImportController
+        self.folder_import = FolderImportController(self)
         self._normalise_component_names()
         self._normalise_spectrum_colours()
         self._restore_layout()
@@ -3173,6 +3175,7 @@ class MainWindow(QMainWindow):
                 session.finish()
             except OSError as exc:
                 self._log(f"Recovery session cleanup failed: {exc}")
+        self.folder_import.shutdown()
         self.plugin_host.emit("shutdown")
         self.plugin_manager.finish_session()
         event.accept()

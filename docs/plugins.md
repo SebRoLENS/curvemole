@@ -255,3 +255,38 @@ GitHub runs validation on Linux, Windows and macOS. A successful main run publis
 a downloadable validated catalog bundle; failed checks cannot publish it.
 See the contribution guide for installation, manifest fields, review requirements,
 required branch rules and the precise limits of these checks.
+
+## Automatic import processors
+
+`api.add("import_processors", "id", "Label", callback)` registers an optional,
+headless workflow selectable in **File > Automatic folder import…**. It is never
+started by plugin loading or application startup. Configure plugin options using
+a normal action before starting the session.
+
+The callback receives a `PluginContext` containing only the newly imported
+acquisition (a fresh, detached `Project`), its active/selected IDs, source `path`,
+a copy of the owner's current `context.data` settings, and a `cancellation` token.
+It executes in a background thread: do not call Qt, show dialogs, access the main
+window or mutate shared objects. Pass `context.cancellation` to fitting operations.
+
+The host commits the returned acquisition's series, models and results as one
+undoable addition, only if the original project is still current and writable and
+the processor remains enabled. Store durable output and the settings used in each
+curve's `metadata`. Acquisition `ui_state` and notebook changes are not merged into
+the live project. A returned string is shown in the import log. Existing project
+curves and settings are not exposed to the worker. Exceptions do not commit a
+partial acquisition; processors may explicitly retain raw curves with diagnostic
+metadata when scientific analysis is inconclusive.
+
+The dialog exposes a case-insensitive filename substring, X/Y column indices,
+file stability delay, optional inclusion of pre-existing files, and optional
+re-import of modified files as new spectra. Only files directly in the folder are
+scanned. Symlinks and temporary files are ignored. Identical content for the same
+path is not re-imported within the session. Failed files are retried after changes
+or via **Retry failed files**. Closing the panel keeps the session running;
+**Stop automatic import** ends it. Switching projects stops the session.
+
+Calibrated 1D WinSpec SPE 2.x acquisitions are supported alongside text inputs;
+SPE 3.x, uncalibrated axes and image/multiple-ROI acquisitions require export to
+calibrated X/Y text first. SPE columns are wavelength in nm followed by one intensity
+column per frame; select the desired frame using the Y-column control.
