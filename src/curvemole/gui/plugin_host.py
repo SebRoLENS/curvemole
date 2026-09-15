@@ -28,6 +28,8 @@ class PluginContext:
     owner: str
     path: str | None = None
     cancellation: Any = None
+    services: Any = None
+    settings_only: bool = False
 
     @property
     def data(self) -> dict:
@@ -48,12 +50,19 @@ class PluginHost:
                       for kind, location in locations.items()}
         self.refresh()
 
-    def context(self, owner: str, path: str | None = None) -> PluginContext:
+    def context(self, owner: str, path: str | None = None, *, with_services: bool = False) -> PluginContext:
         window = self.window
+        from curvemole.gui.plugin_services import PluginServices
+
         return PluginContext(copy.deepcopy(window.project), window.active_curve_id,
-                             tuple(window.curve_tree.selected_curve_ids()), owner, path)
+                             tuple(window.curve_tree.selected_curve_ids()), owner, path,
+                             services=PluginServices(self, owner) if with_services else None)
 
     def refresh(self) -> None:
+        for identifier, dialog in list(self.dialogs.items()):
+            entry = extensions.entries.get(identifier)
+            if entry is None or entry.owner in self.window.plugin_manager.errors:
+                dialog.close()
         if hasattr(self.window, "_refresh_quick_function_selector"):
             self.window._refresh_quick_function_selector()
         for kind, menu in self.menus.items():
@@ -68,11 +77,15 @@ class PluginHost:
 
     def run(self, entry: Any) -> None:
         window = self.window
-        if window._thread is not None:
+        if window._thread is not None and entry.kind != "panels":
             QMessageBox.information(window, "Plugins", "Wait for the running task to finish.")
             return
         mutating = entry.kind in {"importers", "transformations", "actions", "workflows"}
         if mutating and not window._ensure_editable():
+            return
+        if entry.kind == "panels" and entry.identifier in self.dialogs:
+            self.dialogs[entry.identifier].show()
+            self.dialogs[entry.identifier].raise_()
             return
         path = None
         if entry.kind in {"importers", "exporters"}:
@@ -80,10 +93,12 @@ class PluginHost:
             path, _ = chooser(window, entry.label)
             if not path:
                 return
-        context = self.context(entry.owner, path)
+        context = self.context(entry.owner, path, with_services=entry.kind in {"panels", "actions"})
         try:
             result = entry.callback(context)
-            if mutating:
+            if mutating and context.settings_only:
+                context.services.save_settings(context.data)
+            elif mutating:
                 # Fail before changing the live project if persisted plugin state is not JSON.
                 json.dumps(context.project.ui_state.get("plugin_data", {}), allow_nan=False)
                 context.project.dataset.validate_unique_ids()
@@ -116,6 +131,7 @@ class PluginHost:
                 dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 dialog.show()
                 self.dialogs[entry.identifier] = dialog
+                dialog.destroyed.connect(lambda: self.dialogs.pop(entry.identifier, None))
             elif result is not None:
                 dialog = QDialog(window)
                 dialog.setWindowTitle(entry.label)

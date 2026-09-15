@@ -1,30 +1,57 @@
 # ruby_fluo_pressure_monitor
 
-Version 0.2.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 0.3.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
 
 ## Requirements and installation
 
-Requires CurveMole with **File > Automatic folder import…** and the
-`import_processors` API, introduced by [PR #43](https://github.com/SebRoLENS/curvemole/pull/43).
-Older versions without this mode cannot run the plugin.
+Requires CurveMole with automatic folder import and `PluginContext.services`
+(nonmodal panel services), supplied with this update. Update **both CurveMole and
+the plugin** to use the monitor panel. The older File-menu workflow remains available.
 
 1. In **File > Plugin Manager > Choose plugin folder…**, choose this directory.
 2. Select `ruby_fluo_pressure_monitor`, review its source and choose
    **Review and trust selected plugin…**.
-3. Open **Tools > Actions > Ruby fluorescence: settings**. Select the temperature
-   correction, enter the sample temperature and confirm it to enable pressure
-   calculation. Adjust reference values and fitting options as needed, then Save.
-4. Open **File > Automatic folder import…**. Choose an acquisition folder and
-   set **Filename contains** to the same substring as the plugin, e.g. `ruby`.
-5. Select **Ruby fluorescence: doublet → pressure** as the workflow. For two-column
-   text or a single-frame SPE file, choose X column 1 and Y column 2. Press **Start**.
-6. Enable **Also import matching files already in the folder** to process existing
-   acquisitions. Keep **Show newest imported spectrum** enabled to display each fit.
-7. Read the R1 center, pressure and diagnostics in the import log. Use **Stop** or
-   **File > Stop automatic import** to end the session.
+3. Open **View > Panels > Ruby fluorescence: monitor — temperature / Start / Stop**.
+4. Choose the acquisition folder and set **Filename contains**, e.g. `ruby`.
+5. Enter **Sample temperature (K)** and tick **Confirm sample temperature**.
+   **Apply temperature** saves it; **Start** also saves the displayed settings.
+   Without confirmation, fitting still runs but pressure is not calculated.
+6. Use **Advanced settings / calibration…** to choose the temperature correction
+   and edit literature reference values, coefficients and fitting settings.
+7. Click **Start**. Enable **Also import existing matching files** if needed.
+   The panel displays running status and the active ruby spectrum's pressure.
+8. Click **Stop** to stop acquisition processing. Existing spectra remain editable.
+
+For custom column mappings, settle delay, changed-file imports or retrying failures,
+use **File > Automatic folder import…**, selecting the ruby workflow and the same
+filename substring. The monitor panel also controls a ruby session started there.
+The panel's direct Start uses columns 1/2 and a two-second stable-file delay.
+
+### Manual corrections while monitoring
+
+Uncheck **Follow newest spectrum** in the monitor (or the File import panel),
+select a spectrum and adjust its masks, component parameters and bounds using
+CurveMole's normal tools. New spectra continue to be processed in the background;
+your selected spectrum and its edits remain in place. Run **Fit** in CurveMole
+after editing. The monitor, report and CSV derive pressure from the **current
+fitted model**, using the longer-wavelength of exactly two enabled pseudo-Voigt peaks.
+Until the fit is current, no pressure is reported. Automatic detection/masking is
+only applied to new acquisitions, so it does not overwrite your manual corrections.
+
+Temperature/calibration changes normally affect **new acquisitions only**.
+To correct existing measurements, select their spectra, check **Also apply
+temperature/calibration to selected spectra**, and click **Apply temperature**.
+This update is undoable and does not invalidate the spectral fit. It applies the
+currently configured calibration as well as temperature. Earlier measurements
+otherwise retain their own temperature and reference settings.
+
+The live panel, report and CSV recompute pressure after a manual fit. Saved
+acquisition metadata retains the initial analysis; current models and masks are
+saved in the project and used to derive updated results when it is reopened.
+The original acquisition log is historical and does not change after manual edits.
 
 The filename match is a case-insensitive **substring**: `ruby` accepts `ruby.0`,
 `ruby_0.spe`, `test_RUBY_47.spe` and `myruby.spe`, but excludes `sample.spe`.

@@ -157,7 +157,7 @@ def test_real_plugin_load_and_unload():
     manager.load(candidate, trust=True)
     try:
         assert ruby.OWNER + ":automatic" in extensions.entries
-        assert len([e for e in extensions.entries.values() if e.owner == ruby.OWNER]) == 4
+        assert len([e for e in extensions.entries.values() if e.owner == ruby.OWNER]) == 5
     finally:
         manager.disable(ruby.OWNER)
     assert not any(e.owner == ruby.OWNER for e in extensions.entries.values())
@@ -208,3 +208,132 @@ def test_english_settings_save():
     assert observed["tab"] == "Measurement and fit"
     assert context.data["temperature_confirmed"] is True
     assert context.data["eta"] == 0.5
+
+
+def test_manual_mask_refit_and_temperature_keep_acquisition_reference(tmp_path):
+    import json
+
+    from curvemole.core.data import CurveState, Mask
+    from curvemole.core.fitting import FitSettings, Fitter
+
+    project = Project()
+    project.add_curve(synthetic_curve())
+    curve = project.curves[0]
+    context = PluginContext(project, curve.id, (curve.id,), ruby.OWNER)
+    context.data.update(ruby.settings({"temperature_confirmed": True}))
+    ruby.process(context)
+    initial = ruby.current_result(context, curve)
+    # A later acquisition temperature must not silently alter this spectrum.
+    context.data["temperature_K"] = 450
+    assert ruby.current_result(context, curve)["pressure_GPa"] == initial["pressure_GPa"]
+    model = project.models[curve.id]
+    r1 = model.components[-1]
+    r1.parameters["center"].value = 695.3
+    r1.parameters["center"].fixed = True
+    curve.state = CurveState.MODIFIED
+    assert ruby.current_result(context, curve)["pressure_GPa"] is None
+    mask = curve.effective_mask.copy()
+    mask[800:810] = True
+    curve.masks["Manual correction"] = Mask("Manual correction", mask)
+    result = Fitter().fit_single(curve, model, FitSettings())
+    assert result.success
+    updated = json.loads(ruby.report(context))[0]
+    assert updated["R1_nm"] == pytest.approx(695.3)
+    assert updated["pressure_GPa"] == pytest.approx(ruby.pressure(695.3, ruby.settings())[0])
+    assert updated["pressure_GPa"] != initial["pressure_GPa"]
+    assert "Manual correction" in curve.masks
+    context.path = str(tmp_path / "manual.csv")
+    ruby.export(context)
+    with open(context.path) as stream:
+        assert "695.3" in stream.read()
+
+
+def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.core.data import CurveState, Mask
+
+    window = CurveMoleMainWindow(Project())
+    identifier = ruby.OWNER + ":automatic"
+    extensions.entries[identifier] = Contribution(
+        ruby.OWNER, identifier, "Ruby test", "import_processors", ruby.process
+    )
+    window.project.add_curve(synthetic_curve())
+    curve = window.project.curves[0]
+    window.active_curve_id = curve.id
+    initial = PluginContext(window.project, curve.id, (curve.id,), ruby.OWNER)
+    initial.data.update(ruby.settings({"temperature_confirmed": True}))
+    ruby.process(initial)
+    window.refresh_all()
+    window.curve_tree.topLevelItem(0).child(0).setSelected(True)
+    context = window.plugin_host.context(ruby.OWNER, with_services=True)
+    panel = ruby.monitor_panel(context)
+    try:
+        def settings_action(snapshot):
+            snapshot.settings_only = True
+            snapshot.data["temperature_K"] = 310
+
+        window.plugin_host.run(Contribution(ruby.OWNER, ruby.OWNER + ":settings_test",
+                                            "Settings", "actions", settings_action))
+        assert window.project.dataset.curve(curve.id).state == CurveState.FITTED
+        assert window.curve_tree.selected_curve_ids() == {curve.id}
+        window.undo_stack.undo()
+
+        panel.folder.setText(str(tmp_path))
+        panel.temperature.setValue(350)
+        panel.confirmed.setChecked(True)
+        panel.start.click()
+        assert window.folder_import.scan is not None
+        assert window.project.ui_state["plugin_data"][ruby.OWNER]["temperature_K"] == 350
+        assert curve.state == CurveState.FITTED
+        # Temperature is explicitly applied to selected existing spectra, undoable.
+        panel.apply_selected.setChecked(True)
+        panel.save()
+        assert curve.metadata["ruby_monitor"]["settings"]["temperature_K"] == 350
+        window.undo_stack.undo()
+        assert curve.metadata["ruby_monitor"]["settings"]["temperature_K"] == 296
+        assert curve.state == CurveState.FITTED
+        panel.follow.setChecked(False)
+        assert window.folder_import.follow is False
+        window.folder_import.show()
+        dialog = window.folder_import.dialog
+        assert dialog.folder.text() == str(tmp_path)
+        assert dialog.processor.currentData() == identifier
+        assert dialog.stop_button.isEnabled() and not dialog.start_button.isEnabled()
+        assert dialog.follow.isEnabled() and not dialog.follow.isChecked()
+        dialog.follow.setChecked(True)
+        assert window.folder_import.follow is True
+        dialog.follow.setChecked(False)
+        dialog.hide()
+        selected = window.curve_tree.selected_curve_ids()
+        # A background acquisition must retain the spectrum being edited and its masks.
+        curve.masks["manual"] = Mask("manual", np.zeros(curve.x.size, dtype=bool))
+        curve.masks["manual"].excluded[400:420] = True
+        curve.state = CurveState.MODIFIED
+        acquisition = Project()
+        acquisition.add_curve(synthetic_curve())
+        ruby.process(PluginContext(acquisition, acquisition.curves[0].id, (), ruby.OWNER))
+        window.folder_import.commit(acquisition)
+        assert window.active_curve_id == curve.id
+        assert window.curve_tree.selected_curve_ids() == selected
+        assert window.project.dataset.curve(curve.id).masks["manual"].excluded[410]
+        panel.refresh()
+        assert "Fit is not current" in panel.result.text()
+        assert window.folder_import.scan is not None
+        panel.stop.click()
+        assert window.folder_import.scan is None
+        assert panel.start.isEnabled()
+        assert len(window.project.curves) == 2
+        # Service use is forbidden after unloading; read-only hook snapshots have no service.
+        assert window.plugin_host.context(ruby.OWNER).services is None
+        extensions.entries.pop(identifier)
+        with pytest.raises(ValueError, match="disabled"):
+            context.services.start_monitor(tmp_path, "ruby")
+    finally:
+        panel.timer.stop()
+        panel.deleteLater()
+        window.folder_import.stop()
+        window.project.dirty = False
+        window.close()
+        QApplication.processEvents()
+        extensions.entries.pop(identifier, None)
