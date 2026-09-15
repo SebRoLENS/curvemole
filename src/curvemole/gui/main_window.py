@@ -32,6 +32,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
+    QDialog,
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
@@ -52,6 +53,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.calculator import (
     apply_background_subtraction,
+    apply_column_formula,
     apply_curve_operation,
     apply_custom_formula,
     apply_scalar,
@@ -882,7 +884,7 @@ class MainWindow(QMainWindow):
             selected,
             self.selected_component_id,
         )
-        self.calculator.set_curves(self.project)
+        self.calculator.set_curves(self.project, self.active_curve_id)
         self.function_builder.set_project(self.project)
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.refresh_worksheet()
@@ -932,16 +934,12 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
 
-    def import_data(self, paths: list[str] | None = None) -> None:
+    def import_data(self, paths: list[str] | None = None, *, preview_columns=None) -> None:
         if not self._ensure_editable():
             return
         if paths is None:
-            paths, _ = QFileDialog.getOpenFileNames(
-                self,
-                self.tr("Import one-dimensional curves"),
-                "",
-                self.tr("Supported data (*.txt *.dat *.csv *.tsv);;All files (*)"),
-            )
+            from curvemole.gui.import_file_picker import choose_import_files
+            paths, preview_columns = choose_import_files(self)
         if not paths:
             return
         series = Series(self._next_series_name())
@@ -953,6 +951,14 @@ class MainWindow(QMainWindow):
             for index, path in enumerate(paths):
                 if index == 0 or not apply_all:
                     dialog = ImportMappingDialog(path, batch_size=len(paths), parent=self)
+                    choice = (preview_columns or {}).get(str(Path(path).resolve()))
+                    if choice:
+                        xi, yi = choice
+                        if xi < dialog.x_column.count() and yi < dialog.y_columns.count():
+                            dialog.x_column.setCurrentIndex(xi)
+                            for row in range(dialog.y_columns.count()):
+                                dialog.y_columns.item(row).setCheckState(
+                                    Qt.CheckState.Checked if row == yi else Qt.CheckState.Unchecked)
                     dialog.series_name.setText(series.name)
                     dialog.existing_series_names = {item.name for item in self.project.dataset.series}
                     if dialog.exec() != dialog.DialogCode.Accepted:
@@ -1997,67 +2003,48 @@ class MainWindow(QMainWindow):
         )
 
     def apply_calculator(self, request: dict[str, Any]) -> None:
+        if not self._ensure_editable():
+            return
         targets = self._calculator_targets(request.get("scope", 0))
         if not targets:
             return
-        if request.get("restore"):
-            before = {curve.id: (copy.deepcopy(curve.transformations), copy.deepcopy(curve.redo_transformations)) for curve in targets}
+        # Stage the whole batch first: an incompatible column in one spectrum
+        # must not leave the others changed or discard their redo history.
+        def snapshot(curve):
+            return copy.deepcopy((curve.transformations, curve.redo_transformations, curve.state))
 
-            def restore(values: dict[str, Any]) -> None:
+        before = {curve.id: snapshot(curve) for curve in targets}
+        after = {}
+        try:
+            operation = request.get("operation", "")
+            operand = (self.project.dataset.curve(request["operand_curve_id"])
+                       if str(operation).startswith("curve_") else None)
+            for original in targets:
+                curve = copy.deepcopy(original)
+                try:
+                    if request.get("restore"):
+                        curve.restore_original()
+                    elif operand is not None:
+                        apply_curve_operation(curve, operand, operation,
+                                              interpolation=request["interpolation"],
+                                              extrapolate=request["extrapolate"])
+                    elif operation == "custom_formula":
+                        apply_custom_formula(curve, request.get("formula_axis", "x"), request.get("formula", ""))
+                    elif operation == "column_formula":
+                        apply_column_formula(curve, request.get("column_target", "y"), request.get("formula", ""))
+                    else:
+                        apply_scalar(curve, operation, request.get("value"))
+                except Exception as exc:
+                    raise ValueError(f"{original.name}: {exc}") from exc
+                after[curve.id] = snapshot(curve)
+
+            def restore(values):
                 for curve in targets:
-                    curve.transformations, curve.redo_transformations = copy.deepcopy(values[curve.id])
+                    curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(values[curve.id])
                     curve._recompute()
 
-            for curve in targets:
-                curve.restore_original()
-            after = {curve.id: (copy.deepcopy(curve.transformations), copy.deepcopy(curve.redo_transformations)) for curve in targets}
-            restore(before)
-            self._push_change(self.tr("Restore original data"), lambda: restore(after), lambda: restore(before))
-            return
-        operation = request["operation"]
-        try:
-            transformations = []
-            operand = (
-                self.project.dataset.curve(request["operand_curve_id"])
-                if str(operation).startswith("curve_")
-                else None
-            )
-            for curve in targets:
-                if operand is not None:
-                    transformations.append(
-                        (
-                            curve,
-                            apply_curve_operation(
-                                curve,
-                                operand,
-                                operation,
-                                interpolation=request["interpolation"],
-                                extrapolate=request["extrapolate"],
-                            ),
-                        )
-                    )
-                elif operation == "custom_formula":
-                    transformations.append(
-                        (curve, apply_custom_formula(curve, request.get("formula_axis", "x"), request.get("formula", "")))
-                    )
-                else:
-                    transformations.append((curve, apply_scalar(curve, operation, request.get("value"))))
-            for curve, _ in transformations:
-                curve.undo_transformation()
-
-            def redo() -> None:
-                for curve, transformation in transformations:
-                    if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                        curve.redo_transformation()
-                    elif transformation not in curve.transformations:
-                        curve.apply_transformation(transformation)
-
-            def undo() -> None:
-                for curve, transformation in reversed(transformations):
-                    if curve.transformations and curve.transformations[-1] is transformation:
-                        curve.undo_transformation()
-
-            self._push_change(self.tr("Data calculation"), redo, undo)
+            self._push_change(self.tr("Data calculation"), lambda: restore(after), lambda: restore(before),
+                              modified_curve_ids=set(after), preserve_curve_ids=set(after))
         except Exception as exc:
             self._show_error(self.tr("Data Calculator"), exc)
 
@@ -2072,13 +2059,20 @@ class MainWindow(QMainWindow):
             return
         try:
             from curvemole.core.expressions import SafeExpression
-            expression_source = source.split("=", 1)[1].strip() if "=" in source else source
-            expression = SafeExpression.compile(expression_source)
-            unknown = set(expression.variables) - {axis}
+            if formula.get("mode") == "column_formula":
+                from curvemole.core.columns import compile_column_formula
+                compile_column_formula(source, formula.get("target", "y"))
+                unknown = set()
+            else:
+                expression_source = source.split("=", 1)[1].strip() if "=" in source else source
+                expression = SafeExpression.compile(expression_source)
+                unknown = set(expression.variables) - {axis}
             if unknown:
                 raise ValueError(f"Unknown symbol(s): {', '.join(sorted(unknown))}")
             self.project.custom_formulas = [item for item in self.project.custom_formulas if item.get("name") != name]
-            self.project.custom_formulas.append({"name": name, "axis": axis, "formula": source})
+            self.project.custom_formulas.append({"name": name, "axis": axis, "formula": source,
+                                                 "mode": formula.get("mode", "custom_formula"),
+                                                 "target": formula.get("target", "y")})
             self.project.touch()
             self.refresh_all()
             self._notify(self.tr("Custom formula saved."))
@@ -2904,8 +2898,11 @@ class MainWindow(QMainWindow):
         if scope == 0:
             return [self.project.dataset.curve(self.active_curve_id)]
         if scope == 1:
-            ids = self.curve_tree.selected_curve_ids() or {self.active_curve_id}
-            return [curve for curve in self.project.curves if curve.id in ids]
+            from curvemole.gui.series_groups import SpectrumSelectionDialog
+            dialog = SpectrumSelectionDialog(self.project, self.active_curve_id, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return []
+            return [self.project.dataset.curve(identifier) for identifier in dialog.selected_ids()]
         series = self.project.dataset.series_for(self.active_curve_id)
         return list(series.curves)
 

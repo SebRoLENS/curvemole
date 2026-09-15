@@ -179,6 +179,10 @@ class ImportPreview:
 
 def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportConfig,
                        frame: pd.DataFrame, warnings: list[str]) -> list[Curve]:
+    numeric_columns = {f"c{i}": _numeric(frame[name], selected.decimal)
+                       for i, name in enumerate(frame.columns, 1)}
+    labels = {f"c{i}": str(name) for i, name in enumerate(frame.columns, 1)}
+    column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
     pairs = mapping.pairs or [(mapping.x, y) for y in mapping.y]
     curves: list[Curve] = []
     for pair_index, (x_column, y_column) in enumerate(pairs, start=1):
@@ -205,6 +209,9 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             name=name,
             original_x=x,
             original_y=y,
+            original_columns=numeric_columns,
+            column_labels=labels,
+            column_axes={"x": column_keys[x_name], "y": column_keys[y_name]},
             sigma_x=sigma_x,
             sigma_y=sigma_y,
             weights=weights,

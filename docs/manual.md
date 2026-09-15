@@ -588,6 +588,17 @@ The semicolon can therefore be ambiguous: a line beginning with semicolon is a
 comment, while semicolons inside table rows can be delimiters. Check the preview for
 locale-specific exports.
 
+Before confirming files, the file chooser already includes a small spectrum graph.
+Highlight a file to preview it; select X and Y from the adjacent dropdowns (first and
+second column by default). Reading happens in the background. The graph uses the
+same peak-preserving adaptive renderer as the main plot and full-data axis limits.
+Choices are remembered per file and proposed in the subsequent import mapping dialog.
+With multiple files, Apply this mapping to all files deliberately uses the mapping
+confirmed for the first file. Files requiring custom parsing can still be opened
+when the quick preview is unavailable, then configured in the mapping dialog.
+
+![Preview while selecting files, before opening the import mapping dialog.](screenshots/import-file-preview.png)
+
 ### 6.3 Column mapping
 
 Choose exactly one x column and one or more y columns. Each selected y column becomes
@@ -716,9 +727,55 @@ Open **Tools > Data Calculator**. The following scalar operations are available:
 - normalize y by maximum absolute value;
 - normalize y by signed integrated area.
 
-Choose Active curve, Selected curves, or Entire series as the target. Normalization
-also scales `sigma_y` consistently. Dividing by zero and normalizing a zero or invalid
+Every calculator operation (including restoring data) offers **Active curve** or
+**Choose multiple spectra...**. The picker initially shows the active series;
+**All series** shows every spectrum grouped under colored series headings. Use
+checkboxes or Select all shown. Hidden spectra are excluded. Cancel changes nothing.
+A batch is checked in full before any spectrum is modified; one Undo restores the
+whole batch. Normalization also scales `sigma_y` consistently. Dividing by zero and normalizing a zero or invalid
 signal are rejected.
+
+#### Advanced column formulas
+
+The green **Advanced - column formula** entry is first in the operation list,
+followed by the green **Custom formula** for a single plotted axis.
+New imports retain every source column as numeric data in the project, including
+columns not plotted. Original column order and row alignment are preserved.
+`c1`, `c2`, `c3`, etc. refer to one-based source columns; `x` and `y` refer to the
+current plotted axes. **Insert column** lists the available codes with original
+column names; choosing an entry inserts its code at the cursor. **Advanced
+destination** chooses X, Y or any retained column for the result.
+
+![Advanced calculator with column insertion and destination controls in dark mode.](screenshots/advanced-calculator-dark.png)
+
+For a file with Energy, Counts and Monitor columns, plotting c1 against c2:
+
+1. choose **Advanced - column formula**;
+2. choose **Y (plotted)** as the destination;
+3. insert `c2` and `c3` from the dropdown to enter `c2 / c3**2`;
+4. choose Active curve or multiple spectra, then Apply non-destructively.
+
+You can also enter `y / c3^2` (`^` and `**` both mean exponentiation in Advanced),
+`c2 - c4`, or `sqrt(c5)`. A header may be referenced as `${Monitor counts}`;
+codes remain unambiguous for unusual names. Only restricted mathematical expressions
+are accepted, never Python execution. Scalar results are broadcast to every row;
+missing columns and non-finite output (including division by zero) reject the batch.
+Masks do not change row alignment: formulas operate on all rows.
+
+Writing to a plotted source column updates that axis. Writing to an unplotted
+column leaves the graph unchanged and makes the new values available to later
+formulas. Normal calculator operations on X/Y are also reflected in their mapped
+columns. Calculations are local to each spectrum, even when spectra originated in
+the same file. In a multi-spectrum batch `cN` always means position N in each file;
+check that the files have compatible layouts. Uncertainty propagation is not
+inferred for custom formulas; changing an auxiliary uncertainty column does not
+remap the uncertainty arrays originally selected for fitting.
+
+Name and **Save formula** to retain the expression and destination in the project,
+then recall it through Saved formulas. Retained columns, formulas and their
+Undo/Redo history survive `.fitproj` saving without the original source file.
+Projects created before this feature contain only their previously stored axes:
+re-import the source to recover additional columns.
 
 ### 7.6 Curve-to-curve calculations
 
@@ -1997,6 +2054,28 @@ After loading this plugin, choose **File > Exporters > Laboratory CSV** (marked 
 the plugin symbol). CurveMole asks for a destination and then runs the callback.
 The integrated export commands stay available. The module uses NumPy, already
 included with CurveMole; no additional dependencies are required.
+
+
+### 18.7 Community plugin submissions and validation
+
+To share a plugin, open **File > Plugin manager > Share my plugin on GitHub...**.
+This opens the submission guide: fork the repository, upload your complete plugin
+folder at `custom_plugins/your_plugin/`, then open a pull request to main.
+For private use, **Choose plugin folder...** installs it on your computer only;
+loading a plugin does not publish its source. **Browse validated plugins** opens
+the downloads that have passed the checks.
+
+The repository's [custom_plugins folder](../custom_plugins/README.md) contains the
+submission guide and a tested TSV exporter example. Authors submit a folder with
+manifest, module, licence, README and functional tests through a pull request.
+GitHub checks manifests, actual registered capabilities, loading/removal and tests
+on Linux, Windows and macOS. Only a successful main run produces the
+`validated-community-plugins` artifact with its catalog and tested plugin files.
+Download it from the Community plugins Actions workflow, extract the chosen plugin
+and load it explicitly through File > Plugin manager. A source folder or an open PR
+alone does not indicate validation. Tests demonstrate tested behavior, not complete
+safety; Python plugins still run with the user's privileges. See the submission
+guide for required branch protection settings and the limits of validation.
 
 ## 19. Troubleshooting
 

@@ -16,3 +16,12 @@ data/<curve-id>/transformations/*_operand.npy  optional
 metadata, model graphs, histories, UI/export state, and a SHA-256 map for every
 binary payload. NumPy arrays are loaded with `allow_pickle=False`. A save is written
 to a temporary sibling, reopened and validated, then atomically replaces the target.
+
+## Retained import columns
+
+Curve metadata optionally contains `column_keys`, `column_labels` and `column_axes`.
+Original arrays are stored as `data/<curve-id>/columns/<index>.npy`, in column_keys
+order, covered by archive checksums. Curves without these optional keys remain
+readable. `column_formula` transformations store a target and restricted expression;
+replaying the transformation stack reconstructs both plotted and auxiliary columns.
+Use a CurveMole build supporting this feature to reopen transformed projects.

@@ -11,7 +11,9 @@ leaves the current view unchanged.
 ## 1. Import curves
 
 Press the **Import data** toolbar button (or choose **File → Import Data**) and
-select one or many text-based numeric files.
+select one or many text-based numeric files. While choosing files, highlight one to
+see a small graph immediately. Use its X/Y dropdowns to preview different columns
+(default: first and second). Those choices carry into the next mapping dialog.
 The import dialog includes **Series name**: it proposes **Series 1**, **Series 2**,
 and so on, and you can replace it with your own name. All files selected in the
 same import belong to that series. Later, double-click its name in **Series /
@@ -229,3 +231,17 @@ YAML workflow; subsequent clicks rerun the remembered file, including after rest
 The adjacent arrow offers **Choose automation** and **Stop automation**. Workflows
 run independently of the open project and save to the outputs configured in YAML.
 See [manual section 16](manual.md) for the format, plugin trust and output behaviour.
+
+## Calculator: operations between columns
+
+Open **Tools > Data Calculator**, choose the green **Advanced - column formula**
+entry at the top, and select a destination (Y, X or another source column).
+Use **Insert column** to insert available columns by name: `c1`, `c2`, etc.
+For example, `c2 / c3**2` divides column 2 by the square of column 3.
+All imported numeric columns are available, including unplotted ones.
+Name and save a formula to reuse it later in the project.
+
+Every calculator operation offers **Active curve** or **Choose multiple spectra...**.
+The picker defaults to the active series; **All series** shows colored series groups.
+A failed formula leaves the whole selection unchanged, and one Undo reverts a batch.
+Older projects need re-importing to obtain columns they did not originally store.

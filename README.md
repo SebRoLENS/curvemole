@@ -25,6 +25,22 @@ line, and reproducible YAML workflows.
 > **Status:** Version **0.23.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
+## Custom plugins: install or share yours
+
+**[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
+[Browse the community folder](custom_plugins) ·
+[Download validated plugins](https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml) ·
+[Plugin author guide](docs/plugins.md)
+
+- **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,
+  select the folder containing your manifest and Python module, then **Review and trust**.
+- **Share it with other users:** submit a folder at **`custom_plugins/your_plugin/`**
+  through a GitHub pull request. Follow the upload steps linked above. GitHub tests
+  the submission; only successful main runs produce the validated catalog bundle.
+
+The Plugin Manager also includes **Share my plugin on GitHub…**, which opens these
+submission instructions. Loading a plugin locally does not upload it publicly.
+
 ## Download
 
 **[Download the latest release](https://github.com/SebRoLENS/curvemole/releases/latest)**
@@ -118,7 +134,7 @@ to releases.
   numeric export of data, components, total fit, background, and residuals
 - startup and hourly release checks with an in-app version badge and self-update for
   supported Linux AppImage and Windows standalone installations
-- Live spectrum preview while choosing import columns, with adaptive rendering
+- Live spectrum preview while browsing files and choosing import columns, with adaptive rendering
 - Separate Run automation button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins
 - File > Plugin Manager: persistent loading, removal and crash-recovery startup;
@@ -219,3 +235,14 @@ DOI: [**10.5281/zenodo.22765393**](https://doi.org/10.5281/zenodo.22765393)
 CurveMole is free software released under **GPL-3.0-or-later**. User data, projects,
 results, private formulas, and unpublished private extensions remain under the user's
 control. Citation metadata are provided in `CITATION.cff`.
+
+### Advanced calculator and community plugins
+
+The green Advanced calculator supports formulas between all imported columns,
+including unplotted ones, with column insertion dropdowns and a destination selector.
+All calculator operations can target one spectrum or a grouped multiple-spectrum
+selection. See the [quick start](docs/quick-start.md#calculator-operations-between-columns).
+
+Contribute plugins through [custom_plugins](custom_plugins/README.md). GitHub validates
+manifests, registration and functional tests on three platforms before producing a
+validated catalog bundle. Plugins remain explicit, additive installations.

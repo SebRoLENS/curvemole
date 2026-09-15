@@ -237,3 +237,21 @@ Before distributing your plugin, test:
 This is an extensible additive interface, not a promise that arbitrary internal
 methods are stable. If a feature needs a new supported contract, extend this API
 rather than monkey-patching CurveMole internals.
+
+## Contributing a community plugin
+
+**Where to send it:** create `custom_plugins/your_plugin/` in your GitHub fork,
+then open a pull request to `SebRoLENS/curvemole:main`. For browser upload steps,
+see [Submit a plugin](../custom_plugins/README.md#submit-a-plugin).
+Inside CurveMole, **File > Plugin manager > Share my plugin on GitHub...** opens
+these instructions. **Choose plugin folder...** installs locally and never uploads
+anything to the public repository.
+
+Follow [custom_plugins/README.md](../custom_plugins/README.md). A submission needs
+its own folder, clear manifest, README, licence and functional pytest tests.
+The TSV exporter there is a complete minimal example. Run
+`python scripts/validate_community_plugins.py` before opening a PR.
+GitHub runs validation on Linux, Windows and macOS. A successful main run publishes
+a downloadable validated catalog bundle; failed checks cannot publish it.
+See the contribution guide for installation, manifest fields, review requirements,
+required branch rules and the precise limits of these checks.

@@ -6,6 +6,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Advanced column formulas with named column insertion/destination dropdowns, retained
+  import columns in projects, saved expressions and reversible transformation replay.
+- Grouped multi-spectrum selection for every calculator operation, with atomic batches.
+- Asynchronous spectrum preview inside the multi-file chooser, editable X/Y columns
+  and transfer of per-file choices to the mapping dialog.
+- Community plugin submission folder, TSV exporter example and cross-platform manifest,
+  load/unload and functional validation, with a success-gated catalog artifact.
+
 - Run existing YAML automations from a separate bottom toolbar, remember the file,
   and execute in an isolated process with completion/error reporting and stop control.
 - Full-spectrum live import preview with cached parsing and shared adaptive rendering.

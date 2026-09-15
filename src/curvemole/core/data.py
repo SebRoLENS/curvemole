@@ -181,6 +181,10 @@ class Curve:
     active_mask: str = "Default"
     fit_ranges: list[tuple[float, float]] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    original_columns: dict[str, np.ndarray] = field(default_factory=dict, repr=False)
+    column_labels: dict[str, str] = field(default_factory=dict)
+    column_axes: dict[str, str] = field(default_factory=dict)
+    _columns: dict[str, np.ndarray] = field(init=False, repr=False)
     _x: np.ndarray = field(init=False, repr=False)
     _y: np.ndarray = field(init=False, repr=False)
     _sigma_y_current: np.ndarray | None = field(init=False, repr=False)
@@ -193,6 +197,12 @@ class Curve:
         self.sigma_x = _array(self.sigma_x, length=len(self.original_x))
         self.sigma_y = _array(self.sigma_y, length=len(self.original_x))
         self.weights = _array(self.weights, length=len(self.original_x))
+        self.original_columns = {key: _array(value, length=len(self.original_x))
+                                 for key, value in self.original_columns.items()}
+        for value in self.original_columns.values():
+            value.setflags(write=False)
+        if any(key not in self.original_columns for key in self.column_axes.values()):
+            raise DataValidationError("Axis mapping refers to an unavailable column.")
         self.original_x.setflags(write=False)
         self.original_y.setflags(write=False)
         if self.sigma_x is not None:
@@ -222,6 +232,13 @@ class Curve:
         view = self._y.view()
         view.setflags(write=False)
         return view
+
+    @property
+    def columns(self) -> dict[str, np.ndarray]:
+        result = {key: value.view() for key, value in self._columns.items()}
+        for value in result.values():
+            value.setflags(write=False)
+        return result
 
     @property
     def current_sigma_y(self) -> np.ndarray | None:
@@ -347,8 +364,12 @@ class Curve:
 
     def apply_transformation(self, transformation: Transformation) -> None:
         self.transformations.append(transformation)
+        try:
+            self._recompute()
+        except Exception:
+            self.transformations.pop()
+            raise
         self.redo_transformations.clear()
-        self._recompute()
         self._mark_modified()
 
     def undo_transformation(self) -> bool:
@@ -378,8 +399,20 @@ class Curve:
         x = np.asarray(self.original_x).copy()
         y = np.asarray(self.original_y).copy()
         sigma = None if self.sigma_y is None else np.asarray(self.sigma_y).copy()
+        from curvemole.core.columns import evaluate_columns
+
+        columns = {key: value.copy() for key, value in self.original_columns.items()}
         for transformation in self.transformations:
-            x, y, sigma = transformation.apply(x, y, sigma)
+            if transformation.operation == "column_formula":
+                p = transformation.parameters
+                x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
+                                        self.column_labels, self.column_axes)
+            else:
+                x, y, sigma = transformation.apply(x, y, sigma)
+            for axis, values in (("x", x), ("y", y)):
+                if axis in self.column_axes:
+                    columns[self.column_axes[axis]] = values.copy()
+        self._columns = columns
         self._x, self._y, self._sigma_y_current = x, y, sigma
 
     def _mask(self, name: str | None) -> Mask:
@@ -405,6 +438,9 @@ class Curve:
             "colour": self.colour,
             "state": self.state.value,
             "weights_are_inverse_variance": self.weights_are_inverse_variance,
+            "column_keys": list(self.original_columns),
+            "column_labels": self.column_labels,
+            "column_axes": self.column_axes,
             "active_mask": self.active_mask,
             "fit_ranges": [list(value) for value in self.fit_ranges],
             "metadata": self.metadata,
