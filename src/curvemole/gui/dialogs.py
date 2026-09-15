@@ -163,6 +163,10 @@ class ImportMappingDialog(QDialog):
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
         self._populate()
+        from curvemole.gui.import_preview import SpectrumImportPreview
+        self.spectrum_preview = SpectrumImportPreview(self)
+        layout.insertWidget(layout.indexOf(self.preview) + 1, self.spectrum_preview)
+        self.resize(900, 760)
 
     def config(self) -> ImportConfig:
         return ImportConfig(
@@ -198,7 +202,12 @@ class ImportMappingDialog(QDialog):
         try:
             self.inspection = inspect_file(self.path, self.config())
             self._populate()
+            if hasattr(self, "spectrum_preview"):
+                self.spectrum_preview.schedule()
         except Exception as exc:
+            if hasattr(self, "spectrum_preview"):
+                self.spectrum_preview.graph.clear()
+                self.spectrum_preview.label.setText("Spectrum preview unavailable")
             QMessageBox.warning(self, self.tr("Import preview"), str(exc))
 
     def _populate(self) -> None:

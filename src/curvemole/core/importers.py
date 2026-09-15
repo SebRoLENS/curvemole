@@ -161,6 +161,24 @@ def import_file(
     source = Path(path)
     selected = config or detect_config(source)
     frame, warnings = _read_frame(source, selected)
+    return _curves_from_frame(source, mapping, selected, frame, warnings)
+
+
+class ImportPreview:
+    """Parse once; reuse the actual importer for interactive column mappings."""
+
+    def __init__(self, path: str | Path, config: ImportConfig) -> None:
+        self.source = Path(path)
+        self.config = config
+        self.frame, self.warnings = _read_frame(self.source, config)
+
+    def curves(self, mapping: ColumnMapping) -> list[Curve]:
+        mapping.validate()
+        return _curves_from_frame(self.source, mapping, self.config, self.frame, self.warnings)
+
+
+def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportConfig,
+                       frame: pd.DataFrame, warnings: list[str]) -> list[Curve]:
     pairs = mapping.pairs or [(mapping.x, y) for y in mapping.y]
     curves: list[Curve] = []
     for pair_index, (x_column, y_column) in enumerate(pairs, start=1):

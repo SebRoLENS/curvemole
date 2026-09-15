@@ -6,6 +6,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Run existing YAML automations from a separate bottom toolbar, remember the file,
+  and execute in an isolated process with completion/error reporting and stop control.
+- Full-spectrum live import preview with cached parsing and shared adaptive rendering.
+
 - Additive plugin API for exporters, importers, fit solvers, data commands, analyses,
   workflows, panels, plot layers and notification hooks, with marked contributions.
 - File Plugin Manager with persistent installations, disable/remove controls,

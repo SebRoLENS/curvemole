@@ -607,6 +607,15 @@ Only one of `sigma_y`, generic weight, variance, or inverse variance can be sele
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
 stored in the project but is not used by the version 0.22.0 optimizer.
 
+The spectrum preview below the numeric table updates as you change X/Y columns,
+uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
+the complete file, reusing the main graph's peak-preserving downsampling and clipping
+rules. Parsed data are cached while changing columns. Descending X is reversed for
+display; nonmonotonic X is not clipped/downsampled. The view bounds always come from
+full-resolution finite X/Y pairs. With no selected Y or an invalid mapping, the
+preview clears and explains the problem. For batch import, it previews the file
+named in the mapping dialog.
+
 ### 6.4 Batch import
 
 When importing multiple files, **Apply this mapping to all files in this batch**
@@ -1644,6 +1653,28 @@ curvemole run examples/gaussian_workflow.yml --json
 Relative paths are resolved from the workflow file's directory. Schema version 1
 supports imports, custom functions, explicitly trusted plugins, models, constraints,
 fit settings, project output, and bundle export.
+
+### Run an existing automation from the desktop
+
+The separate **Automations** toolbar at the bottom contains **Run automation**.
+On the first click, choose a `.yml` or `.yaml` workflow; CurveMole validates and
+runs it. Later clicks run the same file, including after restarting CurveMole.
+The tooltip shows its path. Use the arrow beside Run to **Choose automation** or
+**Stop automation**. Cancelling the file picker leaves the previous choice intact;
+if the remembered file is missing, Run asks for another file.
+
+The workflow executes in a separate process and uses its own imported spectra,
+models and output settings. It does not operate on the currently open GUI project.
+Completion reports the processed spectra, fit convergence and output paths.
+Relative paths resolve against the workflow's folder. To keep results, specify
+`export` in the workflow. Reruns respect its overwrite/versioning settings.
+Stopping or failing does not roll back files already written. Wait for completion
+or stop the automation before closing CurveMole.
+
+Python plugins referenced by a desktop automation must first be reviewed and
+enabled in **File > Plugin Manager**. Their source fingerprints are checked again
+at launch; a workflow does not implicitly approve executable plugins. This control
+runs existing workflows; it is not a visual workflow editor.
 
 ### 16.2 Complete example
 

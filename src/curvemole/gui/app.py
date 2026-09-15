@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QCoreApplication, QLocale, Qt
-from PySide6.QtGui import QKeySequence, QPen, QShortcut
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication
 
 from curvemole.core.fitting import FitMode, FitResult
@@ -20,6 +20,7 @@ from curvemole.core.models import Component
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
+from curvemole.gui.rendering import _optimise_plot_data_item
 from curvemole.gui.updates import UpdateController
 from curvemole.version import __version__
 
@@ -29,7 +30,6 @@ PlotViewState = tuple[
     tuple[float, float],
 ]
 
-_ADAPTIVE_RENDER_MIN_POINTS = 1500
 _MASK_REGION_Z = -20.0
 _MASK_BOUNDARY_Z = -10.0
 
@@ -75,46 +75,6 @@ def _restore_plot_view(workspace: PlotWorkspace, state: PlotViewState | None) ->
         yRange=list(residual_y_range),
         padding=0,
     )
-
-
-def _normalise_display_x(item: pg.PlotDataItem) -> bool:
-    """Ensure monotonic display X data is ascending so clip-to-view is safe."""
-    x_data, y_data = item.getOriginalDataset()
-    if x_data is None or y_data is None or len(x_data) < 2:
-        return False
-    x = np.asarray(x_data)
-    if not np.all(np.isfinite(x)):
-        return False
-    delta = np.diff(x)
-    if np.all(delta >= 0) and np.any(delta > 0):
-        return True
-    if np.all(delta <= 0) and np.any(delta < 0):
-        item.setData(x=x[::-1], y=np.asarray(y_data)[::-1])
-        return True
-    return False
-
-
-def _optimise_plot_data_item(item: pg.PlotDataItem, *, adaptive: bool) -> None:
-    """Configure one line item for pixel-aware rendering without changing source data."""
-    if item.opts.get("pen") is None:
-        return
-    x_data, _ = item.getOriginalDataset()
-    if x_data is None:
-        return
-    monotonic = _normalise_display_x(item)
-    item.setClipToView(monotonic)
-    use_downsampling = adaptive and monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
-    item.setDownsampling(
-        ds=None if use_downsampling else 1,
-        auto=use_downsampling,
-        method="peak",
-    )
-    if adaptive:
-        pen = item.opts.get("pen")
-        if isinstance(pen, QPen) and not np.isclose(pen.widthF(), 1.0):
-            fast_pen = QPen(pen)
-            fast_pen.setWidthF(1.0)
-            item.setPen(fast_pen)
 
 
 def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
@@ -410,6 +370,9 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     arguments = list(argv) if argv is not None else sys.argv
+    if len(arguments) == 3 and arguments[1] == "--run-automation-job":
+        from curvemole.core.automation_job import run_job
+        return run_job(arguments[2])
     _configure_gui_defaults()
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough

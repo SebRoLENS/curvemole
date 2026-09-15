@@ -118,6 +118,8 @@ to releases.
   numeric export of data, components, total fit, background, and residuals
 - startup and hourly release checks with an in-app version badge and self-update for
   supported Linux AppImage and Windows standalone installations
+- Live spectrum preview while choosing import columns, with adaptive rendering
+- Separate Run automation button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins
 - File > Plugin Manager: persistent loading, removal and crash-recovery startup;
   [write exporters, fit algorithms and other extensions](docs/plugins.md)
