@@ -142,8 +142,11 @@ class PluginHost:
                 scroll.setWidget(result)
                 dialog.setWidget(scroll)
                 dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-                window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
-                window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)
+                # Auto-opened panels are created after MainWindow.restoreState().
+                # Restore their saved dock placement before choosing a first-use default.
+                if not window.restoreDockWidget(dialog):
+                    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
+                    window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)
                 dialog.show()
                 self.dialogs[entry.identifier] = dialog
                 dialog.destroyed.connect(lambda: self.dialogs.pop(entry.identifier, None))
