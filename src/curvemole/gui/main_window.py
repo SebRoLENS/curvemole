@@ -528,6 +528,8 @@ class MainWindow(QMainWindow):
         self.folder_import = FolderImportController(self)
         self._normalise_component_names()
         self._normalise_spectrum_colours()
+        # Plugin docks must exist before restoreState(), especially on Windows.
+        self.plugin_host.finish_startup()
         self._restore_layout()
         self.refresh_all()
         self.update_check_timer = QTimer(self)

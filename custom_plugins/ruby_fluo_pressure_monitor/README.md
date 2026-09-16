@@ -4,7 +4,7 @@
 
 Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
 
-Version 0.5.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 0.6.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
@@ -23,7 +23,8 @@ not need another desktop rebuild.
 5. **Sample temperature** defaults to **296 K (22.85 °C)**. With a ruby spectrum
    selected it shows that spectrum's saved temperature. Editing it saves to that
    spectrum on Enter or focus loss, and marks its pressure as needing recalculation.
-6. **Calibration and fit settings…** edits the selected spectrum's settings.
+6. **Calibration and fit settings…** selects Mao–Xu–Bell (1986) or IPPS
+   Ruby2020 and edits the selected spectrum's settings.
    The most recently edited settings are also defaults for subsequent acquisitions;
    merely selecting an older spectrum does not change those acquisition defaults.
 7. Click **Start**. Enable **Also import existing matching files** if needed.
@@ -138,10 +139,10 @@ Both sample and reference temperatures must be in the selected correction's rang
 This plugin limits operation to 600 K and does not extrapolate temperature.
 These choices are not an exhaustive catalog of historical ruby calibrations.
 
-The default ambient-pressure reference is **694.281 nm at 296 K**, from Datchi
-et al. (2007). Room temperature (296 K) is a default assumption, not a temperature measurement;
-enter the actual temperature when known. The pressure scale is **Mao–Xu–Bell (1986)**,
-with A = 1904 GPa and B = 7.665. All reference values and coefficients are editable.
+The default pressure scale is **Mao–Xu–Bell (1986)**, with A = 1904 GPa and
+B = 7.665. Its default ambient-pressure reference is **694.281 nm at 296 K**,
+from Datchi et al. (2007). Room temperature (296 K) is a default assumption,
+not a temperature measurement; enter the actual temperature when known.
 
 ```text
 thermal_shift = f(sample_temperature) − f(reference_temperature)
@@ -149,10 +150,26 @@ corrected_wavelength = R1_center − thermal_shift
 P = A/B × [(corrected_wavelength/reference_wavelength)^B − 1]
 ```
 
+The alternative **IPPS Ruby2020** scale (Shen et al., 2020) uses independently
+editable defaults A = 1870 GPa, B = 5.63 and λ₀ = 694.25 nm:
+
+```text
+x = corrected_wavelength/ruby2020_reference_wavelength − 1
+P = A × x × (1 + B × x)
+```
+
+Ruby2020 is endorsed for room-temperature measurements from 0 to 150 GPa. The
+source reports a 0.7 GPa fit RMS and a maximum pressure-scale uncertainty of
+±2.5% over that range. The plugin reports this separately from the 1σ uncertainty
+propagated from the fitted R1 center. It warns rather than silently extrapolating
+above 150 GPa. Its thermal correction remains the explicitly selected Ragan or
+Datchi model; Ruby2020 itself is a room-temperature pressure scale.
+
 This implementation assumes additive thermal and pressure shifts in wavelength;
 it does not introduce a pressure–temperature cross term. It flags thermally
 corrected pressures above 20 GPa, where separability is not guaranteed, and
-pressures above 80 GPa, beyond the Mao–Xu–Bell calibration range. Free widths do
+pressures above the selected scale's range (80 GPa for Mao–Xu–Bell; 150 GPa for
+Ruby2020). Free widths do
 not eliminate ambiguity from overlapping lines at high temperature.
 
 The **All coefficients (JSON)** tab exposes every setting. Polynomial coefficients
@@ -163,6 +180,7 @@ to reuse them. Choosing a correction does not silently change the reference valu
 Sources:
 
 - Mao, Xu & Bell (1986), [doi:10.1029/JB091iB05p04673](https://doi.org/10.1029/JB091iB05p04673).
+- Shen et al. (2020), IPPS Ruby2020, [doi:10.1080/08957959.2020.1791107](https://doi.org/10.1080/08957959.2020.1791107).
 - Ragan, Gustavsen & Schiferl (1992), [doi:10.1063/1.351951](https://doi.org/10.1063/1.351951), Eq. (3).
 - Datchi et al. (2007), [doi:10.1080/08957950701659593](https://doi.org/10.1080/08957950701659593), Eqs. (1)–(4).
 

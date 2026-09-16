@@ -45,6 +45,7 @@ class PluginHost:
         self.actions = []
         self.dialogs: dict[str, QDockWidget] = {}
         self._auto_opened = set()
+        self._startup_complete = False
         menus = {action.text().replace("&", ""): action.menu()
                  for action in window.menuBar().actions() if action.menu()}
         locations = {"importers": "File", "exporters": "File", "transformations": "Data",
@@ -81,9 +82,23 @@ class PluginHost:
                 action.setToolTip(contribution_tooltip(entry))
                 action.setStatusTip(contribution_tooltip(entry))
                 action.triggered.connect(lambda checked=False, item=entry: self.run(item))
-                if kind == "panels" and entry.auto_show and entry.identifier not in self._auto_opened:
-                    self._auto_opened.add(entry.identifier)
-                    QTimer.singleShot(0, lambda item=entry: self._open_automatic_panel(item))
+        if self._startup_complete:
+            self._open_automatic_panels()
+
+    def finish_startup(self) -> None:
+        """Create automatic docks before MainWindow restores its saved state.
+
+        Deferring them through the event queue left native dock placeholders in
+        restored Windows layouts and could crash Qt while attaching the real dock.
+        """
+        self._startup_complete = True
+        self._open_automatic_panels()
+
+    def _open_automatic_panels(self) -> None:
+        for entry in extensions.values("panels"):
+            if entry.auto_show and entry.identifier not in self._auto_opened:
+                self._auto_opened.add(entry.identifier)
+                self._open_automatic_panel(entry)
 
     def _open_automatic_panel(self, entry):
         if extensions.entries.get(entry.identifier) is entry and entry.owner not in self.window.plugin_manager.errors:
@@ -146,8 +161,8 @@ class PluginHost:
                 dialog.setWidget(scroll)
                 dialog.setToolTip(contribution_tooltip(entry))
                 dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-                # Auto-opened panels are created after MainWindow.restoreState().
-                # Restore their saved dock placement before choosing a first-use default.
+                # Runtime-enabled panels may be created after restoreState(); startup
+                # panels already exist and are restored by MainWindow itself.
                 if not window.restoreDockWidget(dialog):
                     window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
                     window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)

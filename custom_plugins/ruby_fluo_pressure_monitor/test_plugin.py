@@ -37,6 +37,22 @@ def test_zero_pressure_and_known_synthetic_pressure(thermal):
     assert ruby.pressure(center, s)[0] == pytest.approx(20.0, abs=1e-9)
 
 
+def test_ipps_ruby2020_published_equation_and_range():
+    s = ruby.settings({"pressure_scale": "ruby2020"})
+    x = 0.01
+    center = s["ruby2020_reference_nm"] * (1.0 + x)
+    expected = 1870.0 * x * (1.0 + 5.63 * x)
+    value, shift = ruby.pressure(center, s)
+    assert shift == pytest.approx(0.0)
+    assert value == pytest.approx(expected)
+    metadata = ruby.pressure_scale_metadata(value, s)
+    assert metadata["pressure_scale"] == "ruby2020"
+    assert metadata["scale_uncertainty_percent"] == 2.5
+    assert metadata["scale_uncertainty_GPa"] == pytest.approx(abs(value) * 0.025)
+    assert not ruby.pressure_warnings(150.0, s)
+    assert "150 GPa" in ruby.pressure_warnings(150.01, s)[0]
+
+
 def test_published_ragan_wavenumber_and_datchi_branches():
     s = ruby.settings()
     # Independently tabulated evaluation of Ragan's Eq. (3) at 300 K.
@@ -340,10 +356,11 @@ def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
         extensions.entries.pop(identifier, None)
 
 
-def test_pressure_uncertainty_matches_numerical_derivative():
+@pytest.mark.parametrize("scale", ["mao_1986", "ruby2020"])
+def test_pressure_uncertainty_matches_numerical_derivative(scale):
     from curvemole.core.parameters import Parameter
 
-    s = ruby.settings({"temperature_K": 450})
+    s = ruby.settings({"temperature_K": 450, "pressure_scale": scale})
     center = 696.2
     parameter = Parameter("center", center, standard_error=0.012)
     # Compare the analytical propagation with an independent central difference.
