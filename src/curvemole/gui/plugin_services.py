@@ -53,6 +53,25 @@ class PluginServices:
 
         window._push_change("Plugin settings", redo, undo, modified_curve_ids=set())
 
+    def select_masks(self, masks):
+        """Select existing editable masks without changing fit data or fit state."""
+        window = self._window()
+        if window._thread is not None or window.project.read_only:
+            raise ValueError("Wait for the fit to finish, or use an editable project.")
+        previous = {}
+        for curve_id, name in masks.items():
+            curve = window.project.dataset.curve(curve_id)
+            if name not in curve.masks:
+                raise ValueError("The requested mask no longer exists.")
+            previous[curve_id] = curve.active_mask
+        def restore(values):
+            for curve_id, name in values.items():
+                window.project.dataset.curve(curve_id).active_mask = name
+        if previous != masks:
+            window._push_change("Select editable masks", lambda: restore(masks),
+                                lambda: restore(previous), modified_curve_ids=set())
+        window.plot_workspace.mask_action.setChecked(True)
+
     def monitor_status(self):
         controller = self._window().folder_import
         own = controller.scan is not None and any(

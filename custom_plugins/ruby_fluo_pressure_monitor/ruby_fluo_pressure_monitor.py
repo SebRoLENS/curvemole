@@ -19,7 +19,6 @@ OWNER = "org.curvemole.community.ruby_fluo_pressure_monitor"
 DEFAULTS = {
     "filename_contains": "ruby",
     "temperature_K": 296.0,
-    "temperature_confirmed": False,
     "reference_temperature_K": 296.0,
     "reference_nm": 694.281,
     "A_GPa": 1904.0,
@@ -35,7 +34,7 @@ DEFAULTS = {
     "background_exclusion_widths": 2.0,
     "region_margin_nm": 3.0,
     "prominence_fraction": 0.03,
-    "background_fixed": False,
+    "background_fixed": True,
     "ragan_coefficients_cm1": [14423.0, 4.49e-2, -4.81e-4, 3.71e-7],
     "datchi_cold_plateau_nm": -0.887,
     "datchi_cold_coefficients_nm": [0.0, 0.00664, 6.76e-6, -2.33e-8],
@@ -67,6 +66,10 @@ THERMAL_MODELS = {
 def settings(data=None):
     result = copy.deepcopy(DEFAULTS)
     result.update(data or {})
+    if "temperature_confirmed" in result:
+        # Upgrade the old automatic workflow to fit the line first and hold it.
+        result.pop("temperature_confirmed")
+        result["background_fixed"] = True
     return result
 
 
@@ -147,6 +150,30 @@ def pressure(center_nm, s):
     ), shift
 
 
+def pressure_uncertainty(center_nm, parameter, s):
+    """First-order 1-sigma propagation of the fitted R1 center only."""
+    error = parameter.standard_error
+    note = ("1σ fit uncertainty only; excludes temperature, wavelength calibration and "
+            "pressure-scale uncertainty. A fixed background is treated as exact.")
+    output = {"R1_std_nm": None, "pressure_std_GPa": None, "uncertainty_note": note}
+    if (parameter.fixed and not parameter.link) or error is None or not np.isfinite(error) or error < 0:
+        output["uncertainty_note"] = "Fit uncertainty unavailable (fixed R1 or unavailable covariance). " + note
+        return output
+    _, shift = pressure(center_nm, s)
+    ratio = (center_nm - shift) / s["reference_nm"]
+    sensitivity = s["A_GPa"] / s["reference_nm"] * ratio ** (s["B"] - 1)
+    output.update(R1_std_nm=float(error), pressure_std_GPa=float(abs(sensitivity) * error))
+    return output
+
+
+def pressure_text(meta):
+    value = meta["pressure_GPa"]
+    error = meta.get("pressure_std_GPa")
+    if error is None:
+        return f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
+    return f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
+
+
 def analyse_curve(curve, s, cancellation=None):
     from curvemole.core.fitting import FitSettings, Fitter
     from curvemole.core.models import Component, Model
@@ -189,10 +216,11 @@ def analyse_curve(curve, s, cancellation=None):
         for i in (a, b)
     ]
     lo, hi = centers[0] - s["region_margin_nm"], centers[1] + s["region_margin_nm"]
-    region = valid & (x >= lo) & (x <= hi)
-    bg_points = region.copy()
+    band_points = np.zeros(x.size, dtype=bool)
     for center, width in zip(centers, guessed_widths, strict=True):
-        bg_points &= abs(x - center) > s["background_exclusion_widths"] * width
+        band_points |= abs(x - center) <= s["background_exclusion_widths"] * width
+    band_points &= (x >= max(lo, s["search_min_nm"])) & (x <= min(hi, s["search_max_nm"]))
+    bg_points = valid & ~band_points
     if bg_points.sum() < 8:
         raise ValueError(
             "Insufficient background points: increase the region margin or reduce peak exclusion."
@@ -217,9 +245,9 @@ def analyse_curve(curve, s, cancellation=None):
     finally:
         curve.masks.pop(temporary.name, None)
     baseline_parameters = {k: p.value for k, p in bg.parameters.items()}
-    # Stage 2: include BOTH bands, mask data outside their shared local region.
+    # Stage 2: invert the band exclusion within the valid search domain.
     local = curve.add_mask("Ruby local fit region")
-    local.excluded[:] = ~region
+    local.excluded[:] = ~band_points
     midpoint = sum(centers) / 2
     components = []
     for index, (center, width) in enumerate(zip(centers, guessed_widths, strict=True)):
@@ -268,21 +296,18 @@ def analyse_curve(curve, s, cancellation=None):
     if centers_fit[1] - centers_fit[0] < max(widths_fit):
         warnings.append("Peaks strongly overlap: verify their identification and the R1 center.")
     P, shift, pressure_error = None, None, None
-    if s["temperature_confirmed"]:
-        try:
-            P, shift = pressure(centers_fit[1], s)
-            if P < 0:
-                warnings.append("Negative pressure: check the reference and temperature.")
-            if P > 80:
-                warnings.append("Above 80 GPa: extrapolating the Mao–Xu–Bell 1986 pressure scale.")
-            if P > 20 and abs(s["temperature_K"] - s["reference_temperature_K"]) > 1:
-                warnings.append(
-                    "Above 20 GPa: pressure/temperature shift separability is not guaranteed; cross terms may matter."
-                )
-        except ValueError as exc:
-            pressure_error = str(exc)
-    else:
-        pressure_error = "Temperature not confirmed: pressure has not been calculated."
+    try:
+        P, shift = pressure(centers_fit[1], s)
+        if P < 0:
+            warnings.append("Negative pressure: check the reference and temperature.")
+        if P > 80:
+            warnings.append("Above 80 GPa: extrapolating the Mao–Xu–Bell 1986 pressure scale.")
+        if P > 20 and abs(s["temperature_K"] - s["reference_temperature_K"]) > 1:
+            warnings.append(
+                "Above 20 GPa: pressure/temperature shift separability is not guaranteed; cross terms may matter."
+            )
+    except ValueError as exc:
+        pressure_error = str(exc)
     metadata = {
         "R2_nm": centers_fit[0],
         "R1_nm": centers_fit[1],
@@ -290,7 +315,7 @@ def analyse_curve(curve, s, cancellation=None):
         "FWHM_R1_nm": widths_fit[1],
         "eta_fixed": s["eta"],
         "pressure_GPa": P,
-        "temperature_K": s["temperature_K"] if s["temperature_confirmed"] else None,
+        "temperature_K": s["temperature_K"],
         "thermal_shift_nm": shift,
         "pressure_error": pressure_error,
         "settings": copy.deepcopy(s),
@@ -307,6 +332,8 @@ def analyse_curve(curve, s, cancellation=None):
         "pressure_reference": "https://doi.org/10.1029/JB091iB05p04673",
         "thermal_reference": THERMAL_MODELS[s["thermal_model"]][3],
     }
+    if P is not None:
+        metadata.update(pressure_uncertainty(centers_fit[1], components[1].parameters["center"], s))
     curve.metadata["ruby_monitor"] = metadata
     return model, result, metadata
 
@@ -327,13 +354,14 @@ def process(context):
             working = copy.deepcopy(curve)
             model, result, meta = analyse_curve(working, s, getattr(context, "cancellation", None))
             curve.masks = working.masks
+            curve.active_mask = working.active_mask
             curve.state = working.state
             curve.metadata = working.metadata
             context.project.models[curve.id] = model
             context.project.results[curve.id] = result
             context.project.results["last_fit"] = result
             value = (
-                f"{meta['pressure_GPa']:.4f} GPa"
+                pressure_text(meta)
                 if meta["pressure_GPa"] is not None
                 else meta["pressure_error"]
             )
@@ -418,9 +446,6 @@ def configure(context):
         box.setValue(s[key])
         fields[key] = box
         form.addRow(label, box)
-    confirmed = QCheckBox("Confirm the sample temperature (required to calculate pressure)")
-    confirmed.setChecked(s["temperature_confirmed"])
-    form.addRow(confirmed)
     fixed = QCheckBox("Fix the background after its initial fit (otherwise refine with the peaks)")
     fixed.setChecked(s["background_fixed"])
     form.addRow(fixed)
@@ -443,7 +468,6 @@ def configure(context):
         current.update(
             filename_contains=name.text().strip(),
             thermal_model=combos.currentData(),
-            temperature_confirmed=confirmed.isChecked(),
             background_fixed=fixed.isChecked(),
         )
         return current
@@ -460,7 +484,6 @@ def configure(context):
                     box.setValue(current[key])
                 name.setText(current["filename_contains"])
                 combos.setCurrentIndex(combos.findData(current["thermal_model"]))
-                confirmed.setChecked(current["temperature_confirmed"])
                 fixed.setChecked(current["background_fixed"])
             previous_tab[0] = index
         except Exception as exc:
@@ -500,7 +523,7 @@ def current_result(context, curve):
     meta = copy.deepcopy(curve.metadata.get("ruby_monitor", {}))
     if not meta:
         return None
-    meta.update(pressure_GPa=None, thermal_shift_nm=None)
+    meta.update(pressure_GPa=None, thermal_shift_nm=None, pressure_std_GPa=None, R1_std_nm=None)
     if curve.state != CurveState.FITTED:
         meta["pressure_error"] = "Fit is not current. Adjust masks/parameters, then run Fit."
         return meta
@@ -516,13 +539,12 @@ def current_result(context, curve):
             meta[label + "_nm"] = values[model.parameter_path(curve.id, peak.id, "center")]
             meta["FWHM_" + label + "_nm"] = values[model.parameter_path(curve.id, peak.id, "fwhm")]
         s = settings(meta.get("settings"))
-        meta["temperature_K"] = s["temperature_K"] if s["temperature_confirmed"] else None
-        if not s["temperature_confirmed"]:
-            raise ValueError("Temperature not confirmed: set Sample temperature (K) in the monitor panel.")
+        meta["temperature_K"] = s["temperature_K"]
         if meta["R1_nm"] <= meta["R2_nm"]:
             raise ValueError("Invalid R2/R1 peak order.")
         P, shift = pressure(meta["R1_nm"], s)
         meta.update(pressure_GPa=P, thermal_shift_nm=shift, pressure_error=None)
+        meta.update(pressure_uncertainty(meta["R1_nm"], peaks[1].parameters["center"], s))
         meta.pop("error", None)
         warnings = []
         if P < 0:
@@ -572,7 +594,7 @@ def monitor_panel(context):
         def __init__(self):
             super().__init__()
             self.project_id = context.project.id
-            self.setMinimumWidth(550)
+            self.setMinimumWidth(300)
             layout = QVBoxLayout(self)
             form = QFormLayout()
             self.temperature = QDoubleSpinBox()
@@ -580,8 +602,6 @@ def monitor_panel(context):
             self.temperature.setRange(15, 600)
             self.temperature.setDecimals(3)
             self.temperature.setSuffix(" K")
-            self.confirmed = QCheckBox("Confirm sample temperature to calculate pressure")
-            self.confirmed.setObjectName("confirm_temperature")
             self.folder = QLineEdit()
             browse = QPushButton("Choose folder…")
             def choose():
@@ -595,9 +615,9 @@ def monitor_panel(context):
             form.addRow("Acquisition folder", row)
             self.contains = QLineEdit()
             form.addRow("Filename contains", self.contains)
-            form.addRow("Sample temperature (K)", self.temperature)
-            form.addRow(self.confirmed)
+            form.insertRow(0, "Sample temperature (K)", self.temperature)
             self.load_settings(context)
+            self.temperature.editingFinished.connect(lambda: self.guard(self.save))
             layout.addLayout(form)
             self.apply_selected = QCheckBox("Also apply temperature/calibration to selected spectra")
             layout.addWidget(self.apply_selected)
@@ -605,7 +625,7 @@ def monitor_panel(context):
             apply.setObjectName("apply_temperature")
             apply.clicked.connect(lambda: self.guard(self.save))
             layout.addWidget(apply)
-            note = QLabel("Temperature is for NEW acquisitions. Existing spectra keep their own temperature unless selected above. Pressure is calculated, not entered.")
+            note = QLabel("Default: room temperature, 296 K (22.85 °C). Temperature is for NEW acquisitions. Existing spectra keep their own temperature unless selected above. Pressure is calculated, not entered.")
             note.setWordWrap(True)
             layout.addWidget(note)
             self.existing = QCheckBox("Also import existing matching files")
@@ -623,16 +643,23 @@ def monitor_panel(context):
             self.stop.clicked.connect(lambda: self.guard(services.stop_monitor))
             advanced = QPushButton("Advanced settings / calibration…")
             advanced.clicked.connect(lambda: self.guard(self.configure))
-            for button in (self.start, self.stop, advanced):
+            for button in (self.start, self.stop):
                 buttons.addWidget(button)
-            layout.addLayout(buttons)
+            layout.insertLayout(0, buttons)
+            layout.addWidget(advanced)
             self.status = QLabel()
             self.status.setWordWrap(True)
             self.result = QLabel()
             self.result.setObjectName("current_pressure")
             self.result.setWordWrap(True)
-            layout.addWidget(self.status)
-            layout.addWidget(self.result)
+            layout.insertWidget(0, self.result)
+            layout.insertWidget(0, self.status)
+            error_note = QLabel("± is 1σ from the fit only. Temperature/calibration uncertainties are excluded; a fixed background is treated as exact.")
+            error_note.setWordWrap(True)
+            layout.addWidget(error_note)
+            edit_mask = QPushButton("Edit fit mask of selected spectra")
+            edit_mask.clicked.connect(lambda: self.guard(self.edit_mask))
+            layout.addWidget(edit_mask)
             help_text = QLabel("Manual editing: uncheck Follow newest spectrum, select a spectrum, adjust its masks and model in CurveMole, then run Fit. Pressure below updates from that fit. Monitoring continues. Closing this panel keeps monitoring active; use Stop to end it.")
             help_text.setWordWrap(True)
             layout.addWidget(help_text)
@@ -652,14 +679,13 @@ def monitor_panel(context):
         def load_settings(self, snapshot):
             s = settings(snapshot.data)
             self.temperature.setValue(s["temperature_K"])
-            self.confirmed.setChecked(s["temperature_confirmed"])
             self.contains.setText(s["filename_contains"])
             self.folder.setText(snapshot.data.get("monitor_folder", ""))
 
         def save(self):
             snapshot = services.snapshot()
             s = settings(snapshot.data)
-            s.update(temperature_K=self.temperature.value(), temperature_confirmed=self.confirmed.isChecked(),
+            s.update(temperature_K=self.temperature.value(),
                      filename_contains=self.contains.text().strip(), monitor_folder=self.folder.text())
             validate(s)
             thermal_position(s["temperature_K"], s)
@@ -675,6 +701,17 @@ def monitor_panel(context):
             if self.apply_selected.isChecked() and not updates:
                 raise ValueError("Select at least one imported ruby spectrum first.")
             services.save_settings(s, metadata_key="ruby_monitor", curve_metadata=updates)
+
+        def edit_mask(self):
+            snapshot = services.snapshot()
+            ids = snapshot.selected_curve_ids or (snapshot.active_curve_id,)
+            masks = {c.id: "Ruby local fit region" for c in snapshot.project.curves
+                     if c.id in ids and "ruby_monitor" in c.metadata and "Ruby local fit region" in c.masks}
+            if not masks:
+                raise ValueError("Select an imported ruby spectrum first.")
+            services.select_masks(masks)
+            services.set_follow(False)
+            self.follow.setChecked(False)
 
         def start_monitor(self):
             self.save()
@@ -715,7 +752,7 @@ def monitor_panel(context):
                 elif meta.get("pressure_GPa") is None:
                     self.result.setText(f"{curve.name}: {meta.get('pressure_error', meta.get('error', 'No pressure'))}")
                 else:
-                    self.result.setText(f"{curve.name}\nR1: {meta['R1_nm']:.6f} nm | Temperature: {meta['temperature_K']:.3f} K\nPressure: {meta['pressure_GPa']:.4f} GPa\n" + "\n".join(meta.get("warnings", [])))
+                    self.result.setText(f"{curve.name}\nR1: {meta['R1_nm']:.6f} nm | Temperature: {meta['temperature_K']:.3f} K\n{pressure_text(meta)}\n" + "\n".join(meta.get("warnings", [])))
             except Exception as exc:
                 self.status.setText(str(exc))
                 self.start.setEnabled(False)
@@ -747,6 +784,9 @@ def export(context):
         "FWHM_R2_nm",
         "temperature_K",
         "pressure_GPa",
+        "pressure_std_GPa",
+        "R1_std_nm",
+        "uncertainty_note",
         "thermal_model",
         "pressure_error",
         "warnings",
@@ -775,7 +815,7 @@ def register(api):
         raise RuntimeError(
             "Requires CurveMole with File > Automatic folder import. See the plugin README."
         )
-    api.add("panels", "monitor", "Ruby fluorescence: monitor — temperature / Start / Stop", monitor_panel)
+    api.add("panels", "monitor", "Ruby fluorescence: monitor — temperature / Start / Stop", monitor_panel, auto_show=True)
     api.add("actions", "configure", "Ruby fluorescence: temperature and settings", configure)
     api.add("analysis", "report", "Ruby fluorescence: results and references", report)
     api.add("exporters", "csv", "Ruby fluorescence: export pressures as CSV", export)

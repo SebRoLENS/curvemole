@@ -305,3 +305,10 @@ Panel callbacks may use a child QTimer to refresh from snapshots. Reopening a
 panel reuses its window; unloading a plugin closes its panels. Closing a monitor
 panel does not stop automatic import. `Follow newest spectrum` can be toggled
 while import runs to preserve manual editing focus.
+
+Panel contributions can pass `auto_show=True` to `api.add("panels", ...)` to open
+once when enabled (including application startup), without starting acquisition.
+All plugin panels are hosted in generic, scrollable QDockWidgets in the main
+window. Users can close, reopen or reposition them. No ruby-specific code is
+needed in the host. `context.services.select_masks({curve_id: existing_mask_name})`
+selects editable masks and activates the masking tool without altering fit data.

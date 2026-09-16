@@ -3,7 +3,7 @@
   "name": "ruby_fluo_pressure_monitor",
   "description": "Monitor ruby fluorescence acquisitions: fit two pseudo-Voigt peaks with free widths and fixed shape, then calculate temperature-corrected pressure.",
   "author": "CurveMole contributors",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "api_compatibility": "1",
   "licence": "GPL-3.0-or-later",
   "capabilities": [

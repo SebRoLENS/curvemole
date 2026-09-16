@@ -60,9 +60,9 @@ def synthetic_curve():
     return Curve("ruby_synthetic", x, y, source="ruby_synthetic.txt")
 
 
-def test_free_widths_fixed_shape_background_and_unknown_temperature():
+def test_free_widths_fixed_shape_background_and_room_temperature():
     curve = synthetic_curve()
-    model, result, meta = ruby.analyse_curve(curve, ruby.settings())
+    model, result, meta = ruby.analyse_curve(curve, ruby.settings({"background_fixed": False}))
     assert result.success
     assert meta["R1_nm"] == pytest.approx(695.2, abs=1e-5)
     assert meta["R2_nm"] == pytest.approx(693.8, abs=1e-5)
@@ -72,7 +72,8 @@ def test_free_widths_fixed_shape_background_and_unknown_temperature():
         c.parameters["eta"].fixed and c.parameters["eta"].value == 0.5 for c in model.components[1:]
     )
     assert all(not c.parameters["fwhm"].fixed for c in model.components[1:])
-    assert meta["pressure_GPa"] is None and meta["temperature_K"] is None
+    assert meta["pressure_GPa"] is not None and meta["temperature_K"] == 296
+    assert meta["pressure_std_GPa"] is not None
     assert "Ruby background temporary" not in curve.masks
     for center in [693.8, 695.2]:
         assert not curve.effective_mask[np.argmin(abs(curve.x - center))]
@@ -84,7 +85,7 @@ def test_fit_and_settings_survive_project_save(tmp_path):
     project = Project()
     project.add_series(Series("Test", [synthetic_curve()]))
     context = PluginContext(project, project.curves[0].id, (project.curves[0].id,), ruby.OWNER)
-    context.data.update(ruby.settings({"temperature_confirmed": True}))
+    context.data.update(ruby.settings({"background_fixed": False}))
     text = ruby.process(context)
     assert "GPa" in text
     path = tmp_path / "ruby.fitproj"
@@ -170,7 +171,7 @@ def test_english_report_and_csv(tmp_path):
     project = Project()
     project.add_curve(synthetic_curve())
     context = PluginContext(project, project.curves[0].id, (), ruby.OWNER)
-    context.data.update(ruby.settings({"temperature_confirmed": True}))
+    context.data.update(ruby.settings({"background_fixed": False}))
     ruby.process(context)
     report = json.loads(ruby.report(context))
     assert report[0]["pressure_GPa"] is not None
@@ -182,6 +183,7 @@ def test_english_report_and_csv(tmp_path):
     assert float(rows[0]["R1_nm"]) == pytest.approx(695.2, abs=1e-5)
     assert float(rows[0]["pressure_GPa"]) == pytest.approx(report[0]["pressure_GPa"])
     assert rows[0]["thermal_model"] == "ragan"
+    assert float(rows[0]["pressure_std_GPa"]) == pytest.approx(report[0]["pressure_std_GPa"])
 
 
 def test_english_settings_save():
@@ -196,17 +198,14 @@ def test_english_settings_save():
         dialog = QApplication.activeModalWidget()
         observed["title"] = dialog.windowTitle()
         observed["tab"] = dialog.findChild(QTabWidget).tabText(0)
-        confirm = next(
-            box for box in dialog.findChildren(QCheckBox) if box.text().startswith("Confirm")
-        )
-        confirm.setChecked(True)
+        assert not any("Confirm" in box.text() for box in dialog.findChildren(QCheckBox))
         dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save).click()
 
     QTimer.singleShot(0, save_dialog)
     ruby.configure(context)
     assert observed["title"] == "Ruby fluorescence pressure monitor — settings"
     assert observed["tab"] == "Measurement and fit"
-    assert context.data["temperature_confirmed"] is True
+    assert "temperature_confirmed" not in context.data
     assert context.data["eta"] == 0.5
 
 
@@ -220,7 +219,7 @@ def test_manual_mask_refit_and_temperature_keep_acquisition_reference(tmp_path):
     project.add_curve(synthetic_curve())
     curve = project.curves[0]
     context = PluginContext(project, curve.id, (curve.id,), ruby.OWNER)
-    context.data.update(ruby.settings({"temperature_confirmed": True}))
+    context.data.update(ruby.settings({"background_fixed": False}))
     ruby.process(context)
     initial = ruby.current_result(context, curve)
     # A later acquisition temperature must not silently alter this spectrum.
@@ -281,7 +280,6 @@ def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
 
         panel.folder.setText(str(tmp_path))
         panel.temperature.setValue(350)
-        panel.confirmed.setChecked(True)
         panel.start.click()
         assert window.folder_import.scan is not None
         assert window.project.ui_state["plugin_data"][ruby.OWNER]["temperature_K"] == 350
@@ -337,3 +335,104 @@ def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
         window.close()
         QApplication.processEvents()
         extensions.entries.pop(identifier, None)
+
+
+def test_pressure_uncertainty_matches_numerical_derivative():
+    from curvemole.core.parameters import Parameter
+
+    s = ruby.settings({"temperature_K": 450})
+    center = 696.2
+    parameter = Parameter("center", center, standard_error=0.012)
+    # Compare the analytical propagation with an independent central difference.
+    h = 1e-4
+    derivative = (ruby.pressure(center + h, s)[0] - ruby.pressure(center - h, s)[0]) / (2 * h)
+    meta = ruby.pressure_uncertainty(center, parameter, s)
+    assert meta["pressure_std_GPa"] == pytest.approx(abs(derivative) * 0.012, rel=1e-7)
+    assert "1σ" in ruby.pressure_text({"pressure_GPa": 5, **meta})
+    parameter.fixed = True
+    assert ruby.pressure_uncertainty(center, parameter, s)["pressure_std_GPa"] is None
+    parameter.fixed = False
+    parameter.standard_error = None
+    assert ruby.pressure_uncertainty(center, parameter, s)["pressure_std_GPa"] is None
+
+
+def test_exact_background_mask_inversion_and_gui_unmask_undo(monkeypatch, tmp_path):
+    from curvemole.core.fitting import Fitter
+
+    snapshots = []
+    fit = Fitter.fit_single
+
+    def record(self, curve, model, *args, **kwargs):
+        snapshots.append((curve.effective_mask.copy(), model.components[0].parameters["slope"].fixed))
+        return fit(self, curve, model, *args, **kwargs)
+
+    monkeypatch.setattr(Fitter, "fit_single", record)
+    project = Project()
+    project.add_curve(synthetic_curve())
+    curve = project.curves[0]
+    context = PluginContext(project, curve.id, (curve.id,), ruby.OWNER)
+    context.data.update({"temperature_confirmed": False})  # Legacy flag never gates pressure.
+    ruby.process(context)
+    assert len(snapshots) == 2
+    np.testing.assert_array_equal(snapshots[0][0], ~snapshots[1][0])
+    assert snapshots[0][1] is False and snapshots[1][1] is True
+    assert curve.metadata["ruby_monitor"]["temperature_K"] == 296
+    assert curve.metadata["ruby_monitor"]["pressure_GPa"] is not None
+    assert curve.active_mask == "Ruby local fit region"
+    window = CurveMoleMainWindow(project)
+    try:
+        window.active_curve_id = curve.id
+        window.refresh_all()
+        window.curve_tree.topLevelItem(0).child(0).setSelected(True)
+        assert curve.effective_mask[0]
+        window.folder_import.start(tmp_path, "ruby", follow=False)
+        window.mask_point(curve.x[0], unmask=True)
+        assert not curve.effective_mask[0]
+        window.mask_point(curve.x[0])
+        assert curve.effective_mask[0]
+        window.folder_import.stop()
+        window.mask_range(curve.x[0], curve.x[4], unmask=True)
+        assert not curve.effective_mask[:5].any()
+        window.undo_stack.undo()
+        assert curve.effective_mask[:5].all()
+        window.undo_stack.redo()
+        assert not curve.effective_mask[:5].any()
+        window.mask_range(curve.x[1], curve.x[3])
+        assert curve.effective_mask[1:4].all()
+    finally:
+        project.dirty = False
+        window.close()
+
+
+def test_auto_docked_panel_and_temperature_autosave(tmp_path):
+    from PySide6.QtWidgets import QApplication, QCheckBox, QDockWidget
+
+    window = CurveMoleMainWindow(Project())
+    processor_id, panel_id = ruby.OWNER + ":automatic", ruby.OWNER + ":monitor"
+    extensions.entries[processor_id] = Contribution(ruby.OWNER, processor_id, "Ruby", "import_processors", ruby.process)
+    extensions.entries[panel_id] = Contribution(ruby.OWNER, panel_id, "Ruby", "panels", ruby.monitor_panel, auto_show=True)
+    try:
+        window.plugin_host.refresh()
+        QApplication.processEvents()
+        dock = window.plugin_host.dialogs[panel_id]
+        assert isinstance(dock, QDockWidget) and not dock.isFloating()
+        panel = dock.widget().widget()
+        assert panel.temperature.value() == 296
+        assert not any("Confirm" in box.text() for box in panel.findChildren(QCheckBox))
+        panel.temperature.setValue(320)
+        panel.temperature.editingFinished.emit()
+        assert window.project.ui_state["plugin_data"][ruby.OWNER]["temperature_K"] == 320
+        assert "temperature_confirmed" not in window.project.ui_state["plugin_data"][ruby.OWNER]
+        window.plugin_host.refresh()
+        QApplication.processEvents()
+        assert window.plugin_host.dialogs[panel_id] is dock
+        # Automatically opening the panel must not automatically start acquisition.
+        assert window.folder_import.scan is None
+        extensions.entries.pop(panel_id)
+        window.plugin_host.refresh()
+        assert not dock.isVisible()
+    finally:
+        extensions.entries.pop(panel_id, None)
+        extensions.entries.pop(processor_id, None)
+        window.project.dirty = False
+        window.close()
