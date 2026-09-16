@@ -383,6 +383,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     QCoreApplication.setApplicationVersion(__version__)
     window = CurveMoleMainWindow()
     window._release_update_controller = UpdateController(window)
+    from curvemole.gui.plugin_updates import PluginUpdateController
+    window.plugin_update_controller = PluginUpdateController(window)
     window.show()
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
         from PySide6.QtCore import QTimer

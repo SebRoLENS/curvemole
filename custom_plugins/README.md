@@ -29,7 +29,8 @@ pass on Linux, Windows and macOS. Failed checks leave the previous download in p
 unmerged pull requests are never offered through these links.
 
 Extract the bundle, then open **File > Plugin manager**, select the chosen plugin's
-folder, review and load it. Its additions carry the ◆ marker; built-in actions are
+folder, review and load it. Its additions carry a plugin-specific symbol; hover over it to see the plugin name.
+Built-in actions are
 not replaced. Plugins remain installed across restarts and can be disabled/removed
 in the manager. No plugin is downloaded, installed or trusted automatically.
 

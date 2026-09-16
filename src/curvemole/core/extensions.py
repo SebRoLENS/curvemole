@@ -21,6 +21,8 @@ class Contribution:
     callback: Callable[..., Any]
     description: str = ""
     auto_show: bool = False
+    symbol: str = "◆"
+    plugin_name: str = ""
 
 
 class ExtensionRegistry:
@@ -54,8 +56,10 @@ class PluginAPI:
         def evaluate(*args: Any, **kwargs: Any) -> Any:
             return self._manager.invoke(self.identifier, original, *args, **kwargs)
         marked = dataclass_replace(
-            definition, display_name=f"◆ {definition.display_name}", evaluator=evaluate,
-            custom_metadata={**definition.custom_metadata, "plugin_owner": self.identifier})
+            definition, display_name=f"{self._manager.symbol(self.identifier)} {definition.display_name}", evaluator=evaluate,
+            custom_metadata={**definition.custom_metadata, "plugin_owner": self.identifier,
+                             "plugin_symbol": self._manager.symbol(self.identifier),
+                             "plugin_name": self._manager.plugin_name(self.identifier)})
         self._manager.registry.register(marked)
         self._manager.function_owners[definition.identifier] = self.identifier
 
@@ -83,6 +87,8 @@ class PluginAPI:
 
         def guarded(*args: Any, **kwargs: Any) -> Any:
             return self._manager.invoke(self.identifier, checked, *args, **kwargs)
-        extensions.entries[key] = Contribution(self.identifier, key, f"◆ {label}", kind,
-                                               guarded, description, auto_show)
+        extensions.entries[key] = Contribution(
+            self.identifier, key, f"{self._manager.symbol(self.identifier)} {label}", kind,
+            guarded, description, auto_show, self._manager.symbol(self.identifier),
+            self._manager.plugin_name(self.identifier))
         return key

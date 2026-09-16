@@ -5,6 +5,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Check loaded plugins for validated community updates at startup and hourly, show
+  version-aware status, and stage selected updates for the next application start.
+- Give each plugin a persistent, distinct symbol and show its name when hovering over
+  contributed menus, functions, solvers, workflows and plugin-manager entries.
+
 ### Fixed
 
 - Ruby monitor 0.4.0 defaults to 296 K without confirmation, reports pressure with

@@ -41,6 +41,7 @@ from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 from curvemole.core.importers import ColumnMapping, ImportConfig, inspect_file
 from curvemole.core.models import Component
+from curvemole.core.plugin_identity import contribution_tooltip, function_tooltip, provenance
 from curvemole.core.plugins import PluginCandidate, PluginManager
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
@@ -308,6 +309,7 @@ class BackgroundComponentsDialog(QDialog):
         for component in candidates:
             definition = registry.get(component.function_id)
             item = QListWidgetItem(f"{component.name}  ·  {definition.display_name}")
+            item.setToolTip(function_tooltip(definition))
             item.setData(Qt.ItemDataRole.UserRole, component.id)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(
@@ -351,6 +353,8 @@ class BackgroundComponentsDialog(QDialog):
         ]
 
 
+
+
 class AddComponentDialog(QDialog):
     def __init__(
         self,
@@ -367,6 +371,8 @@ class AddComponentDialog(QDialog):
         self.function = QComboBox()
         for definition in registry.values():
             self.function.addItem(definition.display_name, definition.identifier)
+            self.function.setItemData(self.function.count() - 1, function_tooltip(definition),
+                                      Qt.ItemDataRole.ToolTipRole)
         self.name = QLineEdit()
         self.operator = QComboBox()
         self.operator.addItems(["add", "subtract", "multiply", "divide", "convolve"])
@@ -420,7 +426,8 @@ class AddComponentDialog(QDialog):
 
     def _update(self) -> None:
         definition = self.registry.get(self.function.currentData())
-        self.description.setText(definition.description or definition.display_name)
+        self.description.setText(function_tooltip(definition) or definition.display_name)
+        self.function.setToolTip(function_tooltip(definition))
         self.polynomial_order.setEnabled(definition.identifier == "polynomial")
         is_spline = definition.identifier == "cubic_spline"
         self.spline_nodes.setVisible(False)
@@ -714,6 +721,10 @@ class FitPlanDialog(QDialog):
         from curvemole.core.extensions import extensions
         for entry in extensions.values("fit_solvers"):
             self.solver.addItem(entry.label, entry.identifier)
+            self.solver.setItemData(self.solver.count() - 1, contribution_tooltip(entry),
+                                    Qt.ItemDataRole.ToolTipRole)
+        self.solver.currentIndexChanged.connect(lambda index: self.solver.setToolTip(
+            self.solver.itemData(index, Qt.ItemDataRole.ToolTipRole) or ""))
         self.solver.setCurrentIndex(max(0, self.solver.findData(settings.solver)))
         self.loss = QComboBox()
         self.loss.addItems(["linear", "soft_l1", "huber", "cauchy"])
@@ -1082,18 +1093,23 @@ class PluginManagerDialog(QDialog):
         community = QHBoxLayout()
         for label, address in (
             (self.tr("Browse validated plugins"),
-             "https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml"),
+             "https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest"),
             (self.tr("Share my plugin on GitHub…"),
              "https://github.com/SebRoLENS/curvemole/tree/main/custom_plugins#submit-a-plugin"),
         ):
             button = QPushButton(label)
             button.clicked.connect(lambda checked=False, url=address: QDesktopServices.openUrl(QUrl(url)))
             community.addWidget(button)
+        controller = getattr(parent, "plugin_update_controller", None)
+        if controller is not None:
+            updates = QPushButton(self.tr("Plugin updates…"))
+            updates.clicked.connect(controller.open)
+            community.addWidget(updates)
         layout.addLayout(community)
         explanation = QLabel(
             self.tr(
                 "Python plugins can execute arbitrary code. CurveMole reads local JSON metadata first "
-                "and loads code only after your explicit approval. ◆ marks plugin contributions."
+                "and loads code only after your explicit approval. Each plugin has its own symbol; hover for its name."
             )
         )
         explanation.setWordWrap(True)
@@ -1148,9 +1164,12 @@ class PluginManagerDialog(QDialog):
         self.list.clear()
         for candidate in self.candidates:
             self.list.addItem(
-                f"◆ {candidate.metadata.identifier}  {candidate.metadata.version}  "
+                f"{self.manager.symbol(candidate.metadata.identifier)} {candidate.metadata.identifier}  {candidate.metadata.version}  "
                 + ("[loaded]" if candidate.metadata.identifier in self.manager.loaded else "[not loaded]")
             )
+            self.list.item(self.list.count() - 1).setToolTip(provenance(
+                self.manager.symbol(candidate.metadata.identifier),
+                candidate.metadata.name or candidate.metadata.identifier, candidate.metadata.identifier))
         if self.candidates:
             self.list.setCurrentRow(0)
         else:

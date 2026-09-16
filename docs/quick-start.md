@@ -217,10 +217,13 @@ choose an entry to reopen it, or clear the list from that menu.
 
 Open **File > Plugin Manager**, choose the folder containing a plugin manifest and
 Python module, scan, review the source and explicitly trust it. Loaded plugins add
-entries marked with a diamond symbol; built-in commands stay available. Enabled
+entries marked with a distinct symbol for each plugin; hover over a marked entry to
+see the plugin name. Built-in commands stay available. Enabled
 plugins load again on restart. Use **Disable** or **Remove** in the manager to stop
-loading them. After an abnormal exit, automatic plugin loading is disabled so you
-can recover safely. See [the plugin guide](plugins.md) for installation details,
+loading them. CurveMole checks loaded plugins at startup and hourly against the
+validated community catalog. Open the **Plugins** badge or **Plugin updates...** in
+the manager to install selected updates; reopen CurveMole to activate them. After
+an abnormal exit, automatic plugin loading is disabled so you can recover safely. See [the plugin guide](plugins.md) for installation details,
 security limitations and complete examples for writing an exporter or fit algorithm.
 
 

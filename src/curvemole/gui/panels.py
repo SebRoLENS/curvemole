@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.expressions import SafeExpression, expression_parameters
 from curvemole.core.functions import formula_definition
+from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 
@@ -173,7 +174,14 @@ class ModelPanel(QWidget):
                 label = component.name
                 if component.is_background:
                     label += self.tr("  ·  Background")
+                if component.function_id in self.registry.identifiers():
+                    definition = self.registry.get(component.function_id)
+                    symbol = definition.custom_metadata.get("plugin_symbol", "")
+                    if symbol and not label.startswith(symbol + " "):
+                        label = symbol + " " + label
                 item = QListWidgetItem(label)
+                if component.function_id in self.registry.identifiers():
+                    item.setToolTip(function_tooltip(self.registry.get(component.function_id)))
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)

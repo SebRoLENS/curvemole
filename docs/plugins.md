@@ -1,9 +1,30 @@
 # Creating and managing CurveMole plugins
 
 Plugins add features to CurveMole. They do not replace built-in commands, exporters,
-solvers or functions through the supported API. Every contribution has a diamond
-symbol (◆) in its menu or selector and identifies its providing plugin in the tooltip.
+solvers or functions through the supported API. Every contribution has its plugin's own symbol (for example ◆, ● or ▲) in its
+menu or selector and identifies its providing plugin in the tooltip.
 Executable Python plugins are different from safe custom-function/formula JSON files.
+
+## Updates inside CurveMole
+
+CurveMole checks at startup and hourly for updates to **loaded plugins only**, using
+its validated Community Plugins catalog. The **Plugins** status badge follows the
+application's colours: green when current, yellow for bug fixes, red for feature or
+major updates. An available version is announced once. Open the badge or
+**File > Plugin Manager > Plugin updates…** to check again and choose **Update selected**.
+**Help > Check for updates** checks the application and loaded plugins.
+
+Updating downloads and trusts the selected versions. CurveMole verifies the archive
+against the catalog and checks plugin identity and API compatibility before switching
+the saved installation. Save your project and reopen CurveMole to activate updates.
+Current panels, fits and folder monitoring continue with the running version until
+then. Original plugin folders and project settings are preserved; the updated copy,
+including its own README/manual, is kept in CurveMole's plugin storage.
+
+Unloaded or disabled plugins are not checked or installed. Plugins absent from the
+community catalog, package entry points and nonstandard versions are reported as
+having no automatic update source. Incompatible updates require updating CurveMole
+first. Failed or interrupted downloads leave the previous installation in place.
 
 ## Install, enable, disable and remove
 
@@ -92,7 +113,7 @@ def register(api):
             description="Active spectrum, comma-separated x/y with header")
 ```
 
-This adds **File > ◆ Exporters > ◆ My CSV export**. CurveMole asks for a destination;
+This adds **File > Plugins: Exporters > ◆ My CSV export**. CurveMole asks for a destination;
 the built-in export commands remain available. The callback owns the external file
 write; use a temporary file followed by atomic replacement if partial output would
 be a problem. File writes cannot be undone by CurveMole's Undo.
@@ -203,7 +224,7 @@ def register(api):
     ))
 ```
 
-Use a namespaced function identifier. Functions receive the diamond symbol in their
+Use a namespaced function identifier. Functions receive their plugin's symbol in their
 display names. Registering an existing identifier or passing `replace=True` fails,
 with no changes to built-ins. Custom function JSON import/export remains separate.
 
