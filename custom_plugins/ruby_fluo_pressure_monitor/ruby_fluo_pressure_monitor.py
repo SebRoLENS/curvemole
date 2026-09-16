@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import hashlib
 import json
 from pathlib import Path
 
@@ -335,6 +336,8 @@ def analyse_curve(curve, s, cancellation=None):
     if P is not None:
         metadata.update(pressure_uncertainty(centers_fit[1], components[1].parameters["center"], s))
     curve.metadata["ruby_monitor"] = metadata
+    for parameter in bg.parameters.values():
+        parameter.fixed = False
     return model, result, metadata
 
 
@@ -360,6 +363,8 @@ def process(context):
             context.project.models[curve.id] = model
             context.project.results[curve.id] = result
             context.project.results["last_fit"] = result
+            if meta["pressure_GPa"] is not None:
+                recalculate_curve(context, curve)
             value = (
                 pressure_text(meta)
                 if meta["pressure_GPa"] is not None
@@ -383,7 +388,7 @@ def process(context):
     return "\n".join(summaries)
 
 
-def configure(context):
+def configure_dialog(context):
     from PySide6.QtWidgets import (
         QCheckBox,
         QComboBox,
@@ -514,18 +519,44 @@ def configure(context):
     if dialog.exec() == QDialog.DialogCode.Accepted:
         context.data.clear()
         context.data.update(output)
+        return True
+    return False
 
 
-def current_result(context, curve):
+def configure(context):
+    """Configure the active spectrum and defaults for subsequent acquisitions."""
+    context.settings_only = True
+    original = copy.deepcopy(context.data)
+    curve = next((c for c in context.project.curves
+                  if c.id == context.active_curve_id and "ruby_monitor" in c.metadata), None)
+    if curve:
+        context.data.update(settings(curve.metadata["ruby_monitor"].get("settings")))
+    if not configure_dialog(context):
+        context.data.clear()
+        context.data.update(original)
+        return
+    updates = {}
+    if curve:
+        curve.metadata["ruby_monitor"]["settings"] = settings(context.data)
+        updates[curve.id] = curve.metadata["ruby_monitor"]
+    if getattr(context, "services", None):
+        context.services.save_settings(context.data, metadata_key="ruby_monitor", curve_metadata=updates)
+        if curve:
+            context.services.set_follow(False)
+
+
+def calculate_result(context, curve):
     """Derive output from the current fit, retaining this acquisition's temperature."""
     from curvemole.core.data import CurveState
 
     meta = copy.deepcopy(curve.metadata.get("ruby_monitor", {}))
+    meta.pop("calculated_result", None)
+    meta.pop("calculation_fingerprint", None)
     if not meta:
         return None
     meta.update(pressure_GPa=None, thermal_shift_nm=None, pressure_std_GPa=None, R1_std_nm=None)
-    if curve.state != CurveState.FITTED:
-        meta["pressure_error"] = "Fit is not current. Adjust masks/parameters, then run Fit."
+    if curve.state == CurveState.RUNNING:
+        meta["pressure_error"] = "Wait for the fit to finish."
         return meta
     model = context.project.models.get(curve.id)
     peaks = [c for c in model.components if c.enabled and c.function_id == "pseudo_voigt"] if model else []
@@ -545,6 +576,9 @@ def current_result(context, curve):
         P, shift = pressure(meta["R1_nm"], s)
         meta.update(pressure_GPa=P, thermal_shift_nm=shift, pressure_error=None)
         meta.update(pressure_uncertainty(meta["R1_nm"], peaks[1].parameters["center"], s))
+        if curve.state != CurveState.FITTED:
+            meta.update(pressure_std_GPa=None, R1_std_nm=None,
+                        uncertainty_note="Current model has not been refitted; fit uncertainty unavailable.")
         meta.pop("error", None)
         warnings = []
         if P < 0:
@@ -569,9 +603,53 @@ def current_result(context, curve):
     return meta
 
 
+def calculation_fingerprint(context, curve):
+    """Track all inputs, so reviewing spectra never silently recalculates pressure."""
+    model = context.project.models.get(curve.id)
+    values = context.project.resolved_parameter_values()
+    payload = {
+        "model": model.to_dict() if model else None,
+        "resolved": {k: values[k] for k in model.parameter_map(curve.id)} if model else {},
+        "settings": settings(curve.metadata["ruby_monitor"].get("settings")),
+        "state": str(curve.state), "fit_ranges": curve.fit_ranges,
+    }
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode())
+    for array in (curve.x, curve.y, curve.effective_mask, curve.weights, curve.sigma_y):
+        if array is not None:
+            digest.update(np.asarray(array).tobytes())
+    return digest.hexdigest()
+
+
+def recalculate_curve(context, curve):
+    result = calculate_result(context, curve)
+    if not result or result.get("pressure_GPa") is None:
+        raise ValueError((result or {}).get("pressure_error", "No ruby pressure is available."))
+    meta = curve.metadata["ruby_monitor"]
+    meta["calculated_result"] = result
+    meta["calculation_fingerprint"] = calculation_fingerprint(context, curve)
+    return result
+
+
+def current_result(context, curve):
+    """Return the last explicit calculation and its freshness, without changing it."""
+    meta = curve.metadata.get("ruby_monitor")
+    if not meta:
+        return None
+    result = copy.deepcopy(meta.get("calculated_result", meta))
+    result.pop("calculated_result", None)
+    result.pop("calculation_fingerprint", None)
+    try:
+        stale = meta.get("calculation_fingerprint") != calculation_fingerprint(context, curve)
+    except (ValueError, KeyError):
+        stale = True
+    result["needs_recalculation"] = stale
+    result["pending_temperature_K"] = settings(meta.get("settings"))["temperature_K"]
+    return result
+
+
 def monitor_panel(context):
-    """Nonmodal controls; services never supply the live window/project."""
-    from PySide6.QtCore import QTimer
+    """Per-spectrum controls; acquisition keeps running independently."""
+    from PySide6.QtCore import Qt, QTimer
     from PySide6.QtWidgets import (
         QCheckBox,
         QDoubleSpinBox,
@@ -587,22 +665,55 @@ def monitor_panel(context):
     )
 
     if getattr(context, "services", None) is None:
-        raise ValueError("Update CurveMole to a version with plugin panel services. See README.")
+        raise ValueError("Update CurveMole to a version with plugin panel services.")
     services = context.services
 
     class MonitorPanel(QWidget):
         def __init__(self):
             super().__init__()
             self.project_id = context.project.id
+            self.curve_id = None
+            self.loaded_settings = None
+            self.show_first = False
+            self.temperature_pending = False
             self.setMinimumWidth(300)
             layout = QVBoxLayout(self)
-            form = QFormLayout()
+            layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+            self.spectrum = QLabel()
+            self.spectrum.setTextFormat(Qt.TextFormat.PlainText)
+            self.spectrum.setWordWrap(True)
+            layout.addWidget(self.spectrum)
+            self.result = QLabel()
+            self.result.setObjectName("current_pressure")
+            self.result.setWordWrap(True)
+            layout.addWidget(self.result)
+            self.warning = QLabel()
+            self.warning.setWordWrap(True)
+            layout.addWidget(self.warning)
             self.temperature = QDoubleSpinBox()
             self.temperature.setObjectName("sample_temperature")
             self.temperature.setRange(15, 600)
             self.temperature.setDecimals(3)
             self.temperature.setSuffix(" K")
-            self.folder = QLineEdit()
+            self.temperature.setKeyboardTracking(False)
+            form = QFormLayout()
+            form.addRow("Sample temperature", self.temperature)
+            layout.addLayout(form)
+            self.recalculate = QPushButton("Recalculate")
+            self.recalculate.setObjectName("recalculate_pressure")
+            self.recalculate.clicked.connect(lambda: self.guard(self.recalculate_pressure))
+            layout.addWidget(self.recalculate)
+            advanced = QPushButton("Calibration and fit settings…")
+            advanced.clicked.connect(lambda: self.guard(self.configure))
+            layout.addWidget(advanced)
+            self.details = QLabel()
+            self.details.setWordWrap(True)
+            layout.addWidget(self.details)
+            self.status = QLabel()
+            self.status.setWordWrap(True)
+            layout.addWidget(self.status)
+            self.folder = QLineEdit(context.data.get("monitor_folder", ""))
+            self.contains = QLineEdit(settings(context.data)["filename_contains"])
             browse = QPushButton("Choose folder…")
             def choose():
                 path = QFileDialog.getExistingDirectory(self, "Choose acquisition folder", self.folder.text())
@@ -612,59 +723,32 @@ def monitor_panel(context):
             row = QHBoxLayout()
             row.addWidget(self.folder)
             row.addWidget(browse)
-            form.addRow("Acquisition folder", row)
-            self.contains = QLineEdit()
-            form.addRow("Filename contains", self.contains)
-            form.insertRow(0, "Sample temperature (K)", self.temperature)
-            self.load_settings(context)
-            self.temperature.editingFinished.connect(lambda: self.guard(self.save))
-            layout.addLayout(form)
-            self.apply_selected = QCheckBox("Also apply temperature/calibration to selected spectra")
-            layout.addWidget(self.apply_selected)
-            apply = QPushButton("Apply temperature")
-            apply.setObjectName("apply_temperature")
-            apply.clicked.connect(lambda: self.guard(self.save))
-            layout.addWidget(apply)
-            note = QLabel("Default: room temperature, 296 K (22.85 °C). Temperature is for NEW acquisitions. Existing spectra keep their own temperature unless selected above. Pressure is calculated, not entered.")
-            note.setWordWrap(True)
-            layout.addWidget(note)
+            acquisition = QFormLayout()
+            acquisition.addRow("Acquisition folder", row)
+            acquisition.addRow("Filename contains", self.contains)
+            layout.addLayout(acquisition)
             self.existing = QCheckBox("Also import existing matching files")
-            self.follow = QCheckBox("Follow newest spectrum")
-            self.follow.setChecked(True)
+            self.follow = QCheckBox("Show new spectra automatically")
+            self.follow.setChecked(False)
             self.follow.toggled.connect(lambda checked: self.guard(lambda: services.set_follow(checked)))
             layout.addWidget(self.existing)
             layout.addWidget(self.follow)
-            buttons = QHBoxLayout()
+            row = QHBoxLayout()
             self.start = QPushButton("Start")
-            self.start.setObjectName("start_monitor")
             self.stop = QPushButton("Stop")
-            self.stop.setObjectName("stop_monitor")
             self.start.clicked.connect(lambda: self.guard(self.start_monitor))
             self.stop.clicked.connect(lambda: self.guard(services.stop_monitor))
-            advanced = QPushButton("Advanced settings / calibration…")
-            advanced.clicked.connect(lambda: self.guard(self.configure))
-            for button in (self.start, self.stop):
-                buttons.addWidget(button)
-            layout.insertLayout(0, buttons)
-            layout.addWidget(advanced)
-            self.status = QLabel()
-            self.status.setWordWrap(True)
-            self.result = QLabel()
-            self.result.setObjectName("current_pressure")
-            self.result.setWordWrap(True)
-            layout.insertWidget(0, self.result)
-            layout.insertWidget(0, self.status)
-            error_note = QLabel("± is 1σ from the fit only. Temperature/calibration uncertainties are excluded; a fixed background is treated as exact.")
-            error_note.setWordWrap(True)
-            layout.addWidget(error_note)
-            edit_mask = QPushButton("Edit fit mask of selected spectra")
-            edit_mask.clicked.connect(lambda: self.guard(self.edit_mask))
-            layout.addWidget(edit_mask)
-            help_text = QLabel("Manual editing: uncheck Follow newest spectrum, select a spectrum, adjust its masks and model in CurveMole, then run Fit. Pressure below updates from that fit. Monitoring continues. Closing this panel keeps monitoring active; use Stop to end it.")
+            row.addWidget(self.start)
+            row.addWidget(self.stop)
+            layout.addLayout(row)
+            help_text = QLabel("Edit this spectrum, run Fit if needed, then Recalculate. Monitoring continues. Each spectrum keeps its edits. ± is 1σ fit precision; temperature and calibration errors are excluded.")
             help_text.setWordWrap(True)
             layout.addWidget(help_text)
+            self.temperature.valueChanged.connect(lambda *_: self.guard(self.save))
+            self.temperature.editingFinished.connect(lambda: self.guard(self.save))
+            self.temperature.lineEdit().textEdited.connect(self.temperature_edited)
             self.timer = QTimer(self)
-            self.timer.setInterval(1000)
+            self.timer.setInterval(300)
             self.timer.timeout.connect(self.refresh)
             self.timer.start()
             self.refresh()
@@ -676,53 +760,61 @@ def monitor_panel(context):
             except Exception as exc:
                 QMessageBox.warning(self, "Ruby fluorescence monitor", str(exc))
 
-        def load_settings(self, snapshot):
-            s = settings(snapshot.data)
-            self.temperature.setValue(s["temperature_K"])
-            self.contains.setText(s["filename_contains"])
-            self.folder.setText(snapshot.data.get("monitor_folder", ""))
+        def displayed_curve(self, snapshot):
+            return next((c for c in snapshot.project.curves if c.id == self.curve_id), None)
+
+        def temperature_edited(self, _text):
+            self.temperature_pending = True
+            self.refresh()
 
         def save(self):
             snapshot = services.snapshot()
-            s = settings(snapshot.data)
-            s.update(temperature_K=self.temperature.value(),
-                     filename_contains=self.contains.text().strip(), monitor_folder=self.folder.text())
+            if snapshot.project.id != self.project_id:
+                self.refresh()
+                return
+            curve = self.displayed_curve(snapshot)
+            data = copy.deepcopy(snapshot.data)
+            s = settings(curve.metadata["ruby_monitor"].get("settings") if curve else data)
+            s["temperature_K"] = self.temperature.value()
             validate(s)
-            thermal_position(s["temperature_K"], s)
-            thermal_position(s["reference_temperature_K"], s)
+            data.update(s, filename_contains=self.contains.text().strip(), monitor_folder=self.folder.text())
             updates = {}
-            if self.apply_selected.isChecked():
-                for curve in snapshot.project.curves:
-                    if curve.id in snapshot.selected_curve_ids and "ruby_monitor" in curve.metadata:
-                        meta = copy.deepcopy(curve.metadata["ruby_monitor"])
-                        meta["settings"] = copy.deepcopy(s)
-                        curve.metadata["ruby_monitor"] = meta
-                        updates[curve.id] = current_result(snapshot, curve)
-            if self.apply_selected.isChecked() and not updates:
-                raise ValueError("Select at least one imported ruby spectrum first.")
-            services.save_settings(s, metadata_key="ruby_monitor", curve_metadata=updates)
+            if curve:
+                meta = curve.metadata["ruby_monitor"]
+                if settings(meta.get("settings")) != s:
+                    meta["settings"] = copy.deepcopy(s)
+                    updates[curve.id] = meta
+            if data != snapshot.data or updates:
+                services.save_settings(data, metadata_key="ruby_monitor", curve_metadata=updates)
+            self.loaded_settings = s
+            self.temperature_pending = False
+            if updates:
+                services.set_follow(False)
 
-        def edit_mask(self):
+        def recalculate_pressure(self):
+            # Commit any spin-box text before reading this spectrum's settings.
+            self.temperature.interpretText()
+            self.save()
             snapshot = services.snapshot()
-            ids = snapshot.selected_curve_ids or (snapshot.active_curve_id,)
-            masks = {c.id: "Ruby local fit region" for c in snapshot.project.curves
-                     if c.id in ids and "ruby_monitor" in c.metadata and "Ruby local fit region" in c.masks}
-            if not masks:
-                raise ValueError("Select an imported ruby spectrum first.")
-            services.select_masks(masks)
-            services.set_follow(False)
-            self.follow.setChecked(False)
+            curve = self.displayed_curve(snapshot)
+            if curve is None:
+                raise ValueError("Select a ruby spectrum first.")
+            recalculate_curve(snapshot, curve)
+            services.save_settings(snapshot.data, metadata_key="ruby_monitor",
+                                   curve_metadata={curve.id: curve.metadata["ruby_monitor"]})
 
         def start_monitor(self):
+            self.temperature.interpretText()
             self.save()
+            self.show_first = services.snapshot().active_curve_id is None and not self.follow.isChecked()
             services.start_monitor(self.folder.text(), self.contains.text().strip(),
-                                   include_existing=self.existing.isChecked(), follow=self.follow.isChecked())
+                                   include_existing=self.existing.isChecked(),
+                                   follow=self.follow.isChecked() or self.show_first)
 
         def configure(self):
             snapshot = services.snapshot()
             configure(snapshot)
-            services.save_settings(snapshot.data)
-            self.load_settings(snapshot)
+            self.loaded_settings = None
 
         def refresh(self):
             try:
@@ -730,9 +822,27 @@ def monitor_panel(context):
                 snapshot = services.snapshot()
                 if snapshot.project.id != self.project_id:
                     self.project_id = snapshot.project.id
-                    self.load_settings(snapshot)
+                    self.curve_id = None
+                    self.loaded_settings = None
+                    self.folder.setText(snapshot.data.get("monitor_folder", ""))
+                    self.contains.setText(settings(snapshot.data)["filename_contains"])
+                curve = next((c for c in snapshot.project.curves
+                              if c.id == snapshot.active_curve_id and "ruby_monitor" in c.metadata), None)
+                if curve and self.show_first:
+                    services.set_follow(False)
+                    self.show_first = False
+                    status["follow"] = False
+                s = settings(curve.metadata["ruby_monitor"].get("settings") if curve else snapshot.data)
+                curve_id = curve.id if curve else None
+                if self.curve_id != curve_id or self.loaded_settings != s:
+                    self.curve_id = curve_id
+                    self.temperature_pending = False
+                    self.loaded_settings = copy.deepcopy(s)
+                    self.temperature.blockSignals(True)
+                    self.temperature.setValue(s["temperature_K"])
+                    self.temperature.blockSignals(False)
                 running = status["running"]
-                self.status.setText("Running — acquisition and automatic fit active" if running else
+                self.status.setText("Running — new spectra are fitted automatically" if running else
                                     "Another automatic import is running" if status["other_running"] else
                                     "Stopping — waiting for the worker" if status["busy"] else "Stopped")
                 self.start.setEnabled(not running and not status["busy"] and not status["other_running"])
@@ -745,19 +855,25 @@ def monitor_panel(context):
                     self.follow.blockSignals(True)
                     self.follow.setChecked(status["follow"])
                     self.follow.blockSignals(False)
-                curve = next((c for c in snapshot.project.curves if c.id == snapshot.active_curve_id), None)
+                self.recalculate.setEnabled(curve is not None)
                 meta = current_result(snapshot, curve) if curve else None
-                if not meta:
-                    self.result.setText("Select an imported ruby spectrum to see its pressure.")
-                elif meta.get("pressure_GPa") is None:
-                    self.result.setText(f"{curve.name}: {meta.get('pressure_error', meta.get('error', 'No pressure'))}")
+                self.spectrum.setText(curve.name if curve else "No ruby spectrum selected")
+                stale = bool(meta and (meta["needs_recalculation"] or self.temperature_pending))
+                colour = "background:#fff0bf;color:#654000;" if stale else "background:#155e4b;color:#ffffff;"
+                if not meta or meta.get("pressure_GPa") is None:
+                    colour = "background:#e2e8f0;color:#334155;"
+                self.result.setStyleSheet(colour + "font-size:20px;font-weight:bold;padding:10px;border-radius:5px;")
+                self.warning.setText("⚠ Settings, fit or masks changed. Saved pressure needs recalculation." if stale else "")
+                if meta and meta.get("pressure_GPa") is not None:
+                    self.result.setText(pressure_text(meta))
+                    self.details.setText(f"Last calculation: T = {meta['temperature_K']:.3f} K; R1 = {meta['R1_nm']:.6f} nm.\n" + "\n".join(meta.get("warnings", [])) + ("\n" + meta.get("uncertainty_note", "") if meta.get("pressure_std_GPa") is None else ""))
                 else:
-                    self.result.setText(f"{curve.name}\nR1: {meta['R1_nm']:.6f} nm | Temperature: {meta['temperature_K']:.3f} K\n{pressure_text(meta)}\n" + "\n".join(meta.get("warnings", [])))
+                    self.result.setText("Pressure unavailable")
+                    self.details.setText((meta or {}).get("pressure_error") or (meta or {}).get("error") or "Select an imported ruby spectrum.")
             except Exception as exc:
                 self.status.setText(str(exc))
                 self.start.setEnabled(False)
                 self.stop.setEnabled(False)
-                self.timer.stop()
 
     return MonitorPanel()
 
@@ -784,6 +900,8 @@ def export(context):
         "FWHM_R2_nm",
         "temperature_K",
         "pressure_GPa",
+        "needs_recalculation",
+        "pending_temperature_K",
         "pressure_std_GPa",
         "R1_std_nm",
         "uncertainty_note",

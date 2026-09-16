@@ -4,29 +4,28 @@
 
 Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
 
-Version 0.4.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 0.5.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
 
 ## Requirements and installation
 
-Requires CurveMole with automatic folder import and `PluginContext.services`
-(including generic docked panels with `auto_show`), supplied with this update. Update **both CurveMole and
-the plugin** to use the monitor panel. The older File-menu workflow remains available.
-
+Requires **CurveMole 0.25.2 or later** with the existing generic panel services.
+This version changes only the plugin; an app that already has these services does
+not need another desktop rebuild.
 1. In **File > Plugin Manager > Choose plugin folder…**, choose this directory.
 2. Select `ruby_fluo_pressure_monitor`, review its source and choose
    **Review and trust selected plugin…**.
 3. The monitor opens automatically as a docked CurveMole panel when enabled.
    Reopen it from **View > Panels > Ruby fluorescence: monitor — temperature / Start / Stop**.
 4. Choose the acquisition folder and set **Filename contains**, e.g. `ruby`.
-5. **Sample temperature (K)** defaults to **296 K (22.85 °C)**. Editing the field
-   saves it when you press Enter or leave the field; no confirmation checkbox is
-   required. **Apply temperature** and **Start** also save the displayed value.
-   A previously saved temperature is retained. The legacy confirmation flag is ignored.
-6. Use **Advanced settings / calibration…** to choose the temperature correction
-   and edit literature reference values, coefficients and fitting settings.
+5. **Sample temperature** defaults to **296 K (22.85 °C)**. With a ruby spectrum
+   selected it shows that spectrum's saved temperature. Editing it saves to that
+   spectrum on Enter or focus loss, and marks its pressure as needing recalculation.
+6. **Calibration and fit settings…** edits the selected spectrum's settings.
+   The most recently edited settings are also defaults for subsequent acquisitions;
+   merely selecting an older spectrum does not change those acquisition defaults.
 7. Click **Start**. Enable **Also import existing matching files** if needed.
    The panel displays running status and the active ruby spectrum's pressure.
 8. Click **Stop** to stop acquisition processing. Existing spectra remain editable.
@@ -38,30 +37,38 @@ The panel's direct Start uses columns 1/2 and a two-second stable-file delay.
 
 ### Manual corrections while monitoring
 
-Uncheck **Follow newest spectrum** in the monitor (or the File import panel),
-select a spectrum and adjust its masks, component parameters and bounds using
-CurveMole's normal tools. New spectra continue to be processed in the background;
-your selected spectrum and its edits remain in place. Run **Fit** in CurveMole
-after editing. The monitor, report and CSV derive pressure from the **current
-fitted model**, using the longer-wavelength of exactly two enabled pseudo-Voigt peaks.
-Until the fit is current, no pressure is reported. Automatic detection/masking is
-only applied to new acquisitions, so it does not overwrite your manual corrections.
-The automatic mask is also the active editable mask. For spectra imported by older
-versions, click **Edit fit mask of selected spectra** once: this selects their
-existing fit mask and activates CurveMole’s masking tool. Mask/unmask and undo/redo
-work while monitoring or stopped. This button also turns off following new spectra.
+Select a spectrum and edit its masks and model using CurveMole's normal tools.
+The background parameters are unlocked after automatic fitting. There is no
+special mask button, temperature-apply button, or selection-apply checkbox.
+Monitoring continues throughout manual review. By default, new acquisitions do
+not steal the spectrum being edited; the first acquisition is shown if no spectrum
+was active. **Show new spectra automatically** is optional.
 
-Temperature/calibration changes normally affect **new acquisitions only**.
-To correct existing measurements, select their spectra, check **Also apply
-temperature/calibration to selected spectra**, and click **Apply temperature**.
-This update is undoable and does not invalidate the spectral fit. It applies the
-currently configured calibration as well as temperature. Earlier measurements
-otherwise retain their own temperature and reference settings.
+Each spectrum owns its temperature, calibration, model, masks, and **last calculated
+pressure with uncertainty**. Selecting an earlier spectrum restores its temperature
+in the field and shows its own pressure prominently:
 
-The live panel, report and CSV recompute pressure after a manual fit. Saved
-acquisition metadata retains the initial analysis; current models and masks are
-saved in the project and used to derive updated results when it is reopened.
-The original acquisition log is historical and does not change after manual edits.
+- **Green:** the saved calculation matches this spectrum's current inputs.
+- **Amber + warning:** settings, data, masks or model changed. The previous value
+  remains visible, with its original calculation temperature, until recalculated.
+- **Recalculate:** evaluates pressure from the current R1 center and displayed
+  temperature/calibration, and saves the updated result for this spectrum only.
+
+Run CurveMole's normal **Fit** after changing masks/model parameters if you want a
+new optimized fit. Recalculate does not rerun peak detection, reinstall a mask or
+perform a fit. It can also evaluate a manually adjusted center; in that case fit
+uncertainty is unavailable until a fresh fit. A temperature-only change needs no
+spectral refit. Even after a manual Fit, pressure remains flagged until Recalculate.
+
+New files are automatically fitted and get their initial pressure without pressing
+Recalculate. Existing spectra and their edits are never overwritten. Save the
+`.fitproj` project to retain all per-spectrum edits, last calculations and pending
+recalculation states. Undo/redo restores settings/calculations too.
+
+Reports and CSV exports contain the last explicit calculation, with
+`needs_recalculation` and `pending_temperature_K` fields so an old result cannot
+silently pass as current. Legacy measurements without a calculation fingerprint
+are conservatively flagged until Recalculate is pressed.
 
 The filename match is a case-insensitive **substring**: `ruby` accepts `ruby.0`,
 `ruby_0.spe`, `test_RUBY_47.spe` and `myruby.spe`, but excludes `sample.spe`.
@@ -90,7 +97,8 @@ allowed peak separation and width limits are configurable.
    top of the fitted line; widths remain free and η is fixed (default 0.5).
 4. The straight background is **fixed by default** after its first fit. Legacy
    settings are migrated to this default. Advanced settings can explicitly enable
-   joint background refinement if desired. All components can also be edited manually after import.
+   joint background refinement if desired. **After the final automatic fit, the
+   line parameters are always unlocked** for manual refinement.
 5. Use the longer-wavelength center, R1, for pressure calculation. The final band
    mask remains active and editable; it is never reinstalled over manual edits.
 
@@ -109,7 +117,9 @@ uncertainties; a fixed background is treated as exact, so its first-stage fit
 uncertainty is not propagated. Thus it is **not a total measurement uncertainty**.
 If R1 is fixed or covariance is unavailable, the UI says uncertainty unavailable
 and the CSV field is blank; it never invents a zero uncertainty. After mask/model
-edits, both pressure and uncertainty are withheld until refitting.
+edits, the saved pressure and uncertainty remain visible with a stale warning.
+Recalculate after a fresh fit updates both; without a refit, the new pressure
+can be evaluated but no fit uncertainty is claimed.
 
 Unresolved doublets or failed fits retain the raw acquisition and an error without
 a pressure. Strong overlap, parameters at bounds and solver diagnostics are flagged
@@ -129,8 +139,8 @@ This plugin limits operation to 600 K and does not extrapolate temperature.
 These choices are not an exhaustive catalog of historical ruby calibrations.
 
 The default ambient-pressure reference is **694.281 nm at 296 K**, from Datchi
-et al. (2007). The initial sample-temperature field is not a measurement: pressure
-is withheld until the user confirms it. The pressure scale is **Mao–Xu–Bell (1986)**,
+et al. (2007). Room temperature (296 K) is a default assumption, not a temperature measurement;
+enter the actual temperature when known. The pressure scale is **Mao–Xu–Bell (1986)**,
 with A = 1904 GPa and B = 7.665. All reference values and coefficients are editable.
 
 ```text
@@ -161,8 +171,8 @@ Sources:
 Models, masks, results and the settings used for each acquisition are stored in
 its project. **Tools > Analysis > Ruby fluorescence: results and references** shows
 the report; **File > Exporters > Ruby fluorescence: export pressures as CSV** exports
-the table. Results describe the automatic fit at import time: later manual model
-changes do not automatically recalculate pressure.
+the table. Results describe the last automatic or explicitly requested pressure calculation.
+Later edits are flagged until Recalculate is pressed.
 
 CurveMole supports calibrated, one-dimensional, single-ROI WinSpec **SPE 2.x**
 files. SPE 3.x/XML and CCD images require export to calibrated X/Y text first.

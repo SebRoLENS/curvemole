@@ -230,12 +230,15 @@ def test_manual_mask_refit_and_temperature_keep_acquisition_reference(tmp_path):
     r1.parameters["center"].value = 695.3
     r1.parameters["center"].fixed = True
     curve.state = CurveState.MODIFIED
-    assert ruby.current_result(context, curve)["pressure_GPa"] is None
+    assert ruby.current_result(context, curve)["needs_recalculation"]
+    assert ruby.current_result(context, curve)["pressure_GPa"] == initial["pressure_GPa"]
     mask = curve.effective_mask.copy()
     mask[800:810] = True
     curve.masks["Manual correction"] = Mask("Manual correction", mask)
     result = Fitter().fit_single(curve, model, FitSettings())
     assert result.success
+    assert ruby.current_result(context, curve)["needs_recalculation"]
+    ruby.recalculate_curve(context, curve)
     updated = json.loads(ruby.report(context))[0]
     assert updated["R1_nm"] == pytest.approx(695.3)
     assert updated["pressure_GPa"] == pytest.approx(ruby.pressure(695.3, ruby.settings())[0])
@@ -285,10 +288,10 @@ def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
         assert window.project.ui_state["plugin_data"][ruby.OWNER]["temperature_K"] == 350
         assert curve.state == CurveState.FITTED
         # Temperature is explicitly applied to selected existing spectra, undoable.
-        panel.apply_selected.setChecked(True)
-        panel.save()
+        panel.refresh()
         assert curve.metadata["ruby_monitor"]["settings"]["temperature_K"] == 350
-        window.undo_stack.undo()
+        window.undo_stack.undo()  # Undo saved acquisition folder/filter.
+        window.undo_stack.undo()  # Undo the automatic per-spectrum temperature save.
         assert curve.metadata["ruby_monitor"]["settings"]["temperature_K"] == 296
         assert curve.state == CurveState.FITTED
         panel.follow.setChecked(False)
@@ -316,7 +319,7 @@ def test_monitor_controls_settings_and_manual_edit_during_import(tmp_path):
         assert window.curve_tree.selected_curve_ids() == selected
         assert window.project.dataset.curve(curve.id).masks["manual"].excluded[410]
         panel.refresh()
-        assert "Fit is not current" in panel.result.text()
+        assert "needs recalculation" in panel.warning.text()
         assert window.folder_import.scan is not None
         panel.stop.click()
         assert window.folder_import.scan is None
@@ -379,6 +382,7 @@ def test_exact_background_mask_inversion_and_gui_unmask_undo(monkeypatch, tmp_pa
     assert curve.metadata["ruby_monitor"]["temperature_K"] == 296
     assert curve.metadata["ruby_monitor"]["pressure_GPa"] is not None
     assert curve.active_mask == "Ruby local fit region"
+    assert all(not p.fixed for p in project.models[curve.id].components[0].parameters.values())
     window = CurveMoleMainWindow(project)
     try:
         window.active_curve_id = curve.id
@@ -436,3 +440,103 @@ def test_auto_docked_panel_and_temperature_autosave(tmp_path):
         extensions.entries.pop(processor_id, None)
         window.project.dirty = False
         window.close()
+
+
+def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
+    import copy
+
+    from PySide6.QtWidgets import QPushButton
+
+    from curvemole.core.data import CurveState
+
+    window = CurveMoleMainWindow(Project())
+    identifier = ruby.OWNER + ":automatic"
+    extensions.entries[identifier] = Contribution(ruby.OWNER, identifier, "Ruby", "import_processors", ruby.process)
+    acquisitions = []
+    for temperature in (296, 360):
+        project = Project()
+        project.add_curve(synthetic_curve())
+        context = PluginContext(project, project.curves[0].id, (), ruby.OWNER)
+        context.data.update(ruby.settings({"temperature_K": temperature}))
+        ruby.process(context)
+        acquisitions.append(project)
+    window.folder_import.follow = False
+    window.folder_import.commit(acquisitions[0])
+    first = window.project.curves[0]
+    window.active_curve_id = first.id
+    window.refresh_all()
+    panel = ruby.monitor_panel(window.plugin_host.context(ruby.OWNER, with_services=True))
+    try:
+        labels = {button.text() for button in panel.findChildren(QPushButton)}
+        assert "Recalculate" in labels
+        assert "Apply temperature" not in labels
+        assert not any("Edit fit mask" in label for label in labels)
+        assert panel.temperature.value() == 296
+        saved = copy.deepcopy(first.metadata["ruby_monitor"]["calculated_result"])
+        panel.temperature.setValue(320)
+        panel.refresh()
+        assert first.metadata["ruby_monitor"]["settings"]["temperature_K"] == 320
+        assert first.metadata["ruby_monitor"]["calculated_result"] == saved
+        assert "needs recalculation" in panel.warning.text()
+        assert "#fff0bf" in panel.result.styleSheet()
+        panel.recalculate.click()
+        updated = first.metadata["ruby_monitor"]["calculated_result"]
+        assert updated["temperature_K"] == 320
+        assert updated["pressure_GPa"] != saved["pressure_GPa"]
+        assert not panel.warning.text()
+        assert "#155e4b" in panel.result.styleSheet()
+        # Acquisition commits preserve all edits and the current selection.
+        window.folder_import.start(tmp_path, "ruby", processor=identifier, follow=False)
+        window.mask_range(first.x[0], first.x[5], unmask=True)
+        assert not first.effective_mask[:6].any()
+        window.folder_import.commit(acquisitions[1])
+        second = window.project.curves[1]
+        assert window.active_curve_id == first.id
+        assert first.metadata["ruby_monitor"]["settings"]["temperature_K"] == 320
+        assert not first.effective_mask[:6].any()
+        window.active_curve_id = second.id
+        panel.refresh()
+        assert panel.temperature.value() == 360
+        assert second.name in panel.spectrum.text()
+        assert not panel.warning.text()
+        window.active_curve_id = first.id
+        panel.refresh()
+        assert panel.temperature.value() == 320
+        assert "needs recalculation" in panel.warning.text()
+        # A direct model edit remains local and can be explicitly evaluated.
+        r1 = window.project.models[first.id].components[-1]
+        r1.parameters["center"].value += 0.02
+        first.state = CurveState.MODIFIED
+        panel.recalculate.click()
+        assert not panel.warning.text()
+        assert first.metadata["ruby_monitor"]["calculated_result"]["pressure_std_GPa"] is None
+        assert second.metadata["ruby_monitor"]["settings"]["temperature_K"] == 360
+        last_pressure = first.metadata["ruby_monitor"]["calculated_result"]["pressure_GPa"]
+        def edit_calibration(snapshot):
+            snapshot.data["A_GPa"] = 1950.0
+            return True
+        monkeypatch.setattr(ruby, "configure_dialog", edit_calibration)
+        panel.configure()
+        panel.refresh()
+        assert first.metadata["ruby_monitor"]["settings"]["A_GPa"] == 1950.0
+        assert second.metadata["ruby_monitor"]["settings"]["A_GPa"] == 1904.0
+        assert first.metadata["ruby_monitor"]["calculated_result"]["pressure_GPa"] == last_pressure
+        assert "needs recalculation" in panel.warning.text()
+        panel.recalculate.click()
+        assert not panel.warning.text()
+        assert first.metadata["ruby_monitor"]["calculated_result"]["pressure_GPa"] != last_pressure
+        path = tmp_path / "per-spectrum.fitproj"
+        save_project(window.project, path)
+        loaded = load_project(path)
+        ctx = PluginContext(loaded, first.id, (), ruby.OWNER)
+        assert not ruby.current_result(ctx, loaded.dataset.curve(first.id))["needs_recalculation"]
+        assert loaded.dataset.curve(first.id).metadata["ruby_monitor"]["settings"]["temperature_K"] == 320
+        assert not loaded.dataset.curve(first.id).effective_mask[:6].any()
+        assert loaded.dataset.curve(second.id).metadata["ruby_monitor"]["settings"]["temperature_K"] == 360
+    finally:
+        panel.timer.stop()
+        panel.deleteLater()
+        window.folder_import.stop()
+        window.project.dirty = False
+        window.close()
+        extensions.entries.pop(identifier, None)
