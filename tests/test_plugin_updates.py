@@ -107,7 +107,7 @@ def test_failed_update_retains_previous_installation(update_case, monkeypatch, f
 
 
 @pytest.mark.parametrize("name", ["../escape.py", "test_plugin/../../escape.py",
-                                   "/tmp/escape.py", "test_plugin/C:/escape.py", "test_plugin\\escape.py"])
+                                   "/tmp/escape.py", "test_plugin/C:/escape.py", r"test_plugin\escape.py"])
 def test_archive_paths_cannot_escape(update_case, name):
     manager, _, update, _, _ = update_case
     output = io.BytesIO()
@@ -118,7 +118,9 @@ def test_archive_paths_cannot_escape(update_case, name):
         archive.writestr(stored_name, b"bad")
     data = output.getvalue()
     if stored_name != name:
+        assert len(stored_name) == len(name)
         data = data.replace(stored_name.encode(), name.encode())
+        assert name.encode() in data
     with pytest.raises(CurveMoleError, match="Unsafe"):
         stage_update(manager, update, data)
 
