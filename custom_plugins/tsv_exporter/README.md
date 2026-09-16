@@ -1,5 +1,8 @@
 # TSV spectrum exporter
 
+**[Download the latest validated plugin ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip)**
+
+
 Adds **File > TSV spectrum (community)** with CurveMole's ◆ plugin marker.
 Exports the active spectrum's current x/y values, including masked rows, as two
 tab-separated columns with a header. Existing exporters are unchanged.

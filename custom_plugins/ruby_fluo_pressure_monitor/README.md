@@ -1,6 +1,10 @@
 # ruby_fluo_pressure_monitor
 
-Version 0.3.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+**[Download the latest validated plugin ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip)**
+
+Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
+
+Version 0.4.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
@@ -8,17 +12,19 @@ peak at the longer wavelength. All processing is local.
 ## Requirements and installation
 
 Requires CurveMole with automatic folder import and `PluginContext.services`
-(nonmodal panel services), supplied with this update. Update **both CurveMole and
+(including generic docked panels with `auto_show`), supplied with this update. Update **both CurveMole and
 the plugin** to use the monitor panel. The older File-menu workflow remains available.
 
 1. In **File > Plugin Manager > Choose plugin folder…**, choose this directory.
 2. Select `ruby_fluo_pressure_monitor`, review its source and choose
    **Review and trust selected plugin…**.
-3. Open **View > Panels > Ruby fluorescence: monitor — temperature / Start / Stop**.
+3. The monitor opens automatically as a docked CurveMole panel when enabled.
+   Reopen it from **View > Panels > Ruby fluorescence: monitor — temperature / Start / Stop**.
 4. Choose the acquisition folder and set **Filename contains**, e.g. `ruby`.
-5. Enter **Sample temperature (K)** and tick **Confirm sample temperature**.
-   **Apply temperature** saves it; **Start** also saves the displayed settings.
-   Without confirmation, fitting still runs but pressure is not calculated.
+5. **Sample temperature (K)** defaults to **296 K (22.85 °C)**. Editing the field
+   saves it when you press Enter or leave the field; no confirmation checkbox is
+   required. **Apply temperature** and **Start** also save the displayed value.
+   A previously saved temperature is retained. The legacy confirmation flag is ignored.
 6. Use **Advanced settings / calibration…** to choose the temperature correction
    and edit literature reference values, coefficients and fitting settings.
 7. Click **Start**. Enable **Also import existing matching files** if needed.
@@ -40,6 +46,10 @@ after editing. The monitor, report and CSV derive pressure from the **current
 fitted model**, using the longer-wavelength of exactly two enabled pseudo-Voigt peaks.
 Until the fit is current, no pressure is reported. Automatic detection/masking is
 only applied to new acquisitions, so it does not overwrite your manual corrections.
+The automatic mask is also the active editable mask. For spectra imported by older
+versions, click **Edit fit mask of selected spectra** once: this selects their
+existing fit mask and activates CurveMole’s masking tool. Mask/unmask and undo/redo
+work while monitoring or stopped. This button also turns off following new spectra.
 
 Temperature/calibration changes normally affect **new acquisitions only**.
 To correct existing measurements, select their spectra, check **Also apply
@@ -71,15 +81,35 @@ The X axis must be increasing wavelength in **nm**. Search limits, prominence,
 allowed peak separation and width limits are configurable.
 
 1. Detect a candidate doublet and estimate initial widths from the data.
-2. Temporarily exclude neighborhoods around both peaks (default ±2 estimated
-   FWHM) and fit a straight background to the remaining local points.
-3. Restore both peaks, exclude data outside their shared local region (default
-   margin 3 nm on either side), and fit the background plus both pseudo-Voigt peaks.
-   The two widths remain free; η stays fixed at its configured value (default 0.5).
-   η = 0 is Gaussian; η = 1 is Lorentzian.
-4. Optionally hold the background fixed after step 2. By default it is refined
-   jointly with the peaks. Center bounds prevent R1/R2 from exchanging identities.
-5. Use the longer-wavelength center, R1, for pressure calculation.
+2. Exclude neighborhoods around both peaks (default ±2 estimated FWHM,
+   clipped by the outer margin) and fit a straight background to **all remaining
+   valid points in the search interval**.
+3. **Invert that band mask within the search interval**: include the previously
+   excluded band neighborhoods and exclude the background points. Originally
+   invalid/user-masked samples stay excluded. Fit the two pseudo-Voigt peaks on
+   top of the fitted line; widths remain free and η is fixed (default 0.5).
+4. The straight background is **fixed by default** after its first fit. Legacy
+   settings are migrated to this default. Advanced settings can explicitly enable
+   joint background refinement if desired. All components can also be edited manually after import.
+5. Use the longer-wavelength center, R1, for pressure calculation. The final band
+   mask remains active and editable; it is never reinstalled over manual edits.
+
+### Pressure uncertainty
+
+The panel, import log, report and CSV include pressure and its **1σ fit uncertainty**.
+For wavelength-corrected center `L = R1 − thermal_shift`, the propagation is
+
+`u(P) = abs((A / lambda_ref) * (L / lambda_ref) ** (B − 1)) * u(R1)`.
+
+`u(R1)` is the center's standard error from CurveMole's fit covariance, including
+its correlations with other free fit parameters. This is first-order uncertainty
+propagation ([NIST](https://physics.nist.gov/cuu/Uncertainty/combination.html)).
+It excludes temperature, wavelength/reference calibration and pressure-scale
+uncertainties; a fixed background is treated as exact, so its first-stage fit
+uncertainty is not propagated. Thus it is **not a total measurement uncertainty**.
+If R1 is fixed or covariance is unavailable, the UI says uncertainty unavailable
+and the CSV field is blank; it never invents a zero uncertainty. After mask/model
+edits, both pressure and uncertainty are withheld until refitting.
 
 Unresolved doublets or failed fits retain the raw acquisition and an error without
 a pressure. Strong overlap, parameters at bounds and solver diagnostics are flagged

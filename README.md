@@ -27,9 +27,15 @@ line, and reproducible YAML workflows.
 
 ## Custom plugins: install or share yours
 
+**[Download all plugins — latest validated ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)** ·
+[Download ruby_fluo_pressure_monitor only](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip)
+
+Extract the ZIP, then select the plugin folder in **File > Plugin manager > Choose
+plugin folder…**. Downloads open directly; no GitHub account or pull-request navigation
+is needed. The links always serve the latest published, validated plugin packages.
+
 **[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
 [Browse the community folder](custom_plugins) ·
-[Download validated plugins](https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml) ·
 [Plugin author guide](docs/plugins.md)
 
 - **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,

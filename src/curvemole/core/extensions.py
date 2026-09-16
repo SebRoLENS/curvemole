@@ -20,6 +20,7 @@ class Contribution:
     kind: str
     callback: Callable[..., Any]
     description: str = ""
+    auto_show: bool = False
 
 
 class ExtensionRegistry:
@@ -59,7 +60,7 @@ class PluginAPI:
         self._manager.function_owners[definition.identifier] = self.identifier
 
     def add(self, kind: str, identifier: str, label: str, callback: Callable[..., Any],
-            *, description: str = "") -> str:
+            *, description: str = "", auto_show: bool = False) -> str:
         if kind not in KINDS or not identifier.strip() or not callable(callback):
             raise CurveMoleError("Invalid extension kind, identifier or callback.")
         key = f"{self.identifier}:{identifier}"
@@ -83,5 +84,5 @@ class PluginAPI:
         def guarded(*args: Any, **kwargs: Any) -> Any:
             return self._manager.invoke(self.identifier, checked, *args, **kwargs)
         extensions.entries[key] = Contribution(self.identifier, key, f"◆ {label}", kind,
-                                               guarded, description)
+                                               guarded, description, auto_show)
         return key

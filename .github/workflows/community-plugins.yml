@@ -92,3 +92,76 @@ jobs:
           path: build/validated-community-plugins
           if-no-files-found: error
           retention-days: 90
+
+      - name: Create direct-download ZIP files
+        shell: python
+        run: |
+          import hashlib, json, pathlib, shutil
+          source = pathlib.Path('build/validated-community-plugins')
+          output = pathlib.Path('build/plugin-downloads')
+          output.mkdir(parents=True)
+          shutil.make_archive(str(output / 'validated-community-plugins'), 'zip', source)
+          for plugin in json.loads((source / 'catalog.json').read_text())['plugins']:
+              folder = plugin['folder']
+              shutil.make_archive(str(output / folder), 'zip', source, folder)
+          shutil.copy2(source / 'catalog.json', output / 'catalog.json')
+          (output / 'SHA256SUMS.txt').write_text(''.join(
+              f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
+              for path in sorted(output.glob('*.zip'))), encoding='utf-8')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: community-plugin-downloads
+          path: build/plugin-downloads
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-downloads:
+    name: Publish stable plugin downloads
+    needs: catalog
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: community-plugin-downloads
+      cancel-in-progress: false
+    steps:
+      # This privileged job never checks out, imports or executes plugin code.
+      - uses: actions/download-artifact@v4
+        with:
+          name: community-plugin-downloads
+          path: downloads
+      - name: Publish ZIPs without replacing the latest application release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TESTED_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          if [ "$current_main" != "$TESTED_SHA" ]; then
+            echo "Main advanced while validating; leave publication to the newer run."
+            exit 0
+          fi
+          tag=community-plugins-latest
+          cat > /tmp/plugin-release-notes.md <<EOF
+          Download the complete bundle or an individual plugin ZIP below. No GitHub login is required.
+
+          Extract the ZIP, then choose its plugin folder in CurveMole: File > Plugin manager > Choose plugin folder.
+
+          Tested on Linux, Windows and macOS. Tested source: $TESTED_SHA.
+          Validation: $RUN_URL
+          This rolling plugin catalog is separate from the latest CurveMole application release.
+          EOF
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh api "repos/$GH_REPO/git/refs/tags/$tag" -X PATCH -f sha="$TESTED_SHA" -F force=true
+            gh release upload "$tag" downloads/* --clobber
+            gh release edit "$tag" --title "Community plugins — latest validated downloads" \
+              --notes-file /tmp/plugin-release-notes.md --prerelease --latest=false
+          else
+            gh release create "$tag" downloads/* --target "$TESTED_SHA" \
+              --title "Community plugins — latest validated downloads" \
+              --notes-file /tmp/plugin-release-notes.md --prerelease --latest=false
+          fi

@@ -9,9 +9,11 @@ from typing import Any
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QDialog,
+    QDockWidget,
     QFileDialog,
     QMessageBox,
     QPlainTextEdit,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -40,7 +42,8 @@ class PluginHost:
     def __init__(self, window: Any) -> None:
         self.window = window
         self.actions = []
-        self.dialogs: dict[str, QDialog] = {}
+        self.dialogs: dict[str, QDockWidget] = {}
+        self._auto_opened = set()
         menus = {action.text().replace("&", ""): action.menu()
                  for action in window.menuBar().actions() if action.menu()}
         locations = {"importers": "File", "exporters": "File", "transformations": "Data",
@@ -59,6 +62,7 @@ class PluginHost:
                              services=PluginServices(self, owner) if with_services else None)
 
     def refresh(self) -> None:
+        self._auto_opened.intersection_update(extensions.entries)
         for identifier, dialog in list(self.dialogs.items()):
             entry = extensions.entries.get(identifier)
             if entry is None or entry.owner in self.window.plugin_manager.errors:
@@ -74,6 +78,13 @@ class PluginHost:
                 action = menu.addAction(entry.label)
                 action.setToolTip(f"Plugin: {entry.owner}\n{entry.description}")
                 action.triggered.connect(lambda checked=False, item=entry: self.run(item))
+                if kind == "panels" and entry.auto_show and entry.identifier not in self._auto_opened:
+                    self._auto_opened.add(entry.identifier)
+                    QTimer.singleShot(0, lambda item=entry: self._open_automatic_panel(item))
+
+    def _open_automatic_panel(self, entry):
+        if extensions.entries.get(entry.identifier) is entry and entry.owner not in self.window.plugin_manager.errors:
+            self.run(entry)
 
     def run(self, entry: Any) -> None:
         window = self.window
@@ -124,11 +135,15 @@ class PluginHost:
             elif entry.kind == "panels":
                 if not isinstance(result, QWidget):
                     raise TypeError("A panel callback must return a QWidget.")
-                dialog = QDialog(window)
-                dialog.setWindowTitle(entry.label)
-                QVBoxLayout(dialog).addWidget(result)
-                dialog.resize(640, 480)
+                dialog = QDockWidget(entry.label, window)
+                dialog.setObjectName("plugin_panel_" + entry.identifier)
+                scroll = QScrollArea(dialog)
+                scroll.setWidgetResizable(True)
+                scroll.setWidget(result)
+                dialog.setWidget(scroll)
                 dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+                window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
+                window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)
                 dialog.show()
                 self.dialogs[entry.identifier] = dialog
                 dialog.destroyed.connect(lambda: self.dialogs.pop(entry.identifier, None))

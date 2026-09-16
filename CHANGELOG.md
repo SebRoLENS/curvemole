@@ -5,6 +5,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Ruby monitor 0.4.0 defaults to 296 K without confirmation, reports pressure with
+  propagated 1σ fit uncertainty, and leaves its inverted band mask active for
+  manual masking/unmasking. Fit the line outside the bands before inversion.
+- Host plugin panels as dock widgets with an optional generic auto-show flag.
+- Provide direct latest-validated plugin ZIP links in READMEs, backed by a separate
+  rolling download release gated by the three-platform community checks.
+
+
 ### Added
 
 - Add a nonmodal ruby monitor panel with a prominent sample-temperature field,

@@ -13,13 +13,20 @@ this source directory is **not itself a validation badge**.
 
 ## Find and install validated plugins
 
-Open [Community plugins checks](https://github.com/SebRoLENS/curvemole/actions/workflows/community-plugins.yml),
-select a successful **main** run and download **validated-community-plugins** from
-Artifacts (GitHub login required). This bundle and its `catalog.json` are produced
-only after manifest, load/unload and functional tests pass on Linux, Windows and
-macOS. Failed runs cannot publish a bundle. Artifacts expire after 90 days; a
-maintainer can run the workflow again to rebuild the catalog against current main.
-Check the run date and commit: an older successful bundle does not certify newer code.
+**[Download all plugins — ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
+
+| Plugin | Direct download |
+| --- | --- |
+| Ruby fluorescence pressure monitor | [ruby_fluo_pressure_monitor.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip) |
+| TSV exporter | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
+
+These stable links download the latest published ZIP directly, without a GitHub
+account. [Package details and validation provenance](https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest)
+include the tested commit, catalog and checksums. This rolling plugin release is
+separate from the application's latest release and does not expire after 90 days.
+Publication happens only from main after manifest, load/unload and functional tests
+pass on Linux, Windows and macOS. Failed checks leave the previous download in place;
+unmerged pull requests are never offered through these links.
 
 Extract the bundle, then open **File > Plugin manager**, select the chosen plugin's
 folder, review and load it. Its additions carry the ◆ marker; built-in actions are
