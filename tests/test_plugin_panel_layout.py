@@ -35,6 +35,7 @@ def panel_windows(monkeypatch):
         anchor.setWidget(QWidget())
         window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, anchor)
         window.plugin_host = PluginHost(window)
+        window.plugin_host.finish_startup()
         window.show()
         return window, anchor
 
@@ -66,10 +67,9 @@ def test_auto_panel_restores_after_main_window_state(panel_windows, placement):
     first.hide()
 
     restarted, new_anchor = create()
-    # Match startup: restoreState runs before the queued auto-show callback.
-    assert not restarted.plugin_host.dialogs
+    # Match startup: automatic plugin docks already exist when state is restored.
+    assert entry.identifier in restarted.plugin_host.dialogs
     assert restarted.restoreState(state)
-    app.processEvents()
     restored = restarted.plugin_host.dialogs[entry.identifier]
     assert restarted.dockWidgetArea(restored) == area
     assert restored.isVisible()

@@ -22,8 +22,12 @@ DEFAULTS = {
     "temperature_K": 296.0,
     "reference_temperature_K": 296.0,
     "reference_nm": 694.281,
+    "pressure_scale": "mao_1986",
     "A_GPa": 1904.0,
     "B": 7.665,
+    "ruby2020_reference_nm": 694.25,
+    "ruby2020_A_GPa": 1870.0,
+    "ruby2020_B": 5.63,
     "thermal_model": "ragan",
     "eta": 0.5,
     "width_min_nm": 0.01,
@@ -41,6 +45,16 @@ DEFAULTS = {
     "datchi_cold_coefficients_nm": [0.0, 0.00664, 6.76e-6, -2.33e-8],
     "datchi_hot_slope_nm_K": 0.00726,
     "datchi_hot_coefficients_nm": [0.0, 0.00746, -3.01e-6, 8.76e-9],
+}
+PRESSURE_SCALES = {
+    "mao_1986": (
+        "Mao–Xu–Bell (1986) — up to 80 GPa",
+        "https://doi.org/10.1029/JB091iB05p04673",
+    ),
+    "ruby2020": (
+        "IPPS Ruby2020 — room temperature, up to 150 GPa",
+        "https://doi.org/10.1080/08957959.2020.1791107",
+    ),
 }
 THERMAL_MODELS = {
     "ragan": (
@@ -84,6 +98,8 @@ def validate(s):
         raise ValueError("Parameters must be finite numbers.")
     if s["thermal_model"] not in THERMAL_MODELS:
         raise ValueError("Unknown temperature correction.")
+    if s["pressure_scale"] not in PRESSURE_SCALES:
+        raise ValueError("Unknown pressure scale.")
     if not 0 <= s["eta"] <= 1 or not 0 < s["width_min_nm"] < s["width_max_nm"]:
         raise ValueError("Require 0 ≤ eta ≤ 1 and positive, ordered width limits.")
     if (
@@ -91,8 +107,18 @@ def validate(s):
         or not 0 < s["separation_min_nm"] < s["separation_max_nm"]
     ):
         raise ValueError("Invalid search or peak-separation range.")
-    if s["A_GPa"] <= 0 or s["B"] <= 0 or s["reference_nm"] <= 0:
-        raise ValueError("A, B and the reference wavelength must be positive.")
+    if any(
+        s[key] <= 0
+        for key in (
+            "A_GPa",
+            "B",
+            "reference_nm",
+            "ruby2020_A_GPa",
+            "ruby2020_B",
+            "ruby2020_reference_nm",
+        )
+    ):
+        raise ValueError("Pressure-scale coefficients and reference wavelengths must be positive.")
     if (
         s["region_margin_nm"] <= 0
         or s["background_exclusion_widths"] <= 0
@@ -134,7 +160,7 @@ def thermal_position(T, s):
 
 
 def pressure(center_nm, s):
-    """Subtract thermal wavelength shift, then apply Mao–Xu–Bell (1986).
+    """Subtract thermal wavelength shift, then apply the selected pressure scale.
 
     Assumes additive wavelength shifts; does not silently replace the pressure
     scale or invent a P–T cross term. Both reference and sample T must be valid.
@@ -146,9 +172,16 @@ def pressure(center_nm, s):
     corrected = center_nm - shift
     if not np.isfinite(corrected) or corrected <= 0:
         raise ValueError("Invalid temperature-corrected peak center.")
-    return float(
-        s["A_GPa"] / s["B"] * np.expm1(s["B"] * np.log(corrected / s["reference_nm"]))
-    ), shift
+    if s["pressure_scale"] == "ruby2020":
+        relative_shift = corrected / s["ruby2020_reference_nm"] - 1.0
+        value = s["ruby2020_A_GPa"] * relative_shift * (
+            1.0 + s["ruby2020_B"] * relative_shift
+        )
+    else:
+        value = s["A_GPa"] / s["B"] * np.expm1(
+            s["B"] * np.log(corrected / s["reference_nm"])
+        )
+    return float(value), shift
 
 
 def pressure_uncertainty(center_nm, parameter, s):
@@ -161,9 +194,39 @@ def pressure_uncertainty(center_nm, parameter, s):
         output["uncertainty_note"] = "Fit uncertainty unavailable (fixed R1 or unavailable covariance). " + note
         return output
     _, shift = pressure(center_nm, s)
-    ratio = (center_nm - shift) / s["reference_nm"]
-    sensitivity = s["A_GPa"] / s["reference_nm"] * ratio ** (s["B"] - 1)
+    corrected = center_nm - shift
+    if s["pressure_scale"] == "ruby2020":
+        x = corrected / s["ruby2020_reference_nm"] - 1.0
+        sensitivity = (
+            s["ruby2020_A_GPa"]
+            / s["ruby2020_reference_nm"]
+            * (1.0 + 2.0 * s["ruby2020_B"] * x)
+        )
+    else:
+        ratio = corrected / s["reference_nm"]
+        sensitivity = s["A_GPa"] / s["reference_nm"] * ratio ** (s["B"] - 1)
     output.update(R1_std_nm=float(error), pressure_std_GPa=float(abs(sensitivity) * error))
+    return output
+
+
+def pressure_scale_metadata(value, s):
+    """Describe calibration uncertainty separately from fit covariance."""
+    output = {
+        "pressure_scale": s["pressure_scale"],
+        "pressure_reference": PRESSURE_SCALES[s["pressure_scale"]][1],
+        "scale_uncertainty_percent": None,
+        "scale_uncertainty_GPa": None,
+        "scale_uncertainty_note": None,
+    }
+    if s["pressure_scale"] == "ruby2020":
+        output.update(
+            scale_uncertainty_percent=2.5,
+            scale_uncertainty_GPa=abs(float(value)) * 0.025,
+            scale_uncertainty_note=(
+                "Ruby2020 reports a maximum pressure-scale uncertainty of ±2.5% "
+                "from 0 to 150 GPa; this is not a 1σ fit uncertainty."
+            ),
+        )
     return output
 
 
@@ -171,8 +234,27 @@ def pressure_text(meta):
     value = meta["pressure_GPa"]
     error = meta.get("pressure_std_GPa")
     if error is None:
-        return f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
-    return f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
+        text = f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
+    else:
+        text = f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
+    if meta.get("scale_uncertainty_percent") is not None:
+        text += f"\nScale: ±{meta['scale_uncertainty_percent']:g}% maximum"
+    return text
+
+
+def pressure_warnings(value, s):
+    warnings = []
+    if value < 0:
+        warnings.append("Negative pressure: check the reference and temperature.")
+    limit = 150.0 if s["pressure_scale"] == "ruby2020" else 80.0
+    if value > limit:
+        label = "IPPS Ruby2020" if s["pressure_scale"] == "ruby2020" else "Mao–Xu–Bell 1986"
+        warnings.append(f"Above {limit:g} GPa: extrapolating the {label} pressure scale.")
+    if value > 20 and abs(s["temperature_K"] - s["reference_temperature_K"]) > 1:
+        warnings.append(
+            "Above 20 GPa: pressure/temperature shift separability is not guaranteed; cross terms may matter."
+        )
+    return warnings
 
 
 def analyse_curve(curve, s, cancellation=None):
@@ -299,14 +381,7 @@ def analyse_curve(curve, s, cancellation=None):
     P, shift, pressure_error = None, None, None
     try:
         P, shift = pressure(centers_fit[1], s)
-        if P < 0:
-            warnings.append("Negative pressure: check the reference and temperature.")
-        if P > 80:
-            warnings.append("Above 80 GPa: extrapolating the Mao–Xu–Bell 1986 pressure scale.")
-        if P > 20 and abs(s["temperature_K"] - s["reference_temperature_K"]) > 1:
-            warnings.append(
-                "Above 20 GPa: pressure/temperature shift separability is not guaranteed; cross terms may matter."
-            )
+        warnings.extend(pressure_warnings(P, s))
     except ValueError as exc:
         pressure_error = str(exc)
     metadata = {
@@ -330,11 +405,11 @@ def analyse_curve(curve, s, cancellation=None):
         ],
         "fit_region_nm": [float(lo), float(hi)],
         "original_masked_points": int(original_excluded.sum()),
-        "pressure_reference": "https://doi.org/10.1029/JB091iB05p04673",
         "thermal_reference": THERMAL_MODELS[s["thermal_model"]][3],
     }
     if P is not None:
         metadata.update(pressure_uncertainty(centers_fit[1], components[1].parameters["center"], s))
+        metadata.update(pressure_scale_metadata(P, s))
     curve.metadata["ruby_monitor"] = metadata
     for parameter in bg.parameters.values():
         parameter.fixed = False
@@ -427,6 +502,11 @@ def configure_dialog(context):
         combos.addItem(label, key)
     combos.setCurrentIndex(combos.findData(s["thermal_model"]))
     form.addRow("Temperature correction", combos)
+    pressure_scale = QComboBox()
+    for key, (label, _reference) in PRESSURE_SCALES.items():
+        pressure_scale.addItem(label, key)
+    pressure_scale.setCurrentIndex(pressure_scale.findData(s["pressure_scale"]))
+    form.addRow("Pressure scale", pressure_scale)
     fields = {}
     labels = {
         "temperature_K": ("Sample temperature [K]", 15.0, 600.0, 3),
@@ -434,6 +514,9 @@ def configure_dialog(context):
         "reference_nm": ("R1 at ambient pressure [nm]", 600.0, 800.0, 6),
         "A_GPa": ("Mao–Xu–Bell: A [GPa]", 1.0, 10000.0, 4),
         "B": ("Mao–Xu–Bell: B", 0.01, 100.0, 6),
+        "ruby2020_reference_nm": ("Ruby2020: R1 at ambient pressure [nm]", 600.0, 800.0, 6),
+        "ruby2020_A_GPa": ("Ruby2020: A [GPa]", 1.0, 10000.0, 4),
+        "ruby2020_B": ("Ruby2020: B", 0.01, 100.0, 6),
         "eta": ("FIXED shape η (0 = Gaussian; 1 = Lorentzian)", 0.0, 1.0, 3),
         "width_min_nm": ("Minimum FWHM [nm] — FREE width", 0.0001, 20.0, 4),
         "width_max_nm": ("Maximum FWHM [nm]", 0.001, 30.0, 4),
@@ -473,6 +556,7 @@ def configure_dialog(context):
         current.update(
             filename_contains=name.text().strip(),
             thermal_model=combos.currentData(),
+            pressure_scale=pressure_scale.currentData(),
             background_fixed=fixed.isChecked(),
         )
         return current
@@ -489,6 +573,7 @@ def configure_dialog(context):
                     box.setValue(current[key])
                 name.setText(current["filename_contains"])
                 combos.setCurrentIndex(combos.findData(current["thermal_model"]))
+                pressure_scale.setCurrentIndex(pressure_scale.findData(current["pressure_scale"]))
                 fixed.setChecked(current["background_fixed"])
             previous_tab[0] = index
         except Exception as exc:
@@ -576,17 +661,12 @@ def calculate_result(context, curve):
         P, shift = pressure(meta["R1_nm"], s)
         meta.update(pressure_GPa=P, thermal_shift_nm=shift, pressure_error=None)
         meta.update(pressure_uncertainty(meta["R1_nm"], peaks[1].parameters["center"], s))
+        meta.update(pressure_scale_metadata(P, s))
         if curve.state != CurveState.FITTED:
             meta.update(pressure_std_GPa=None, R1_std_nm=None,
                         uncertainty_note="Current model has not been refitted; fit uncertainty unavailable.")
         meta.pop("error", None)
-        warnings = []
-        if P < 0:
-            warnings.append("Negative pressure: check the reference and temperature.")
-        if P > 80:
-            warnings.append("Above 80 GPa: extrapolating the Mao–Xu–Bell 1986 pressure scale.")
-        if P > 20 and abs(s["temperature_K"] - s["reference_temperature_K"]) > 1:
-            warnings.append("Above 20 GPa: pressure/temperature cross terms may matter.")
+        warnings = pressure_warnings(P, s)
         if meta["R1_nm"] - meta["R2_nm"] < max(meta["FWHM_R1_nm"], meta["FWHM_R2_nm"]):
             warnings.append("Peaks strongly overlap: review their identification.")
         for peak in peaks:
@@ -866,7 +946,18 @@ def monitor_panel(context):
                 self.warning.setText("⚠ Settings, fit or masks changed. Saved pressure needs recalculation." if stale else "")
                 if meta and meta.get("pressure_GPa") is not None:
                     self.result.setText(pressure_text(meta))
-                    self.details.setText(f"Last calculation: T = {meta['temperature_K']:.3f} K; R1 = {meta['R1_nm']:.6f} nm.\n" + "\n".join(meta.get("warnings", [])) + ("\n" + meta.get("uncertainty_note", "") if meta.get("pressure_std_GPa") is None else ""))
+                    scale_label = PRESSURE_SCALES.get(
+                        meta.get("pressure_scale"), (meta.get("pressure_scale", ""), "")
+                    )[0]
+                    notes = list(meta.get("warnings", []))
+                    if meta.get("pressure_std_GPa") is None and meta.get("uncertainty_note"):
+                        notes.append(meta["uncertainty_note"])
+                    if meta.get("scale_uncertainty_note"):
+                        notes.append(meta["scale_uncertainty_note"])
+                    self.details.setText(
+                        f"Last calculation: T = {meta['temperature_K']:.3f} K; "
+                        f"R1 = {meta['R1_nm']:.6f} nm.\n{scale_label}\n" + "\n".join(notes)
+                    )
                 else:
                     self.result.setText("Pressure unavailable")
                     self.details.setText((meta or {}).get("pressure_error") or (meta or {}).get("error") or "Select an imported ruby spectrum.")
@@ -903,6 +994,10 @@ def export(context):
         "needs_recalculation",
         "pending_temperature_K",
         "pressure_std_GPa",
+        "pressure_scale",
+        "scale_uncertainty_percent",
+        "scale_uncertainty_GPa",
+        "scale_uncertainty_note",
         "R1_std_nm",
         "uncertainty_note",
         "thermal_model",
@@ -920,6 +1015,7 @@ def export(context):
             row.update(
                 spectrum=curve.name,
                 thermal_model=meta.get("settings", {}).get("thermal_model"),
+                pressure_scale=meta.get("pressure_scale", meta.get("settings", {}).get("pressure_scale")),
                 pressure_error=meta.get("pressure_error", meta.get("error")),
                 warnings="; ".join(meta.get("warnings", [])),
             )
@@ -942,5 +1038,5 @@ def register(api):
         "automatic",
         "Ruby fluorescence: doublet → pressure",
         process,
-        description="Two pseudo-Voigt peaks with free FWHM and fixed eta; background and temperature-corrected Mao–Xu–Bell pressure.",
+        description="Two pseudo-Voigt peaks with free FWHM and fixed eta; background and selectable temperature-corrected ruby pressure scale.",
     )
