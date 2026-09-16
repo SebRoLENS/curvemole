@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = {"functions", "importers", "exporters", "transformations", "analysis", "actions",
-         "workflows", "panels", "plot_layers", "hooks", "fit_solvers"}
+         "workflows", "import_processors", "panels", "plot_layers", "hooks", "fit_solvers"}
 
 
 def inspect_manifest(path: Path) -> dict:

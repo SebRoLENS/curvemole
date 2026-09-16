@@ -1,8 +1,19 @@
 # Changelog
 
+
 All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
+
+### Added
+
+- Add a nonmodal ruby monitor panel with a prominent sample-temperature field,
+  Start/Stop, live pressure and runtime follow-newest control for manual editing.
+- Recalculate ruby reports/CSV from the current manual fit, withholding pressure
+  until refitting after mask/model edits; retain per-acquisition temperature.
+- Add scoped plugin panel services for monitoring and undoable settings changes
+  that preserve fitted states and spectrum selection.
+
 
 ### Fixed
 

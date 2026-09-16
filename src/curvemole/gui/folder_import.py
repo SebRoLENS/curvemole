@@ -122,6 +122,7 @@ class FolderImportDialog(QDialog):
         self.modified = QCheckBox("Import changed files again as NEW spectra (keep previous data)")
         self.follow = QCheckBox("Show newest imported spectrum")
         self.follow.setChecked(True)
+        self.follow.toggled.connect(self.change_follow)
         layout.addLayout(form)
         for widget in (self.existing, self.modified, self.follow):
             layout.addWidget(widget)
@@ -147,6 +148,10 @@ class FolderImportDialog(QDialog):
         layout.addWidget(
             QLabel("Closing this panel keeps import running. Use Stop to end the session.")
         )
+
+    def change_follow(self, follow):
+        if self.controller.scan is not None:
+            self.controller.follow = follow
 
     def choose_folder(self):
         path = QFileDialog.getExistingDirectory(
@@ -190,7 +195,6 @@ class FolderImportDialog(QDialog):
             self.settle,
             self.existing,
             self.modified,
-            self.follow,
             self.start_button,
         ):
             widget.setEnabled(not running)
@@ -242,6 +246,19 @@ class FolderImportController:
             index = combo.findData(selected)
             combo.setCurrentIndex(max(0, index))
             combo.blockSignals(False)
+        if self.scan is not None:
+            self.dialog.folder.setText(str(self.scan.folder))
+            self.dialog.contains.setText(self.scan.contains)
+            self.dialog.processor.blockSignals(True)
+            self.dialog.processor.setCurrentIndex(self.dialog.processor.findData(self.processor_id))
+            self.dialog.processor.blockSignals(False)
+            self.dialog.x_column.setValue(self.x + 1)
+            self.dialog.y_column.setValue(self.y + 1)
+            self.dialog.settle.setValue(self.scan.settle)
+            self.dialog.modified.setChecked(self.scan.modified)
+            self.dialog.follow.setChecked(self.follow)
+            self.dialog.status.setText(f"Running: {self.scan.folder} | contains: {self.scan.contains or '(all)'}")
+        self.dialog.set_running(self.scan is not None)
         self.dialog.show()
         self.dialog.raise_()
 

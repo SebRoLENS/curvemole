@@ -1,0 +1,18 @@
+{
+  "identifier": "org.curvemole.community.ruby_fluo_pressure_monitor",
+  "name": "ruby_fluo_pressure_monitor",
+  "description": "Monitor ruby fluorescence acquisitions: fit two pseudo-Voigt peaks with free widths and fixed shape, then calculate temperature-corrected pressure.",
+  "author": "CurveMole contributors",
+  "version": "0.3.0",
+  "api_compatibility": "1",
+  "licence": "GPL-3.0-or-later",
+  "capabilities": [
+    "actions",
+    "analysis",
+    "exporters",
+    "import_processors",
+    "panels"
+  ],
+  "module": "ruby_fluo_pressure_monitor.py",
+  "test_file": "test_plugin.py"
+}

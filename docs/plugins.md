@@ -290,3 +290,18 @@ Calibrated 1D WinSpec SPE 2.x acquisitions are supported alongside text inputs;
 SPE 3.x, uncalibrated axes and image/multiple-ROI acquisitions require export to
 calibrated X/Y text first. SPE columns are wavelength in nm followed by one intensity
 column per frame; select the desired frame using the Y-column control.
+
+### Nonmodal monitor panels
+
+GUI `panels` and `actions` receive optional `context.services`. Worker processors
+and read-only hooks/analysis do not. A service returns detached `snapshot()` values,
+provides undoable JSON `save_settings(data, metadata_key=..., curve_metadata=...)`
+without invalidating fits, and controls only the owner's single import processor
+through `start_monitor`, `stop_monitor`, `monitor_status` and `set_follow`.
+Services reject disabled plugins; settings writes reject read-only projects and
+running fits. A settings-only action sets `context.settings_only = True` so the
+host commits only its owner-scoped `context.data`, preserving fitted states.
+Panel callbacks may use a child QTimer to refresh from snapshots. Reopening a
+panel reuses its window; unloading a plugin closes its panels. Closing a monitor
+panel does not stop automatic import. `Follow newest spectrum` can be toggled
+while import runs to preserve manual editing focus.
