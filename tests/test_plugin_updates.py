@@ -121,8 +121,12 @@ def test_archive_paths_cannot_escape(update_case, name):
         assert len(stored_name) == len(name)
         data = data.replace(stored_name.encode(), name.encode())
         assert name.encode() in data
-    with pytest.raises(CurveMoleError, match="Unsafe"):
+    # Windows also normalises raw backslashes while reading ZIP metadata. In that
+    # case the path is contained, but the altered archive still fails its catalog checksum.
+    expected = "Unsafe" if "\\" not in name else "Unsafe|checksum mismatch"
+    with pytest.raises(CurveMoleError, match=expected):
         stage_update(manager, update, data)
+    assert not list((manager.storage / "updates").glob("plugin-*"))
 
 
 def test_catalog_and_archive_disagree_after_rolling_release(update_case):
