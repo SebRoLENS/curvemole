@@ -25,26 +25,6 @@ line, and reproducible YAML workflows.
 > **Status:** Version **0.25.3 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
-## Custom plugins: install or share yours
-
-**[Download latest Community Plugins](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
-
-Extract the ZIP, then select the plugin folder in **File > Plugin manager > Choose
-plugin folder…**. Downloads open directly; no GitHub account or pull-request navigation
-is needed. The link always serves the latest published, validated plugin bundle.
-
-**[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
-[Browse the community folder](custom_plugins) ·
-[Plugin author guide](docs/plugins.md)
-
-- **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,
-  select the folder containing your manifest and Python module, then **Review and trust**.
-- **Share it with other users:** submit a folder at **`custom_plugins/your_plugin/`**
-  through a GitHub pull request. Follow the upload steps linked above. GitHub tests
-  the submission; only successful main runs produce the validated catalog bundle.
-
-The Plugin Manager also includes **Share my plugin on GitHub…**, which opens these
-submission instructions. Loading a plugin locally does not upload it publicly.
 
 ## Download
 
@@ -79,6 +59,26 @@ gh attestation verify CurveMole-VERSION-linux-x86_64.AppImage \
   --repo SebRoLENS/curvemole
 ```
 
+## Custom plugins: install or share yours
+
+**[Download latest Community Plugins](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
+
+Extract the ZIP, then select the plugin folder in **File > Plugin manager > Choose
+plugin folder…**. Downloads open directly; no GitHub account or pull-request navigation
+is needed. The link always serves the latest published, validated plugin bundle.
+
+**[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
+[Browse the community folder](custom_plugins) ·
+[Plugin author guide](docs/plugins.md)
+
+- **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,
+  select the folder containing your manifest and Python module, then **Review and trust**.
+- **Share it with other users:** submit a folder at **`custom_plugins/your_plugin/`**
+  through a GitHub pull request. Follow the upload steps linked above. GitHub tests
+  the submission; only successful main runs produce the validated catalog bundle.
+
+The Plugin Manager also includes **Share my plugin on GitHub…**, which opens these
+submission instructions. Loading a plugin locally does not upload it publicly.
 ## Why CurveMole?
 
 Keep experimental notes in the **Laboratory notebook**: project notes plus
