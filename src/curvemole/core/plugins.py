@@ -28,6 +28,7 @@ class PluginMetadata:
     capabilities: tuple[str, ...]
     source: str
     module: str | None = None
+    name: str = ""
 
     @classmethod
     def from_mapping(cls, value: Mapping[str, Any], *, source: str) -> PluginMetadata:
@@ -51,6 +52,7 @@ class PluginMetadata:
             licence=str(value["licence"]),
             capabilities=tuple(str(item) for item in value["capabilities"]),
             source=source,
+            name=str(value.get("name", "")),
             module=str(value["module"]) if value.get("module") else None,
         )
 
@@ -77,6 +79,8 @@ class PluginManager:
         self.storage = Path(storage) if storage is not None else None
         self.installed: dict[str, dict[str, Any]] = {}
         self.errors: dict[str, str] = {}
+        self.symbols: dict[str, str] = {}
+        self.names: dict[str, str] = {}
         self.session_path: Path | None = None
         if self.storage:
             self.storage.mkdir(parents=True, exist_ok=True)
@@ -88,6 +92,28 @@ class PluginManager:
                                   if isinstance(key, str) and isinstance(value, dict)}
             except (OSError, ValueError):
                 self.installed = {}
+
+    def symbol(self, identifier: str) -> str:
+        from curvemole.core.plugin_identity import SYMBOLS
+        if identifier not in self.symbols:
+            used = set(self.symbols.values()) | {
+                str(record.get("symbol", "")) for record in self.installed.values()}
+            saved = self.installed.get(identifier, {}).get("symbol")
+            if saved and saved not in self.symbols.values():
+                self.symbols[identifier] = saved
+            else:
+                index = 0
+                while True:
+                    candidate = SYMBOLS[index] if index < len(SYMBOLS) else f"◆{index + 1}"
+                    if candidate not in used:
+                        self.symbols[identifier] = candidate
+                        break
+                    index += 1
+        return self.symbols[identifier]
+
+    def plugin_name(self, identifier: str) -> str:
+        return self.names.get(identifier) or self.installed.get(identifier, {}).get(
+            "metadata", {}).get("name") or identifier
 
     def _save(self) -> None:
         if self.storage:
@@ -238,6 +264,7 @@ class PluginManager:
         from curvemole.core.extensions import PluginAPI
         fingerprint = self._fingerprint(candidate)
         self.errors.pop(metadata.identifier, None)
+        self.names[metadata.identifier] = metadata.name or metadata.identifier
         try:
             if candidate.kind == "local":
                 loaded = self._load_local(candidate)
@@ -262,6 +289,7 @@ class PluginManager:
             "metadata": asdict(metadata), "reference": str(Path(candidate.reference).resolve())
             if candidate.kind == "local" else candidate.reference,
             "kind": candidate.kind, "fingerprint": fingerprint, "enabled": True,
+            "symbol": self.symbol(metadata.identifier),
         }
         self._save()
         return metadata

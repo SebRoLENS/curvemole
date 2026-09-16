@@ -33,6 +33,7 @@ from curvemole.core.extensions import extensions
 from curvemole.core.fitting import CancellationToken
 from curvemole.core.folder_import import FolderScan
 from curvemole.core.importers import ColumnMapping, import_file
+from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.core.project import Project
 from curvemole.gui.plugin_host import PluginContext
 
@@ -100,6 +101,8 @@ class FolderImportDialog(QDialog):
         for entry in extensions.values("import_processors"):
             if entry.owner not in controller.window.plugin_manager.errors:
                 self.processor.addItem(entry.label, entry.identifier)
+                self.processor.setItemData(self.processor.count() - 1, contribution_tooltip(entry),
+                                           Qt.ItemDataRole.ToolTipRole)
         self.processor.currentIndexChanged.connect(self.processor_changed)
         form.addRow("Automatic workflow", self.processor)
         self.x_column = QSpinBox()
@@ -161,6 +164,7 @@ class FolderImportDialog(QDialog):
             self.folder.setText(path)
 
     def processor_changed(self):
+        self.processor.setToolTip(self.processor.currentData(Qt.ItemDataRole.ToolTipRole) or "")
         entry = extensions.entries.get(self.processor.currentData())
         if entry:
             data = self.controller.window.project.ui_state.get("plugin_data", {}).get(
@@ -243,9 +247,11 @@ class FolderImportController:
             for entry in extensions.values("import_processors"):
                 if entry.owner not in self.window.plugin_manager.errors:
                     combo.addItem(entry.label, entry.identifier)
+                    combo.setItemData(combo.count() - 1, contribution_tooltip(entry), Qt.ItemDataRole.ToolTipRole)
             index = combo.findData(selected)
             combo.setCurrentIndex(max(0, index))
             combo.blockSignals(False)
+            combo.setToolTip(combo.currentData(Qt.ItemDataRole.ToolTipRole) or "")
         if self.scan is not None:
             self.dialog.folder.setText(str(self.scan.folder))
             self.dialog.contains.setText(self.scan.contains)

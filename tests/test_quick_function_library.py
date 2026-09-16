@@ -83,6 +83,10 @@ def test_automatic_peak_search_uses_selected_peak_function(
         ]
     )
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args, **kwargs: next(answers))
+    def choose_function(dialog):
+        dialog.setTextValue(window.registry.get("lorentzian").display_name)
+        return 1
+    monkeypatch.setattr(QInputDialog, "exec", choose_function)
     monkeypatch.setattr(QInputDialog, "getInt", lambda *args, **kwargs: (1, True))
 
     window.find_peaks()

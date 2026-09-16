@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.functions import formula_definition
 from curvemole.core.initialization import find_peak_suggestions, initialise_peak_component
 from curvemole.core.models import Component, Model
+from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import FunctionBuilderPanel
@@ -135,16 +137,20 @@ def _refresh_quick_function_selector(
         selector.clear()
         for definition in window.registry.values():
             selector.addItem(definition.display_name, definition.identifier)
+            selector.setItemData(selector.count() - 1, function_tooltip(definition), Qt.ItemDataRole.ToolTipRole)
         index = selector.findData(wanted)
         if index < 0 and selector.count():
             index = 0
         selector.setCurrentIndex(index)
+        selector.setToolTip(selector.itemData(index, Qt.ItemDataRole.ToolTipRole) or "")
     finally:
         selector.blockSignals(False)
 
 
 def _remember_quick_function(window: MainWindow, function_id: str) -> None:
     definition = window.registry.get(function_id)
+    if hasattr(window, "quick_function_selector"):
+        window.quick_function_selector.setToolTip(function_tooltip(definition))
     window.last_quick_function_id = definition.identifier
     window.settings.setValue("last_quick_function", definition.identifier)
     if definition.kind == "peak":
@@ -314,14 +320,21 @@ def _find_peaks(window: MainWindow) -> None:
         0,
     )
     function_names = [definition.display_name for definition in peak_definitions]
-    selected_name, accepted = QInputDialog.getItem(
-        window,
-        window.tr("Find Peaks — Function"),
-        window.tr("Function to use for detected peaks:"),
-        function_names,
-        default_index,
-        False,
-    )
+    chooser = QInputDialog(window)
+    chooser.setWindowTitle(window.tr("Find Peaks — Function"))
+    chooser.setLabelText(window.tr("Function to use for detected peaks:"))
+    chooser.setComboBoxItems(function_names)
+    chooser.setComboBoxEditable(False)
+    chooser.setTextValue(function_names[default_index])
+    combo = chooser.findChild(QComboBox)
+    if combo is not None:
+        for index, definition in enumerate(peak_definitions):
+            combo.setItemData(index, function_tooltip(definition), Qt.ItemDataRole.ToolTipRole)
+        combo.currentIndexChanged.connect(
+            lambda index: combo.setToolTip(combo.itemData(index, Qt.ItemDataRole.ToolTipRole) or ""))
+        combo.setToolTip(function_tooltip(peak_definitions[default_index]))
+    accepted = chooser.exec()
+    selected_name = chooser.textValue()
     if not accepted:
         return
     selected_index = function_names.index(selected_name)

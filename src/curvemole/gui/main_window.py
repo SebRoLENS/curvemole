@@ -2370,6 +2370,8 @@ class MainWindow(QMainWindow):
                                      self.settings.value("plugin_directory", ""), self)
         dialog.exec()
         self.settings.setValue("plugin_directory", dialog.directory.text().strip())
+        if hasattr(self, "plugin_update_controller"):
+            self.plugin_update_controller.check()
         self.plugin_host.refresh()
         self.refresh_all()
 

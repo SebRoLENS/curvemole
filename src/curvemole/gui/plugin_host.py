@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.extensions import extensions
+from curvemole.core.plugin_identity import contribution_tooltip
 
 
 @dataclass
@@ -49,7 +50,7 @@ class PluginHost:
         locations = {"importers": "File", "exporters": "File", "transformations": "Data",
                      "analysis": "Tools", "actions": "Tools", "workflows": "Tools",
                      "panels": "View", "plot_layers": "View"}
-        self.menus = {kind: menus[location].addMenu("◆ " + kind.replace("_", " ").title())
+        self.menus = {kind: menus[location].addMenu("Plugins: " + kind.replace("_", " ").title())
                       for kind, location in locations.items()}
         self.refresh()
 
@@ -71,12 +72,14 @@ class PluginHost:
             self.window._refresh_quick_function_selector()
         for kind, menu in self.menus.items():
             menu.clear()
+            menu.setToolTipsVisible(True)
             available = [entry for entry in extensions.values(kind)
                          if entry.owner not in self.window.plugin_manager.errors]
             menu.menuAction().setVisible(bool(available))
             for entry in available:
                 action = menu.addAction(entry.label)
-                action.setToolTip(f"Plugin: {entry.owner}\n{entry.description}")
+                action.setToolTip(contribution_tooltip(entry))
+                action.setStatusTip(contribution_tooltip(entry))
                 action.triggered.connect(lambda checked=False, item=entry: self.run(item))
                 if kind == "panels" and entry.auto_show and entry.identifier not in self._auto_opened:
                     self._auto_opened.add(entry.identifier)
@@ -141,6 +144,7 @@ class PluginHost:
                 scroll.setWidgetResizable(True)
                 scroll.setWidget(result)
                 dialog.setWidget(scroll)
+                dialog.setToolTip(contribution_tooltip(entry))
                 dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 # Auto-opened panels are created after MainWindow.restoreState().
                 # Restore their saved dock placement before choosing a first-use default.
