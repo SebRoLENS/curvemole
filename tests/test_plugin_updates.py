@@ -111,10 +111,16 @@ def test_failed_update_retains_previous_installation(update_case, monkeypatch, f
 def test_archive_paths_cannot_escape(update_case, name):
     manager, _, update, _, _ = update_case
     output = io.BytesIO()
+    # ZipInfo normalises backslashes on Windows. Replace the stored filename bytes
+    # afterward so the archive exercises the same hostile input on every platform.
+    stored_name = name.replace("\\", "/")
     with zipfile.ZipFile(output, "w") as archive:
-        archive.writestr(name, b"bad")
+        archive.writestr(stored_name, b"bad")
+    data = output.getvalue()
+    if stored_name != name:
+        data = data.replace(stored_name.encode(), name.encode())
     with pytest.raises(CurveMoleError, match="Unsafe"):
-        stage_update(manager, update, output.getvalue())
+        stage_update(manager, update, data)
 
 
 def test_catalog_and_archive_disagree_after_rolling_release(update_case):
