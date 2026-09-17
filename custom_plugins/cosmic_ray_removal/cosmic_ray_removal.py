@@ -295,20 +295,41 @@ def cosmic_ray_panel(context):
                     "Selected repeated spectra — robust median reference",
                 ]
             )
+            self.method.setToolTip(
+                "Choose whether to analyse one spectrum or compare the active spectrum "
+                "with at least two selected repeat acquisitions. Repeated spectra give "
+                "more reliable discrimination from real sample features."
+            )
             self.threshold = QDoubleSpinBox()
             self.threshold.setRange(3, 30)
             self.threshold.setValue(10)
             self.threshold.setDecimals(1)
+            self.threshold.setToolTip(
+                "Minimum robust modified Z-score required for a candidate. Higher values "
+                "reduce false positives but may miss weaker cosmic rays."
+            )
             self.window = QSpinBox()
             self.window.setRange(3, 101)
             self.window.setSingleStep(2)
             self.window.setValue(11)
+            self.window.setToolTip(
+                "Odd number of neighbouring points used by the median filter to estimate "
+                "the local spectral signal. It should be wider than a cosmic-ray spike."
+            )
             self.max_width = QSpinBox()
             self.max_width.setRange(1, 100)
             self.max_width.setValue(5)
+            self.max_width.setToolTip(
+                "Maximum prominence-based peak width, in data points, accepted as a cosmic "
+                "ray. Broader features are treated as experimental bands and rejected."
+            )
             self.grow = QSpinBox()
             self.grow.setRange(0, 10)
             self.grow.setValue(1)
+            self.grow.setToolTip(
+                "Number of neighbouring data points added on each side of a detected event "
+                "when generating the repaired interval."
+            )
             form = QFormLayout()
             form.addRow("Detection method", self.method)
             form.addRow("Sensitivity threshold", self.threshold)
@@ -318,9 +339,15 @@ def cosmic_ray_panel(context):
             layout.addLayout(form)
             row = QHBoxLayout()
             detect = QPushButton("Detect automatically")
+            detect.setToolTip(
+                "Run detection with the current parameters. No spectrum data are changed."
+            )
             detect.clicked.connect(lambda: self.guard(self.detect))
             self.manual = QPushButton("Indicate manually")
             self.manual.setCheckable(True)
+            self.manual.setToolTip(
+                "Enable this mode, then click the plot to add a correction candidate manually."
+            )
             row.addWidget(detect)
             row.addWidget(self.manual)
             layout.addLayout(row)
@@ -344,6 +371,14 @@ def cosmic_ray_panel(context):
             all_button = QPushButton("Select all, including uncertain")
             none_button = QPushButton("Select none")
             remove = QPushButton("Remove candidate")
+            safe_button.setToolTip(
+                "Select only green, high-confidence candidates for the cleaned preview."
+            )
+            all_button.setToolTip(
+                "Select green, yellow and red candidates. Review uncertain events carefully."
+            )
+            none_button.setToolTip("Clear every candidate selection without changing the spectrum.")
+            remove.setToolTip("Remove the highlighted candidate from this review list.")
             safe_button.clicked.connect(lambda: self.select_confidence(False))
             all_button.clicked.connect(lambda: self.select_confidence(True))
             none_button.clicked.connect(lambda: self.set_all(False))
@@ -355,6 +390,9 @@ def cosmic_ray_panel(context):
             layout.addLayout(row)
             self.accept = QPushButton("Accept modifications")
             self.accept.setObjectName("accept_modifications")
+            self.accept.setToolTip(
+                "Replace the selected intervals in the spectrum and create one undoable action."
+            )
             self.accept.clicked.connect(lambda: self.guard(self.apply))
             layout.addWidget(self.accept)
             self.status = QLabel("No analysis yet. Nothing is changed until you accept.")
