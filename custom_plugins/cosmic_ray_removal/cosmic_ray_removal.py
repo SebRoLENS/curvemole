@@ -7,19 +7,41 @@ import copy
 import numpy as np
 from scipy.interpolate import PchipInterpolator
 from scipy.ndimage import median_filter
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 OWNER = "org.curvemole.community.cosmic_ray_removal"
 METADATA_KEY = "cosmic_ray_removal"
 
 
+CONFIDENCE_COLOURS = {
+    "Safe": "#22c55e",
+    "Possible": "#eab308",
+    "Uncertain": "#ef4444",
+}
+
+
 class Candidate:
-    def __init__(self, start, end, score, source, replacement, accepted=True):
+    def __init__(
+        self,
+        start,
+        end,
+        score,
+        source,
+        replacement,
+        accepted=None,
+        confidence="Uncertain",
+        peak_width=None,
+    ):
         self.start = int(start)
         self.end = int(end)
         self.score = float(score)
         self.source = str(source)
         self.replacement = np.asarray(replacement, dtype=float)
-        self.accepted = bool(accepted)
+        self.confidence = str(confidence)
+        self.peak_width = None if peak_width is None else float(peak_width)
+        # Lower-confidence events remain visible, but only safe ones are
+        # selected by default.
+        self.accepted = self.confidence == "Safe" if accepted is None else bool(accepted)
 
 
 def robust_z(values):
@@ -85,7 +107,48 @@ def _groups(flags, grow, max_width):
     return result
 
 
-def detect_single(x, y, threshold=8.0, window=11, max_width=12, grow=1):
+def _peak_morphology(y, start, end, max_width):
+    """Return the local peak and its FWHM-like prominence width.
+
+    A modified-Z residual can be narrow even at the apex of a broad Raman/IR
+    band. Measuring width on the original signal rejects that high-pass
+    artefact before it becomes a candidate.
+    """
+    y = np.asarray(y, dtype=float)
+    peaks, _ = find_peaks(y)
+    peaks = peaks[(peaks >= start) & (peaks <= end)]
+    if not len(peaks):
+        return None
+    peak = int(peaks[np.argmax(y[peaks])])
+    if not np.isclose(y[peak], np.max(y[start : end + 1]), rtol=1e-12, atol=1e-12):
+        return None
+    prominence = float(peak_prominences(y, [peak])[0][0])
+    if not np.isfinite(prominence) or prominence <= np.finfo(float).eps:
+        return None
+    width = float(peak_widths(y, [peak], rel_height=0.5)[0][0])
+    if not np.isfinite(width) or width > float(max_width):
+        return None
+    return peak, width
+
+
+def _confidence(score, threshold, width, max_width, repeated=False):
+    """Classify an event from independent strength and line-width evidence."""
+    width_fraction = width / max(float(max_width), 1.0)
+    score_ratio = score / max(float(threshold), np.finfo(float).eps)
+    safe_width = 0.75 if repeated else 0.60
+    safe_score = 1.20 if repeated else 1.35
+    if (
+        width_fraction <= safe_width
+        and width <= (4.0 if repeated else 3.0)
+        and score_ratio >= safe_score
+    ):
+        return "Safe"
+    if width_fraction <= 0.85 and score_ratio >= 1.0:
+        return "Possible"
+    return "Uncertain"
+
+
+def detect_single(x, y, threshold=10.0, window=11, max_width=5, grow=1):
     """Whitaker–Hayes style modified-Z detection of positive, narrow spikes."""
     x, y = _validate_xy(x, y)
     window = max(3, int(window) | 1)
@@ -100,13 +163,20 @@ def detect_single(x, y, threshold=8.0, window=11, max_width=12, grow=1):
     flags[:margin] = flags[-margin:] = False
     candidates = []
     for start, end in _groups(flags, int(grow), int(max_width)):
+        morphology = _peak_morphology(y, start, end, max_width)
+        if morphology is None:
+            continue
+        _, width = morphology
+        score = float(np.max(residual_z[start : end + 1]))
         candidates.append(
             Candidate(
                 start,
                 end,
-                float(np.max(residual_z[start : end + 1])),
+                score,
                 "Modified Z-score",
                 interpolate_interval(x, y, start, end),
+                confidence=_confidence(score, threshold, width, max_width),
+                peak_width=width,
             )
         )
     return candidates
@@ -142,7 +212,7 @@ def ensemble_reference(target, selected):
     return np.median(np.vstack(aligned), axis=0)
 
 
-def detect_ensemble(target, selected, threshold=8.0, window=11, max_width=12, grow=1):
+def detect_ensemble(target, selected, threshold=10.0, window=11, max_width=5, grow=1):
     x, y = _validate_xy(target.x, target.y)
     reference = ensemble_reference(target, selected)
     residual_z = robust_z(y - reference)
@@ -154,16 +224,25 @@ def detect_ensemble(target, selected, threshold=8.0, window=11, max_width=12, gr
     flags = (residual_z >= threshold) & edges
     margin = min((int(window) | 1) // 2, len(y) // 4)
     flags[:margin] = flags[-margin:] = False
-    return [
-        Candidate(
-            a,
-            b,
-            float(np.max(residual_z[a : b + 1])),
-            "Repeated-spectrum median",
-            reference[a : b + 1].copy(),
+    candidates = []
+    for start, end in _groups(flags, int(grow), int(max_width)):
+        morphology = _peak_morphology(y, start, end, max_width)
+        if morphology is None:
+            continue
+        _, width = morphology
+        score = float(np.max(residual_z[start : end + 1]))
+        candidates.append(
+            Candidate(
+                start,
+                end,
+                score,
+                "Repeated-spectrum median",
+                reference[start : end + 1].copy(),
+                confidence=_confidence(score, threshold, width, max_width, repeated=True),
+                peak_width=width,
+            )
         )
-        for a, b in _groups(flags, int(grow), int(max_width))
-    ]
+    return candidates
 
 
 def cleaned_values(y, candidates):
@@ -177,6 +256,7 @@ def cleaned_values(y, candidates):
 def cosmic_ray_panel(context):
     import pyqtgraph as pg
     from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtGui import QColor
     from PySide6.QtWidgets import (
         QAbstractItemView,
         QComboBox,
@@ -217,7 +297,7 @@ def cosmic_ray_panel(context):
             )
             self.threshold = QDoubleSpinBox()
             self.threshold.setRange(3, 30)
-            self.threshold.setValue(8)
+            self.threshold.setValue(10)
             self.threshold.setDecimals(1)
             self.window = QSpinBox()
             self.window.setRange(3, 101)
@@ -225,7 +305,7 @@ def cosmic_ray_panel(context):
             self.window.setValue(11)
             self.max_width = QSpinBox()
             self.max_width.setRange(1, 100)
-            self.max_width.setValue(12)
+            self.max_width.setValue(5)
             self.grow = QSpinBox()
             self.grow.setRange(0, 10)
             self.grow.setValue(1)
@@ -251,19 +331,24 @@ def cosmic_ray_panel(context):
             self.plot.addLegend()
             self.plot.scene().sigMouseClicked.connect(self.plot_clicked)
             layout.addWidget(self.plot)
-            self.table = QTableWidget(0, 5)
-            self.table.setHorizontalHeaderLabels(["Apply", "x range", "Points", "Score", "Source"])
+            self.table = QTableWidget(0, 7)
+            self.table.setHorizontalHeaderLabels(
+                ["Apply", "Confidence", "x range", "Points", "Peak width", "Score", "Source"]
+            )
             self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
             self.table.itemChanged.connect(self.table_changed)
             layout.addWidget(self.table)
             row = QHBoxLayout()
-            all_button = QPushButton("Select all")
+            safe_button = QPushButton("Select safe only")
+            all_button = QPushButton("Select all, including uncertain")
             none_button = QPushButton("Select none")
             remove = QPushButton("Remove candidate")
-            all_button.clicked.connect(lambda: self.set_all(True))
+            safe_button.clicked.connect(lambda: self.select_confidence(False))
+            all_button.clicked.connect(lambda: self.select_confidence(True))
             none_button.clicked.connect(lambda: self.set_all(False))
             remove.clicked.connect(self.remove_selected)
+            row.addWidget(safe_button)
             row.addWidget(all_button)
             row.addWidget(none_button)
             row.addWidget(remove)
@@ -345,9 +430,7 @@ def cosmic_ray_panel(context):
                 self.candidates = detect_ensemble(curve, chosen, *args)
             self.update_table()
             self.update_plot()
-            self.status.setText(
-                f"{len(self.candidates)} candidate(s). Review each row and the overlay."
-            )
+            self.status.setText(self.candidate_summary())
 
         def plot_clicked(self, event):
             if (
@@ -365,7 +448,17 @@ def cosmic_ray_panel(context):
             except Exception as error:
                 QMessageBox.warning(self, "Cosmic-ray removal", str(error))
                 return
-            self.candidates.append(Candidate(start, end, float("nan"), "Manual", replacement))
+            self.candidates.append(
+                Candidate(
+                    start,
+                    end,
+                    float("nan"),
+                    "Manual",
+                    replacement,
+                    accepted=True,
+                    confidence="Uncertain",
+                )
+            )
             self.candidates.sort(key=lambda c: c.start)
             self.update_table()
             self.update_plot()
@@ -387,12 +480,25 @@ def cosmic_ray_panel(context):
                 )
                 values = [
                     check,
+                    QTableWidgetItem(c.confidence),
                     QTableWidgetItem(f"{lo:.6g} – {hi:.6g}"),
                     QTableWidgetItem(str(c.end - c.start + 1)),
+                    QTableWidgetItem("—" if c.peak_width is None else f"{c.peak_width:.2f}"),
                     QTableWidgetItem("manual" if not np.isfinite(c.score) else f"{c.score:.1f}"),
                     QTableWidgetItem(c.source),
                 ]
+                colour = QColor(CONFIDENCE_COLOURS[c.confidence])
+                colour.setAlpha(65)
                 for column, item in enumerate(values):
+                    item.setBackground(colour)
+                    item.setToolTip(
+                        f"{c.confidence} cosmic-ray candidate; measured peak width: "
+                        + (
+                            "not available"
+                            if c.peak_width is None
+                            else f"{c.peak_width:.2f} points"
+                        )
+                    )
                     self.table.setItem(row, column, item)
             self.table.resizeColumnsToContents()
             self._updating = False
@@ -408,6 +514,23 @@ def cosmic_ray_panel(context):
                 c.accepted = accepted
             self.update_table()
             self.update_plot()
+
+        def select_confidence(self, include_uncertain):
+            for candidate in self.candidates:
+                candidate.accepted = include_uncertain or candidate.confidence == "Safe"
+            self.update_table()
+            self.update_plot()
+
+        def candidate_summary(self):
+            counts = {
+                label: sum(c.confidence == label for c in self.candidates)
+                for label in CONFIDENCE_COLOURS
+            }
+            return (
+                f"{len(self.candidates)} candidate(s): {counts['Safe']} safe, "
+                f"{counts['Possible']} possible, {counts['Uncertain']} uncertain. "
+                "Only safe candidates are selected by default; review the overlay before accepting."
+            )
 
         def remove_selected(self):
             row = self.table.currentRow()
@@ -427,12 +550,21 @@ def cosmic_ray_panel(context):
             self.plot.plot(
                 self.base_x, preview, pen=pg.mkPen("#0ea5a4", width=2), name="Cleaned preview"
             )
-            active = [c for c in self.candidates if c.accepted]
-            if active:
-                centers = [(self.base_x[c.start] + self.base_x[c.end]) / 2 for c in active]
-                values = [self.base_y[(c.start + c.end) // 2] for c in active]
+            for confidence, colour in CONFIDENCE_COLOURS.items():
+                matching = [c for c in self.candidates if c.confidence == confidence]
+                if not matching:
+                    continue
+                centers = [(self.base_x[c.start] + self.base_x[c.end]) / 2 for c in matching]
+                values = [self.base_y[(c.start + c.end) // 2] for c in matching]
                 self.plot.plot(
-                    centers, values, pen=None, symbol="x", symbolPen="#dc2626", symbolSize=10
+                    centers,
+                    values,
+                    pen=None,
+                    symbol="o" if confidence == "Safe" else "x",
+                    symbolPen=colour,
+                    symbolBrush=colour if confidence == "Safe" else None,
+                    symbolSize=10,
+                    name=confidence,
                 )
 
         def apply(self):
@@ -459,6 +591,8 @@ def cosmic_ray_panel(context):
                             "points": c.end - c.start + 1,
                             "score": None if not np.isfinite(c.score) else c.score,
                             "source": c.source,
+                            "confidence": c.confidence,
+                            "peak_width_points": c.peak_width,
                         }
                         for c in chosen
                     ],
