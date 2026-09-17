@@ -7,6 +7,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Browse the validated online plugin catalog inside Plugin Manager and download
+  selected plugins into a user-chosen persistent folder with checksum verification.
 - Add the `cosmic_ray_removal` community plugin with review-first modified-Z and
   repeated-spectrum detection, manual candidates, per-correction acceptance and
   an original/cleaned overlay.

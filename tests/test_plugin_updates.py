@@ -10,7 +10,12 @@ import pytest
 
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.extensions import extensions
-from curvemole.core.plugin_updates import available_updates, stage_update
+from curvemole.core.plugin_updates import (
+    available_updates,
+    community_plugins,
+    install_community_plugin,
+    stage_update,
+)
 from curvemole.core.plugins import PluginManager
 from curvemole.core.registry import FunctionRegistry
 
@@ -20,7 +25,8 @@ def update_case(tmp_path, monkeypatch):
     monkeypatch.setattr(extensions, "entries", {})
     original = tmp_path / "original"
     original.mkdir()
-    manifest = dict(identifier="test.plugin", name="Test plugin", version="1.0.0",
+    manifest = dict(identifier="test.plugin", name="Test plugin", description="A test plugin",
+                    author="Test author", version="1.0.0",
                     api_compatibility="1", licence="MIT", capabilities=["actions"], module="plugin.py")
     (original / "plugin.curvemole-plugin.json").write_text(json.dumps(manifest))
     (original / "plugin.py").write_text('def register(api):\n api.add("actions", "test", "Test", lambda ctx: None)\n')
@@ -145,6 +151,32 @@ def test_no_downgrade_and_incompatible_updates_are_reported(update_case):
     assert not updates[0].compatible
 
 
+def test_catalog_plugin_installs_into_chosen_folder(update_case, tmp_path):
+    manager, catalog, _, archive, _ = update_case
+    manager.disable("test.plugin")
+    manager.remove("test.plugin")
+    destination = tmp_path / "downloaded_plugins"
+    destination.mkdir()
+    plugin = community_plugins(catalog)[0]
+    metadata = install_community_plugin(manager, plugin, archive, destination)
+    assert metadata.identifier == plugin.identifier
+    assert Path(manager.installed[plugin.identifier]["reference"]).parent == (
+        destination / plugin.folder
+    )
+    assert plugin.identifier in manager.loaded
+    assert "test.plugin:test" in extensions.entries
+
+
+def test_catalog_install_rejects_existing_destination(update_case, tmp_path):
+    manager, catalog, _, archive, _ = update_case
+    manager.disable("test.plugin")
+    manager.remove("test.plugin")
+    plugin = community_plugins(catalog)[0]
+    (tmp_path / plugin.folder).mkdir()
+    with pytest.raises(CurveMoleError, match="already exists"):
+        install_community_plugin(manager, plugin, archive, tmp_path)
+
+
 @pytest.fixture
 def controller_case(update_case, tmp_path, monkeypatch):
     from PySide6.QtCore import QCoreApplication, QEvent, QSettings
@@ -213,3 +245,30 @@ def test_controller_does_not_install_plugin_disabled_during_download(controller_
     requests.pop()[1](archive, "")
     assert "no longer loaded" in controller.message
     assert controller.plugins.installed[update.identifier]["metadata"]["version"] == update.current
+
+
+def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
+    controller_case, tmp_path, monkeypatch
+):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMessageBox
+
+    _, controller, requests, catalog, update, archive = controller_case
+    controller.plugins.disable(update.identifier)
+    controller.plugins.remove(update.identifier)
+    destination = tmp_path / "community"
+    destination.mkdir()
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Yes
+    )
+    controller.browse()
+    controller.catalog_folder.setText(str(destination))
+    requests[-1][1](json.dumps(catalog).encode(), "")
+    assert controller.catalog_table.rowCount() == 1
+    controller.catalog_table.item(0, 0).setCheckState(Qt.CheckState.Checked)
+    controller.install_catalog_selected()
+    assert requests[-1][0].endswith("/test_plugin.zip")
+    requests[-1][1](archive, "")
+    assert update.identifier in controller.plugins.loaded
+    assert (destination / "test_plugin" / "plugin.py").is_file()
+    assert "installed and loaded" in controller.catalog_status.text().lower()
