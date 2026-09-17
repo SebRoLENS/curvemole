@@ -142,8 +142,13 @@ jobs:
           set -euo pipefail
           current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
           if [ "$current_main" != "$TESTED_SHA" ]; then
-            echo "Main advanced while validating; leave publication to the newer run."
-            exit 0
+            relevant_changes=$(gh api "repos/$GH_REPO/compare/$TESTED_SHA...$current_main" \
+              --jq '[.files[].filename | select(startswith("custom_plugins/") or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
+            if [ "$relevant_changes" != "0" ]; then
+              echo "Plugin sources or their validation pipeline changed; leave publication to a newer run."
+              exit 0
+            fi
+            echo "Main advanced only in unrelated files; publishing the validated plugin sources."
           fi
           tag=community-plugins-latest
           cat > /tmp/plugin-release-notes.md <<EOF
