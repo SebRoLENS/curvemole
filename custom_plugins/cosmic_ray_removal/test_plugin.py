@@ -24,9 +24,44 @@ def test_single_spectrum_detects_and_repairs_narrow_spikes_without_flattening_ba
     assert len(candidates) == 1
     candidate = candidates[0]
     assert candidate.start <= 900 <= candidate.end
+    assert candidate.confidence == "Safe"
+    assert candidate.accepted
     repaired = cosmic.cleaned_values(measured, candidates)
     assert repaired[900] == pytest.approx(clean[900], rel=2e-3)
     assert repaired[np.argmax(clean)] == measured[np.argmax(clean)]
+
+
+@pytest.mark.parametrize("sigma", [8, 20, 50])
+def test_broad_experimental_bands_are_not_cosmic_rays_even_with_large_z_score(sigma):
+    x = np.arange(1400, dtype=float)
+    broad_band = 30 + 400 * np.exp(-0.5 * ((x - 700) / sigma) ** 2)
+    assert cosmic.detect_single(x, broad_band) == []
+
+
+def test_borderline_width_is_visible_but_not_selected_by_default():
+    x, clean = smooth_spectrum()
+    measured = clean.copy()
+    measured[900:906] += np.array([250.0, 500.0, 700.0, 700.0, 500.0, 250.0])
+    candidates = cosmic.detect_single(x, measured, max_width=8)
+    assert len(candidates) == 1
+    assert candidates[0].confidence in {"Possible", "Uncertain"}
+    assert not candidates[0].accepted
+
+
+def test_confidence_levels_combine_score_and_width():
+    assert cosmic._confidence(20, 10, 1, 5) == "Safe"
+    assert cosmic._confidence(12, 10, 4, 5) == "Possible"
+    assert cosmic._confidence(12, 10, 4.8, 5) == "Uncertain"
+
+
+def test_two_pixel_flat_topped_cosmic_ray_is_still_detected():
+    x = np.arange(200, dtype=float)
+    measured = np.zeros_like(x)
+    measured[100:102] = 500
+    candidates = cosmic.detect_single(x, measured)
+    assert len(candidates) == 1
+    assert candidates[0].start <= 100
+    assert candidates[0].end >= 101
 
 
 def test_repeated_spectrum_reference_repairs_cosmic_ray_on_real_peak():
@@ -117,6 +152,14 @@ def test_panel_previews_and_commits_only_checked_candidates():
     try:
         panel.detect()
         assert panel.table.rowCount() == 2
+        assert panel.table.item(0, 1).text() == "Safe"
+        assert panel.table.item(0, 0).background().color().alpha() > 0
+        panel.candidates[1].confidence = "Uncertain"
+        panel.select_confidence(False)
+        assert panel.candidates[0].accepted
+        assert not panel.candidates[1].accepted
+        panel.select_confidence(True)
+        assert all(candidate.accepted for candidate in panel.candidates)
         panel.candidates[1].accepted = False
         panel.apply()
         assert services.values[300] != measured[300]
