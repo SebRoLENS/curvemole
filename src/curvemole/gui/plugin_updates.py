@@ -33,6 +33,7 @@ from curvemole.core.plugin_updates import (
     stage_update,
 )
 from curvemole.gui.updates import CHECK_INTERVAL_MS, UpdateController, semantic_version, update_kind
+from curvemole.gui.windowing import secondary_window_parent
 from curvemole.version import __version__
 
 
@@ -158,8 +159,9 @@ class PluginUpdateController(QObject):
 
     def open(self, checked=False, *, check=True):
         if self.dialog is None:
-            dialog = QDialog(self.window)
+            dialog = QDialog(secondary_window_parent(self.window))
             self.dialog = dialog
+            dialog.destroyed.connect(self._update_dialog_destroyed)
             dialog.setWindowTitle("Plugin updates")
             dialog.resize(800, 440)
             layout = QVBoxLayout(dialog)
@@ -192,6 +194,9 @@ class PluginUpdateController(QObject):
         self.dialog.raise_()
         if check:
             self.check()
+
+    def _update_dialog_destroyed(self):
+        self.dialog = None
 
     def _refresh(self, error=False):
         self._refresh_badge(error)
@@ -251,8 +256,9 @@ class PluginUpdateController(QObject):
 
     def browse(self):
         if self.catalog_dialog is None:
-            dialog = QDialog(self.window)
+            dialog = QDialog(secondary_window_parent(self.window))
             self.catalog_dialog = dialog
+            dialog.destroyed.connect(self._catalog_dialog_destroyed)
             dialog.setWindowTitle("Validated Community Plugins")
             dialog.resize(950, 520)
             layout = QVBoxLayout(dialog)
@@ -298,6 +304,9 @@ class PluginUpdateController(QObject):
         self.catalog_dialog.show()
         self.catalog_dialog.raise_()
         self.check_catalog()
+
+    def _catalog_dialog_destroyed(self):
+        self.catalog_dialog = None
 
     def _choose_catalog_folder(self):
         selected = QFileDialog.getExistingDirectory(

@@ -20,6 +20,7 @@ from PySide6.QtCore import QObject, QSettings, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QApplication, QMessageBox, QToolButton
 
+from curvemole.gui.windowing import secondary_window_parent
 from curvemole.version import __version__
 
 RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases/latest"
@@ -309,7 +310,7 @@ class UpdateController(QObject):
                 "Automatic replacement is not available for this installation. Use the release page instead."
             )
 
-        box = QMessageBox(self.window)
+        box = QMessageBox(secondary_window_parent(self.window))
         box.setIcon(
             QMessageBox.Icon.Warning if kind == "major" else QMessageBox.Icon.Information
         )

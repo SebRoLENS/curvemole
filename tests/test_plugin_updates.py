@@ -272,3 +272,20 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     assert update.identifier in controller.plugins.loaded
     assert (destination / "test_plugin" / "plugin.py").is_file()
     assert "installed and loaded" in controller.catalog_status.text().lower()
+
+
+def test_secondary_plugin_windows_follow_active_modal_parent(controller_case):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog
+
+    app, controller, _, _, _, _ = controller_case
+    plugin_manager = QDialog(controller.window)
+    plugin_manager.setWindowModality(Qt.WindowModality.ApplicationModal)
+    plugin_manager.show()
+    app.processEvents()
+
+    controller.open(check=False)
+    controller.browse()
+
+    assert controller.catalog_dialog.parent() is plugin_manager
+    assert controller.dialog.parent() is plugin_manager
