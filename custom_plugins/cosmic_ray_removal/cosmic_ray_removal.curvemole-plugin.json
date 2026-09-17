@@ -3,7 +3,7 @@
   "name": "cosmic_ray_removal",
   "description": "Detect, review and selectively remove narrow cosmic-ray spikes from spectra.",
   "author": "CurveMole contributors",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "api_compatibility": "1",
   "licence": "MIT",
   "capabilities": ["panels"],
