@@ -1091,20 +1091,19 @@ class PluginManagerDialog(QDialog):
         install_help.setWordWrap(True)
         layout.addWidget(install_help)
         community = QHBoxLayout()
-        for label, address in (
-            (self.tr("Browse validated plugins"),
-             "https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest"),
-            (self.tr("Share my plugin on GitHub…"),
-             "https://github.com/SebRoLENS/curvemole/tree/main/custom_plugins#submit-a-plugin"),
-        ):
-            button = QPushButton(label)
-            button.clicked.connect(lambda checked=False, url=address: QDesktopServices.openUrl(QUrl(url)))
-            community.addWidget(button)
         controller = getattr(parent, "plugin_update_controller", None)
         if controller is not None:
+            browse_online = QPushButton(self.tr("Browse validated plugins…"))
+            browse_online.clicked.connect(controller.browse)
+            community.addWidget(browse_online)
             updates = QPushButton(self.tr("Plugin updates…"))
             updates.clicked.connect(controller.open)
             community.addWidget(updates)
+        share = QPushButton(self.tr("Share my plugin on GitHub…"))
+        share.clicked.connect(lambda: QDesktopServices.openUrl(QUrl(
+            "https://github.com/SebRoLENS/curvemole/tree/main/custom_plugins#submit-a-plugin"
+        )))
+        community.addWidget(share)
         layout.addLayout(community)
         explanation = QLabel(
             self.tr(

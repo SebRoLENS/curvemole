@@ -28,6 +28,16 @@ first. Failed or interrupted downloads leave the previous installation in place.
 
 ## Install, enable, disable and remove
 
+For validated community plugins, open **File > Plugin Manager > Browse validated
+plugins…**. CurveMole downloads the online catalog, shows every validated plugin
+with its version and description, and installs only the entries you select. Choose
+an existing permanent storage folder first; CurveMole remembers it for later
+downloads. Archives are size-limited, path-checked and verified against the catalog
+SHA-256 before loading. Already installed plugins are shown but cannot be installed
+twice; update them through **Plugin updates…**.
+
+To install a private or locally developed plugin instead:
+
 1. Keep the plugin's `.curvemole-plugin.json` manifest and its Python module together
    in a permanent directory. Review the source and install any dependencies in the
    Python environment running CurveMole. The manager does not download dependencies.
@@ -39,7 +49,8 @@ first. Failed or interrupted downloads leave the previous installation in place.
 5. **Disable** unloads its registrations and keeps the installation for later use.
    **Remove** also forgets the installation and trust decision. Neither deletes your
    source files. Scanning that directory can still show the plugin as available.
-   Choose the trust/load button to enable it again.
+   Choose the trust/load button to enable it again. Removing an online plugin also
+   leaves its downloaded folder in the storage location you selected.
 
 Before disabling a plugin whose functions are used in the current project, remove
 those components or switch to an empty project. Existing plugin data in saved

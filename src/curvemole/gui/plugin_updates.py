@@ -2,13 +2,18 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
+    QLineEdit,
+    QMessageBox,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
@@ -20,8 +25,11 @@ from curvemole.core.plugin_identity import provenance
 from curvemole.core.plugin_updates import (
     CATALOG_URL,
     MAX_ARCHIVE_BYTES,
+    CommunityPlugin,
     PluginUpdate,
     available_updates,
+    community_plugins,
+    install_community_plugin,
     stage_update,
 )
 from curvemole.gui.updates import CHECK_INTERVAL_MS, UpdateController, semantic_version, update_kind
@@ -42,6 +50,11 @@ class PluginUpdateController(QObject):
         self.errors = []
         self.busy = False
         self.dialog = None
+        self.catalog_dialog = None
+        self.catalog_entries = []
+        self.catalog_busy = False
+        self.catalog_queue = []
+        self.catalog_errors = []
         self.message = "Check for updates to loaded plugins."
         self.badge = QToolButton(window)
         self.badge.setText("Plugins")
@@ -123,7 +136,9 @@ class PluginUpdateController(QObject):
         try:
             if error:
                 raise ValueError(error)
-            self.updates, self.unsupported = available_updates(self.plugins, json.loads(data))
+            payload = json.loads(data)
+            self.catalog_entries = community_plugins(payload)
+            self.updates, self.unsupported = available_updates(self.plugins, payload)
             self.message = (f"{len(self.updates)} plugin update(s) available." if self.updates else
                             "Loaded community plugins are up to date." if not self.unsupported else
                             "No updates available for supported loaded plugins.")
@@ -233,6 +248,189 @@ class PluginUpdateController(QObject):
         self.errors = []
         self.busy = True
         self._download_next()
+
+    def browse(self):
+        if self.catalog_dialog is None:
+            dialog = QDialog(self.window)
+            self.catalog_dialog = dialog
+            dialog.setWindowTitle("Validated Community Plugins")
+            dialog.resize(950, 520)
+            layout = QVBoxLayout(dialog)
+            help_text = QLabel(
+                "Browse plugins that passed CurveMole's Linux, Windows and macOS validation. "
+                "Choose where their folders will be retained, then select plugins to download "
+                "and load. Python plugins run with your user permissions."
+            )
+            help_text.setWordWrap(True)
+            layout.addWidget(help_text)
+            folder_row = QHBoxLayout()
+            self.catalog_folder = QLineEdit(
+                self.settings.value("community_plugins/folder", "", type=str)
+            )
+            choose = QPushButton("Choose storage folder…")
+            choose.clicked.connect(self._choose_catalog_folder)
+            folder_row.addWidget(QLabel("Plugin storage"))
+            folder_row.addWidget(self.catalog_folder, 1)
+            folder_row.addWidget(choose)
+            layout.addLayout(folder_row)
+            self.catalog_status = QLabel()
+            self.catalog_status.setWordWrap(True)
+            layout.addWidget(self.catalog_status)
+            self.catalog_table = QTableWidget(0, 5)
+            self.catalog_table.setHorizontalHeaderLabels(
+                ["Install", "Plugin", "Version", "Description", "Status"]
+            )
+            self.catalog_table.horizontalHeader().setSectionResizeMode(
+                3, QHeaderView.ResizeMode.Stretch
+            )
+            layout.addWidget(self.catalog_table, 1)
+            buttons = QHBoxLayout()
+            self.catalog_check = QPushButton("Refresh catalog")
+            self.catalog_check.clicked.connect(self.check_catalog)
+            self.catalog_install = QPushButton("Install selected")
+            self.catalog_install.clicked.connect(self.install_catalog_selected)
+            close = QPushButton("Close")
+            close.clicked.connect(dialog.hide)
+            for button in (self.catalog_check, self.catalog_install, close):
+                buttons.addWidget(button)
+            layout.addLayout(buttons)
+        self._refresh_catalog()
+        self.catalog_dialog.show()
+        self.catalog_dialog.raise_()
+        self.check_catalog()
+
+    def _choose_catalog_folder(self):
+        selected = QFileDialog.getExistingDirectory(
+            self.catalog_dialog, "Choose plugin storage folder", self.catalog_folder.text()
+        )
+        if selected:
+            self.catalog_folder.setText(selected)
+            self.settings.setValue("community_plugins/folder", selected)
+
+    def check_catalog(self):
+        if self.catalog_busy:
+            return
+        self.catalog_busy = True
+        self.catalog_status.setText("Downloading validated plugin catalog…")
+        self._refresh_catalog()
+        self._fetch(CATALOG_URL, 1024 * 1024, self._catalog_checked)
+
+    def _catalog_checked(self, data, error):
+        self.catalog_busy = False
+        try:
+            if error:
+                raise ValueError(error)
+            self.catalog_entries = community_plugins(json.loads(data))
+            self.catalog_status.setText(
+                f"{len(self.catalog_entries)} validated plugin(s) available online."
+            )
+        except Exception as exc:
+            self.catalog_status.setText(f"Could not load the catalog: {exc}")
+        self._refresh_catalog()
+
+    def _refresh_catalog(self):
+        if self.catalog_dialog is None:
+            return
+        self.catalog_check.setEnabled(not self.catalog_busy)
+        available = False
+        self.catalog_table.setRowCount(0)
+        for plugin in self.catalog_entries:
+            row = self.catalog_table.rowCount()
+            self.catalog_table.insertRow(row)
+            installed = self.plugins.installed.get(plugin.identifier)
+            status = (
+                f"Installed {installed['metadata']['version']}"
+                if installed
+                else "Update CurveMole first"
+                if not plugin.compatible
+                else "Available"
+            )
+            values = ("", plugin.name, plugin.latest, plugin.description, status)
+            for column, value in enumerate(values):
+                item = QTableWidgetItem(value)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                if column == 0:
+                    item.setData(Qt.ItemDataRole.UserRole, plugin.identifier)
+                    if not installed and plugin.compatible:
+                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                        item.setCheckState(Qt.CheckState.Unchecked)
+                        available = True
+                if column == 1:
+                    item.setToolTip(
+                        f"{plugin.identifier}\nAuthor: {plugin.author}\nLicence: {plugin.licence}\n"
+                        f"Capabilities: {', '.join(plugin.capabilities)}"
+                    )
+                self.catalog_table.setItem(row, column, item)
+        self.catalog_table.resizeColumnsToContents()
+        self.catalog_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.catalog_install.setEnabled(not self.catalog_busy and available)
+
+    def install_catalog_selected(self):
+        folder = Path(self.catalog_folder.text()).expanduser()
+        if not folder.is_dir():
+            QMessageBox.warning(
+                self.catalog_dialog, "Community plugins", "Choose an existing storage folder first."
+            )
+            return
+        selected = {
+            self.catalog_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            for row in range(self.catalog_table.rowCount())
+            if self.catalog_table.item(row, 0).checkState() == Qt.CheckState.Checked
+        }
+        self.catalog_queue = [
+            plugin for plugin in self.catalog_entries if plugin.identifier in selected
+        ]
+        if not self.catalog_queue:
+            self.catalog_status.setText("Select at least one available plugin.")
+            return
+        answer = QMessageBox.warning(
+            self.catalog_dialog,
+            "Install Python plugins",
+            "The selected plugins are validated community contributions, but loading them "
+            "still executes Python code with your user permissions. Download and load them now?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        self.settings.setValue("community_plugins/folder", str(folder.resolve()))
+        self.catalog_errors = []
+        self.catalog_busy = True
+        self._download_catalog_next()
+
+    def _download_catalog_next(self):
+        if not self.catalog_queue:
+            self.catalog_busy = False
+            self.catalog_status.setText(
+                "\n".join(self.catalog_errors)
+                if self.catalog_errors
+                else "Selected plugins installed and loaded."
+            )
+            if hasattr(self.window, "plugin_host"):
+                self.window.plugin_host.refresh()
+            self._refresh_catalog()
+            return
+        plugin = self.catalog_queue.pop(0)
+        self.catalog_status.setText(f"Downloading {plugin.name} {plugin.latest}…")
+        self._refresh_catalog()
+        self._fetch(
+            plugin.url,
+            MAX_ARCHIVE_BYTES,
+            lambda data, error: self._catalog_downloaded(plugin, data, error),
+        )
+
+    def _catalog_downloaded(self, plugin: CommunityPlugin, data, error):
+        try:
+            if error:
+                raise ValueError(error)
+            install_community_plugin(
+                self.plugins, plugin, data, self.catalog_folder.text()
+            )
+        except Exception as exc:
+            message = f"{plugin.identifier}: {exc}"
+            self.catalog_errors.append(message)
+            self.window._log(message)
+        self._download_catalog_next()
 
     def _download_next(self):
         if not self.queue:
