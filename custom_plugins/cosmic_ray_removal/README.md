@@ -25,7 +25,9 @@ Accepted intervals and detection settings are stored in spectrum metadata.
 **Single spectrum — modified Z-score** follows the robust derivative/modified
 Z-score approach of Whitaker and Hayes. It is appropriate for isolated, narrow
 positive spikes but cannot always distinguish a cosmic ray from a genuinely
-sharp sample feature.
+sharp sample feature. Candidates must also pass a peak-prominence line-width
+check on the original signal; this prevents a narrow high-pass residual at the
+top of a broad experimental band from being mistaken for a cosmic ray.
 
 **Selected repeated spectra — robust median reference** is recommended when
 several acquisitions of the same sample are available. Select at least three
@@ -40,12 +42,19 @@ aligned median reference. No correction is committed during preview.
 
 ## Parameters and limitations
 
-- **Sensitivity threshold**: higher values are more conservative. The default 8
+- **Sensitivity threshold**: higher values are more conservative. The default 10
   is deliberately conservative.
 - **Median window**: local window used to separate narrow spikes from the signal.
-- **Maximum spike width**: rejects broad features, which are less likely to be a
-  cosmic ray.
+- **Maximum spike width**: rejects broad features using their prominence width
+  on the original spectrum. The default is 5 points because detector cosmic-ray
+  events are normally much narrower than genuine spectral bands.
 - **Grow candidate**: includes neighbouring affected pixels.
+
+Candidates are colour coded by the independent evidence from anomaly strength
+and measured line width: green is **Safe**, yellow is **Possible**, and red is
+**Uncertain**. Only green candidates are selected by default. The panel provides
+shortcuts to select only safe events or all events, including uncertain ones;
+the final **Accept modifications** action is still required.
 
 Always inspect events on top of bands. A single spectrum contains insufficient
 information to prove whether an isolated sharp feature is instrumental or real.

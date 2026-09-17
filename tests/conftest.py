@@ -9,6 +9,7 @@ from curvemole import Curve
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("MPLCONFIGDIR", "/tmp/curvemole-matplotlib")
+os.environ.setdefault("CURVEMOLE_DISABLE_UPDATE_CHECK", "1")
 
 
 @pytest.fixture
