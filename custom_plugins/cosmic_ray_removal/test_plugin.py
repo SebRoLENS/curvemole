@@ -150,6 +150,16 @@ def test_panel_previews_and_commits_only_checked_candidates():
     )
     panel = cosmic.cosmic_ray_panel(context)
     try:
+        for control in (
+            panel.method,
+            panel.threshold,
+            panel.window,
+            panel.max_width,
+            panel.grow,
+            panel.manual,
+            panel.accept,
+        ):
+            assert control.toolTip()
         panel.detect()
         assert panel.table.rowCount() == 2
         assert panel.table.item(0, 1).text() == "Safe"
