@@ -319,6 +319,10 @@ and read-only hooks/analysis do not. A service returns detached `snapshot()` val
 provides undoable JSON `save_settings(data, metadata_key=..., curve_metadata=...)`
 without invalidating fits, and controls only the owner's single import processor
 through `start_monitor`, `stop_monitor`, `monitor_status` and `set_follow`.
+`apply_y_replacement(curve_id, values, description=..., metadata_key=...,
+metadata=...)` validates and commits one finite, full-length Y array as an
+ordinary undoable transformation; it preserves the x grid and invalidates stale
+fit results. Use it only after an explicit user confirmation in a panel.
 Services reject disabled plugins; settings writes reject read-only projects and
 running fits. A settings-only action sets `context.settings_only = True` so the
 host commits only its owner-scoped `context.data`, preserving fitted states.

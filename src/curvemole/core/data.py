@@ -126,6 +126,12 @@ class Transformation:
             if self.operand is None or len(self.operand) != len(y_new):
                 raise DataValidationError("Background subtraction is missing its background array.")
             y_new -= self.operand
+        elif op == "replace_y":
+            if self.operand is None or len(self.operand) != len(y_new):
+                raise DataValidationError("Y replacement is missing its replacement array.")
+            if not np.all(np.isfinite(self.operand)):
+                raise DataValidationError("Y replacement contains non-finite values.")
+            y_new = np.asarray(self.operand, dtype=np.float64).copy()
         elif op in {"curve_add", "curve_subtract", "curve_multiply", "curve_divide"}:
             if self.operand is None or len(self.operand) != len(y_new):
                 raise DataValidationError(f"Transformation '{op}' is missing its aligned operand.")
