@@ -43,7 +43,9 @@ def inspect_manifest(path: Path) -> dict:
         if not re.fullmatch(r"[a-zA-Z0-9_]+\.py", name) or not (path.parent / name).is_file():
             raise ValueError(f"{key} must name a local Python file")
     for name in ("README.md", "LICENSE"):
-        if not (path.parent / name).is_file() or not (path.parent / name).read_text().strip():
+        if not (path.parent / name).is_file() or not (path.parent / name).read_text(
+            encoding="utf-8"
+        ).strip():
             raise ValueError(f"Missing {name}")
     for source in path.parent.rglob("*.py"):
         ast.parse(source.read_text(encoding="utf-8"), filename=str(source))

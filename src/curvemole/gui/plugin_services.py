@@ -4,6 +4,8 @@ from __future__ import annotations
 import copy
 import json
 
+import numpy as np
+
 from curvemole.core.extensions import extensions
 
 
@@ -52,6 +54,60 @@ class PluginServices:
                 window.project.dataset.curve(key).metadata = copy.deepcopy(value)
 
         window._push_change("Plugin settings", redo, undo, modified_curve_ids=set())
+
+    def apply_y_replacement(
+        self,
+        curve_id,
+        values,
+        *,
+        description="Replace spectrum values",
+        metadata_key=None,
+        metadata=None,
+    ):
+        """Apply an undoable full-length Y replacement to one spectrum."""
+        window = self._window()
+        if window._thread is not None or window.project.read_only:
+            raise ValueError("Wait for the fit to finish, or use an editable project.")
+        curve = window.project.dataset.curve(curve_id)
+        replacement = np.asarray(values, dtype=float).reshape(-1).copy()
+        if replacement.shape != curve.y.shape or not np.all(np.isfinite(replacement)):
+            raise ValueError("Replacement Y values must be finite and match the spectrum length.")
+        if metadata is not None and not metadata_key:
+            raise ValueError("A metadata key is required when metadata is supplied.")
+        json.dumps(metadata, allow_nan=False)
+        from curvemole.core.data import Transformation
+
+        transformation = Transformation(
+            "replace_y",
+            parameters={"plugin_owner": self.owner},
+            description=str(description),
+            operand=replacement,
+        )
+        missing = object()
+        previous_metadata = (
+            copy.deepcopy(curve.metadata[metadata_key])
+            if metadata_key and metadata_key in curve.metadata
+            else missing
+        )
+
+        def redo():
+            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
+                curve.redo_transformation()
+            elif transformation not in curve.transformations:
+                curve.apply_transformation(transformation)
+            if metadata_key:
+                curve.metadata[metadata_key] = copy.deepcopy(metadata)
+
+        def undo():
+            if curve.transformations and curve.transformations[-1] is transformation:
+                curve.undo_transformation()
+            if metadata_key:
+                if previous_metadata is missing:
+                    curve.metadata.pop(metadata_key, None)
+                else:
+                    curve.metadata[metadata_key] = copy.deepcopy(previous_metadata)
+
+        window._push_change(str(description), redo, undo, modified_curve_ids={curve_id})
 
     def select_masks(self, masks):
         """Select existing editable masks without changing fit data or fit state."""

@@ -7,6 +7,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Add the `cosmic_ray_removal` community plugin with review-first modified-Z and
+  repeated-spectrum detection, manual candidates, per-correction acceptance and
+  an original/cleaned overlay.
+- Let nonmodal plugin panels commit a validated, undoable full-spectrum Y
+  replacement without exposing the main window.
 - Check loaded plugins for validated community updates at startup and hourly, show
   version-aware status, and stage selected updates for the next application start.
 - Give each plugin a persistent, distinct symbol and show its name when hovering over

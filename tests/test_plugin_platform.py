@@ -223,3 +223,41 @@ def register(api):
     recovered.autoload()
     assert not recovered.loaded
     recovered.finish_session()
+
+
+def test_panel_service_y_replacement_is_undoable(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole import Curve, Project
+    from curvemole.core.extensions import Contribution
+    from curvemole.gui.main_window import MainWindow
+    from curvemole.gui.plugin_services import PluginServices
+
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("CURVEMOLE_DISABLE_PLUGINS", "1")
+    project = Project()
+    curve = Curve("source", np.arange(5.0), np.arange(5.0))
+    project.add_curve(curve)
+    window = MainWindow(project)
+    owner = "test.cosmic"
+    extensions.entries[owner + ":panel"] = Contribution(
+        owner, owner + ":panel", "Test", "panels", lambda context: None
+    )
+    try:
+        service = PluginServices(window.plugin_host, owner)
+        service.apply_y_replacement(
+            curve.id, np.arange(5.0)[::-1], metadata_key="test_cleaning",
+            metadata={"intervals": [[1, 2]]}, description="Clean spectrum"
+        )
+        assert curve.y.tolist() == [4, 3, 2, 1, 0]
+        assert curve.metadata["test_cleaning"]["intervals"] == [[1, 2]]
+        window.undo_stack.undo()
+        assert curve.y.tolist() == [0, 1, 2, 3, 4]
+        assert "test_cleaning" not in curve.metadata
+        window.undo_stack.redo()
+        assert curve.y.tolist() == [4, 3, 2, 1, 0]
+    finally:
+        extensions.entries.pop(owner + ":panel", None)
+        window.project.dirty = False
+        window.close()
+        app.processEvents()

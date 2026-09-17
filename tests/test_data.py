@@ -10,7 +10,7 @@ from curvemole.core.calculator import (
     apply_custom_formula,
     apply_scalar,
 )
-from curvemole.core.data import aligned_operand
+from curvemole.core.data import Transformation, aligned_operand
 from curvemole.core.errors import DataValidationError
 
 
@@ -26,6 +26,22 @@ def test_original_data_are_immutable_and_transformations_are_reversible() -> Non
     assert curve.y.tolist() == [0, 3, 6, 9, 12]
     curve.restore_original()
     assert curve.y.tolist() == [0, 1, 2, 3, 4]
+
+
+def test_full_y_replacement_is_reversible_and_validated() -> None:
+    curve = Curve("replacement", np.arange(4.0), np.arange(4.0))
+    curve.apply_transformation(
+        Transformation("replace_y", operand=np.array([4.0, 3.0, 2.0, 1.0]))
+    )
+    assert curve.y.tolist() == [4.0, 3.0, 2.0, 1.0]
+    assert curve.undo_transformation()
+    assert curve.y.tolist() == [0.0, 1.0, 2.0, 3.0]
+    with pytest.raises(DataValidationError, match="non-finite"):
+        curve.apply_transformation(
+            Transformation("replace_y", operand=np.array([1.0, 2.0, np.nan, 4.0]))
+        )
+    assert curve.redo_transformation()
+    assert curve.y.tolist() == [4.0, 3.0, 2.0, 1.0]
 
 
 def test_masks_preserve_values_and_use_x_transfer_tolerance() -> None:
