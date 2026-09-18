@@ -154,3 +154,24 @@ def test_recent_projects_are_deduplicated_and_open_from_menu(tmp_path):
     assert window.project.path == path
     window.project.dirty = False
     window.close()
+
+def test_window_title_follows_saved_and_opened_project_filename(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(Project())
+    assert window.windowTitle().startswith("Untitled —")
+
+    saved_path = tmp_path / "Ruby experiment.fitproj"
+    monkeypatch.setattr(
+        QFileDialog, "getSaveFileName", lambda *args: (str(saved_path), "")
+    )
+    assert window.save_project()
+    assert window.windowTitle().startswith("Ruby experiment —")
+
+    other_path = tmp_path / "Opened project.fitproj"
+    from curvemole.core.serialization import save_project
+
+    save_project(Project("Old internal name"), other_path)
+    window.open_project(other_path)
+    assert window.windowTitle().startswith("Opened project —")
+    window.close()
+    app.processEvents()

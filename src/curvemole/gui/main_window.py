@@ -3153,7 +3153,8 @@ class MainWindow(QMainWindow):
     def _title(self) -> str:
         marker = " *" if self.project.dirty else ""
         mode = " [read-only]" if self.project.read_only else ""
-        return f"{self.project.name}{marker}{mode} — CurveMole {__version__}"
+        project_name = self.project.path.stem if self.project.path is not None else self.project.name
+        return f"{project_name}{marker}{mode} — CurveMole {__version__}"
 
     def _restore_layout(self) -> None:
         geometry = self.settings.value("geometry")
