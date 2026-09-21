@@ -181,8 +181,8 @@ explicitly choosing **Discard** removes its copies. Cancelling keeps them.
 
 ## 8. Laboratory notebook
 
-Click **Laboratory notebook**, the last toolbar button, to write general project
-notes. Right-click a **series**, an individual **spectrum**, or an added **fit
+Click **Laboratory notebook**, the last toolbar button, to open its workspace tab
+and write general project notes. Right-click a **series**, an individual **spectrum**, or an added **fit
 function** and choose **Add description** to attach observations to that object.
 The same command reopens its existing description for editing.
 

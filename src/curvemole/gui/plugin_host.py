@@ -69,6 +69,8 @@ class PluginHost:
             entry = extensions.entries.get(identifier)
             if entry is None or entry.owner in self.window.plugin_manager.errors:
                 dialog.close()
+                dialog.deleteLater()
+                self.dialogs.pop(identifier, None)
         if hasattr(self.window, "_refresh_quick_function_selector"):
             self.window._refresh_quick_function_selector()
         for kind, menu in self.menus.items():
@@ -113,8 +115,12 @@ class PluginHost:
         if mutating and not window._ensure_editable():
             return
         if entry.kind == "panels" and entry.identifier in self.dialogs:
-            self.dialogs[entry.identifier].show()
-            self.dialogs[entry.identifier].raise_()
+            dialog = self.dialogs[entry.identifier]
+            if hasattr(window, "activate_tool_dock"):
+                window.activate_tool_dock(dialog)
+            else:
+                dialog.show()
+                dialog.raise_()
             return
         path = None
         if entry.kind in {"importers", "exporters"}:
@@ -160,13 +166,18 @@ class PluginHost:
                 scroll.setWidget(result)
                 dialog.setWidget(scroll)
                 dialog.setToolTip(contribution_tooltip(entry))
-                dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
                 # Runtime-enabled panels may be created after restoreState(); startup
                 # panels already exist and are restored by MainWindow itself.
                 if not window.restoreDockWidget(dialog):
-                    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
-                    window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)
-                dialog.show()
+                    if hasattr(window, "register_tool_dock"):
+                        window.register_tool_dock(dialog)
+                    else:
+                        window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dialog)
+                        window.resizeDocks([dialog], [420], Qt.Orientation.Vertical)
+                if hasattr(window, "activate_tool_dock"):
+                    window.activate_tool_dock(dialog)
+                else:
+                    dialog.show()
                 self.dialogs[entry.identifier] = dialog
                 dialog.destroyed.connect(lambda: self.dialogs.pop(entry.identifier, None))
             elif result is not None:
