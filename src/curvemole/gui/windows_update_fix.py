@@ -7,6 +7,7 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import zipfile
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -253,16 +254,65 @@ def _install_windows_download(
         downloaded.unlink(missing_ok=True)
         return
 
-    destination = current.parent / Path(asset.name).name
-    source = downloaded
-    source_preinstalled = False
-    expected = asset.digest.lower().removeprefix("sha256:")
+    if asset.name.endswith("-windows-x86_64-setup.exe"):
+        installer = Path(tempfile.gettempdir()) / Path(asset.name).name
+        installer.unlink(missing_ok=True)
+        os.replace(downloaded, installer)
+        QMessageBox.information(
+            controller.window,
+            controller.window.tr("Install CurveMole"),
+            controller.window.tr(
+                "The verified CurveMole installer will now open. The existing portable copy is not deleted automatically."
+            ),
+        )
+        creationflags = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+        try:
+            subprocess.Popen([str(installer)], close_fds=True, creationflags=creationflags)
+        except Exception:
+            installer.unlink(missing_ok=True)
+            raise
+        controller.timer.stop()
+        controller.window.project.dirty = False
+        controller.window.close()
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
+        return
+
+    portable_archive = asset.name.endswith("-windows-x86_64-portable.zip")
+    if portable_archive:
+        source = Path(tempfile.gettempdir()) / f"CurveMole-update-{os.getpid()}.exe"
+        source.unlink(missing_ok=True)
+        with zipfile.ZipFile(downloaded) as archive:
+            members = [
+                name for name in archive.namelist()
+                if Path(name).name.lower() == "curvemole.exe" and not name.endswith("/")
+            ]
+            if len(members) != 1:
+                raise RuntimeError(
+                    controller.window.tr("The portable update archive is invalid.")
+                )
+            with archive.open(members[0]) as source_handle, source.open("wb") as target_handle:
+                shutil.copyfileobj(source_handle, target_handle)
+        downloaded.unlink(missing_ok=True)
+        destination = (
+            current
+            if current.name.lower() == "curvemole.exe"
+            else current.parent / f"CurveMole-{latest}-windows-x86_64.exe"
+        )
+        source_preinstalled = False
+        expected = ""
+    else:
+        destination = current.parent / Path(asset.name).name
+        source = downloaded
+        source_preinstalled = False
+        expected = asset.digest.lower().removeprefix("sha256:")
 
     # Normal versioned updates have a different filename.  Put the verified new
     # executable at its final name while the old one is still running; Windows
     # only locks the current executable, not a new sibling file.  The detached
     # helper then has a very small, reliable job after shutdown.
-    if not _same_path(current, destination):
+    if not portable_archive and not _same_path(current, destination):
         if destination.exists():
             destination.unlink()
         shutil.copy2(downloaded, destination)

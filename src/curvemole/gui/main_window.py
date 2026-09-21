@@ -906,13 +906,13 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.reset_layout_action)
 
-        tools_menu = menu.addMenu(self.tr("&Tools"))
-        tools_menu.addActions(
+        self.tools_menu = menu.addMenu(self.tr("&Tools"))
+        self.tools_menu.addActions(
             [self.calculator_action, self.function_action, self.uncertainty_action]
         )
 
-        help_menu = menu.addMenu(self.tr("&Help"))
-        help_menu.addActions(
+        self.help_menu = menu.addMenu(self.tr("&Help"))
+        self.help_menu.addActions(
             [self.quick_start_action, self.manual_action, self.update_action, self.report_action, self.about_action]
         )
 
