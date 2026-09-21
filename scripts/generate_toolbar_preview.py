@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "docs" / "previews"
 ICONS = (
     ("view-all", "View all", "Tutto il dato sperimentale"),
-    ("view-active", "View active", "Solo punti non mascherati"),
+    ("view-active", "View unmasked", "Solo punti non mascherati"),
     ("background-visual", "Visual only", "Anteprima senza sottrazione"),
     ("background-revert", "Revert background", "Ripristina il dato precedente"),
 )

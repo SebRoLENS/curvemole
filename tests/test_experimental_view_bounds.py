@@ -140,6 +140,18 @@ def test_visual_subtraction_frames_transformed_experimental_samples(plotted):
     np.testing.assert_array_equal(curve.y, original)
 
 
+def test_view_control_labels_are_explicit():
+    app = QApplication.instance() or QApplication([])
+    workspace = PlotWorkspace(FunctionRegistry.with_builtins())
+    assert [workspace.autoscale_mode.itemText(i) for i in range(workspace.autoscale_mode.count())] == [
+        "All points",
+        "Unmasked points",
+    ]
+    assert workspace.view_active_action.text() == "View unmasked"
+    assert workspace.view_controls.layout().indexOf(workspace.display_mode) == -1
+    app.processEvents()
+
+
 def test_spectrum_switch_autoscale_is_optional_and_uses_all_or_active_points():
     app = QApplication.instance() or QApplication([])
     project = Project("autoscale")

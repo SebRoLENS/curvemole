@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QFrame,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -153,27 +154,27 @@ class PlotWorkspace(QWidget):
         self._placement_items: list[Any] = []
         self._placement_name = ""
 
+        self.view_controls = QFrame(self)
+        self.view_controls.setObjectName("viewControls")
+        self.view_controls.setFrameShape(QFrame.Shape.StyledPanel)
+        self.view_controls.setStyleSheet(
+            "QFrame#viewControls {"
+            " background-color: palette(alternate-base);"
+            " border: 1px solid palette(mid);"
+            " border-radius: 7px;"
+            "}"
+        )
+        view_layout = QVBoxLayout(self.view_controls)
+        view_layout.setContentsMargins(8, 6, 8, 6)
+        view_layout.setSpacing(4)
+
         controls = QHBoxLayout()
-        controls.setContentsMargins(4, 2, 4, 2)
+        controls.setContentsMargins(0, 0, 0, 0)
         controls.addWidget(QLabel(self.tr("Display:")))
         self.display_mode = QComboBox()
         self.display_mode.addItems([self.tr("Single"), self.tr("Overlay"), self.tr("Waterfall")])
         self.display_mode.currentIndexChanged.connect(self.refresh)
         controls.addWidget(self.display_mode)
-        self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
-        self.autoscale_toggle.setToolTip(
-            self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
-        )
-        controls.addWidget(self.autoscale_toggle)
-        self.autoscale_mode = QComboBox()
-        self.autoscale_mode.addItems([self.tr("All"), self.tr("Active")])
-        self.autoscale_mode.setToolTip(
-            self.tr("All includes masked points; Active fits only non-masked points.")
-        )
-        self.autoscale_mode.setEnabled(False)
-        controls.addWidget(self.autoscale_mode)
-        self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
-        self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
         self._active_series_id: str | None = None
         self.scope_project = QRadioButton(self.tr("All series"))
         self.scope_series = QRadioButton(self.tr("Active series"))
@@ -190,8 +191,28 @@ class PlotWorkspace(QWidget):
         self.scope_group.buttonToggled.connect(lambda button, checked: self._scope_changed() if checked else None)
         self.display_mode.currentIndexChanged.connect(self._scope_enabled)
         controls.addStretch(1)
+        view_layout.addLayout(controls)
+
+        autoscale_controls = QHBoxLayout()
+        autoscale_controls.setContentsMargins(0, 0, 0, 0)
+        self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
+        self.autoscale_toggle.setToolTip(
+            self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
+        )
+        autoscale_controls.addWidget(self.autoscale_toggle)
+        self.autoscale_mode = QComboBox()
+        self.autoscale_mode.addItems([self.tr("All points"), self.tr("Unmasked points")])
+        self.autoscale_mode.setToolTip(
+            self.tr("All points includes masked points; Unmasked points fits only non-masked points.")
+        )
+        self.autoscale_mode.setEnabled(False)
+        autoscale_controls.addWidget(self.autoscale_mode)
+        autoscale_controls.addStretch(1)
+        self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
+        self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
+        view_layout.addLayout(autoscale_controls)
         offset_controls = QHBoxLayout()
-        offset_controls.setContentsMargins(4, 0, 4, 2)
+        offset_controls.setContentsMargins(0, 0, 0, 0)
         offset_controls.addWidget(QLabel(self.tr("X offset:")))
         self.x_offset = _offset_spin()
         offset_controls.addWidget(self.x_offset)
@@ -221,11 +242,11 @@ class PlotWorkspace(QWidget):
         self.coordinate_label = QLabel("x: —   y: —")
         self.coordinate_label.setMinimumWidth(210)
         offset_controls.addWidget(self.coordinate_label)
+        view_layout.addLayout(offset_controls)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(controls)
-        layout.addLayout(offset_controls)
+        layout.addWidget(self.view_controls)
         self.placement_bar = QWidget()
         placement_layout = QHBoxLayout(self.placement_bar)
         placement_layout.setContentsMargins(8, 4, 8, 4)
@@ -258,8 +279,8 @@ class PlotWorkspace(QWidget):
         self.plot.autoBtn.clicked.connect(lambda: self.auto_range())
         self.plot.showGrid(x=True, y=True, alpha=0.15)
         view_menu = self.view_box.getMenu(None)
-        self.view_active_action = QAction(self.tr("View active"), self)
-        self.view_active_action.setToolTip(self.tr("Fit unmasked experimental data only."))
+        self.view_active_action = QAction(self.tr("View unmasked"), self)
+        self.view_active_action.setToolTip(self.tr("View unmasked\nFrame only unmasked experimental data."))
         self.view_active_action.triggered.connect(self.view_active)
         view_menu.insertAction(view_menu.actions()[1], self.view_active_action)
         view_menu.addSeparator()
