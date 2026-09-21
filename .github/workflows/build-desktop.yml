@@ -173,7 +173,7 @@ jobs:
           if-no-files-found: error
 
   windows:
-    name: Windows standalone executable x86_64
+    name: Windows installer and portable x86_64
     needs: prepare-icons
     runs-on: windows-2025
     steps:
@@ -253,7 +253,6 @@ jobs:
         with:
           name: release-windows-x86_64
           path: |
-            CurveMole-${{ env.VERSION }}-windows-x86_64.exe
             CurveMole-${{ env.VERSION }}-windows-x86_64-setup.exe
             CurveMole-${{ env.VERSION }}-windows-x86_64-portable.zip
           if-no-files-found: error
