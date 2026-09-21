@@ -70,32 +70,6 @@ def asset_suffix(system: str, machine: str) -> str | None:
     return None
 
 
-def windows_installation_is_managed(binary: Path | None = None) -> bool:
-    """Return whether the running Windows executable came from our installer."""
-    candidate = binary or _running_desktop_binary()
-    return bool(
-        candidate is not None
-        and candidate.parent.joinpath("curvemole-installed.marker").is_file()
-    )
-
-
-def asset_suffixes(system: str, machine: str, binary: Path | None = None) -> tuple[str, ...]:
-    """Return preferred update assets for installed and portable applications."""
-    architecture = machine.lower()
-    if architecture not in {"x86_64", "amd64"}:
-        return ()
-    if system == "Linux":
-        return ("-linux-x86_64.AppImage",)
-    if system == "Windows":
-        if windows_installation_is_managed(binary):
-            return ("-windows-x86_64-setup.exe",)
-        return (
-            "-windows-x86_64-portable.zip",
-            "-windows-x86_64.exe",
-        )
-    return ()
-
-
 def _running_desktop_binary() -> Path | None:
     system = platform.system()
     if system == "Linux":
@@ -224,8 +198,6 @@ class UpdateController(QObject):
                         self.window.tr("Check for updates"),
                         self.window.tr("CurveMole is up to date. Installed version: ") + __version__,
                     )
-                if latest == current:
-                    self._offer_windows_installer(payload, latest_text)
                 return
 
             kind = update_kind(current, latest)
@@ -290,27 +262,13 @@ class UpdateController(QObject):
 
     def _release_asset(self, payload: dict[str, Any]) -> ReleaseAsset | None:
         binary = _running_desktop_binary()
-        suffixes = asset_suffixes(platform.system(), platform.machine(), binary)
-        if binary is None or not suffixes:
+        suffix = asset_suffix(platform.system(), platform.machine())
+        if binary is None or suffix is None:
             return None
-        for suffix in suffixes:
-            for raw in payload.get("assets", []):
-                name = str(raw.get("name", ""))
-                url = str(raw.get("browser_download_url", ""))
-                if name.endswith(suffix) and url:
-                    return ReleaseAsset(
-                        name=name,
-                        url=url,
-                        digest=str(raw.get("digest", "") or ""),
-                        size=int(raw.get("size", 0) or 0),
-                    )
-        return None
-
-    def _windows_setup_asset(self, payload: dict[str, Any]) -> ReleaseAsset | None:
         for raw in payload.get("assets", []):
             name = str(raw.get("name", ""))
             url = str(raw.get("browser_download_url", ""))
-            if name.endswith("-windows-x86_64-setup.exe") and url:
+            if name.endswith(suffix) and url:
                 return ReleaseAsset(
                     name=name,
                     url=url,
@@ -318,39 +276,6 @@ class UpdateController(QObject):
                     size=int(raw.get("size", 0) or 0),
                 )
         return None
-
-    def _offer_windows_installer(self, payload: dict[str, Any], latest: str) -> None:
-        """Offer a one-time migration from the legacy portable Windows build."""
-        binary = _running_desktop_binary()
-        if (
-            platform.system() != "Windows"
-            or binary is None
-            or windows_installation_is_managed(binary)
-            or os.environ.get("CURVEMOLE_SMOKE_TEST") == "1"
-            or str(self.settings.value("desktop/windows_installer_declined", "")) == latest
-        ):
-            return
-        asset = self._windows_setup_asset(payload)
-        if asset is None:
-            return
-        box = QMessageBox(secondary_window_parent(self.window))
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle(self.window.tr("Install CurveMole"))
-        box.setText(
-            self.window.tr(
-                "Install CurveMole in the Windows application menu and register .fitproj files? "
-                "Your projects, settings and plugins will be preserved."
-            )
-        )
-        install_button = box.addButton(
-            self.window.tr("Install CurveMole"), QMessageBox.ButtonRole.AcceptRole
-        )
-        box.addButton(self.window.tr("Keep portable"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is install_button:
-            self._download_update(asset, latest)
-        else:
-            self.settings.setValue("desktop/windows_installer_declined", latest)
 
     def _show_update_available(
         self,
@@ -529,8 +454,6 @@ class UpdateController(QObject):
         system = platform.system()
 
         if system == "Linux":
-            if current.name == "CurveMole.AppImage":
-                destination = current
             if destination.exists() and destination != current:
                 destination.unlink()
             os.replace(downloaded, destination)

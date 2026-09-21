@@ -32,18 +32,13 @@ tests, builds the Python packages, and generates LaTeX and PDF manuals from
 A second workflow builds and smoke-tests:
 
 - Linux x86_64 AppImage, with GitHub artifact attestation
-- Windows x86_64 per-user installer and portable ZIP
+- Windows x86_64 standalone executable
 - macOS Apple Silicon DMG
 - macOS Intel x86_64 DMG
 - Python wheel and source distribution
 - versioned LaTeX and PDF user manuals
 
 All downloadable files and `SHA256SUMS.txt` are attached to the same release.
-
-The first installer-enabled release also publishes the legacy raw Windows executable
-so older self-updaters can reach the transition release. Remove that raw executable
-from the Windows artifact upload after the transition release succeeds; current
-portable builds update from the ZIP and installed builds update through the installer.
 
 ## macOS signing and notarization
 

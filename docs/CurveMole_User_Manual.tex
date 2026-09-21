@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.27.0}
+\ohead{Version 0.26.6}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.27.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.26.6\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.27.0}
+\subtitle{Preview 0.26.6}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.27.0}
+\date{Updated for CurveMole 0.26.6}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.27.0 Preview. The Markdown file is the authoritative source.
+CurveMole 0.26.6 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.27.0 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.26.6 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -269,8 +269,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.27.0
-describes CurveMole 0.27.0.
+an independent document version. For example, a manual marked 0.26.6
+describes CurveMole 0.26.6.
 
 The release automation performs four checks:
 
@@ -477,30 +477,23 @@ Mark executable and run\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Windows x86-64\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{CurveMole-VERSION-windows-x86\_64-setup.exe}\strut
+\texttt{CurveMole-VERSION-windows-x86\_64.exe}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Run the per-user installer\strut
-\end{minipage}\tabularnewline
-\begin{minipage}[t]{0.30\columnwidth}\raggedright
-Windows portable\strut
-\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{CurveMole-VERSION-windows-x86\_64-portable.zip}\strut
-\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Extract and run \texttt{CurveMole.exe}\strut
+Double-click the executable\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 macOS Apple Silicon\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{CurveMole-VERSION-macos-arm64.dmg}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Drag CurveMole to Applications\strut
+Open the DMG and launch the app\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 macOS Intel\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{CurveMole-VERSION-macos-x86\_64.dmg}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Drag CurveMole to Applications\strut
+Open the DMG and launch the app\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
@@ -517,8 +510,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.27.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.27.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.26.6{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.26.6{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -526,7 +519,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.27.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.26.6{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -539,20 +532,6 @@ packages are:
 \FunctionTok{sudo}\NormalTok{ apt install libegl1 libgl1 libxkbcommon{-}x11{-}0 libxcb{-}cursor0}
 \end{Highlighting}
 \end{Shaded}
-
-Choose \textbf{Tools \textgreater{} Integrate CurveMole with the
-desktop} to copy a new AppImage to a stable per-user location, add
-CurveMole to the application menu, install its icon, and register
-\texttt{.fitproj} projects. No administrator privileges are required. If
-a working manual \texttt{curvemole.desktop} launcher already exists,
-CurveMole backs it up once and adopts its command rather than creating a
-duplicate application entry.
-
-The Windows installer similarly creates a Start-menu entry, offers an
-optional desktop shortcut, and registers \texttt{.fitproj}. On macOS the
-application appears in Applications and Launchpad. On every platform, a
-registered project can be opened by double-clicking it or choosing
-\textbf{Open with CurveMole}.
 
 \hypertarget{verifying-sha-256-checksums}{%
 \section{3.4 Verifying SHA-256
@@ -570,7 +549,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.27.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.26.6{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -578,7 +557,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{27}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{26}\NormalTok{.}\FunctionTok{6}\NormalTok{{-}windows{-}x86\_64.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -595,7 +574,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.27.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.26.6{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -606,7 +585,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{27}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{26}\NormalTok{.}\FunctionTok{6}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -677,17 +656,15 @@ release. Click the badge or choose \textbf{Help \textgreater{} Check for
 updates} to check again, inspect the release notes, or reopen the update
 dialog.
 
-Linux AppImage and Windows desktop packages can normally use
-\textbf{Update now}. CurveMole downloads the matching release asset and
-verifies the SHA-256 digest supplied by GitHub. Linux replaces the
-AppImage, Windows portable installations update from the portable ZIP,
-and installed Windows applications launch the verified installer. The
-application directory must be writable and no fit or uncertainty task
-may be running. Existing Windows portable users are offered a one-time
-migration to the installer; projects, settings and plugins remain in
-their existing user directories. Python, source, macOS, unsupported
-architectures, and protected installations must be updated manually from
-the release page.
+Linux AppImage and Windows standalone installations can normally use
+\textbf{Update now}. CurveMole downloads the matching release asset,
+verifies the SHA-256 digest supplied by GitHub, replaces the old
+executable, and removes obsolete release files. The application
+directory must be writable and no fit or uncertainty task may be
+running. Windows closes and restarts automatically; Linux asks the user
+to close and reopen the new AppImage. Python, source, macOS, unsupported
+architectures, and installations whose executable cannot be replaced
+must be updated manually from the release page.
 
 \hypertarget{a-complete-first-fit}{%
 \chapter{4. A complete first fit}\label{a-complete-first-fit}}
@@ -1114,20 +1091,12 @@ The \textbf{View} and \textbf{Tools} menus show or hide these docks:
   \textbf{Function Builder:} safe mathematical custom functions;
 \item
   \textbf{Uncertainty Analysis:} Monte Carlo, bootstrap, and profile
-  calculations;
-\item
-  \textbf{Laboratory notebook:} project notes and searchable object
-  descriptions;
-\item
-  plugin panels contributed by installed plugins.
+  calculations.
 \end{itemize}
 
-Opening a tool places it in the shared tab group beside \textbf{Model
-and parameters} and selects its tab. Closing or hiding a tab preserves
-the panel and its current state; opening it again returns to the same
-panel. Tabs can still be moved or floated. CurveMole remembers window
-geometry, dock arrangement, and theme. Use \textbf{View \textgreater{}
-Reset layout} to restore the standard tabbed layout.
+Docks can be moved, tabbed, resized, or floated. CurveMole remembers
+window geometry, dock arrangement, and theme. Use \textbf{View
+\textgreater{} Reset layout} to restore the standard layout.
 
 \hypertarget{themes}{%
 \section{5.7 Themes}\label{themes}}
@@ -1246,7 +1215,7 @@ Optional columns are:
 Only one of \texttt{sigma\_y}, generic weight, variance, or inverse
 variance can be selected for a given import. Variance is converted to
 \texttt{sigma\_y} by square root. \texttt{sigma\_x} is stored in the
-project but is not used by the version 0.27.0 optimizer.
+project but is not used by the version 0.26.6 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y
 columns, uncertainty mappings, delimiter, decimal separator, header or
@@ -2268,7 +2237,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.27.0 does not yet provide a single comprehensive on-screen
+Preview 0.26.6 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -2399,7 +2368,7 @@ chi-square with the baseline. The default grid spans approximately three
 covariance standard errors on either side, or a fallback span when no
 standard error is available, while respecting bounds.
 
-Preview 0.27.0 uses 31 grid points and a one-parameter chi-square
+Preview 0.26.6 uses 31 grid points and a one-parameter chi-square
 threshold. Failed grid points are counted. A profile interval is more
 informative than a symmetric standard error near bounds or in nonlinear
 problems, but grid resolution should be considered when interpreting
@@ -3531,12 +3500,11 @@ Archive at least:
 \section{20.1.1 Laboratory notebook}\label{laboratory-notebook}}
 
 The \textbf{Laboratory notebook} button at the end of the toolbar opens
-project notes and a searchable description browser as a workspace tab.
-Use \textbf{Add description} from the context menu of a series,
-individual spectrum, or added fit function to create or edit its
-description. Function descriptions are specific to the spectrum
-containing that function, including when sequential propagation
-preserves a component ID.
+project notes and a searchable description browser. Use \textbf{Add
+description} from the context menu of a series, individual spectrum, or
+added fit function to create or edit its description. Function
+descriptions are specific to the spectrum containing that function,
+including when sequential propagation preserves a component ID.
 
 Descriptions are grouped by series and spectrum. Names follow renaming
 and moves. When an object is removed, its description remains in
@@ -3583,8 +3551,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.27.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.27.0
+(Version 0.26.6) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.26.6
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -3797,9 +3765,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.27.0-limitations}{%
-\chapter{Appendix D. Preview 0.27.0
-limitations}\label{appendix-d.-preview-0.27.0-limitations}}
+\hypertarget{appendix-d.-preview-0.26.6-limitations}{%
+\chapter{Appendix D. Preview 0.26.6
+limitations}\label{appendix-d.-preview-0.26.6-limitations}}
 
 The following boundaries are important when evaluating this release:
 

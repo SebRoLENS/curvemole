@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import math
 import os
-import platform
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -12,13 +11,13 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer
-from PySide6.QtGui import QAction, QFileOpenEvent, QKeySequence, QShortcut
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QCoreApplication, QLocale, Qt
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QApplication
 
 from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.models import Component
-from curvemole.gui.main_window import MainWindow, _resource_path
+from curvemole.gui.main_window import MainWindow
 from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.rendering import _optimise_plot_data_item
@@ -278,124 +277,18 @@ _install_continuous_peak_placement()
 install_manual_point_support()
 
 
-class CurveMoleApplication(QApplication):
-    """QApplication that accepts native Finder/Open-With file events."""
-
-    def __init__(self, arguments: Sequence[str]) -> None:
-        super().__init__(arguments)
-        self._file_open_handler: Any | None = None
-        self._pending_file_opens: list[str] = []
-
-    def event(self, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.FileOpen and isinstance(event, QFileOpenEvent):
-            path = event.file()
-            if path:
-                if self._file_open_handler is None:
-                    self._pending_file_opens.append(path)
-                else:
-                    self._file_open_handler(path)
-                return True
-        return super().event(event)
-
-    def set_file_open_handler(self, handler: Any) -> None:
-        self._file_open_handler = handler
-        pending, self._pending_file_opens = self._pending_file_opens, []
-        for path in pending:
-            handler(path)
-
-
-def _open_paths(window: MainWindow, values: Sequence[str]) -> None:
-    """Open one project or import file paths supplied by the operating system."""
-    paths = [Path(value) for value in values if value and Path(value).exists()]
-    projects = [path for path in paths if path.suffix.lower() == ".fitproj"]
-    if projects:
-        window.open_project(projects[0])
-    data = [str(path) for path in paths if path.suffix.lower() != ".fitproj"]
-    if data:
-        window.import_data(data)
-
-
 class CurveMoleMainWindow(MainWindow):
     """Main window with stable navigation and continuous quick peak placement."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._continuous_quick_peak_function_id: str | None = None
         super().__init__(*args, **kwargs)
-        self.desktop_integration_action: QAction | None = None
-        if platform.system() == "Linux":
-            from curvemole.gui.desktop_integration import current_appimage
-
-            if current_appimage() is not None:
-                self.desktop_integration_action = QAction(
-                    self.tr("Integrate CurveMole with the desktop…"), self
-                )
-                self.desktop_integration_action.triggered.connect(
-                    lambda checked=False: self.integrate_linux_desktop()
-                )
-                self.tools_menu.addSeparator()
-                self.tools_menu.addAction(self.desktop_integration_action)
         self.quick_peak_action.setToolTip(
             self.tr(
                 "Quick Add Function\nUse the function selected in the adjacent list. "
                 "Press Enter, Esc, or Finish to stop."
             )
         )
-
-    def integrate_linux_desktop(self) -> None:
-        """Install or update the per-user AppImage launcher and file association."""
-        from curvemole.gui.desktop_integration import integrate_linux_desktop
-
-        icon = _resource_path("curvemole.png")
-        try:
-            if icon is None:
-                raise RuntimeError(self.tr("The bundled CurveMole icon could not be found."))
-            result = integrate_linux_desktop(icon_source=icon)
-        except Exception as exc:
-            self._log(f"Desktop integration failed: {exc}")
-            QMessageBox.warning(
-                self,
-                self.tr("Desktop integration"),
-                self.tr("CurveMole could not update the desktop integration:\n") + str(exc),
-            )
-            return
-        detail = (
-            self.tr("The existing launcher was adopted and updated.")
-            if result.adopted_existing_launcher
-            else self.tr("The AppImage was copied to a stable per-user application folder.")
-        )
-        QMessageBox.information(
-            self,
-            self.tr("Desktop integration"),
-            self.tr(
-                "CurveMole is now available from the application menu and registered for .fitproj files.\n\n"
-            )
-            + detail,
-        )
-
-    def offer_linux_desktop_integration(self) -> None:
-        """Offer integration once without disturbing existing managed installs."""
-        if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
-            return
-        from curvemole.gui.desktop_integration import linux_integration_is_current
-
-        if linux_integration_is_current() or self.settings.value(
-            "desktop/linux_integration_declined", False, type=bool
-        ):
-            return
-        answer = QMessageBox.question(
-            self,
-            self.tr("Integrate CurveMole with Linux"),
-            self.tr(
-                "Add CurveMole to the application menu and register .fitproj files? "
-                "An existing manual launcher will be adopted without changing system files."
-            ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.integrate_linux_desktop()
-        else:
-            self.settings.setValue("desktop/linux_integration_declined", True)
 
     def _fit_finished(self, result: FitResult) -> None:
         view_state = _capture_plot_view(self.plot_workspace)
@@ -484,7 +377,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    app = CurveMoleApplication(arguments)
+    app = QApplication(arguments)
     QCoreApplication.setOrganizationName("CurveMole")
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
@@ -493,15 +386,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     from curvemole.gui.plugin_updates import PluginUpdateController
     window.plugin_update_controller = PluginUpdateController(window)
     window.show()
-    app.set_file_open_handler(lambda path: _open_paths(window, [path]))
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
+        from PySide6.QtCore import QTimer
+
         missing_icons = _missing_toolbar_icons(window)
         if missing_icons:
             raise RuntimeError(f"Missing bundled toolbar icons: {', '.join(missing_icons)}")
         QTimer.singleShot(0, app.quit)
     if len(arguments) > 1:
-        _open_paths(window, arguments[1:])
+        path = Path(arguments[1])
+        if path.suffix.lower() == ".fitproj" and path.exists():
+            window.open_project(path)
+        elif path.exists():
+            window.import_data([str(path)])
     if os.environ.get("CURVEMOLE_SMOKE_TEST") != "1":
+        from PySide6.QtCore import QTimer
+
         from curvemole.gui.recovery_session import RecoverySession
 
         try:
@@ -510,8 +410,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         except OSError as exc:
             window._log(f"Recovery session tracking failed: {exc}")
         QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
-        if platform.system() == "Linux" and window.desktop_integration_action is not None:
-            QTimer.singleShot(0, window.offer_linux_desktop_integration)
     return app.exec()
 
 

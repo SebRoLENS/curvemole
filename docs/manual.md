@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.27.0
+# CurveMole User Manual - Preview 0.26.6
 
-**Current manual version: 0.27.0**
+**Current manual version: 0.26.6**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.27.0 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.26.6 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.27.0 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.26.6 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.27.0 describes CurveMole 0.27.0.
+version. For example, a manual marked 0.26.6 describes CurveMole 0.26.6.
 
 The release automation performs four checks:
 
@@ -171,10 +171,9 @@ and select the package for your system.
 | Platform | Release asset | Normal launch method |
 |---|---|---|
 | Linux x86-64 | `CurveMole-VERSION-linux-x86_64.AppImage` | Mark executable and run |
-| Windows x86-64 | `CurveMole-VERSION-windows-x86_64-setup.exe` | Run the per-user installer |
-| Windows portable | `CurveMole-VERSION-windows-x86_64-portable.zip` | Extract and run `CurveMole.exe` |
-| macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Drag CurveMole to Applications |
-| macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Drag CurveMole to Applications |
+| Windows x86-64 | `CurveMole-VERSION-windows-x86_64.exe` | Double-click the executable |
+| macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Open the DMG and launch the app |
+| macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Open the DMG and launch the app |
 
 Windows and macOS packages are currently unsigned. The operating system may show a
 warning on first launch. Download only from the official GitHub release page and
@@ -185,14 +184,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.27.0-linux-x86_64.AppImage
-./CurveMole-0.27.0-linux-x86_64.AppImage
+chmod +x CurveMole-0.26.6-linux-x86_64.AppImage
+./CurveMole-0.26.6-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.27.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.26.6-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -201,17 +200,6 @@ the distribution. On Debian or Ubuntu, the commonly required packages are:
 ```bash
 sudo apt install libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
 ```
-
-Choose **Tools > Integrate CurveMole with the desktop** to copy a new AppImage to a
-stable per-user location, add CurveMole to the application menu, install its icon,
-and register `.fitproj` projects. No administrator privileges are required. If a
-working manual `curvemole.desktop` launcher already exists, CurveMole backs it up
-once and adopts its command rather than creating a duplicate application entry.
-
-The Windows installer similarly creates a Start-menu entry, offers an optional
-desktop shortcut, and registers `.fitproj`. On macOS the application appears in
-Applications and Launchpad. On every platform, a registered project can be opened
-by double-clicking it or choosing **Open with CurveMole**.
 
 ### 3.4 Verifying SHA-256 checksums
 
@@ -224,13 +212,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.27.0-macos-arm64.dmg
+shasum -a 256 CurveMole-0.26.6-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.27.0-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.26.6-windows-x86_64.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -242,7 +230,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.27.0-py3-none-any.whl
+python -m pip install ./curvemole-0.26.6-py3-none-any.whl
 curvemole gui
 ```
 
@@ -251,7 +239,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.27.0-py3-none-any.whl
+python -m pip install .\curvemole-0.26.6-py3-none-any.whl
 curvemole gui
 ```
 
@@ -299,15 +287,13 @@ An automatic notification is shown only once for each newly detected release. Cl
 the badge or choose **Help > Check for updates** to check again, inspect the release
 notes, or reopen the update dialog.
 
-Linux AppImage and Windows desktop packages can normally use **Update now**.
-CurveMole downloads the matching release asset and verifies the SHA-256 digest supplied
-by GitHub. Linux replaces the AppImage, Windows portable installations update from the
-portable ZIP, and installed Windows applications launch the verified installer. The
+Linux AppImage and Windows standalone installations can normally use **Update now**.
+CurveMole downloads the matching release asset, verifies the SHA-256 digest supplied
+by GitHub, replaces the old executable, and removes obsolete release files. The
 application directory must be writable and no fit or uncertainty task may be running.
-Existing Windows portable users are offered a one-time migration to the installer;
-projects, settings and plugins remain in their existing user directories. Python,
-source, macOS, unsupported architectures, and protected installations must be updated
-manually from the release page.
+Windows closes and restarts automatically; Linux asks the user to close and reopen the
+new AppImage. Python, source, macOS, unsupported architectures, and installations whose
+executable cannot be replaced must be updated manually from the release page.
 
 ## 4. A complete first fit
 
@@ -546,15 +532,11 @@ The **View** and **Tools** menus show or hide these docks:
 - **Log:** operational messages and errors;
 - **Data Calculator:** reversible scalar and curve-to-curve transformations;
 - **Function Builder:** safe mathematical custom functions;
-- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations;
-- **Laboratory notebook:** project notes and searchable object descriptions;
-- plugin panels contributed by installed plugins.
+- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations.
 
-Opening a tool places it in the shared tab group beside **Model and parameters** and
-selects its tab. Closing or hiding a tab preserves the panel and its current state;
-opening it again returns to the same panel. Tabs can still be moved or floated.
-CurveMole remembers window geometry, dock arrangement, and theme. Use **View > Reset
-layout** to restore the standard tabbed layout.
+Docks can be moved, tabbed, resized, or floated. CurveMole remembers window geometry,
+dock arrangement, and theme. Use **View > Reset layout** to restore the standard
+layout.
 
 ### 5.7 Themes
 
@@ -634,7 +616,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.27.0 optimizer.
+stored in the project but is not used by the version 0.26.6 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -1332,7 +1314,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.27.0 does not yet provide a single comprehensive on-screen results table, so use the
+0.26.6 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -1430,7 +1412,7 @@ refits all remaining free parameters, and compares chi-square with the baseline.
 The default grid spans approximately three covariance standard errors on either side,
 or a fallback span when no standard error is available, while respecting bounds.
 
-Preview 0.27.0 uses 31 grid points and a one-parameter chi-square threshold. Failed
+Preview 0.26.6 uses 31 grid points and a one-parameter chi-square threshold. Failed
 grid points are counted. A profile interval is more informative than a symmetric
 standard error near bounds or in nonlinear problems, but grid resolution should be
 considered when interpreting endpoints.
@@ -2245,7 +2227,7 @@ Archive at least:
 ### 20.1.1 Laboratory notebook
 
 The **Laboratory notebook** button at the end of the toolbar opens project notes
-and a searchable description browser as a workspace tab. Use **Add description** from the context menu
+and a searchable description browser. Use **Add description** from the context menu
 of a series, individual spectrum, or added fit function to create or edit its
 description. Function descriptions are specific to the spectrum containing that
 function, including when sequential propagation preserves a component ID.
@@ -2285,9 +2267,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.27.0)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.26.6)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.27.0
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.26.6
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -2355,7 +2337,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.exe` | Windows desktop executable |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.27.0 limitations
+## Appendix D. Preview 0.26.6 limitations
 
 The following boundaries are important when evaluating this release:
 

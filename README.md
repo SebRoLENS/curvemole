@@ -9,7 +9,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.22870973"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22870973.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -22,7 +22,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.27.0 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.26.6 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 
@@ -33,15 +33,10 @@ line, and reproducible YAML workflows.
 
 Available packages are built automatically for:
 
-- Linux x86_64: AppImage with optional per-user desktop integration
-- Windows x86_64: installer (recommended) or portable `.zip`
+- Linux x86_64: AppImage
+- Windows x86_64: standalone `.exe`
 - macOS Apple Silicon: `.dmg`
 - macOS Intel x86_64: `.dmg`
-
-The installed desktop applications register CurveMole projects (`.fitproj`) with
-the operating system, so they can be opened by double-clicking or with **Open with
-CurveMole**. Linux AppImage users can choose **Tools > Integrate CurveMole with the
-desktop**; an existing manual launcher is adopted and backed up instead of duplicated.
 - Python 3.12+: wheel and source distribution
 
 > **Windows and macOS security notice**
@@ -143,7 +138,7 @@ to releases.
 - human-friendly Wide exports, Python-friendly Tidy exports, and one-file-per-spectrum
   numeric export of data, components, total fit, background, and residuals
 - startup and hourly release checks with an in-app version badge and self-update for
-  supported Linux AppImage and Windows installed/portable applications
+  supported Linux AppImage and Windows standalone installations
 - Live spectrum preview while browsing files and choosing import columns, with adaptive rendering
 - Separate Run automation button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins
@@ -228,17 +223,18 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.27.0**
+Current public version: **0.26.6**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.27.0)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22870973
+Version **0.26.6** will be archived on Zenodo after its GitHub integration is enabled.
+The release DOI will then be inserted here automatically.
 
-DOI: [**10.5281/zenodo.22870973**](https://doi.org/10.5281/zenodo.22870973)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.26.6)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.26.6
 
 ## License
 

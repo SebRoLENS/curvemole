@@ -45,17 +45,8 @@ class DescriptionDialog(QDialog):
 
 
 class LaboratoryNotebookDialog(QDialog):
-    def __init__(
-        self,
-        project: Project,
-        parent=None,
-        *,
-        editable: bool = True,
-        embedded: bool = False,
-    ):
+    def __init__(self, project: Project, parent=None, *, editable: bool = True):
         super().__init__(parent)
-        if embedded:
-            self.setWindowFlags(Qt.WindowType.Widget)
         self.project = project
         self.editable = editable and not project.read_only
         self.current_key: str | None = None
@@ -106,12 +97,7 @@ class LaboratoryNotebookDialog(QDialog):
         self.export_button = QPushButton(self.tr("Save notebook as text…"))
         self.export_button.clicked.connect(self._export)
         buttons.addButton(self.export_button, QDialogButtonBox.ButtonRole.ActionRole)
-        if embedded:
-            close_button = buttons.button(QDialogButtonBox.StandardButton.Close)
-            buttons.removeButton(close_button)
-            close_button.deleteLater()
-        else:
-            buttons.rejected.connect(self.reject)
+        buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self._populate()
 

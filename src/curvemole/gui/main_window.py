@@ -57,7 +57,6 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
-    QTabWidget,
     QToolBar,
     QTreeWidget,
     QTreeWidgetItem,
@@ -489,8 +488,6 @@ class MainWindow(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
-        self._tool_docks: list[QDockWidget] = []
-        self._notebook_widget = None
 
         self.setWindowTitle(self._title())
         self.setMinimumSize(960, 640)
@@ -602,28 +599,9 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel = UncertaintyPanel()
         self.uncertainty_dock = self._dock(self.tr("Uncertainty Analysis"), self.uncertainty_panel, Qt.DockWidgetArea.BottomDockWidgetArea)
         self.uncertainty_dock.hide()
-
-        self.notebook_dock = self._dock(
-            self.tr("Laboratory notebook"), QWidget(), Qt.DockWidgetArea.RightDockWidgetArea
-        )
-        self.notebook_dock.hide()
-
-        self._tool_docks.extend(
-            [
-                self.model_dock,
-                self.calculator_dock,
-                self.function_dock,
-                self.worksheet_dock,
-                self.diagnostics_dock,
-                self.uncertainty_dock,
-                self.log_dock,
-                self.notebook_dock,
-            ]
-        )
-        self.setDockNestingEnabled(True)
-        self.setDocumentMode(True)
-        self.setTabPosition(Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North)
-        self._apply_tabbed_tool_layout()
+        self.tabifyDockWidget(self.log_dock, self.worksheet_dock)
+        self.tabifyDockWidget(self.worksheet_dock, self.diagnostics_dock)
+        self.tabifyDockWidget(self.diagnostics_dock, self.uncertainty_dock)
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
         dock = QDockWidget(title, self)
@@ -632,52 +610,6 @@ class MainWindow(QMainWindow):
         dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
         self.addDockWidget(area, dock)
         return dock
-
-    def register_tool_dock(self, dock: QDockWidget) -> None:
-        """Add a native or plugin tool to the shared tabbed workspace."""
-        if dock not in self._tool_docks:
-            self._tool_docks.append(dock)
-        if dock is self.model_dock:
-            return
-        if dock in self.tabifiedDockWidgets(self.model_dock):
-            return
-        group = [self.model_dock, *self.tabifiedDockWidgets(self.model_dock), dock]
-        hidden = {item: item.isHidden() for item in group}
-        for item in group:
-            item.show()
-        dock.setFloating(False)
-        if self.dockWidgetArea(dock) != Qt.DockWidgetArea.RightDockWidgetArea:
-            self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-        self.tabifyDockWidget(self.model_dock, dock)
-        for item, was_hidden in hidden.items():
-            item.setVisible(not was_hidden)
-
-    def activate_tool_dock(self, dock: QDockWidget) -> None:
-        self.register_tool_dock(dock)
-        dock.show()
-        dock.raise_()
-
-    def _apply_tabbed_tool_layout(self) -> None:
-        hidden = {dock: dock.isHidden() for dock in self._tool_docks}
-        for dock in self._tool_docks:
-            dock.setFloating(False)
-            if self.dockWidgetArea(dock) != Qt.DockWidgetArea.RightDockWidgetArea:
-                self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, dock)
-            dock.show()
-        for dock in self._tool_docks:
-            if dock is not self.model_dock:
-                self.tabifyDockWidget(self.model_dock, dock)
-        for dock, was_hidden in hidden.items():
-            dock.setVisible(not was_hidden)
-        self.model_dock.show()
-
-    def _tool_action(self, dock: QDockWidget, text: str) -> QAction:
-        action = dock.toggleViewAction()
-        action.setText(text)
-        action.triggered.connect(
-            lambda visible, item=dock: self.activate_tool_dock(item) if visible else None
-        )
-        return action
 
     def _build_actions(self) -> None:
         self.new_action = QAction(_resource_icon("new-project.svg"), self.tr("New project"), self)
@@ -702,11 +634,7 @@ class MainWindow(QMainWindow):
         self.export_action.triggered.connect(self.export_analysis)
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
-        self.notebook_action.setCheckable(True)
-        self.notebook_action.triggered.connect(
-            lambda visible: self.open_notebook() if visible else self.notebook_dock.hide()
-        )
-        self.notebook_dock.visibilityChanged.connect(self.notebook_action.setChecked)
+        self.notebook_action.triggered.connect(self.open_notebook)
         self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
         self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
         self.recent_projects_menu = QMenu(self.tr("Recent projects"), self)
@@ -722,16 +650,20 @@ class MainWindow(QMainWindow):
         self.redo_action.setIcon(_resource_icon("redo.svg"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
 
-        self.calculator_action = self._tool_action(self.calculator_dock, self.tr("Data Calculator"))
+        self.calculator_action = self.calculator_dock.toggleViewAction()
+        self.calculator_action.setText(self.tr("Data Calculator"))
         self.calculator_action.setIcon(_resource_icon("calculator.svg"))
         self.calculator_action.setToolTip(self.tr("Data Calculator"))
-        self.worksheet_action = self._tool_action(self.worksheet_dock, self.tr("Worksheet"))
-        self.function_action = self._tool_action(self.function_dock, self.tr("Function Builder"))
-        self.uncertainty_action = self._tool_action(
-            self.uncertainty_dock, self.tr("Uncertainty Analysis")
-        )
-        self.diagnostics_action = self._tool_action(self.diagnostics_dock, self.tr("Diagnostics"))
-        self.log_action = self._tool_action(self.log_dock, self.tr("Log"))
+        self.worksheet_action = self.worksheet_dock.toggleViewAction()
+        self.worksheet_action.setText(self.tr("Worksheet"))
+        self.function_action = self.function_dock.toggleViewAction()
+        self.function_action.setText(self.tr("Function Builder"))
+        self.uncertainty_action = self.uncertainty_dock.toggleViewAction()
+        self.uncertainty_action.setText(self.tr("Uncertainty Analysis"))
+        self.diagnostics_action = self.diagnostics_dock.toggleViewAction()
+        self.diagnostics_action.setText(self.tr("Diagnostics"))
+        self.log_action = self.log_dock.toggleViewAction()
+        self.log_action.setText(self.tr("Log"))
         self.plugins_action = QAction(self.tr("Plugin Manager…"), self)
         self.plugins_action.triggered.connect(self.show_plugin_manager)
 
@@ -906,13 +838,13 @@ class MainWindow(QMainWindow):
         view_menu.addSeparator()
         view_menu.addAction(self.reset_layout_action)
 
-        self.tools_menu = menu.addMenu(self.tr("&Tools"))
-        self.tools_menu.addActions(
+        tools_menu = menu.addMenu(self.tr("&Tools"))
+        tools_menu.addActions(
             [self.calculator_action, self.function_action, self.uncertainty_action]
         )
 
-        self.help_menu = menu.addMenu(self.tr("&Help"))
-        self.help_menu.addActions(
+        help_menu = menu.addMenu(self.tr("&Help"))
+        help_menu.addActions(
             [self.quick_start_action, self.manual_action, self.update_action, self.report_action, self.about_action]
         )
 
@@ -1156,25 +1088,9 @@ class MainWindow(QMainWindow):
     def open_notebook(self) -> None:
         from curvemole.gui.notebook import LaboratoryNotebookDialog
 
-        editable = self._thread is None and not self.project.read_only
-        current = self._notebook_widget
-        if (
-            current is None
-            or current.project is not self.project
-            or current.editable != editable
-        ):
-            panel = LaboratoryNotebookDialog(
-                self.project, self.notebook_dock, editable=editable, embedded=True
-            )
-            old = self.notebook_dock.widget()
-            self.notebook_dock.setWidget(panel)
-            self._notebook_widget = panel
-            if old is not None:
-                old.deleteLater()
-        else:
-            self.project.notebook.sync(self.project)
-            current._populate()
-        self.activate_tool_dock(self.notebook_dock)
+        dialog = LaboratoryNotebookDialog(self.project, self, editable=self._thread is None)
+        dialog.exec()
+        self.refresh_all()
 
     def open_attached_note(self, reference) -> None:
         kind, object_id, curve_id = reference
@@ -2259,12 +2175,21 @@ class MainWindow(QMainWindow):
 
     def reset_layout(self) -> None:
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.model_dock)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.log_dock)
         self.series_dock.show()
-        self.resize(1440, 900)
-        for dock in self._tool_docks:
-            if dock is not self.model_dock:
+        self.model_dock.show()
+        for dock in (
+            self.log_dock,
+            self.worksheet_dock,
+            self.diagnostics_dock,
+            self.calculator_dock,
+            self.function_dock,
+            self.uncertainty_dock,
+        ):
+            if dock not in (self.series_dock, self.model_dock):
                 dock.hide()
-        self._apply_tabbed_tool_layout()
+        self.resize(1440, 900)
 
     def _automatic_update_check(self) -> None:
         self.check_for_updates(force=False)
@@ -3238,9 +3163,6 @@ class MainWindow(QMainWindow):
             self.restoreGeometry(geometry)
         if state:
             self.restoreState(state)
-        if not self.settings.value("layout/tabbed_tools_v1", False, type=bool):
-            self._apply_tabbed_tool_layout()
-            self.settings.setValue("layout/tabbed_tools_v1", True)
         self.apply_theme(str(self.settings.value("theme", "system")))
 
     def closeEvent(self, event: QCloseEvent) -> None:

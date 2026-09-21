@@ -7,12 +7,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
-- Add native desktop integration: `.fitproj` Open With registration, Linux AppImage
-  launcher migration, a per-user Windows installer, Start/menu icons, and macOS
-  Finder/Launchpad document declarations.
-- Keep portable Windows updates supported through a compact ZIP while offering a
-  one-time, settings-preserving migration to the installed application.
-- Open native tools, the laboratory notebook and plugin panels in one shared, persistent tabbed workspace.
 - Browse the validated online plugin catalog inside Plugin Manager and download
   selected plugins into a user-chosen persistent folder with checksum verification.
 - Add the `cosmic_ray_removal` community plugin with review-first modified-Z and
