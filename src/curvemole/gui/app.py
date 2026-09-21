@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QCoreApplication, QEvent, QLocale, Qt, QTimer
+from PySide6.QtCore import QCoreApplication, QEvent, QLocale, QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QFileOpenEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -278,15 +278,15 @@ _install_continuous_peak_placement()
 install_manual_point_support()
 
 
-class CurveMoleApplication(QApplication):
-    """QApplication that accepts native Finder/Open-With file events."""
+class NativeFileOpenFilter(QObject):
+    """Accept native Finder file-open events without overriding QApplication."""
 
-    def __init__(self, arguments: Sequence[str]) -> None:
-        super().__init__(arguments)
+    def __init__(self) -> None:
+        super().__init__()
         self._file_open_handler: Any | None = None
         self._pending_file_opens: list[str] = []
 
-    def event(self, event: QEvent) -> bool:
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if event.type() == QEvent.Type.FileOpen and isinstance(event, QFileOpenEvent):
             path = event.file()
             if path:
@@ -295,7 +295,7 @@ class CurveMoleApplication(QApplication):
                 else:
                     self._file_open_handler(path)
                 return True
-        return super().event(event)
+        return super().eventFilter(watched, event)
 
     def set_file_open_handler(self, handler: Any) -> None:
         self._file_open_handler = handler
@@ -371,31 +371,6 @@ class CurveMoleMainWindow(MainWindow):
             )
             + detail,
         )
-
-    def offer_linux_desktop_integration(self) -> None:
-        """Offer integration once without disturbing existing managed installs."""
-        if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
-            return
-        from curvemole.gui.desktop_integration import linux_integration_is_current
-
-        if linux_integration_is_current() or self.settings.value(
-            "desktop/linux_integration_declined", False, type=bool
-        ):
-            return
-        answer = QMessageBox.question(
-            self,
-            self.tr("Integrate CurveMole with Linux"),
-            self.tr(
-                "Add CurveMole to the application menu and register .fitproj files? "
-                "An existing manual launcher will be adopted without changing system files."
-            ),
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.Yes,
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self.integrate_linux_desktop()
-        else:
-            self.settings.setValue("desktop/linux_integration_declined", True)
 
     def _fit_finished(self, result: FitResult) -> None:
         view_state = _capture_plot_view(self.plot_workspace)
@@ -484,7 +459,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    app = CurveMoleApplication(arguments)
+    app = QApplication(arguments)
+    file_open_filter: NativeFileOpenFilter | None = None
+    if platform.system() == "Darwin":
+        file_open_filter = NativeFileOpenFilter()
+        app.installEventFilter(file_open_filter)
     QCoreApplication.setOrganizationName("CurveMole")
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
@@ -493,7 +472,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     from curvemole.gui.plugin_updates import PluginUpdateController
     window.plugin_update_controller = PluginUpdateController(window)
     window.show()
-    app.set_file_open_handler(lambda path: _open_paths(window, [path]))
+    if file_open_filter is not None:
+        file_open_filter.set_file_open_handler(lambda path: _open_paths(window, [path]))
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
         missing_icons = _missing_toolbar_icons(window)
         if missing_icons:
@@ -510,8 +490,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         except OSError as exc:
             window._log(f"Recovery session tracking failed: {exc}")
         QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
-        if platform.system() == "Linux" and window.desktop_integration_action is not None:
-            QTimer.singleShot(0, window.offer_linux_desktop_integration)
     return app.exec()
 
 
