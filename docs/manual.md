@@ -171,9 +171,10 @@ and select the package for your system.
 | Platform | Release asset | Normal launch method |
 |---|---|---|
 | Linux x86-64 | `CurveMole-VERSION-linux-x86_64.AppImage` | Mark executable and run |
-| Windows x86-64 | `CurveMole-VERSION-windows-x86_64.exe` | Double-click the executable |
-| macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Open the DMG and launch the app |
-| macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Open the DMG and launch the app |
+| Windows x86-64 | `CurveMole-VERSION-windows-x86_64-setup.exe` | Run the per-user installer |
+| Windows portable | `CurveMole-VERSION-windows-x86_64-portable.zip` | Extract and run `CurveMole.exe` |
+| macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Drag CurveMole to Applications |
+| macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Drag CurveMole to Applications |
 
 Windows and macOS packages are currently unsigned. The operating system may show a
 warning on first launch. Download only from the official GitHub release page and
@@ -201,6 +202,17 @@ the distribution. On Debian or Ubuntu, the commonly required packages are:
 sudo apt install libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
 ```
 
+Choose **Tools > Integrate CurveMole with the desktop** to copy a new AppImage to a
+stable per-user location, add CurveMole to the application menu, install its icon,
+and register `.fitproj` projects. No administrator privileges are required. If a
+working manual `curvemole.desktop` launcher already exists, CurveMole backs it up
+once and adopts its command rather than creating a duplicate application entry.
+
+The Windows installer similarly creates a Start-menu entry, offers an optional
+desktop shortcut, and registers `.fitproj`. On macOS the application appears in
+Applications and Launchpad. On every platform, a registered project can be opened
+by double-clicking it or choosing **Open with CurveMole**.
+
 ### 3.4 Verifying SHA-256 checksums
 
 Every release includes `SHA256SUMS.txt`. On Linux:
@@ -218,7 +230,7 @@ shasum -a 256 CurveMole-0.26.6-macos-arm64.dmg
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.26.6-windows-x86_64.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.26.6-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -287,13 +299,15 @@ An automatic notification is shown only once for each newly detected release. Cl
 the badge or choose **Help > Check for updates** to check again, inspect the release
 notes, or reopen the update dialog.
 
-Linux AppImage and Windows standalone installations can normally use **Update now**.
-CurveMole downloads the matching release asset, verifies the SHA-256 digest supplied
-by GitHub, replaces the old executable, and removes obsolete release files. The
+Linux AppImage and Windows desktop packages can normally use **Update now**.
+CurveMole downloads the matching release asset and verifies the SHA-256 digest supplied
+by GitHub. Linux replaces the AppImage, Windows portable installations update from the
+portable ZIP, and installed Windows applications launch the verified installer. The
 application directory must be writable and no fit or uncertainty task may be running.
-Windows closes and restarts automatically; Linux asks the user to close and reopen the
-new AppImage. Python, source, macOS, unsupported architectures, and installations whose
-executable cannot be replaced must be updated manually from the release page.
+Existing Windows portable users are offered a one-time migration to the installer;
+projects, settings and plugins remain in their existing user directories. Python,
+source, macOS, unsupported architectures, and protected installations must be updated
+manually from the release page.
 
 ## 4. A complete first fit
 
@@ -532,11 +546,15 @@ The **View** and **Tools** menus show or hide these docks:
 - **Log:** operational messages and errors;
 - **Data Calculator:** reversible scalar and curve-to-curve transformations;
 - **Function Builder:** safe mathematical custom functions;
-- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations.
+- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations;
+- **Laboratory notebook:** project notes and searchable object descriptions;
+- plugin panels contributed by installed plugins.
 
-Docks can be moved, tabbed, resized, or floated. CurveMole remembers window geometry,
-dock arrangement, and theme. Use **View > Reset layout** to restore the standard
-layout.
+Opening a tool places it in the shared tab group beside **Model and parameters** and
+selects its tab. Closing or hiding a tab preserves the panel and its current state;
+opening it again returns to the same panel. Tabs can still be moved or floated.
+CurveMole remembers window geometry, dock arrangement, and theme. Use **View > Reset
+layout** to restore the standard tabbed layout.
 
 ### 5.7 Themes
 
@@ -2227,7 +2245,7 @@ Archive at least:
 ### 20.1.1 Laboratory notebook
 
 The **Laboratory notebook** button at the end of the toolbar opens project notes
-and a searchable description browser. Use **Add description** from the context menu
+and a searchable description browser as a workspace tab. Use **Add description** from the context menu
 of a series, individual spectrum, or added fit function to create or edit its
 description. Function descriptions are specific to the spectrum containing that
 function, including when sequential propagation preserves a component ID.

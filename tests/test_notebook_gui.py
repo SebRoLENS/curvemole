@@ -80,13 +80,13 @@ def test_real_context_menus_edit_series_spectrum_and_clicked_function():
     toolbar = window.findChild(QToolBar, "Main_toolbar")
     assert toolbar.actions()[-1] == window.notebook_action
     assert not window.notebook_action.icon().isNull()
-    def use_notebook():
-        dialog = app.activeModalWidget()
-        if isinstance(dialog, LaboratoryNotebookDialog):
-            dialog.notes.setPlainText("General notes")
-            dialog.reject()
-    QTimer.singleShot(0, use_notebook)
     window.notebook_action.trigger()
+    app.processEvents()
+    dialog = window.notebook_dock.widget()
+    assert isinstance(dialog, LaboratoryNotebookDialog)
+    assert not dialog.isWindow()
+    dialog.notes.setPlainText("General notes")
+    window.notebook_dock.close()
     assert project.notebook.notes == "General notes"
     project.dirty = False
     window.close()

@@ -1,0 +1,81 @@
+name: Test Linux candidate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appimage:
+    name: Linux AppImage test artifact
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          uv sync --locked --group dev
+
+      - name: Build and smoke-test frozen application
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_ICON: ${{ github.workspace }}/src/curvemole/resources/curvemole.png
+        run: uv run python scripts/build_desktop.py
+
+      - name: Package diagnostic bundle and AppImage
+        run: |
+          set -euxo pipefail
+          CANDIDATE="${GITHUB_SHA::7}"
+          tar -C dist -czf "CurveMole-${CANDIDATE}-linux-x86_64-bundle.tar.gz" CurveMole
+
+          mkdir -p CurveMole.AppDir/usr/lib/curvemole
+          cp -a dist/CurveMole/. CurveMole.AppDir/usr/lib/curvemole/
+          cp packaging/linux/curvemole.desktop CurveMole.AppDir/curvemole.desktop
+          mkdir -p CurveMole.AppDir/usr/share/mime/packages
+          cp packaging/linux/curvemole.xml CurveMole.AppDir/usr/share/mime/packages/curvemole.xml
+          cp src/curvemole/resources/curvemole.png CurveMole.AppDir/curvemole.png
+          cp src/curvemole/resources/curvemole.png CurveMole.AppDir/.DirIcon
+          cat > CurveMole.AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          APPDIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+          exec "$APPDIR/usr/lib/curvemole/CurveMole" "$@"
+          EOF
+          chmod +x CurveMole.AppDir/AppRun
+
+          curl -L --fail --retry 3 \
+            -o appimagetool-x86_64.AppImage \
+            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 \
+            ./appimagetool-x86_64.AppImage --no-appstream CurveMole.AppDir \
+            "CurveMole-${CANDIDATE}-linux-x86_64.AppImage"
+          chmod +x "CurveMole-${CANDIDATE}-linux-x86_64.AppImage"
+          sha256sum \
+            "CurveMole-${CANDIDATE}-linux-x86_64.AppImage" \
+            "CurveMole-${CANDIDATE}-linux-x86_64-bundle.tar.gz" \
+            > SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CurveMole-linux-test-${{ github.event.pull_request.number || github.run_number }}
+          path: |
+            CurveMole-*-linux-x86_64.AppImage
+            CurveMole-*-linux-x86_64-bundle.tar.gz
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7

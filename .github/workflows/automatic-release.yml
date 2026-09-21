@@ -140,6 +140,14 @@ jobs:
           Windows x86_64, macOS Apple Silicon, and macOS Intel. Python wheel and source
           packages will also be attached automatically.
 
+          | Platform | Recommended download |
+          |---|---|
+          | Windows x86_64 | [Installer](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/CurveMole-${VERSION}-windows-x86_64-setup.exe) |
+          | Windows portable | [Portable ZIP](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/CurveMole-${VERSION}-windows-x86_64-portable.zip) |
+          | Linux x86_64 | [AppImage](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/CurveMole-${VERSION}-linux-x86_64.AppImage) |
+          | macOS Apple Silicon | [DMG](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/CurveMole-${VERSION}-macos-arm64.dmg) |
+          | macOS Intel | [DMG](https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/CurveMole-${VERSION}-macos-x86_64.dmg) |
+
           **Zenodo DOI:** pending archival or repository integration.
           EOF
           gh release create "v${VERSION}" \

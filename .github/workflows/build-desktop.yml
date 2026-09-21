@@ -131,6 +131,8 @@ jobs:
           mkdir -p CurveMole.AppDir/usr/lib/curvemole
           cp -a dist/CurveMole/. CurveMole.AppDir/usr/lib/curvemole/
           cp packaging/linux/curvemole.desktop CurveMole.AppDir/curvemole.desktop
+          mkdir -p CurveMole.AppDir/usr/share/mime/packages
+          cp packaging/linux/curvemole.xml CurveMole.AppDir/usr/share/mime/packages/curvemole.xml
           cp generated-icons/curvemole.png CurveMole.AppDir/curvemole.png
           cp generated-icons/curvemole.png CurveMole.AppDir/.DirIcon
           cat > CurveMole.AppDir/AppRun <<'EOF'
@@ -171,7 +173,7 @@ jobs:
           if-no-files-found: error
 
   windows:
-    name: Windows standalone executable x86_64
+    name: Windows installer and portable x86_64
     needs: prepare-icons
     runs-on: windows-2025
     steps:
@@ -186,6 +188,10 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --locked --group dev
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
 
       - name: Read version
         shell: pwsh
@@ -222,10 +228,33 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Frozen GUI exited with $($process.ExitCode)" }
           Move-Item ".\dist\CurveMole.exe" ".\CurveMole-$env:VERSION-windows-x86_64.exe"
 
+      - name: Build Windows installer and portable archive
+        shell: pwsh
+        run: |
+          $root = (Get-Location).Path
+          $source = Join-Path $root "CurveMole-$env:VERSION-windows-x86_64.exe"
+          $output = Join-Path $root "installer-output"
+          New-Item -ItemType Directory -Force -Path $output | Out-Null
+          $isccArgs = @(
+            "/DMyAppVersion=$env:VERSION",
+            "/DSourceExe=$source",
+            "/DRootDir=$root",
+            "/DOutputDir=$output",
+            "packaging\windows\curvemole.iss"
+          )
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" @isccArgs
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+          Move-Item "$output\CurveMole-$env:VERSION-windows-x86_64-setup.exe" .
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Copy-Item $source "portable\CurveMole.exe"
+          Compress-Archive -Path "portable\CurveMole.exe" -DestinationPath "CurveMole-$env:VERSION-windows-x86_64-portable.zip"
+
       - uses: actions/upload-artifact@v7
         with:
           name: release-windows-x86_64
-          path: CurveMole-${{ env.VERSION }}-windows-x86_64.exe
+          path: |
+            CurveMole-${{ env.VERSION }}-windows-x86_64-setup.exe
+            CurveMole-${{ env.VERSION }}-windows-x86_64-portable.zip
           if-no-files-found: error
 
   macos:
