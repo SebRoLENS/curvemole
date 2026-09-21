@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import os
 import re
 import time
 import traceback
@@ -2269,6 +2270,11 @@ class MainWindow(QMainWindow):
         self.check_for_updates(force=False)
 
     def check_for_updates(self, *, force: bool = False) -> None:
+        automatic_checks_disabled = os.environ.get(
+            "CURVEMOLE_DISABLE_UPDATE_CHECK", ""
+        ).strip().lower() in {"1", "true", "yes"}
+        if not force and automatic_checks_disabled:
+            return
         if self._update_reply is not None:
             if force:
                 self._notify(self.tr("An update check is already in progress."))
