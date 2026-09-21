@@ -33,10 +33,15 @@ line, and reproducible YAML workflows.
 
 Available packages are built automatically for:
 
-- Linux x86_64: AppImage
-- Windows x86_64: standalone `.exe`
+- Linux x86_64: AppImage with optional per-user desktop integration
+- Windows x86_64: installer (recommended) or portable `.zip`
 - macOS Apple Silicon: `.dmg`
 - macOS Intel x86_64: `.dmg`
+
+The installed desktop applications register CurveMole projects (`.fitproj`) with
+the operating system, so they can be opened by double-clicking or with **Open with
+CurveMole**. Linux AppImage users can choose **Tools > Integrate CurveMole with the
+desktop**; an existing manual launcher is adopted and backed up instead of duplicated.
 - Python 3.12+: wheel and source distribution
 
 > **Windows and macOS security notice**
@@ -138,7 +143,7 @@ to releases.
 - human-friendly Wide exports, Python-friendly Tidy exports, and one-file-per-spectrum
   numeric export of data, components, total fit, background, and residuals
 - startup and hourly release checks with an in-app version badge and self-update for
-  supported Linux AppImage and Windows standalone installations
+  supported Linux AppImage and Windows installed/portable applications
 - Live spectrum preview while browsing files and choosing import columns, with adaptive rendering
 - Separate Run automation button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins

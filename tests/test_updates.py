@@ -11,6 +11,7 @@ import pytest
 from curvemole.gui.updates import (
     ReleaseAsset,
     asset_suffix,
+    asset_suffixes,
     semantic_version,
     should_notify,
     update_kind,
@@ -43,6 +44,20 @@ def test_self_update_asset_suffixes() -> None:
     assert asset_suffix("Windows", "AMD64") == "-windows-x86_64.exe"
     assert asset_suffix("Darwin", "arm64") is None
     assert asset_suffix("Linux", "aarch64") is None
+
+
+def test_installed_and_portable_windows_assets(tmp_path: Path) -> None:
+    binary = tmp_path / "CurveMole.exe"
+    binary.write_bytes(b"exe")
+    assert asset_suffixes("Windows", "AMD64", binary) == (
+        "-windows-x86_64-portable.zip",
+        "-windows-x86_64.exe",
+    )
+
+    (tmp_path / "curvemole-installed.marker").write_text("installed", encoding="utf-8")
+    assert asset_suffixes("Windows", "AMD64", binary) == (
+        "-windows-x86_64-setup.exe",
+    )
 
 
 def test_windows_partial_download_is_not_a_dot_file_beside_the_application() -> None:

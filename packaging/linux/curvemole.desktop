@@ -2,8 +2,10 @@
 Type=Application
 Name=CurveMole
 Comment=Modular Scientific Curve Fitting
-Exec=CurveMole
+Exec=CurveMole %f
 Icon=curvemole
 Categories=Science;Education;
 Terminal=false
+StartupNotify=true
+StartupWMClass=CurveMole
 MimeType=application/x-curvemole-project;

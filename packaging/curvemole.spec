@@ -70,5 +70,25 @@ if sys.platform == "darwin":
             "NSHighResolutionCapable": True,
             "CFBundleShortVersionString": version,
             "CFBundleVersion": version,
+            "CFBundleDocumentTypes": [
+                {
+                    "CFBundleTypeName": "CurveMole Project",
+                    "CFBundleTypeRole": "Editor",
+                    "CFBundleTypeExtensions": ["fitproj"],
+                    "LSItemContentTypes": ["it.unifi.lens.curvemole.fitproj"],
+                    "LSHandlerRank": "Owner",
+                }
+            ],
+            "UTExportedTypeDeclarations": [
+                {
+                    "UTTypeIdentifier": "it.unifi.lens.curvemole.fitproj",
+                    "UTTypeDescription": "CurveMole Project",
+                    "UTTypeConformsTo": ["public.data"],
+                    "UTTypeTagSpecification": {
+                        "public.filename-extension": ["fitproj"],
+                        "public.mime-type": "application/x-curvemole-project",
+                    },
+                }
+            ],
         },
     )
