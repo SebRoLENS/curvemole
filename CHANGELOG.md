@@ -7,6 +7,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Open native tools, the laboratory notebook and plugin panels in one shared, persistent tabbed workspace.
 - Browse the validated online plugin catalog inside Plugin Manager and download
   selected plugins into a user-chosen persistent folder with checksum verification.
 - Add the `cosmic_ray_removal` community plugin with review-first modified-Z and

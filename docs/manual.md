@@ -532,11 +532,15 @@ The **View** and **Tools** menus show or hide these docks:
 - **Log:** operational messages and errors;
 - **Data Calculator:** reversible scalar and curve-to-curve transformations;
 - **Function Builder:** safe mathematical custom functions;
-- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations.
+- **Uncertainty Analysis:** Monte Carlo, bootstrap, and profile calculations;
+- **Laboratory notebook:** project notes and searchable object descriptions;
+- plugin panels contributed by installed plugins.
 
-Docks can be moved, tabbed, resized, or floated. CurveMole remembers window geometry,
-dock arrangement, and theme. Use **View > Reset layout** to restore the standard
-layout.
+Opening a tool places it in the shared tab group beside **Model and parameters** and
+selects its tab. Closing or hiding a tab preserves the panel and its current state;
+opening it again returns to the same panel. Tabs can still be moved or floated.
+CurveMole remembers window geometry, dock arrangement, and theme. Use **View > Reset
+layout** to restore the standard tabbed layout.
 
 ### 5.7 Themes
 
@@ -2227,7 +2231,7 @@ Archive at least:
 ### 20.1.1 Laboratory notebook
 
 The **Laboratory notebook** button at the end of the toolbar opens project notes
-and a searchable description browser. Use **Add description** from the context menu
+and a searchable description browser as a workspace tab. Use **Add description** from the context menu
 of a series, individual spectrum, or added fit function to create or edit its
 description. Function descriptions are specific to the spectrum containing that
 function, including when sequential propagation preserves a component ID.
