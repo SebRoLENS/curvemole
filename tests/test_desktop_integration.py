@@ -5,8 +5,10 @@ import stat
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QObject
+from PySide6.QtGui import QFileOpenEvent
 
-from curvemole.gui.app import _open_paths
+from curvemole.gui.app import NativeFileOpenFilter, _open_paths
 from curvemole.gui.desktop_integration import (
     integrate_linux_desktop,
     linux_integration_is_current,
@@ -103,3 +105,15 @@ def test_open_paths_opens_project_and_imports_data(tmp_path: Path) -> None:
 
     assert window.project == project
     assert window.data == [str(first), str(second)]
+
+
+def test_native_file_open_filter_queues_events_until_window_is_ready(tmp_path: Path) -> None:
+    project = _file(tmp_path / "experiment.fitproj")
+    file_filter = NativeFileOpenFilter()
+
+    assert file_filter.eventFilter(QObject(), QFileOpenEvent(str(project)))
+
+    opened: list[str] = []
+    file_filter.set_file_open_handler(opened.append)
+
+    assert opened == [str(project)]
