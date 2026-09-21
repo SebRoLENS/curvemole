@@ -799,7 +799,7 @@ class MainWindow(QMainWindow):
         self.auto_axes_action.setIcon(_resource_icon("view-all.svg"))
         self.auto_axes_action.setToolTip(self.tr("View all\nFrame all experimental data, including masked regions."))
         self.plot_workspace.view_active_action.setIcon(_resource_icon("view-active.svg"))
-        self.plot_workspace.view_active_action.setToolTip(self.tr("View active\nFrame only unmasked experimental data."))
+        self.plot_workspace.view_active_action.setToolTip(self.tr("View unmasked\nFrame only unmasked experimental data."))
         self.auto_axes_action.triggered.connect(self.plot_workspace.auto_range)
         self.log_x_action = QAction(self.tr("Logarithmic x"), self, checkable=True)
         self.log_x_action.toggled.connect(self.plot_workspace.set_log_x)

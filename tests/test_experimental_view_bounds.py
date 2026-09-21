@@ -151,6 +151,12 @@ def test_spectrum_switch_autoscale_is_optional_and_uses_all_or_active_points():
     mask.excluded[-1] = True
     window = CurveMoleMainWindow(project)
     workspace = window.plot_workspace
+    assert [workspace.autoscale_mode.itemText(i) for i in range(workspace.autoscale_mode.count())] == [
+        "All points",
+        "Unmasked points",
+    ]
+    assert workspace.view_active_action.text() == "View unmasked"
+    assert workspace.view_controls is not None
     try:
         workspace.view_box.setRange(xRange=(20., 30.), yRange=(40., 50.), padding=0)
         preserved = np.array(workspace.view_box.viewRange())
