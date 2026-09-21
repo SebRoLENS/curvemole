@@ -196,7 +196,7 @@ class PluginManager:
                 self._save()
             raise CurveMoleError(f"Plugin {owner} failed and was disabled: {exc}") from exc
 
-    def disable(self, identifier: str, reason: str = "Disabled by user") -> None:
+    def disable(self, identifier: str, reason: str | None = None) -> None:
         from curvemole.core.extensions import extensions
         extensions.remove_owner(identifier)
         for function, owner in list(self.function_owners.items()):
@@ -207,7 +207,13 @@ class PluginManager:
                 del self.function_owners[function]
         self.loaded.pop(identifier, None)
         if identifier in self.installed:
-            self.installed[identifier].update(enabled=False, error=reason)
+            self.installed[identifier]["enabled"] = False
+            if reason:
+                self.installed[identifier]["error"] = reason
+            else:
+                # A deliberate user choice is normal persisted state, not a
+                # recovery condition that should trigger a warning at startup.
+                self.installed[identifier].pop("error", None)
             self._save()
 
     def remove(self, identifier: str) -> None:
@@ -222,7 +228,10 @@ class PluginManager:
         if not root.exists():
             return []
         candidates: list[PluginCandidate] = []
-        for manifest in sorted(root.glob("*.curvemole-plugin.json")):
+        # Users commonly keep one directory per plugin below a shared plugin
+        # folder.  Scanning that parent must find the manifests as well as a
+        # manifest placed directly in the selected directory.
+        for manifest in sorted(root.rglob("*.curvemole-plugin.json")):
             try:
                 metadata = PluginMetadata.from_mapping(
                     json.loads(manifest.read_text(encoding="utf-8")), source=str(manifest.resolve())

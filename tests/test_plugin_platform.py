@@ -49,6 +49,43 @@ def test_persistence_removal_and_source_change(tmp_path):
     assert not PluginManager(storage=store).installed
 
 
+def test_discover_local_scans_parent_plugin_folder(tmp_path):
+    first = tmp_path / "first_plugin"
+    second = tmp_path / "nested" / "second_plugin"
+    first.mkdir(parents=True)
+    second.mkdir(parents=True)
+    candidate(first, "def register(api):\n pass\n", name="first")
+    candidate(second, "def register(api):\n pass\n", name="second")
+
+    discovered = PluginManager().discover_local(tmp_path)
+
+    assert [item.metadata.identifier for item in discovered] == ["first", "second"]
+
+
+def test_manual_disable_is_not_persisted_as_plugin_error(tmp_path):
+    item = candidate(tmp_path, "def register(api):\n pass\n")
+    storage = tmp_path / "settings"
+    manager = PluginManager(storage=storage)
+    manager.load(item, trust=True)
+
+    manager.disable("example")
+
+    record = PluginManager(storage=storage).installed["example"]
+    assert not record["enabled"]
+    assert "error" not in record
+
+
+def test_legacy_manual_disable_is_not_a_recovery_problem():
+    from curvemole.gui.plugin_host import _plugin_recovery_problems
+
+    installed = {
+        "manual": {"enabled": False, "error": "Disabled by user"},
+        "broken": {"enabled": False, "error": "Plugin source changed"},
+    }
+
+    assert _plugin_recovery_problems(installed) == ["broken: Plugin source changed"]
+
+
 def test_transactional_load_and_no_override(tmp_path):
     from curvemole.core.functions import formula_definition
     registry = FunctionRegistry()

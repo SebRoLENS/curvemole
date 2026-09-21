@@ -22,6 +22,15 @@ from curvemole.core.extensions import extensions
 from curvemole.core.plugin_identity import contribution_tooltip
 
 
+def _plugin_recovery_problems(installed: dict[str, dict[str, Any]]) -> list[str]:
+    """Return genuine recovery failures, excluding intentional disablement."""
+    return [
+        f"{key}: {record.get('error')}"
+        for key, record in installed.items()
+        if record.get("error") and record.get("error") != "Disabled by user"
+    ]
+
+
 @dataclass
 class PluginContext:
     """Detached project snapshot. Mutating commands are committed as one undo step."""
@@ -222,8 +231,7 @@ class PluginHost:
                 self.refresh()
 
     def startup_notice(self, unclean: bool) -> None:
-        problems = [f"{key}: {record.get('error')}" for key, record in
-                    self.window.plugin_manager.installed.items() if record.get("error")]
+        problems = _plugin_recovery_problems(self.window.plugin_manager.installed)
         if unclean or problems:
             QTimer.singleShot(0, lambda: QMessageBox.warning(
                 self.window, "Plugin recovery", "Some plugins are disabled. CurveMole can be used normally.\n"

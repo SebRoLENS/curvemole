@@ -1084,8 +1084,9 @@ class PluginManagerDialog(QDialog):
         self.resize(720, 460)
         layout = QVBoxLayout(self)
         install_help = QLabel(self.tr(
-            "Install your own plugin: choose the folder containing its .curvemole-plugin.json "
-            "manifest and Python module, then select it below and choose Review and trust. "
+            "Install your own plugin: choose either the folder containing its "
+            ".curvemole-plugin.json manifest or a parent folder containing multiple plugins, "
+            "then select it below and choose Review and trust. "
             "This installs it locally; it does not upload it to GitHub."
         ))
         install_help.setWordWrap(True)

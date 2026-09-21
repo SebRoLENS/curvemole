@@ -160,6 +160,20 @@ class PlotWorkspace(QWidget):
         self.display_mode.addItems([self.tr("Single"), self.tr("Overlay"), self.tr("Waterfall")])
         self.display_mode.currentIndexChanged.connect(self.refresh)
         controls.addWidget(self.display_mode)
+        self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
+        self.autoscale_toggle.setToolTip(
+            self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
+        )
+        controls.addWidget(self.autoscale_toggle)
+        self.autoscale_mode = QComboBox()
+        self.autoscale_mode.addItems([self.tr("All"), self.tr("Active")])
+        self.autoscale_mode.setToolTip(
+            self.tr("All includes masked points; Active fits only non-masked points.")
+        )
+        self.autoscale_mode.setEnabled(False)
+        controls.addWidget(self.autoscale_mode)
+        self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
+        self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
         self._active_series_id: str | None = None
         self.scope_project = QRadioButton(self.tr("All series"))
         self.scope_series = QRadioButton(self.tr("Active series"))
@@ -286,9 +300,21 @@ class PlotWorkspace(QWidget):
         selected_curve_ids: set[str] | None = None,
         selected_component_id: str | None = None,
     ) -> None:
+        project_changed = project is not self._project
+        active_curve_changed = active_curve_id != self._active_curve_id
         self._project = project
         self._active_curve_id = active_curve_id
         if project is not None:
+            if project_changed:
+                self.autoscale_toggle.blockSignals(True)
+                self.autoscale_mode.blockSignals(True)
+                self.autoscale_toggle.setChecked(bool(project.ui_state.get("autoscale_enabled", False)))
+                self.autoscale_mode.setCurrentIndex(
+                    1 if project.ui_state.get("autoscale_mode") == "active" else 0
+                )
+                self.autoscale_mode.setEnabled(self.autoscale_toggle.isChecked())
+                self.autoscale_mode.blockSignals(False)
+                self.autoscale_toggle.blockSignals(False)
             if active_curve_id:
                 self._active_series_id = project.dataset.series_for(active_curve_id).id
             elif self._active_series_id not in {series.id for series in project.dataset.series}:
@@ -300,6 +326,25 @@ class PlotWorkspace(QWidget):
         self._selected_curve_ids = set(selected_curve_ids or ())
         self._selected_component_id = selected_component_id
         self.refresh()
+        if active_curve_changed and self.autoscale_toggle.isChecked():
+            self._apply_autoscale()
+
+    def _autoscale_settings_changed(self, *_: Any) -> None:
+        enabled = self.autoscale_toggle.isChecked()
+        self.autoscale_mode.setEnabled(enabled)
+        if self._project is not None:
+            self._project.ui_state["autoscale_enabled"] = enabled
+            self._project.ui_state["autoscale_mode"] = (
+                "active" if self.autoscale_mode.currentIndex() == 1 else "all"
+            )
+        if enabled:
+            self._apply_autoscale()
+
+    def _apply_autoscale(self) -> None:
+        if self.autoscale_mode.currentIndex() == 1:
+            self.view_active()
+        else:
+            self.auto_range()
 
     def _scope_enabled(self, index: int) -> None:
         self.scope_project.setEnabled(index != 0)

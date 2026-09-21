@@ -138,3 +138,45 @@ def test_visual_subtraction_frames_transformed_experimental_samples(plotted):
     _, yr = workspace.view_box.viewRange()
     assert -1 < yr[0] < 0.5 and 19.5 < yr[1] < 21
     np.testing.assert_array_equal(curve.y, original)
+
+
+def test_spectrum_switch_autoscale_is_optional_and_uses_all_or_active_points():
+    app = QApplication.instance() or QApplication([])
+    project = Project("autoscale")
+    first = Curve("first", np.array([0., 1., 2.]), np.array([0., 1., 0.]))
+    second = Curve("second", np.array([100., 150., 200.]), np.array([10., 20., 1000.]))
+    project.add_curve(first)
+    project.add_curve(second)
+    mask = second.add_mask("outlier")
+    mask.excluded[-1] = True
+    window = CurveMoleMainWindow(project)
+    workspace = window.plot_workspace
+    try:
+        workspace.view_box.setRange(xRange=(20., 30.), yRange=(40., 50.), padding=0)
+        preserved = np.array(workspace.view_box.viewRange())
+        window._set_active_curve(second.id)
+        app.processEvents()
+        np.testing.assert_allclose(workspace.view_box.viewRange(), preserved)
+
+        workspace.autoscale_toggle.setChecked(True)
+        workspace.autoscale_mode.setCurrentIndex(1)
+        window._set_active_curve(first.id)
+        window._set_active_curve(second.id)
+        app.processEvents()
+        active_x, active_y = workspace.view_box.viewRange()
+        assert active_x[0] < 100 and 150 < active_x[1] < 160
+        assert active_y[0] < 10 and 20 < active_y[1] < 30
+
+        workspace.autoscale_mode.setCurrentIndex(0)
+        window._set_active_curve(first.id)
+        window._set_active_curve(second.id)
+        app.processEvents()
+        all_x, all_y = workspace.view_box.viewRange()
+        assert all_x[0] < 100 and all_x[1] > 200
+        assert all_y[0] < 10 and all_y[1] > 1000
+        assert project.ui_state["autoscale_enabled"] is True
+        assert project.ui_state["autoscale_mode"] == "all"
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
