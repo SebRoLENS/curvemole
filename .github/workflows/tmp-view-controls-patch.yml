@@ -1,0 +1,196 @@
+name: Temporary view controls patch
+
+on:
+  push:
+    branches:
+      - ui/view-controls-panel
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[ui-patch]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ui/view-controls-panel
+          fetch-depth: 0
+      - name: Apply view controls patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          plot = Path('src/curvemole/gui/plot.py')
+          text = plot.read_text(encoding='utf-8')
+
+          old = '    QDoubleSpinBox,\n    QHBoxLayout,'
+          new = '    QDoubleSpinBox,\n    QFrame,\n    QHBoxLayout,'
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''        controls = QHBoxLayout()
+                  controls.setContentsMargins(4, 2, 4, 2)
+          '''
+          new = '''        self.view_controls = QFrame(self)
+                  self.view_controls.setObjectName("viewControls")
+                  self.view_controls.setFrameShape(QFrame.Shape.StyledPanel)
+                  self.view_controls.setStyleSheet(
+                      "QFrame#viewControls {"
+                      " background-color: palette(alternate-base);"
+                      " border: 1px solid palette(mid);"
+                      " border-radius: 7px;"
+                      "}"
+                  )
+                  view_layout = QVBoxLayout(self.view_controls)
+                  view_layout.setContentsMargins(8, 6, 8, 6)
+                  view_layout.setSpacing(4)
+
+                  controls = QHBoxLayout()
+                  controls.setContentsMargins(0, 0, 0, 0)
+          '''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          autoscale_block = '''        self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
+                  self.autoscale_toggle.setToolTip(
+                      self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
+                  )
+                  controls.addWidget(self.autoscale_toggle)
+                  self.autoscale_mode = QComboBox()
+                  self.autoscale_mode.addItems([self.tr("All"), self.tr("Active")])
+                  self.autoscale_mode.setToolTip(
+                      self.tr("All includes masked points; Active fits only non-masked points.")
+                  )
+                  self.autoscale_mode.setEnabled(False)
+                  controls.addWidget(self.autoscale_mode)
+                  self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
+                  self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
+          '''
+          assert autoscale_block in text
+          text = text.replace(autoscale_block, '', 1)
+
+          anchor = '''        self.display_mode.currentIndexChanged.connect(self._scope_enabled)
+                  controls.addStretch(1)
+          '''
+          replacement = '''        self.display_mode.currentIndexChanged.connect(self._scope_enabled)
+                  controls.addStretch(1)
+                  view_layout.addLayout(controls)
+
+                  autoscale_controls = QHBoxLayout()
+                  autoscale_controls.setContentsMargins(0, 0, 0, 0)
+                  self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
+                  self.autoscale_toggle.setToolTip(
+                      self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
+                  )
+                  autoscale_controls.addWidget(self.autoscale_toggle)
+                  self.autoscale_mode = QComboBox()
+                  self.autoscale_mode.addItems([self.tr("All points"), self.tr("Unmasked points")])
+                  self.autoscale_mode.setToolTip(
+                      self.tr("All points includes masked points; Unmasked points fits only non-masked points.")
+                  )
+                  self.autoscale_mode.setEnabled(False)
+                  autoscale_controls.addWidget(self.autoscale_mode)
+                  autoscale_controls.addStretch(1)
+                  self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
+                  self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
+                  view_layout.addLayout(autoscale_controls)
+          '''
+          assert anchor in text
+          text = text.replace(anchor, replacement, 1)
+
+          assert '        offset_controls.setContentsMargins(4, 0, 4, 2)\n' in text
+          text = text.replace(
+              '        offset_controls.setContentsMargins(4, 0, 4, 2)\n',
+              '        offset_controls.setContentsMargins(0, 0, 0, 0)\n',
+              1,
+          )
+
+          anchor = '''        self.coordinate_label = QLabel("x: —   y: —")
+                  self.coordinate_label.setMinimumWidth(210)
+                  offset_controls.addWidget(self.coordinate_label)
+          '''
+          replacement = anchor + '        view_layout.addLayout(offset_controls)\n'
+          assert anchor in text
+          text = text.replace(anchor, replacement, 1)
+
+          old = '''        layout = QVBoxLayout(self)
+                  layout.setContentsMargins(0, 0, 0, 0)
+                  layout.addLayout(controls)
+                  layout.addLayout(offset_controls)
+          '''
+          new = '''        layout = QVBoxLayout(self)
+                  layout.setContentsMargins(0, 0, 0, 0)
+                  layout.addWidget(self.view_controls)
+          '''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          old = '''        self.view_active_action = QAction(self.tr("View active"), self)
+                  self.view_active_action.setToolTip(self.tr("Fit unmasked experimental data only."))
+          '''
+          new = '''        self.view_active_action = QAction(self.tr("View unmasked"), self)
+                  self.view_active_action.setToolTip(self.tr("View unmasked\\nFrame only unmasked experimental data."))
+          '''
+          assert old in text
+          text = text.replace(old, new, 1)
+
+          plot.write_text(text, encoding='utf-8')
+
+          main_window = Path('src/curvemole/gui/main_window.py')
+          text = main_window.read_text(encoding='utf-8')
+          old = 'self.plot_workspace.view_active_action.setToolTip(self.tr("View active\\nFrame only unmasked experimental data."))'
+          new = 'self.plot_workspace.view_active_action.setToolTip(self.tr("View unmasked\\nFrame only unmasked experimental data."))'
+          assert old in text
+          main_window.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          preview = Path('scripts/generate_toolbar_preview.py')
+          text = preview.read_text(encoding='utf-8')
+          assert '("view-active", "View active", "Solo punti non mascherati")' in text
+          preview.write_text(
+              text.replace(
+                  '("view-active", "View active", "Solo punti non mascherati")',
+                  '("view-active", "View unmasked", "Solo punti non mascherati")',
+                  1,
+              ),
+              encoding='utf-8',
+          )
+
+          for filename in ('docs/quick-start.md', 'docs/manual.md', 'docs/CurveMole_User_Manual.tex'):
+              path = Path(filename)
+              text = path.read_text(encoding='utf-8')
+              if 'View active' in text:
+                  path.write_text(text.replace('View active', 'View unmasked'), encoding='utf-8')
+
+          test = Path('tests/test_experimental_view_bounds.py')
+          text = test.read_text(encoding='utf-8')
+          marker = 'def test_spectrum_switch_autoscale_is_optional_and_uses_all_or_active_points():'
+          assert marker in text
+          addition = '''def test_view_control_labels_are_explicit():
+              app = QApplication.instance() or QApplication([])
+              workspace = PlotWorkspace(FunctionRegistry.with_builtins())
+              assert [workspace.autoscale_mode.itemText(i) for i in range(workspace.autoscale_mode.count())] == [
+                  "All points",
+                  "Unmasked points",
+              ]
+              assert workspace.view_active_action.text() == "View unmasked"
+              assert workspace.view_controls.layout().indexOf(workspace.display_mode) == -1
+              app.processEvents()
+
+
+          '''
+          if 'def test_view_control_labels_are_explicit()' not in text:
+              text = text.replace(marker, addition + marker, 1)
+          test.write_text(text, encoding='utf-8')
+          PY
+      - name: Validate syntax
+        run: python -m compileall -q src tests scripts
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/curvemole/gui/plot.py src/curvemole/gui/main_window.py scripts/generate_toolbar_preview.py docs/quick-start.md docs/manual.md docs/CurveMole_User_Manual.tex tests/test_experimental_view_bounds.py
+          git commit -m "Restyle view controls and clarify unmasked view [ui-patch] [skip release]"
+          git push origin HEAD:ui/view-controls-panel
