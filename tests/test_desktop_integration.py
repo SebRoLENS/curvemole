@@ -3,6 +3,8 @@ from __future__ import annotations
 import stat
 from pathlib import Path
 
+import pytest
+
 from curvemole.gui.app import _open_paths
 from curvemole.gui.desktop_integration import (
     integrate_linux_desktop,
@@ -16,7 +18,10 @@ def _file(path: Path, content: str = "data") -> Path:
     return path
 
 
-def test_linux_integration_installs_stable_appimage_and_is_idempotent(tmp_path: Path) -> None:
+def test_linux_integration_installs_stable_appimage_and_is_idempotent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("curvemole.gui.desktop_integration.platform.system", lambda: "Linux")
     source = _file(tmp_path / "downloads" / "CurveMole-1.2.3.AppImage")
     icon = _file(tmp_path / "curvemole.png", "png")
     home = tmp_path / "home"
@@ -51,7 +56,10 @@ def test_linux_integration_installs_stable_appimage_and_is_idempotent(tmp_path: 
     assert repeated.backup_file is None
 
 
-def test_linux_integration_adopts_and_backs_up_manual_launcher(tmp_path: Path) -> None:
+def test_linux_integration_adopts_and_backs_up_manual_launcher(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("curvemole.gui.desktop_integration.platform.system", lambda: "Linux")
     source = _file(tmp_path / "opt" / "CurveMole.AppImage")
     launcher = _file(tmp_path / "bin" / "curvemole", "#!/bin/sh\n")
     launcher.chmod(0o755)
