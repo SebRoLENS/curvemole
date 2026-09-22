@@ -1,5 +1,11 @@
 """Qt desktop client for the CurveMole scientific engine."""
 
+# Apply Autoscale after mouse-driven data navigation once Qt has finished the
+# current selection/current-item event sequence.
+from curvemole.gui import (
+    autoscale_mouse_navigation as _autoscale_mouse_navigation,  # noqa: F401,E402
+)
+
 # Preserve the established BackgroundComponentsDialog injection point used by
 # tests/plugins while loading the corrected background-control semantics.
 from curvemole.gui import (
