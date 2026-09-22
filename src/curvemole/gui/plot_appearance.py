@@ -73,7 +73,7 @@ DEFAULT_PLOT_APPEARANCE: dict[str, Any] = {
     "residual_point_size": 4.0,
     "residual_line_style": "solid",
     "residual_opacity": 100,
-    "masked_point_size": 5.0,
+    "masked_point_size": 3.5,
     "masked_opacity": 29,
     "grid_visible": True,
     "grid_opacity": 15,

@@ -117,13 +117,16 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
         symbol = marker_for_curve(appearance, index)
         isolated_x: list[float] = []
         isolated_y: list[float] = []
+        runs = _mask_display._true_runs(masked)
+        for run in runs:
+            if run.size == 1:
+                point = int(run[0])
+                isolated_x.append(float(x[point]))
+                isolated_y.append(float(y[point]))
 
         if draw_lines:
-            for run in _mask_display._true_runs(masked):
+            for run in runs:
                 if run.size == 1:
-                    point = int(run[0])
-                    isolated_x.append(float(x[point]))
-                    isolated_y.append(float(y[point]))
                     continue
                 item = workspace.plot.plot(x[run], y[run], pen=line_pen)
                 item._curvemole_masked_data = True
