@@ -18,7 +18,9 @@ def test_import_shared_x_multiple_y_and_invalid_row(tmp_path: Path) -> None:
     path = tmp_path / "multiple.csv"
     path.write_text("x,a,b\n0,1,2\n1,bad,3\n2,4,5\n", encoding="utf-8")
     curves = import_file(path, ColumnMapping(x="x", y=["a", "b"]))
-    assert [curve.name for curve in curves] == ["a", "b"]
+    assert [curve.name for curve in curves] == ["multiple", "multiple"]
+    assert [curve.y_label for curve in curves] == ["a", "b"]
+    assert [curve.metadata["import"]["y_column"] for curve in curves] == ["a", "b"]
     assert np.isnan(curves[0].y[1])
     assert len(curves[0]) == 3
 
@@ -31,6 +33,7 @@ def test_decimal_comma_semicolon_import(tmp_path: Path) -> None:
         ColumnMapping(x="x", y=["y"]),
         ImportConfig(delimiter=";", decimal=",", header=True),
     )
+    assert curves[0].name == "comma"
     assert curves[0].x.tolist() == [0, 1]
     assert curves[0].y.tolist() == [1.5, 2.5]
 
