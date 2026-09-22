@@ -28,6 +28,10 @@ from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F40
 # lexical order returned by the platform file dialog.
 from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
 
+# Make the compact plot-style selector control imported data and keep offsets /
+# residual visibility grouped with the display controls requested by the user.
+from curvemole.gui import plot_controls_fix as _plot_controls_fix  # noqa: F401,E402
+
 # Refresh the plotted model every 20 fit evaluations while preserving the user's
 # current zoom/range.
 from curvemole.gui import live_fit_refresh as _live_fit_refresh  # noqa: F401,E402
