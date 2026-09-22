@@ -62,6 +62,10 @@ from curvemole.gui import peak_parameter_roles as _peak_parameter_roles  # noqa:
 # placement itself still owns left-click and left-drag events.
 from curvemole.gui import peak_placement_zoom_fix as _peak_placement_zoom_fix  # noqa: F401,E402
 
+# Make the compact plot-style selector control imported data and keep offsets /
+# residual visibility grouped with the display controls requested by the user.
+from curvemole.gui import plot_controls_fix as _plot_controls_fix  # noqa: F401,E402
+
 # Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
 from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
 

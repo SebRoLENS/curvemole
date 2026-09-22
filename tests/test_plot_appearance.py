@@ -6,7 +6,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QLabel
 
 from curvemole import Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -43,7 +43,7 @@ def test_marker_cycle_can_distinguish_spectra() -> None:
     assert marker_for_curve(settings, 0) == marker_for_curve(settings, 1)
 
 
-def test_quick_function_style_and_advanced_settings_persist_to_project() -> None:
+def test_quick_plot_style_controls_loaded_data_and_display_layout() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("appearance")
     first = Curve("first", np.array([0.0, 1.0, 2.0]), np.array([0.0, 1.0, 0.0]))
@@ -53,15 +53,31 @@ def test_quick_function_style_and_advanced_settings_persist_to_project() -> None
     window = CurveMoleMainWindow(project)
     workspace = window.plot_workspace
     try:
+        assert workspace.plot_style_mode is workspace.function_style_mode
         assert [
-            workspace.function_style_mode.itemText(index)
-            for index in range(workspace.function_style_mode.count())
+            workspace.plot_style_mode.itemText(index)
+            for index in range(workspace.plot_style_mode.count())
         ] == ["Lines", "Points", "Lines + points"]
+        labels = [label.text() for label in workspace.view_controls.findChildren(QLabel)]
+        assert "Plot style:" in labels
+        assert "Functions:" not in labels
         assert window.plot_appearance_action.text() == "Plot appearance…"
 
-        workspace.function_style_mode.setCurrentIndex(1)
+        controls_layout = workspace.view_controls.layout()
+        display_row = controls_layout.itemAt(0).layout()
+        autoscale_row = controls_layout.itemAt(1).layout()
+        assert display_row.indexOf(workspace.x_offset) >= 0
+        assert display_row.indexOf(workspace.y_offset) >= 0
+        assert autoscale_row.indexOf(workspace.residual_toggle) >= 0
+
+        workspace.plot_style_mode.setCurrentIndex(1)
         app.processEvents()
-        assert project.ui_state["plot_appearance"]["function_style"] == "points"
+        stored = project.ui_state["plot_appearance"]
+        assert stored["data_style"] == "points"
+        assert stored["function_style"] == "lines"
+        first_item = workspace._data_items[first.id]
+        assert first_item.opts.get("symbol") is not None
+        assert first_item.opts.get("pen") is None
 
         workspace.display_mode.setCurrentIndex(1)
         workspace.set_plot_appearance(
@@ -83,7 +99,7 @@ def test_quick_function_style_and_advanced_settings_persist_to_project() -> None
         assert stored["function_style"] == "lines_points"
         assert stored["function_sum_line_width"] == 3.5
         assert stored["grid_visible"] is False
-        assert workspace.function_style_mode.currentData() == "lines_points"
+        assert workspace.plot_style_mode.currentData() == "points"
 
         symbols = [item.opts.get("symbol") for item in workspace._data_items.values()]
         assert len(symbols) == 2

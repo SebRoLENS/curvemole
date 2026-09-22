@@ -191,7 +191,7 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
     column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
     pairs = mapping.pairs or [(mapping.x, y) for y in mapping.y]
     curves: list[Curve] = []
-    for pair_index, (x_column, y_column) in enumerate(pairs, start=1):
+    for x_column, y_column in pairs:
         x_name = _column_name(frame, x_column)
         y_name = _column_name(frame, y_column)
         x = _numeric(frame[x_name], selected.decimal)
@@ -210,9 +210,8 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                 mapping.inverse_variance,
                 selected.decimal,
             )
-        name = str(y_name).strip() or f"{source.stem} {pair_index}"
         curve = Curve(
-            name=name,
+            name=source.stem,
             original_x=x,
             original_y=y,
             original_columns=numeric_columns,
@@ -253,8 +252,6 @@ def import_many(
     series = Series(series_name)
     for path in paths:
         for curve in import_file(path, mapping, config):
-            if len(paths) > 1 and curve.name.lower() in {"y", "signal", "intensity"}:
-                curve.name = f"{Path(path).stem}: {curve.name}"
             series.add(curve)
     return series
 
