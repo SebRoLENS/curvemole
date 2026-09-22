@@ -18,32 +18,7 @@ jobs:
           ref: feat/plot-appearance-customization
           fetch-depth: 0
       - name: Fix temporary patch script
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          path = Path('scripts/tmp_apply_plot_appearance_patch.py')
-          text = path.read_text(encoding='utf-8')
-          old = '            """Render excluded samples using the current project appearance settings."""\n'
-          new = '            # Render excluded samples using the current project appearance settings.\n'
-          assert old in text
-          text = text.replace(old, new, 1)
-          start = text.index('    menu_anchor = textwrap.dedent(\n')
-          end = text.index('    text = replace_once(\n        text,\n        menu_anchor,', start)
-          menu = '''    menu_anchor = (
-        "        view_menu.addActions(\\n"
-        "            [\\n"
-        "                self.series_dock.toggleViewAction(),\\n"
-        "                self.model_dock.toggleViewAction(),\\n"
-        "                self.worksheet_action,\\n"
-        "                self.diagnostics_action,\\n"
-        "                self.log_action,\\n"
-        "            ]\\n"
-        "        )\\n"
-    )
-'''
-          text = text[:start] + menu + text[end:]
-          path.write_text(text, encoding='utf-8')
-          PY
+        run: python scripts/tmp_fix_plot_appearance_patch.py
       - name: Apply integration patch
         run: python scripts/tmp_apply_plot_appearance_patch.py
       - name: Validate syntax
