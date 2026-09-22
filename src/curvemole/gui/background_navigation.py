@@ -103,8 +103,10 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
         )
         if not np.any(masked):
             continue
+        # Masked samples keep their established neutral-grey visual identity.
+        # Size and opacity remain customizable, but spectrum colours never leak into masks.
         colour = colour_with_opacity(
-            curve.colour,
+            "#777777",
             int(appearance["masked_opacity"]),
         )
         line_pen = pg.mkPen(
@@ -113,10 +115,10 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
             style=qt_pen_style(str(appearance["data_line_style"])),
         )
         symbol = marker_for_curve(appearance, index)
+        isolated_x: list[float] = []
+        isolated_y: list[float] = []
 
         if draw_lines:
-            isolated_x: list[float] = []
-            isolated_y: list[float] = []
             for run in _mask_display._true_runs(masked):
                 if run.size == 1:
                     point = int(run[0])
@@ -127,19 +129,22 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
                 item._curvemole_masked_data = True
                 item.curve_id = curve.id
                 item.setZValue(4.0)
-            if isolated_x and not draw_points:
-                item = workspace.plot.plot(
-                    np.asarray(isolated_x, dtype=float),
-                    np.asarray(isolated_y, dtype=float),
-                    pen=None,
-                    symbol=symbol,
-                    symbolSize=float(appearance["masked_point_size"]),
-                    symbolBrush=pg.mkBrush(colour),
-                    symbolPen=None,
-                )
-                item._curvemole_masked_data = True
-                item.curve_id = curve.id
-                item.setZValue(4.0)
+
+        # A single masked sample has no line segment, so it is always rendered
+        # as a marker even when the experimental-data mode is Lines.
+        if isolated_x and not draw_points:
+            item = workspace.plot.plot(
+                np.asarray(isolated_x, dtype=float),
+                np.asarray(isolated_y, dtype=float),
+                pen=None,
+                symbol=symbol,
+                symbolSize=float(appearance["masked_point_size"]),
+                symbolBrush=pg.mkBrush(colour),
+                symbolPen=None,
+            )
+            item._curvemole_masked_data = True
+            item.curve_id = curve.id
+            item.setZValue(4.0)
 
         if draw_points:
             item = workspace.plot.plot(
