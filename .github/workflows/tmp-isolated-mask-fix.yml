@@ -1,0 +1,81 @@
+name: Temporary isolated mask fix
+
+on:
+  push:
+    branches:
+      - feat/plot-appearance-customization
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: ${{ !contains(github.event.head_commit.message, '[isolated-mask-fix]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: feat/plot-appearance-customization
+          fetch-depth: 0
+      - name: Fix isolated masked point rendering
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/curvemole/gui/background_navigation.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''        symbol = marker_for_curve(appearance, index)
+                  isolated_x: list[float] = []
+                  isolated_y: list[float] = []
+
+                  if draw_lines:
+                      for run in _mask_display._true_runs(masked):
+                          if run.size == 1:
+                              point = int(run[0])
+                              isolated_x.append(float(x[point]))
+                              isolated_y.append(float(y[point]))
+                              continue
+                          item = workspace.plot.plot(x[run], y[run], pen=line_pen)
+                          item._curvemole_masked_data = True
+                          item.curve_id = curve.id
+                          item.setZValue(4.0)
+          '''
+          new = '''        symbol = marker_for_curve(appearance, index)
+                  isolated_x: list[float] = []
+                  isolated_y: list[float] = []
+                  runs = _mask_display._true_runs(masked)
+                  for run in runs:
+                      if run.size == 1:
+                          point = int(run[0])
+                          isolated_x.append(float(x[point]))
+                          isolated_y.append(float(y[point]))
+
+                  if draw_lines:
+                      for run in runs:
+                          if run.size == 1:
+                              continue
+                          item = workspace.plot.plot(x[run], y[run], pen=line_pen)
+                          item._curvemole_masked_data = True
+                          item.curve_id = curve.id
+                          item.setZValue(4.0)
+          '''
+          if old not in text:
+              raise SystemExit('renderer anchor not found')
+          path.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          appearance = Path('src/curvemole/gui/plot_appearance.py')
+          text = appearance.read_text(encoding='utf-8')
+          old = '    "masked_point_size": 5.0,\n'
+          if old not in text:
+              raise SystemExit('masked point default anchor not found')
+          appearance.write_text(text.replace(old, '    "masked_point_size": 3.5,\n', 1), encoding='utf-8')
+          PY
+      - name: Validate syntax
+        run: python -m compileall -q src tests
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/curvemole/gui/background_navigation.py src/curvemole/gui/plot_appearance.py
+          git commit -m "Keep isolated masked points visible across plot styles [isolated-mask-fix] [skip release]"
+          git push origin HEAD:feat/plot-appearance-customization
