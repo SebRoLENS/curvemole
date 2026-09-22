@@ -37,6 +37,10 @@ from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
 # the desktop entry point constructs its MainWindow instance.
 from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,E402
 
+# Keep an already-open laboratory notebook synchronised when descriptions are
+# added or edited from the main data/model context menus.
+from curvemole.gui import notebook_live_refresh as _notebook_live_refresh  # noqa: F401,E402
+
 # Extend the multi-selection model panel with source-to-many parameter copying.
 from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
 
