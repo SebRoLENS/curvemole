@@ -17,6 +17,12 @@ from curvemole.core.data import Curve, CurveState
 from curvemole.gui import mask_display as _mask_display
 from curvemole.gui.main_window import CallbackCommand, MainWindow
 from curvemole.gui.plot import PlotWorkspace
+from curvemole.gui.plot_appearance import (
+    colour_with_opacity,
+    marker_for_curve,
+    plot_mode_flags,
+    qt_pen_style,
+)
 
 
 def _displayed_curves(workspace: PlotWorkspace) -> tuple[list[Curve], float, float]:
@@ -75,14 +81,14 @@ def _background_cache(workspace: PlotWorkspace) -> dict[str, np.ndarray]:
 
 
 def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
-    """Render excluded samples in the same visual baseline mode as the main data."""
+    # Render excluded samples using the current project appearance settings.
     curves, x_step, y_step = _displayed_curves(workspace)
     if not curves:
         return
     subtract = bool(getattr(workspace, "_background_subtracted_view", False))
     cache = getattr(workspace, "_curvemole_background_cache", {})
-    line_pen = pg.mkPen(125, 125, 125, 190, width=1.0)
-    marker_brush = pg.mkBrush(125, 125, 125, 190)
+    appearance = workspace.plot_appearance()
+    draw_lines, draw_points = plot_mode_flags(str(appearance["data_style"]))
 
     for index, curve in enumerate(curves):
         x = np.asarray(curve.x, dtype=float) + index * x_step
@@ -90,29 +96,67 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
         if subtract:
             y = y - np.asarray(cache.get(curve.id, np.zeros_like(y)), dtype=float)
         y = y + index * y_step
-        masked = np.asarray(curve.effective_mask, dtype=bool) & np.isfinite(x) & np.isfinite(y)
+        masked = (
+            np.asarray(curve.effective_mask, dtype=bool)
+            & np.isfinite(x)
+            & np.isfinite(y)
+        )
+        if not np.any(masked):
+            continue
+        # Masked samples keep their established neutral-grey visual identity.
+        # Size and opacity remain customizable, but spectrum colours never leak into masks.
+        colour = colour_with_opacity(
+            "#777777",
+            int(appearance["masked_opacity"]),
+        )
+        line_pen = pg.mkPen(
+            colour,
+            width=float(appearance["data_line_width"]),
+            style=qt_pen_style(str(appearance["data_line_style"])),
+        )
+        symbol = marker_for_curve(appearance, index)
         isolated_x: list[float] = []
         isolated_y: list[float] = []
-
-        for run in _mask_display._true_runs(masked):
+        runs = _mask_display._true_runs(masked)
+        for run in runs:
             if run.size == 1:
                 point = int(run[0])
                 isolated_x.append(float(x[point]))
                 isolated_y.append(float(y[point]))
-                continue
-            item = workspace.plot.plot(x[run], y[run], pen=line_pen)
-            item._curvemole_masked_data = True
-            item.curve_id = curve.id
-            item.setZValue(4.0)
 
-        if isolated_x:
+        if draw_lines:
+            for run in runs:
+                if run.size == 1:
+                    continue
+                item = workspace.plot.plot(x[run], y[run], pen=line_pen)
+                item._curvemole_masked_data = True
+                item.curve_id = curve.id
+                item.setZValue(4.0)
+
+        # A single masked sample has no line segment, so it is always rendered
+        # as a marker even when the experimental-data mode is Lines.
+        if isolated_x and not draw_points:
             item = workspace.plot.plot(
                 np.asarray(isolated_x, dtype=float),
                 np.asarray(isolated_y, dtype=float),
                 pen=None,
-                symbol="o",
-                symbolSize=3.5,
-                symbolBrush=marker_brush,
+                symbol=symbol,
+                symbolSize=float(appearance["masked_point_size"]),
+                symbolBrush=pg.mkBrush(colour),
+                symbolPen=None,
+            )
+            item._curvemole_masked_data = True
+            item.curve_id = curve.id
+            item.setZValue(4.0)
+
+        if draw_points:
+            item = workspace.plot.plot(
+                x[masked],
+                y[masked],
+                pen=None,
+                symbol=symbol,
+                symbolSize=float(appearance["masked_point_size"]),
+                symbolBrush=pg.mkBrush(colour),
                 symbolPen=None,
             )
             item._curvemole_masked_data = True

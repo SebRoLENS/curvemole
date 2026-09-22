@@ -118,6 +118,7 @@ from curvemole.gui.panels import (
     WorksheetPanel,
 )
 from curvemole.gui.plot import PlotWorkspace
+from curvemole.gui.plot_appearance import PlotAppearanceDialog
 from curvemole.version import __version__
 
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
@@ -811,6 +812,11 @@ class MainWindow(QMainWindow):
         self.reverse_y_action.toggled.connect(self.plot_workspace.set_reverse_y)
         self.lock_view_action = QAction(self.tr("Lock plot view"), self, checkable=True)
         self.lock_view_action.toggled.connect(self.plot_workspace.set_view_locked)
+        self.plot_appearance_action = QAction(self.tr("Plot appearance…"), self)
+        self.plot_appearance_action.setToolTip(
+            self.tr("Customize lines, points, symbols, colours, residuals and grid rendering.")
+        )
+        self.plot_appearance_action.triggered.connect(self.configure_plot_appearance)
         self.system_theme_action = QAction(self.tr("System theme"), self, checkable=True)
         self.light_theme_action = QAction(self.tr("Light theme"), self, checkable=True)
         self.dark_theme_action = QAction(self.tr("Dark theme"), self, checkable=True)
@@ -836,6 +842,11 @@ class MainWindow(QMainWindow):
         )
         self.about_action = QAction(self.tr("About CurveMole"), self)
         self.about_action.triggered.connect(self.show_about)
+
+    def configure_plot_appearance(self) -> None:
+        dialog = PlotAppearanceDialog(self.plot_workspace.plot_appearance(), self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.plot_workspace.set_plot_appearance(dialog.settings())
 
     def _build_menus(self) -> None:
         menu = self.menuBar()
@@ -899,6 +910,8 @@ class MainWindow(QMainWindow):
                 self.log_action,
             ]
         )
+        view_menu.addSeparator()
+        view_menu.addAction(self.plot_appearance_action)
         themes = view_menu.addMenu(self.tr("Theme"))
         themes.addActions([self.system_theme_action, self.light_theme_action, self.dark_theme_action])
         axes = view_menu.addMenu(self.tr("Axes"))
