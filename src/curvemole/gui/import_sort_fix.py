@@ -48,7 +48,22 @@ def _import_data_natural_order(self: MainWindow, paths: list[str] | None = None)
         if not paths:
             return
 
+    existing_ids = {curve.id for curve in self.project.curves}
     _ORIGINAL_IMPORT_DATA(self, sort_import_paths(list(paths)), preview_columns=preview_columns)
+
+    # The core importer owns imported-data names.  MainWindow still contains a
+    # legacy multi-file prefix from before that rule was centralised, so discard
+    # only that GUI-side mutation and keep the importer's source-file stem.
+    changed = False
+    for curve in self.project.curves:
+        if curve.id in existing_ids or not curve.source:
+            continue
+        imported_name = Path(curve.source).stem
+        if curve.name != imported_name:
+            curve.name = imported_name
+            changed = True
+    if changed:
+        self.refresh_all()
 
 
 MainWindow.import_data = _import_data_natural_order
