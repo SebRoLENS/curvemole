@@ -10,6 +10,10 @@ from curvemole.gui import background_controls_fix as _background_controls_fix  #
 # Add plot-focused spectrum keyboard navigation plus background-aware rendering.
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
 
+# Add explicit generic-data renaming and safe, undoable series deletion without
+# assuming that imported one-dimensional data are spectra.
+from curvemole.gui import data_series_management as _data_series_management  # noqa: F401,E402
+
 # Let import validity follow file contents rather than the filename suffix and
 # expose configurable leading-row skipping in the mapping preview.
 from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F401,E402
