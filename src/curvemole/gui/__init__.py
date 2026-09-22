@@ -14,10 +14,6 @@ from curvemole.gui import background_navigation as _background_navigation  # noq
 # assuming that imported one-dimensional data are spectra.
 from curvemole.gui import data_series_management as _data_series_management  # noqa: F401,E402
 
-# Keep an already-open laboratory notebook synchronised when descriptions are
-# added or edited from the main data/model context menus.
-from curvemole.gui import notebook_live_refresh as _notebook_live_refresh  # noqa: F401,E402
-
 # Let import validity follow file contents rather than the filename suffix and
 # expose configurable leading-row skipping in the mapping preview.
 from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F401,E402
@@ -40,6 +36,10 @@ from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
 # Install model-panel multi-selection and project-wide function browsing before
 # the desktop entry point constructs its MainWindow instance.
 from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,E402
+
+# Keep an already-open laboratory notebook synchronised when descriptions are
+# added or edited from the main data/model context menus.
+from curvemole.gui import notebook_live_refresh as _notebook_live_refresh  # noqa: F401,E402
 
 # Extend the multi-selection model panel with source-to-many parameter copying.
 from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
