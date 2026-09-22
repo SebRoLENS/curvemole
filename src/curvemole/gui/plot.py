@@ -31,7 +31,13 @@ from curvemole.core.errors import CurveMoleError
 from curvemole.core.models import component_height
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
-from curvemole.gui.colours import MODEL_SUM_COLOUR
+from curvemole.gui.plot_appearance import (
+    colour_with_opacity,
+    marker_for_curve,
+    normalize_plot_appearance,
+    plot_mode_flags,
+    qt_pen_style,
+)
 
 
 class MaskViewBox(pg.ViewBox):
@@ -153,6 +159,7 @@ class PlotWorkspace(QWidget):
         self._spline_points: list[tuple[float, float]] = []
         self._placement_items: list[Any] = []
         self._placement_name = ""
+        self._plot_appearance = normalize_plot_appearance(None)
 
         self.view_controls = QFrame(self)
         self.view_controls.setObjectName("viewControls")
@@ -211,6 +218,26 @@ class PlotWorkspace(QWidget):
         self.autoscale_toggle.toggled.connect(self._autoscale_settings_changed)
         self.autoscale_mode.currentIndexChanged.connect(self._autoscale_settings_changed)
         view_layout.addLayout(autoscale_controls)
+
+        function_controls = QHBoxLayout()
+        function_controls.setContentsMargins(0, 0, 0, 0)
+        function_controls.addWidget(QLabel(self.tr("Functions:")))
+        self.function_style_mode = QComboBox()
+        self.function_style_mode.addItem(self.tr("Lines"), "lines")
+        self.function_style_mode.addItem(self.tr("Points"), "points")
+        self.function_style_mode.addItem(
+            self.tr("Lines + points"), "lines_points"
+        )
+        self.function_style_mode.setToolTip(
+            self.tr("Choose how fitted/model functions are drawn in the plot.")
+        )
+        self.function_style_mode.currentIndexChanged.connect(
+            self._function_style_changed
+        )
+        function_controls.addWidget(self.function_style_mode)
+        function_controls.addStretch(1)
+        view_layout.addLayout(function_controls)
+
         offset_controls = QHBoxLayout()
         offset_controls.setContentsMargins(0, 0, 0, 0)
         offset_controls.addWidget(QLabel(self.tr("X offset:")))
@@ -314,6 +341,72 @@ class PlotWorkspace(QWidget):
         self._cancel_shortcut = QShortcut(QKeySequence("Esc"), self)
         self._cancel_shortcut.activated.connect(self.cancel_placement)
 
+    def plot_appearance(self) -> dict[str, Any]:
+        return dict(self._plot_appearance)
+
+    def set_plot_appearance(self, settings: dict[str, Any]) -> None:
+        self._plot_appearance = normalize_plot_appearance(settings)
+        if self._project is not None:
+            self._project.ui_state["plot_appearance"] = dict(self._plot_appearance)
+        self._sync_function_style_control()
+        self._apply_grid_appearance()
+        self.refresh()
+
+    def _sync_function_style_control(self) -> None:
+        value = str(self._plot_appearance.get("function_style", "lines"))
+        index = self.function_style_mode.findData(value)
+        self.function_style_mode.blockSignals(True)
+        self.function_style_mode.setCurrentIndex(index if index >= 0 else 0)
+        self.function_style_mode.blockSignals(False)
+
+    def _function_style_changed(self, *_: Any) -> None:
+        value = self.function_style_mode.currentData()
+        if value is None:
+            return
+        self._plot_appearance["function_style"] = str(value)
+        self._plot_appearance = normalize_plot_appearance(self._plot_appearance)
+        if self._project is not None:
+            self._project.ui_state["plot_appearance"] = dict(self._plot_appearance)
+        self.refresh()
+
+    def _apply_grid_appearance(self) -> None:
+        visible = bool(self._plot_appearance.get("grid_visible", True))
+        alpha = float(self._plot_appearance.get("grid_opacity", 15)) / 100.0
+        self.plot.showGrid(x=visible, y=visible, alpha=alpha)
+        self.residual_plot.showGrid(x=visible, y=visible, alpha=alpha)
+
+    @staticmethod
+    def _plot_options(
+        mode: str,
+        colour: str | QColor,
+        width: float,
+        line_style: str,
+        opacity: int,
+        point_size: float,
+        symbol: str,
+    ) -> dict[str, Any]:
+        draw_lines, draw_points = plot_mode_flags(mode)
+        rendered_colour = colour_with_opacity(colour, opacity)
+        options: dict[str, Any] = {
+            "pen": (
+                pg.mkPen(
+                    rendered_colour,
+                    width=width,
+                    style=qt_pen_style(line_style),
+                )
+                if draw_lines
+                else None
+            )
+        }
+        if draw_points:
+            options.update(
+                symbol=symbol,
+                symbolSize=point_size,
+                symbolBrush=pg.mkBrush(rendered_colour),
+                symbolPen=None,
+            )
+        return options
+
     def set_context(
         self,
         project: Project,
@@ -336,6 +429,11 @@ class PlotWorkspace(QWidget):
                 self.autoscale_mode.setEnabled(self.autoscale_toggle.isChecked())
                 self.autoscale_mode.blockSignals(False)
                 self.autoscale_toggle.blockSignals(False)
+                self._plot_appearance = normalize_plot_appearance(
+                    project.ui_state.get("plot_appearance")
+                )
+                self._sync_function_style_control()
+                self._apply_grid_appearance()
             if active_curve_id:
                 self._active_series_id = project.dataset.series_for(active_curve_id).id
             elif self._active_series_id not in {series.id for series in project.dataset.series}:
@@ -405,6 +503,7 @@ class PlotWorkspace(QWidget):
         if project is None or not project.curves:
             self.plot.setTitle(self.tr("Import data to begin"))
             return
+        appearance = self._plot_appearance
         mode = self.display_mode.currentText()
         curves = self.displayed_curves()
         x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
@@ -414,23 +513,26 @@ class PlotWorkspace(QWidget):
             x = curve.x + index * x_step
             y = curve.y + index * y_step
             unmasked = ~curve.effective_mask
-            pen = pg.mkPen(curve.colour, width=1.35 if curve.id == self._active_curve_id else 1.0)
-            item = self.plot.plot(x[unmasked], y[unmasked], pen=pen, name=curve.name)
+            symbol = marker_for_curve(appearance, index)
+            data_width = float(appearance["data_line_width"]) * (
+                1.35 if curve.id == self._active_curve_id else 1.0
+            )
+            item = self.plot.plot(
+                x[unmasked],
+                y[unmasked],
+                name=curve.name,
+                **self._plot_options(
+                    str(appearance["data_style"]),
+                    curve.colour,
+                    data_width,
+                    str(appearance["data_line_style"]),
+                    int(appearance["data_opacity"]),
+                    float(appearance["data_point_size"]),
+                    symbol,
+                ),
+            )
             item.curve_id = curve.id
             self._data_items[curve.id] = item
-            masked = curve.effective_mask & np.isfinite(x) & np.isfinite(y)
-            if np.any(masked):
-                faded = QColor(curve.colour)
-                faded.setAlpha(75)
-                self.plot.plot(
-                    x[masked],
-                    y[masked],
-                    pen=None,
-                    symbol="o",
-                    symbolSize=5,
-                    symbolBrush=pg.mkBrush(faded),
-                    symbolPen=None,
-                )
             for mask in curve.masks.values():
                 for lower, upper in mask.ranges:
                     if math.isclose(lower, upper):
@@ -454,45 +556,105 @@ class PlotWorkspace(QWidget):
                         components=True,
                     )
                 except CurveMoleError as exc:
-                    self.plot.setToolTip(f"Model unavailable: {exc}. Review File → Plugin Manager.")
+                    self.plot.setToolTip(
+                        f"Model unavailable: {exc}. Review File → Plugin Manager."
+                    )
                     continue
                 total = total + index * y_step
-                self.plot.plot(
+                sum_item = self.plot.plot(
                     x,
                     total,
-                    pen=pg.mkPen(MODEL_SUM_COLOUR, width=2.2),
                     name=f"{curve.name} Model sum",
+                    **self._plot_options(
+                        str(appearance["function_style"]),
+                        str(appearance["model_sum_colour"]),
+                        float(appearance["function_sum_line_width"]),
+                        str(appearance["function_sum_line_style"]),
+                        int(appearance["function_opacity"]),
+                        float(appearance["function_point_size"]),
+                        symbol,
+                    ),
                 )
+                sum_item.curve_id = curve.id
                 residual = curve.y - (total - index * y_step)
-                self.residual_plot.plot(x[unmasked], residual[unmasked], pen=pg.mkPen(curve.colour, width=1))
+                self.residual_plot.plot(
+                    x[unmasked],
+                    residual[unmasked],
+                    **self._plot_options(
+                        str(appearance["residual_style"]),
+                        curve.colour,
+                        float(appearance["residual_line_width"]),
+                        str(appearance["residual_line_style"]),
+                        int(appearance["residual_opacity"]),
+                        float(appearance["residual_point_size"]),
+                        symbol,
+                    ),
+                )
                 for component in model.components:
                     if not component.enabled or component.id not in component_arrays:
                         continue
                     component_y = component_arrays[component.id] + index * y_step
-                    selected = component.id == self._selected_component_id and curve.id == self._active_curve_id
+                    selected = (
+                        component.id == self._selected_component_id
+                        and curve.id == self._active_curve_id
+                    )
+                    colour = (
+                        str(appearance["selected_component_colour"])
+                        if selected
+                        else str(appearance["component_colour"])
+                    )
+                    width = (
+                        float(appearance["function_selected_line_width"])
+                        if selected
+                        else float(appearance["function_component_line_width"])
+                    )
                     component_item = self.plot.plot(
                         x,
                         component_y,
-                        pen=pg.mkPen("#CC79A7" if selected else "#777777", width=1.7 if selected else 0.8, style=Qt.PenStyle.DashLine),
+                        **self._plot_options(
+                            str(appearance["function_style"]),
+                            colour,
+                            width,
+                            str(appearance["function_component_line_style"]),
+                            int(appearance["function_opacity"]),
+                            float(appearance["function_point_size"]),
+                            symbol,
+                        ),
                     )
                     component_item.component_id = component.id
                     component_item.curve_id = curve.id
-                    component_item.curve.setClickable(True, width=8)
+                    component_item.curve.setClickable(
+                        True,
+                        width=max(
+                            8.0,
+                            float(appearance["function_point_size"]) + 4.0,
+                        ),
+                    )
                     component_item.sigClicked.connect(
-                        lambda item, event, component_id=component.id: self.componentSelected.emit(
-                            component_id
+                        lambda item, event, component_id=component.id: (
+                            self.componentSelected.emit(component_id)
                         )
                     )
                     self._component_items[component.id] = component_item
                     if self._show_component_labels:
                         self._add_component_label(component.name, x, component_y)
                 if curve.id == self._active_curve_id and self._selected_component_id:
-                    self._add_component_handles(curve, model, index * x_step, index * y_step)
+                    self._add_component_handles(
+                        curve,
+                        model,
+                        index * x_step,
+                        index * y_step,
+                    )
         if curves:
             first = curves[0]
             self.plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
             self.plot.setLabel("left", first.y_label, units=first.y_unit or None)
-            self.residual_plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
+            self.residual_plot.setLabel(
+                "bottom",
+                first.x_label,
+                units=first.x_unit or None,
+            )
+        self._apply_grid_appearance()
         self._layout_component_labels()
         self._render_placement_preview()
         self.plot.setTitle("")

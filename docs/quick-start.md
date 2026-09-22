@@ -253,3 +253,13 @@ In Advanced, **Write result to** selects the column that will receive the result
 **Insert into formula** only selects a reference: press **Insert** to add it at the
 cursor. The live arrow summary shows the destination and expression together.
 **Spectra to modify** controls which spectra receive the calculation.
+
+
+## Plot appearance
+
+The view-controls panel includes **Functions: Lines / Points / Lines + points**
+for quick switching. For deeper customization use **View > Plot appearance…**.
+Appearance settings are stored with the project and include experimental-data
+style, line widths/styles, point size and symbols, optional per-spectrum symbol
+cycling, model/component colours and widths, residual rendering, masked-point
+appearance, and grid visibility/opacity.
