@@ -29,7 +29,9 @@ from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F40
 from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402
 
 # Keep the visible name of newly imported data tied to its source filename,
-# regardless of whether import started from the dialog or drag and drop.
+# regardless of whether import started from the dialog or drag and drop. This
+# wrapper must load after import_sort_fix so both behaviours remain active.
+# isort: split
 from curvemole.gui import import_name_fix as _import_name_fix  # noqa: F401,E402
 
 # Refresh the plotted model every 20 fit evaluations while preserving the user's
