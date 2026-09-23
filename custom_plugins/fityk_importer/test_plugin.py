@@ -9,6 +9,7 @@ import numpy as np
 import pytest
 
 from curvemole.core.project import Project
+from curvemole.core.registry import default_registry
 
 MODULE = Path(__file__).with_name("fityk_importer.py")
 SPEC = importlib.util.spec_from_file_location("fityk_importer", MODULE)
@@ -67,7 +68,63 @@ def test_external_text_and_unsupported_function(tmp_path):
     source = tmp_path / "project.fit"
     source.write_text(
         "# Fityk 1.3\n@0 < '_SCRIPT_DIR_/data.dat:1:2::'\n"
-        "%v = Voigt(1, 2, 3, 0.5)\nF = %v\n")
+        "%v = Pearson7(1, 2, 3, 0.5)\nF = %v\n")
     prepared, warnings = plugin.parse_project(source)
     assert len(prepared) == 1 and len(prepared[0][0]) == 3
-    assert not prepared[0][1] and "Voigt" in warnings[0]
+    assert not prepared[0][1] and "Pearson7" in warnings[0]
+
+
+def test_real_saved_state_voigt_values_and_area(tmp_path):
+    source = tmp_path / "voigt.fit"
+    source.write_text(
+        "# Fityk 1.3.1. Created: 2026-09-23\n"
+        "set verbosity = -1\nreset\n"
+        "use @0\ntitle = 'Voigt fit'\nM=3\nX=2# =max(x), prevents sorting.\n"
+        "X[0]=0, Y[0]=1, S[0]=1, A[0]=1\n"
+        "X[1]=1, Y[1]=2, S[1]=1, A[1]=1\n"
+        "X[2]=2, Y[2]=1, S[2]=1, A[2]=1\n"
+        "$_1 = ~12.5\n$_2 = ~1.1\n$_3 = ~0.8[0.1:2]\n$_4 = ~0.25[0:1]\n"
+        "%_1 = Voigt($_1, $_2, $_3, $_4)\n"
+        "$_5 = ~20\n%_2 = VoigtA($_5, $_2, $_3, $_4)\n"
+        "@0: F = %_1 + %_2\n")
+    prepared, warnings = plugin.parse_project(source)
+    curve, components = prepared[0]
+    assert not warnings
+    assert len(components) == 2
+    assert components[0].function_id == "voigt"
+    assert components[0].parameters["sigma"].value == pytest.approx(0.8 / math.sqrt(2))
+    assert components[0].parameters["gamma"].value == pytest.approx(0.2)
+    assert components[0].parameters["sigma"].minimum == pytest.approx(0.1 / math.sqrt(2))
+    assert components[0].parameters["area"].value > 0
+    assert components[1].parameters["area"].value == pytest.approx(20)
+    assert components[1].parameters["center"].link is not None
+    peak = default_registry().get("voigt").evaluate(
+        np.array([1.1]), {key: p.value for key, p in components[0].parameters.items()})
+    assert peak[0] == pytest.approx(12.5, rel=1e-12)
+    project = Project()
+    project.add_curve(curve)
+    for component in components:
+        project.add_component(curve.id, component)
+    assert np.isfinite(project.model_for(curve.id).evaluate(curve.x, curve_id=curve.id)).all()
+
+
+def test_saved_state_background_and_area_peak(tmp_path):
+    source = tmp_path / "background.fit"
+    source.write_text(
+        "# Fityk 1.3.1\nuse @0\nM=3\n"
+        "X[0]=0, Y[0]=1, S[0]=1, A[0]=1\n"
+        "X[1]=1, Y[1]=2, S[1]=1, A[1]=1\n"
+        "X[2]=2, Y[2]=1, S[2]=1, A[2]=1\n"
+        "$_1 = ~5\n$_2 = ~1\n$_3 = ~0.5\n"
+        "%peak = GaussianA($_1, $_2, $_3)\n"
+        "%bg = Spline(0, 1, 2, 2)\n@0: F = %bg + %peak\n")
+    prepared, warnings = plugin.parse_project(source)
+    assert not warnings
+    curve, parts = prepared[0]
+    assert len(parts) == 2 and parts[0].is_background
+    assert parts[1].parameters["area"].value == pytest.approx(5)
+    project = Project()
+    project.add_curve(curve)
+    for part in parts:
+        project.add_component(curve.id, part)
+    assert np.isfinite(project.model_for(curve.id).evaluate(curve.x, curve_id=curve.id)).all()
