@@ -9,6 +9,7 @@ import shlex
 from pathlib import Path
 
 import numpy as np
+from scipy.special import voigt_profile
 
 from curvemole.core.data import Curve, Series
 from curvemole.core.models import Component
@@ -81,36 +82,59 @@ def _model_component(name, definition, variables):
     kind, arguments = definition
     names = {
         "Gaussian": ("height", "center", "hwhm"),
+        "GaussianA": ("area", "center", "hwhm"),
         "Lorentzian": ("height", "center", "hwhm"),
+        "LorentzianA": ("area", "center", "hwhm"),
         "PseudoVoigt": ("height", "center", "hwhm", "shape"),
+        "PseudoVoigtA": ("area", "center", "hwhm", "shape"),
+        "Voigt": ("height", "center", "gwidth", "shape"),
+        "VoigtA": ("area", "center", "gwidth", "shape"),
         "Constant": ("height",),
         "Linear": ("intercept", "slope"),
     }.get(kind)
+    polynomial = re.fullmatch(r"Polynomial([2-6])", kind)
+    if polynomial:
+        names = tuple(f"a{i}" for i in range(int(polynomial[1]) + 1))
+    if kind == "Spline":
+        count = len(_split_arguments(arguments))
+        if count < 4 or count % 2:
+            raise ValueError("Spline requires at least two X/Y nodes")
+        names = tuple(f"{'x' if i % 2 == 0 else 'y'}{i // 2}" for i in range(count))
     if names is None:
         raise ValueError("Unsupported function " + kind)
     args = _split_arguments(arguments)
     supplied = {}
-    aliases = {"a": "height", "a0": "intercept", "a1": "slope"}
+    aliases = {"a": "height"}
+    if kind == "Linear":
+        aliases.update({"a0": "intercept", "a1": "slope"})
     for index, arg in enumerate(args):
         if "=" in arg:
             key, expr = arg.split("=", 1)
             supplied[aliases.get(key.strip(), key.strip())] = expr.strip()
         elif index < len(names):
             supplied[names[index]] = arg
-    if kind == "PseudoVoigt":
+    if kind in ("PseudoVoigt", "PseudoVoigtA"):
         supplied.setdefault("shape", "0.5")
     values = {key: _numeric(supplied[key], variables) for key in names}
     h = values.get("height", 0.0)
-    width = values.get("hwhm", 0.0)
-    if kind in ("Gaussian", "Lorentzian", "PseudoVoigt") and width <= 0:
+    width = values.get("hwhm", values.get("gwidth", 0.0))
+    if kind in ("Gaussian", "GaussianA", "Lorentzian", "LorentzianA",
+                "PseudoVoigt", "PseudoVoigtA", "Voigt", "VoigtA") and width <= 0:
         raise ValueError("Peak width must be positive")
     if kind == "Gaussian":
         fid = "gaussian"
         initial = {"area": h * width * math.sqrt(math.pi / math.log(2)),
                    "center": values["center"], "sigma": width / math.sqrt(2 * math.log(2))}
+    elif kind == "GaussianA":
+        fid = "gaussian"
+        initial = {"area": values["area"], "center": values["center"],
+                   "sigma": width / math.sqrt(2 * math.log(2))}
     elif kind == "Lorentzian":
         fid = "lorentzian"
         initial = {"area": h * math.pi * width, "center": values["center"], "gamma": width}
+    elif kind == "LorentzianA":
+        fid = "lorentzian"
+        initial = {"area": values["area"], "center": values["center"], "gamma": width}
     elif kind == "PseudoVoigt":
         shape = values["shape"]
         if not 0 <= shape <= 1:
@@ -120,11 +144,41 @@ def _model_component(name, definition, variables):
         fid = "pseudo_voigt"
         initial = {"area": h * width * (ga + lo), "center": values["center"],
                    "fwhm": 2 * width, "eta": lo / (ga + lo)}
+    elif kind == "PseudoVoigtA":
+        shape = values["shape"]
+        if not 0 <= shape <= 1:
+            raise ValueError("PseudoVoigtA shape must be within [0, 1]")
+        fid = "pseudo_voigt"
+        initial = {"area": values["area"], "center": values["center"],
+                   "fwhm": 2 * width, "eta": shape}
+    elif kind in ("Voigt", "VoigtA"):
+        # Fityk: gwidth = sqrt(2)*sigma; shape = gamma/gwidth.
+        sigma = width / math.sqrt(2)
+        gamma = width * abs(values["shape"])
+        area = (values["area"] if kind == "VoigtA" else
+                h / float(voigt_profile(0.0, sigma, gamma)))
+        if gamma == 0:
+            fid = "gaussian"
+            initial = {"area": area, "center": values["center"], "sigma": sigma}
+        else:
+            fid = "voigt"
+            initial = {"area": area, "center": values["center"],
+                       "sigma": sigma, "gamma": gamma}
     elif kind == "Constant":
         fid, initial = "constant", {"offset": h}
+    elif polynomial:
+        fid = "polynomial"
+        initial = {f"c{i}": values[f"a{i}"] for i in range(len(names))}
+    elif kind == "Spline":
+        fid = "cubic_spline"
+        initial = {f"y{i}": values[f"y{i}"] for i in range(len(names) // 2)}
     else:
         fid, initial = "linear", values
-    component = Component.create(fid, name=name, initial=initial)
+    metadata = {"order": int(polynomial[1])} if polynomial else {}
+    if kind == "Spline":
+        metadata["x_nodes"] = [values[f"x{i}"] for i in range(len(names) // 2)]
+    component = Component.create(fid, name=name, initial=initial, metadata=metadata)
+    component.is_background = kind in ("Constant", "Linear", "Spline") or bool(polynomial)
     component.metadata["fityk"] = {"function": kind, "arguments": arguments}
     # A literal number is fixed in Fityk; ~number is adjustable. A reference
     # to a shared/derived variable is retained as provenance, not a live link.
@@ -132,10 +186,23 @@ def _model_component(name, definition, variables):
         source = {"offset": supplied["height"]}
     elif kind == "Linear":
         source = {"intercept": supplied["intercept"], "slope": supplied["slope"]}
+    elif polynomial:
+        source = {f"c{i}": supplied[f"a{i}"] for i in range(len(names))}
+    elif kind == "Spline":
+        source = {f"y{i}": supplied[f"y{i}"] for i in range(len(names) // 2)}
     else:
         source = {"center": supplied["center"]}
-        source[{"Gaussian": "sigma", "Lorentzian": "gamma",
-                "PseudoVoigt": "fwhm"}[kind]] = supplied["hwhm"]
+        if kind in ("Voigt", "VoigtA"):
+            source["sigma"] = supplied["gwidth"]
+        else:
+            source[{"Gaussian": "sigma", "GaussianA": "sigma",
+                    "Lorentzian": "gamma", "LorentzianA": "gamma",
+                    "PseudoVoigt": "fwhm", "PseudoVoigtA": "fwhm"}[kind]] = supplied["hwhm"]
+        if kind.endswith("A"):
+            source["area"] = supplied["area"]
+        if kind == "PseudoVoigtA":
+            source["eta"] = supplied["shape"]
+    component.metadata["fityk"]["parameter_sources"] = source
     for target, expr in source.items():
         if re.fullmatch(_NUMBER, expr.strip()):
             component.parameters[target].fixed = True
@@ -146,7 +213,8 @@ def _model_component(name, definition, variables):
         variable = variables.get(expr.strip().lstrip("$")) if expr.strip().startswith("$") else expr
         domain = re.search(r"\[\s*([^]:]*)\s*:\s*([^]]*)\s*\]$", variable or "")
         if domain and target in ("center", "sigma", "gamma", "fwhm"):
-            factor = (1 / math.sqrt(2 * math.log(2)) if target == "sigma" else
+            factor = (1 / math.sqrt(2) if kind in ("Voigt", "VoigtA") and target == "sigma" else
+                      1 / math.sqrt(2 * math.log(2)) if target == "sigma" else
                       2 if target == "fwhm" else 1)
             lower = _numeric(domain[1], variables) * factor if domain[1].strip() else -math.inf
             upper = _numeric(domain[2], variables) * factor if domain[2].strip() else math.inf
@@ -154,16 +222,24 @@ def _model_component(name, definition, variables):
             parameter.minimum = max(parameter.minimum, lower)
             parameter.maximum = min(parameter.maximum, upper)
             parameter.validate()
-    if kind in ("Gaussian", "Lorentzian", "PseudoVoigt"):
+    def fixed(expr):
+        if expr.startswith("$"):
+            expr = variables.get(expr[1:], "").strip()
+        return bool(expr) and not expr.startswith("~")
+
+    if kind in ("Gaussian", "Lorentzian", "PseudoVoigt", "Voigt"):
         height_expr = supplied["height"].strip()
-        width_expr = supplied["hwhm"].strip()
-        def fixed(expr):
-            if expr.startswith("$"):
-                expr = variables.get(expr[1:], "").strip()
-            return bool(expr) and not expr.startswith("~")
-        component.parameters["area"].fixed = fixed(height_expr) and fixed(width_expr)
+        width_expr = supplied.get("hwhm", supplied.get("gwidth", "")).strip()
+        area_fixed = fixed(height_expr) and fixed(width_expr)
+        if kind in ("PseudoVoigt", "Voigt"):
+            area_fixed = area_fixed and fixed(supplied["shape"])
+        component.parameters["area"].fixed = area_fixed
         if kind == "PseudoVoigt":
             component.parameters["eta"].fixed = fixed(supplied["shape"])
+    if kind == "PseudoVoigtA":
+        component.parameters["eta"].fixed = fixed(supplied["shape"])
+    if kind in ("Voigt", "VoigtA") and fid == "voigt":
+        component.parameters["gamma"].fixed = fixed(supplied["gwidth"]) and fixed(supplied["shape"])
     return component
 
 
@@ -291,6 +367,26 @@ def parse_project(path):
         prepared.append((curve, components))
     if not prepared:
         raise ValueError("No readable Fityk spectra found. " + "; ".join(warnings[:3]))
+    # A Fityk $variable used for the same CurveMole parameter in several
+    # functions remains a shared, editable parameter. Derived conversions
+    # (height -> area, gwidth*shape -> gamma) deliberately stay unlinked.
+    shared = {}
+    for curve, components in prepared:
+        for component in components:
+            for parameter_name, expr in component.metadata["fityk"]["parameter_sources"].items():
+                if not expr.startswith("$") or parameter_name not in component.parameters:
+                    continue
+                variable = expr[1:]
+                if not variables.get(variable, "").strip().startswith("~"):
+                    continue
+                parameter = component.parameters[parameter_name]
+                key = (variable, parameter_name)
+                prior = shared.get(key)
+                if prior and math.isclose(prior[1], parameter.value, rel_tol=1e-12, abs_tol=1e-12):
+                    parameter.link = "${" + prior[0] + "}"
+                    parameter.validate()
+                else:
+                    shared[key] = (f"{curve.id}.{component.id}.{parameter_name}", parameter.value)
     return prepared, warnings
 
 
