@@ -1,0 +1,12 @@
+{
+  "identifier": "org.curvemole.community.fityk-importer",
+  "name": "Fityk project importer",
+  "description": "Import Fityk .fit saved-state spectra, masks and supported models.",
+  "author": "CurveMole contributors",
+  "version": "1.0.0",
+  "api_compatibility": "1",
+  "licence": "MIT",
+  "capabilities": ["importers"],
+  "module": "fityk_importer.py",
+  "test_file": "test_plugin.py"
+}
