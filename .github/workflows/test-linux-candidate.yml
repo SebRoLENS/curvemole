@@ -1,9 +1,10 @@
 name: Test Linux candidate
 
 on:
-  pull_request:
+  push:
     branches: [main]
-  workflow_dispatch:
+    paths-ignore:
+      - "custom_plugins/**"
 
 permissions:
   contents: read
@@ -14,6 +15,7 @@ concurrency:
 
 jobs:
   appimage:
+    if: ${{ contains(github.event.head_commit.message, '[skip release]') && github.actor != 'github-actions[bot]' }}
     name: Linux AppImage test artifact
     runs-on: ubuntu-22.04
     timeout-minutes: 25
@@ -72,7 +74,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: CurveMole-linux-test-${{ github.event.pull_request.number || github.run_number }}
+          name: CurveMole-linux-test-${{ github.run_number }}
           path: |
             CurveMole-*-linux-x86_64.AppImage
             CurveMole-*-linux-x86_64-bundle.tar.gz

@@ -18,6 +18,7 @@ this source directory is **not itself a validation badge**.
 | Plugin | Direct download |
 | --- | --- |
 | Cosmic-ray removal | [cosmic_ray_removal.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/cosmic_ray_removal.zip) |
+| Fityk project importer | [fityk_importer.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/fityk_importer.zip) |
 | Ruby fluorescence pressure monitor | [ruby_fluo_pressure_monitor.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip) |
 | TSV exporter | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
 
