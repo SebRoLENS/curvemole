@@ -7,16 +7,17 @@ script or modify the original file. Import is one CurveMole undo step.
 
 The importer reads embedded X/Y points, positive point standard deviations,
 the Fityk active-point flag (as a CurveMole mask), titles and supported models:
-Gaussian, Lorentzian, PseudoVoigt, Constant and Linear. It preserves the
-supported numeric values and simple bounds. The three peak profiles are
-converted from Fityk height/HWHM to CurveMole area/width parameters, including
-the area-based PseudoVoigt mixing fraction.
+Gaussian, Lorentzian, PseudoVoigt and Voigt (including their area variants),
+Constant, Linear, Spline and Polynomial2–Polynomial6. It preserves the supported
+numeric values, simple bounds and shared parameter references. Height-based
+peaks are converted to CurveMole's area/width parameters; the conversion
+preserves Fityk's Voigt peak height and PseudoVoigt shape.
 
 An older script referencing a separate plain text X/Y file also works if that
 file is available relative to the script; basic column selectors are supported.
 For reliable import, save a **state** in Fityk so the points are embedded.
 
-Fityk `Voigt`, custom functions, expression links, zero-shift functions, data
+Fityk custom functions, expression links, zero-shift functions, data
 transformations and script-defined active ranges are not converted. Their
 omission is reported in the import result (up to 12 messages) and stored under
 `ui_state.plugin_data[...].last_import.warnings`. The original Fityk file remains
