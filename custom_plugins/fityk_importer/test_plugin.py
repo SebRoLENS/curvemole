@@ -10,7 +10,6 @@ import pytest
 
 from curvemole.core.project import Project
 
-
 MODULE = Path(__file__).with_name("fityk_importer.py")
 SPEC = importlib.util.spec_from_file_location("fityk_importer", MODULE)
 plugin = importlib.util.module_from_spec(SPEC)
