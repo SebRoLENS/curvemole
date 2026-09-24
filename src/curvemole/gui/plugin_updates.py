@@ -185,15 +185,20 @@ class PluginUpdateController(QObject):
             self.update_button = QPushButton("Update selected")
             self.update_button.clicked.connect(self.install_selected)
             close = QPushButton("Close")
-            close.clicked.connect(dialog.hide)
+            close.clicked.connect(dialog.accept)
             for button in (self.check_button, self.update_button, close):
                 buttons.addWidget(button)
             layout.addLayout(buttons)
         self._refresh()
-        self.dialog.show()
-        self.dialog.raise_()
-        if check:
-            self.check()
+        if self.dialog.parent() is not self.window and self.dialog.parent().isModal():
+            if check:
+                QTimer.singleShot(0, self.check)
+            self.dialog.exec()
+        else:
+            self.dialog.show()
+            self.dialog.raise_()
+            if check:
+                self.check()
 
     def _update_dialog_destroyed(self):
         self.dialog = None
@@ -296,14 +301,18 @@ class PluginUpdateController(QObject):
             self.catalog_install = QPushButton("Install selected")
             self.catalog_install.clicked.connect(self.install_catalog_selected)
             close = QPushButton("Close")
-            close.clicked.connect(dialog.hide)
+            close.clicked.connect(dialog.accept)
             for button in (self.catalog_check, self.catalog_install, close):
                 buttons.addWidget(button)
             layout.addLayout(buttons)
         self._refresh_catalog()
-        self.catalog_dialog.show()
-        self.catalog_dialog.raise_()
-        self.check_catalog()
+        if self.catalog_dialog.parent() is not self.window and self.catalog_dialog.parent().isModal():
+            QTimer.singleShot(0, self.check_catalog)
+            self.catalog_dialog.exec()
+        else:
+            self.catalog_dialog.show()
+            self.catalog_dialog.raise_()
+            self.check_catalog()
 
     def _catalog_dialog_destroyed(self):
         self.catalog_dialog = None
