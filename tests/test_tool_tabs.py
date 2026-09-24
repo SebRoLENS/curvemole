@@ -1,7 +1,7 @@
 """Native and plugin tools share the same dock-tab workspace."""
 
-from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import QApplication, QDockWidget, QWidget
+from PySide6.QtCore import QSettings, Qt
+from PySide6.QtWidgets import QApplication, QDockWidget, QTabBar, QToolButton, QWidget
 
 from curvemole import Project
 from curvemole.gui.main_window import MainWindow
@@ -54,6 +54,32 @@ def test_notebook_placeholder_keeps_a_python_owner():
     assert window._notebook_placeholder is not None
     assert window.notebook_dock.widget() is window._notebook_placeholder
 
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(Project())
+    window.resize(960, 640)
+    window.show()
+    titles = [f"Long plugin panel title number {i}" for i in range(5)]
+    for index, title in enumerate(titles):
+        dock = QDockWidget(title, window)
+        dock.setObjectName(f"scroll_test_{index}")
+        dock.setWidget(QWidget())
+        window.activate_tool_dock(dock)
+    for _ in range(3):
+        app.processEvents()
+    bar = next(bar for bar in window.findChildren(QTabBar) if bar.parent() is window)
+    assert bar.usesScrollButtons()
+    assert bar.elideMode() == Qt.TextElideMode.ElideNone
+    assert all(len(bar.tabText(i)) <= 25 for i in range(bar.count()))
+    assert all(bar.tabText(i).endswith("...") for i in range(bar.count() - 5, bar.count()))
+    assert [bar.tabToolTip(i) for i in range(bar.count() - 5, bar.count())] == titles
+    assert bar.tabRect(0).x() < 0 or bar.tabRect(bar.count() - 1).right() > bar.width()
+    assert any(button.isVisible() for button in bar.findChildren(QToolButton))
     window.project.dirty = False
     window.close()
     app.processEvents()
