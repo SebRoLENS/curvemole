@@ -951,22 +951,22 @@ class MainWindow(QMainWindow):
         toolbar.addActions([self.undo_action, self.redo_action])
         toolbar.addSeparator()
         toolbar.addActions([
-            self.calculator_action, self.auto_axes_action,
-            self.plot_workspace.view_active_action,
+            self.auto_axes_action, self.plot_workspace.view_active_action,
         ])
         toolbar.addSeparator()
         toolbar.addAction(self.subtract_background_action)
         # Background controls inserted later stay inside this group.
         self._background_toolbar_separator = toolbar.addSeparator()
+        toolbar.addAction(self.plot_workspace.mask_action)
+        toolbar.addSeparator()
         toolbar.addActions([self.add_component_action, self.quick_peak_action])
         # The quick-function selector is inserted before this separator.
         self._fit_toolbar_separator = toolbar.addSeparator()
         toolbar.addActions([
-            self.plot_workspace.mask_action, self.fit_action,
-            self.quick_fit_action, self.cancel_action,
+            self.fit_action, self.quick_fit_action, self.cancel_action,
         ])
         toolbar.addSeparator()
-        toolbar.addAction(self.notebook_action)
+        toolbar.addActions([self.calculator_action, self.notebook_action])
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
