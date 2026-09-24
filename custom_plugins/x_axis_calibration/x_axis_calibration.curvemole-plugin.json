@@ -1,0 +1,12 @@
+{
+  "identifier": "org.curvemole.community.x-axis-calibration",
+  "name": "X-axis calibration",
+  "description": "Calibrate X from fitted reference peaks; save multiple profiles, apply by project/selection/series, exchange JSON calibration files.",
+  "author": "CurveMole contributors",
+  "version": "1.0.0",
+  "api_compatibility": "1",
+  "licence": "MIT",
+  "capabilities": ["panels"],
+  "module": "x_axis_calibration.py",
+  "test_file": "test_plugin.py"
+}
