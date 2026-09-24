@@ -156,7 +156,7 @@ class Project:
                             continue
                         target = target_component.parameters[name]
                         if values:
-                            target.value = min(max(source_parameter.value, target.minimum), target.maximum)
+                            target.value = source_parameter.value
                         if bounds_and_fixed:
                             target.minimum = source_parameter.minimum
                             target.maximum = source_parameter.maximum
@@ -183,15 +183,23 @@ class Project:
                             & (target_curve.x <= hi + tolerance)
                         )
                         target_mask.ranges.append((lo - tolerance, hi + tolerance))
-                    for value in source_curve.x[source_mask.excluded & np.isfinite(source_curve.x)]:
-                        distances = np.abs(target_curve.x - value)
-                        finite = np.isfinite(distances)
-                        if not np.any(finite):
-                            continue
-                        indices = np.flatnonzero(finite)
-                        index = int(indices[np.argmin(distances[finite])])
-                        if distances[index] <= tolerance:
-                            target_mask.excluded[index] = True
+                    # Sort once, preserving the first original row for duplicate
+                    # coordinates and equidistant ties (the previous argmin rule).
+                    finite_indices = np.flatnonzero(np.isfinite(target_curve.x))
+                    if finite_indices.size:
+                        order = np.argsort(target_curve.x[finite_indices], kind="stable")
+                        sorted_indices = finite_indices[order]
+                        unique_x, first = np.unique(target_curve.x[sorted_indices], return_index=True)
+                        unique_indices = sorted_indices[first]
+                        source_points = source_curve.x[source_mask.excluded & np.isfinite(source_curve.x)]
+                        positions = np.searchsorted(unique_x, source_points)
+                        left = np.clip(positions - 1, 0, len(unique_x) - 1)
+                        right = np.clip(positions, 0, len(unique_x) - 1)
+                        dl, dr = np.abs(source_points - unique_x[left]), np.abs(source_points - unique_x[right])
+                        choose_left = (dl < dr) | ((dl == dr) & (unique_indices[left] < unique_indices[right]))
+                        chosen = np.where(choose_left, left, right)
+                        accepted = np.minimum(dl, dr) <= tolerance
+                        target_mask.excluded[unique_indices[chosen[accepted]]] = True
                     target_curve.masks[name] = target_mask
                 target_curve.active_mask = source_curve.active_mask
             if fit_ranges:

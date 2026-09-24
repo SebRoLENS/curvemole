@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -767,17 +768,47 @@ class FitPlanDialog(QDialog):
         self.loss.setCurrentText(settings.loss)
         self.loss.setToolTip(self.loss.currentData(Qt.ItemDataRole.ToolTipRole) or "")
         self.max_nfev = QSpinBox()
-        self.max_nfev.setRange(100, 10_000_000)
+        self.max_nfev.setRange(1, 10_000_000)
         self.max_nfev.setValue(settings.max_nfev)
         self.confidence = QDoubleSpinBox()
         self.confidence.setRange(50, 99.999)
         self.confidence.setDecimals(3)
         self.confidence.setValue(settings.confidence_level * 100)
-        advanced.addRow(self.tr("Initial search"), self.solver)
+        self.solver_form = advanced
+        advanced.addRow(self.tr("Algorithm"), self.solver)
         advanced.addRow(self.tr("Automatic search limits"), self.de_bounds)
         advanced.addRow(self.tr("Loss"), self.loss)
+        self.f_scale = QLineEdit(str(settings.f_scale))
+        self.f_scale.setToolTip(self.tr(
+            "Positive transition scale for robust losses, in the residual units used by the solver. "
+            "With sigma weighting these are standardized residuals; without it, signal units. "
+            "Spectrum weights and equal-contribution scaling also affect this scale."))
+        advanced.addRow(self.tr("Loss scale (f_scale)"), self.f_scale)
+        self.loss.currentIndexChanged.connect(self._update_loss_options)
+        self._update_loss_options()
         advanced.addRow(self.tr("Maximum evaluations"), self.max_nfev)
         advanced.addRow(self.tr("Confidence level (%)"), self.confidence)
+        from curvemole.gui.solver_options import SolverOptions
+        self.solver_options = SolverOptions(settings)
+        self.advanced_scroll = QScrollArea()
+        self.advanced_scroll.setWidgetResizable(True)
+        self.advanced_scroll.setWidget(self.solver_options)
+        self.advanced_scroll.setMinimumHeight(180)
+        self.advanced_scroll.setMaximumHeight(240)
+        self.advanced_toggle = QPushButton(self.tr("Advanced algorithm options"))
+        self.advanced_toggle.setCheckable(True)
+        self.advanced_toggle.toggled.connect(self.advanced_scroll.setVisible)
+        self.advanced_scroll.hide()
+        self.reset_defaults = QPushButton(self.tr("Reset default"))
+        self.reset_defaults.setToolTip(self.tr(
+            "Restore recommended solver and loss parameters. Keep the selected algorithm, "
+            "loss, spectra and fit mode."))
+        self.reset_defaults.clicked.connect(self._reset_solver_defaults)
+        option_buttons = QHBoxLayout()
+        option_buttons.addWidget(self.advanced_toggle)
+        option_buttons.addWidget(self.reset_defaults)
+        advanced.addRow(option_buttons)
+        advanced.addRow(self.advanced_scroll)
         layout.addWidget(advanced_box)
         self._update_solver_options(self.solver.currentIndex())
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -787,8 +818,24 @@ class FitPlanDialog(QDialog):
 
     def _update_solver_options(self, index: int) -> None:
         self.solver.setToolTip(self.solver.itemData(index, Qt.ItemDataRole.ToolTipRole) or "")
-        if hasattr(self, "de_bounds"):
-            self.de_bounds.setVisible(self.solver.currentData() == "differential_evolution")
+        if hasattr(self, "solver_form"):
+            self.solver_form.setRowVisible(self.de_bounds, self.solver.currentData() == "differential_evolution")
+        if hasattr(self, "solver_options"):
+            self.solver_options.set_solver(self.solver.currentData())
+
+    def _update_loss_options(self, *_):
+        self.solver_form.setRowVisible(self.f_scale, self.loss.currentText() != "linear")
+
+    def _reset_solver_defaults(self):
+        defaults = FitSettings()
+        # Reset hidden controls too, so switching algorithms cannot resurrect stale values.
+        self.settings = defaults
+        self.solver_options.load(defaults)
+        self.f_scale.setText(str(defaults.f_scale))
+        self.max_nfev.setValue(defaults.max_nfev)
+        self.confidence.setValue(defaults.confidence_level * 100)
+        self.de_lower_percent.setValue(defaults.de_lower_percent)
+        self.de_upper_percent.setValue(defaults.de_upper_percent)
 
     def _filter_series(self):
         for row, series_id in {**self._series_rows, **self._heading_rows}.items():
@@ -809,6 +856,9 @@ class FitPlanDialog(QDialog):
         settings = FitSettings(**asdict(self.settings))
         settings.solver = self.solver.currentData()
         settings.loss = self.loss.currentText()
+        if settings.loss != "linear":
+            settings.f_scale = float(self.f_scale.text())
+        self.solver_options.apply(settings)
         settings.de_lower_percent = self.de_lower_percent.value()
         settings.de_upper_percent = self.de_upper_percent.value()
         settings.max_nfev = self.max_nfev.value()
@@ -998,6 +1048,10 @@ class ExportBundleDialog(QDialog):
             self.tr("Fit results (functions, parameters and errors) — fit_results.csv")
         )
         self.fit_results.setChecked(True)
+        self.fit_settings = QCheckBox(self.tr("Last fit: all solver/loss settings (CSV)"))
+        self.fit_settings.setToolTip(self.tr(
+            "Export every recorded optimizer and loss parameter, with the fit timestamp and curve IDs. "
+            "Model parameter values are in fit_results.csv."))
         self.wide_tables = QCheckBox(self.tr("Data + fitted curves tables (CSV)"))
         self.tidy_table = QCheckBox(self.tr("Tidy data table for Python (CSV)"))
         self.results_json = QCheckBox(self.tr("Machine-readable fit result (JSON)"))
@@ -1008,13 +1062,14 @@ class ExportBundleDialog(QDialog):
         self.html_summary = QCheckBox(self.tr("Summary report (HTML)"))
         self.html_reproducibility = QCheckBox(self.tr("Full reproducibility report (HTML)"))
         self.pdf_summary = QCheckBox(self.tr("Summary report (PDF)"))
-        self.uncertainty = QCheckBox(self.tr("Covariance/correlation matrices"))
+        self.uncertainty = QCheckBox(self.tr("Uncertainty intervals, assessments and matrices"))
         self.diagnostics = QCheckBox(self.tr("Residual diagnostics"))
         self.readme = QCheckBox(self.tr("Export README"))
         self.laboratory_notebook = QCheckBox(self.tr("Laboratory notebook (TXT)"))
 
         choices = [
             self.fit_results,
+            self.fit_settings,
             self.wide_tables,
             self.tidy_table,
             self.results_json,
@@ -1052,6 +1107,7 @@ class ExportBundleDialog(QDialog):
     def selection(self) -> BundleExportSelection:
         return BundleExportSelection(
             fit_results=self.fit_results.isChecked(),
+            fit_settings=self.fit_settings.isChecked(),
             wide_tables=self.wide_tables.isChecked(),
             tidy_table=self.tidy_table.isChecked(),
             results_json=self.results_json.isChecked(),

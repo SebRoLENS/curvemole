@@ -1015,6 +1015,7 @@ class MainWindow(QMainWindow):
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
+        self.model_panel.renameRequested.connect(self.rename_function)
 
     def refresh_all(self) -> None:
         self.setWindowTitle(self._title())
@@ -1429,6 +1430,8 @@ class MainWindow(QMainWindow):
         *,
         exclude_component_id: str | None = None,
     ) -> None:
+        if component.metadata.get("custom_name"):
+            return
         base = self._component_base_name(component)
         pattern = re.compile(rf"^{re.escape(base)}(\d+)$")
         used: list[int] = []
@@ -1445,6 +1448,8 @@ class MainWindow(QMainWindow):
             used: dict[str, set[int]] = {}
             pending: list[Component] = []
             for component in model.components:
+                if component.metadata.get("custom_name"):
+                    continue
                 base = self._component_base_name(component)
                 match = re.fullmatch(rf"{re.escape(base)}(\d+)", component.name)
                 number = int(match.group(1)) if match else 0
@@ -1932,6 +1937,27 @@ class MainWindow(QMainWindow):
             self._cancellation.cancel()
             self._notify(self.tr("Cancellation requested…"), warning=True)
 
+    def rename_function(self, curve_id: str, component_id: str) -> None:
+        if self._thread is not None or not self._ensure_editable():
+            return
+        from PySide6.QtWidgets import QInputDialog
+        component = self.project.model_for(curve_id).component(component_id)
+        name, accepted = QInputDialog.getText(self, self.tr("Rename function"),
+                                             self.tr("Function name"), text=component.name)
+        if not accepted or not name.strip() or name.strip() == component.name:
+            return
+        old, new = component.name, name.strip()
+        old_custom = component.metadata.get("custom_name", False)
+        def assign(value, custom):
+            target = self.project.model_for(curve_id).component(component_id)
+            target.name = value
+            if custom:
+                target.metadata["custom_name"] = True
+            else:
+                target.metadata.pop("custom_name", None)
+        self._push_change(self.tr("Rename function"), lambda: assign(new, True), lambda: assign(old, old_custom),
+                          modified_curve_ids=set())
+
     def start_uncertainty(self, method: str, replicates: int, option: Any) -> None:
         if not self._ensure_editable():
             return
@@ -1939,9 +1965,36 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         baseline = self._last_fit_result()
-        if baseline is None or self.last_fit_plan is None:
+        if baseline is None or (method != "covariance" and self.last_fit_plan is None):
             self._notify(self.tr("Run a fit before uncertainty analysis."), warning=True)
             return
+        if not baseline.success:
+            self._notify(self.tr("Uncertainty analysis requires a converged fit."), warning=True)
+            return
+        if method != "covariance" and any(
+            self.project.dataset.curve(cid).state != CurveState.FITTED
+            for cid in self.last_fit_plan.curve_ids
+        ):
+            self._notify(self.tr("Data or model changed: run a new fit before uncertainty analysis."), warning=True)
+            return
+        if method == "profile_likelihood" and len(baseline.curve_outputs) != 1:
+            self._notify(self.tr("Profile likelihood currently requires an independent single-spectrum fit."), warning=True)
+            return
+        self._uncertainty_baseline = copy.deepcopy(baseline)
+        if method == "covariance":
+            self._uncertainty_finished(baseline)
+            return
+        plan = copy.deepcopy(self.last_fit_plan)
+        plan.settings.confidence_level = self.uncertainty_panel.confidence.value() / 100
+        profile_points = self.uncertainty_panel.profile_points.value()
+        try:
+            profile_lower = float(self.uncertainty_panel.profile_lower.text()) if self.uncertainty_panel.profile_lower.text().strip() else None
+            profile_upper = float(self.uncertainty_panel.profile_upper.text()) if self.uncertainty_panel.profile_upper.text().strip() else None
+        except ValueError:
+            if method == "profile_likelihood":
+                self._notify(self.tr("Profile limits must be numeric, or blank for automatic."), warning=True)
+                return
+            profile_lower = profile_upper = None
         analyzer = UncertaintyAnalyzer(Fitter(self.registry))
         curve_map = {curve.id: curve for curve in self.project.curves}
         self._cancellation = CancellationToken()
@@ -1955,12 +2008,18 @@ class MainWindow(QMainWindow):
                     self.project.dataset.curve(self.active_curve_id),
                     self.project.model_for(self.active_curve_id),
                     str(option),
+                    confidence_level=plan.settings.confidence_level,
+                    points=profile_points,
+                    lower=profile_lower,
+                    upper=profile_upper,
+                    spectrum_weight=plan.spectrum_weights.get(self.active_curve_id, 1.0),
+                    equal_contribution=plan.equal_contribution,
                     cancellation=self._cancellation,
                     progress=progress,
                 )
             arguments = dict(
                 baseline=baseline,
-                plan=self.last_fit_plan,
+                plan=plan,
                 curves=curve_map,
                 models=self.project.models,
                 replicates=replicates,
@@ -1976,20 +2035,22 @@ class MainWindow(QMainWindow):
         self._run_background(operation, self._uncertainty_finished, self.tr("Uncertainty analysis…"))
 
     def _uncertainty_finished(self, result: Any) -> None:
-        method = getattr(result, "method", "profile_likelihood")
+        method = "covariance" if isinstance(result, FitResult) else getattr(result, "method", "profile_likelihood")
         self.project.results.setdefault("uncertainty", {})[method] = result
+        baseline = getattr(self, "_uncertainty_baseline", None) or self._last_fit_result()
+        analysis = result.to_dict()
+        if method not in {"covariance", "profile_likelihood"}:
+            samples = np.asarray(result.samples)
+            if samples.ndim == 2 and samples.shape[0] >= 3 and samples.shape[1] > 1:
+                with np.errstate(invalid="ignore", divide="ignore"):
+                    analysis["sample_correlation"] = np.corrcoef(samples, rowvar=False).tolist()
+            analysis.pop("samples", None)
+        self.project.results.setdefault("uncertainty_reports", {})[method] = {
+            "baseline": baseline.to_dict(arrays=False), "analysis": analysis,
+        }
         self.project.touch()
-        if method == "profile_likelihood":
-            self.uncertainty_panel.status.setPlainText(
-                f"Parameter: {result.parameter_path}\nConfidence: {result.confidence_level:.3f}\n"
-                f"Interval: {result.interval}\nFailed grid points: {result.failed_points}"
-            )
-        else:
-            self.uncertainty_panel.status.setPlainText(
-                f"Method: {result.method}\nRequested: {result.requested}\n"
-                f"Completed: {result.completed}\nFailed: {result.failed}\nSeed: {result.seed}\n"
-                + "\n".join(f"{key}: {value}" for key, value in result.intervals.items())
-            )
+        self.uncertainty_panel.results.set_project(self.project)
+        self.uncertainty_panel.results.show_method(method)
         self._notify(self.tr("Uncertainty analysis completed."))
 
     def mask_point(self, x_value: float, *, unmask: bool = False) -> None:
