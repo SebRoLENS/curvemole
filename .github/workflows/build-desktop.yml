@@ -91,7 +91,7 @@ jobs:
     needs: prepare-icons
     runs-on: ubuntu-22.04
     permissions:
-      contents: read
+      contents: write
       id-token: write
       attestations: write
     steps:
@@ -164,13 +164,16 @@ jobs:
           cp "${{ steps.attest.outputs.bundle-path }}" "$SIGNATURE"
           echo "path=$SIGNATURE" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v7
-        with:
-          name: release-linux-x86_64
-          path: |
-            ${{ steps.appimage.outputs.path }}
-            ${{ steps.signature.outputs.path }}
-          if-no-files-found: error
+      # The AppImage is a release asset, not a reusable Actions test artifact.
+      # test-linux-candidate.yml provides the latter only for [skip release].
+      - name: Attach Linux files directly to tagged release
+        if: startsWith(inputs.source_ref, 'v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.source_ref }}
+          APPIMAGE: ${{ steps.appimage.outputs.path }}
+          SIGNATURE: ${{ steps.signature.outputs.path }}
+        run: gh release upload "$RELEASE_TAG" "$APPIMAGE" "$SIGNATURE" --repo "$GITHUB_REPOSITORY" --clobber
 
   windows:
     name: Windows installer and portable x86_64
@@ -330,6 +333,18 @@ jobs:
           path: release-assets
           merge-multiple: true
 
+      - name: Fetch Linux release files for checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.source_ref }}
+        run: |
+          gh release download "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern '*linux-x86_64.AppImage*' \
+            --dir release-assets
+          test -n "$(find release-assets -maxdepth 1 -name '*.AppImage' -print -quit)"
+          test -n "$(find release-assets -maxdepth 1 -name '*.AppImage.sigstore.json' -print -quit)"
+
       - name: Add versioned manuals
         shell: bash
         run: |
@@ -341,7 +356,12 @@ jobs:
             "release-assets/CurveMole-${VERSION}-User-Manual.tex"
 
       - name: Generate SHA-256 checksums
-        run: cd release-assets && sha256sum * > SHA256SUMS.txt
+        run: |
+          cd release-assets
+          sha256sum * > SHA256SUMS.txt
+          # Linux files are already attached. Keep only the other packages and
+          # checksums in the final upload to avoid replacing signed assets.
+          rm -- *-linux-x86_64.AppImage *-linux-x86_64.AppImage.sigstore.json
 
       - name: Upload packages to GitHub Release
         uses: softprops/action-gh-release@v3
