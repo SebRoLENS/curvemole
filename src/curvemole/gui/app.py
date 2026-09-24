@@ -473,10 +473,10 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
         "save-project.svg": window.save_action,
         "calculator.png": window.calculator_action,
         "subtract-background.png": window.subtract_background_action,
-        "add-peak.png": window.add_component_action,
-        "quick-add-peak.png": window.quick_peak_action,
-        "fit.png": window.fit_action,
-        "quick-fit.png": window.quick_fit_action,
+        "add-peak.svg": window.add_component_action,
+        "quick-add-peak.svg": window.quick_peak_action,
+        "fit.svg": window.fit_action,
+        "quick-fit.svg": window.quick_fit_action,
     }
     return [name for name, action in actions.items() if action.icon().isNull()]
 
