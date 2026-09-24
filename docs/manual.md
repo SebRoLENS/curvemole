@@ -379,7 +379,7 @@ The example does not normally require masking.
 1. Press **F5** or choose **Fit > Fit**.
 2. Use **Single / independent** mode.
 3. Check that the example curve is enabled in the table.
-4. Keep **Local constrained least squares** and `linear` loss.
+4. Keep **Local least squares (automatic)** and `linear` loss.
 5. Press **OK**.
 
 After a successful fit, CurveMole commits the optimized parameter values back into
@@ -1274,15 +1274,22 @@ refreshed every 20 evaluations. These refreshes preserve the user's current zoom
 do not replace the stored parameters unless the fit completes successfully.
 The Python API and YAML settings additionally expose tolerances, scaling, local
 method, random seed, and Differential Evolution controls.
+The solver menu also offers explicit TRF, Dogbox, and LM, plus Nelder-Mead,
+Powell, and L-BFGS-B. The latter three minimize the selected loss directly;
+they can be useful for difficult models but may take more evaluations. LM needs
+unbounded parameters and `linear` loss. Hover over a solver to see its intended use.
 
 ### 10.5 Robust losses
 
 Available losses are:
 
 - `linear` for ordinary least squares;
-- `soft_l1`;
-- `huber`;
-- `cauchy`.
+- `soft_l1`, which smoothly weakens the effect of large residuals;
+- `huber`, squared near zero and nearly linear for large residuals;
+- `cauchy`, which strongly suppresses very large residuals.
+
+Hover over the loss options in the Fit dialog for short descriptions. Losses
+alter the penalty assigned to residuals, not the mathematical peak shape.
 
 Robust loss can reduce the influence of large residuals, but it is not a substitute
 for understanding outliers, detector artifacts, or an incomplete model. AIC, AICc,
@@ -1295,8 +1302,13 @@ Choose **Differential Evolution + local refinement** when a local initial estima
 not sufficient. Differential Evolution searches globally, then passes its best point
 to the local least-squares solver.
 
-Every free parameter must have finite user bounds. CurveMole will not invent search
-bounds because arbitrary limits can change scientific conclusions. Global search is
+When a free parameter lacks a finite bound, CurveMole creates one around its current
+value. By default, the search extends 50% of the absolute current value below and
+50% above it. At zero, a scale based on the plotted data is used. Edit the separate
+**Below** and **Above** percentages in the Fit dialog; existing explicit bounds
+always take precedence. These temporary search limits do not change the parameter
+table or the saved model. Inspect them conceptually before interpreting the result:
+a global search cannot discover a solution outside its search interval. It is
 usually much slower than a well-initialized local fit.
 
 ### 10.7 Cancellation and failed fits
@@ -1319,7 +1331,7 @@ separate from the failed attempt.
 - division by zero in a composed model;
 - a missing or cyclic link;
 - a linked value outside its bounds;
-- unbounded parameters with Differential Evolution;
+- an invalid or overly narrow Differential Evolution search interval;
 - an underdetermined model;
 - inadequate initial values or maximum evaluations.
 
@@ -1683,8 +1695,9 @@ curvemole fit-series scan_01.csv scan_02.csv scan_03.csv \
 ```
 
 Modes are `independent`, `sequential`, and `global`. Use `--global-search` to request
-Differential Evolution, but remember that the simple fit CLI does not provide bound
-arguments. For bounded global searches, use a YAML workflow or the Python API.
+Differential Evolution. Missing finite bounds are generated from current parameter
+values; use a YAML workflow or the Python API to customize percentages or explicit
+parameter bounds.
 
 ### 15.6 Inspect and validate
 
@@ -2154,12 +2167,11 @@ Use fewer, well-spaced nodes. Place nodes where background information exists ra
 than at every data feature. Remember that every node y value is a fit parameter by
 default. Fix or bound nodes when the data do not independently determine them.
 
-### 19.8 Differential Evolution requests finite bounds
+### 19.8 Differential Evolution searches too narrow an interval
 
-Set a finite lower and upper bound for every free parameter. A linked parameter does
-not need an independent search bound, but its resulting value must satisfy its own
-bounds. If defensible bounds are unavailable, improve initial estimates and use the
-local solver.
+Increase the automatic below/above percentages or set physically justified parameter
+bounds directly. Existing finite bounds override the automatic limits. A linked
+parameter's resulting value must still satisfy its own bounds.
 
 ### 19.9 The fit is underdetermined or covariance is unavailable
 

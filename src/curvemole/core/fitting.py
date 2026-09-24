@@ -57,18 +57,26 @@ class FitSettings:
     workers: int = 1
     de_maxiter: int = 400
     de_popsize: int = 15
+    de_lower_percent: float = 50.0
+    de_upper_percent: float = 50.0
     confidence_level: float = 0.95
     absolute_sigma: bool | None = None
 
     def validate(self) -> None:
         from curvemole.core.extensions import extensions
-        if self.solver not in {"local", "differential_evolution"} and not any(
+        if self.solver not in {"local", "differential_evolution", "trf", "dogbox", "lm",
+                               "nelder_mead", "powell", "lbfgsb"} and not any(
                 entry.identifier == self.solver for entry in extensions.values("fit_solvers")):
             raise FitError(f"Unknown solver: {self.solver}")
         if self.local_method not in {"auto", "trf", "dogbox", "lm"}:
             raise FitError(f"Unknown local method: {self.local_method}")
         if self.loss not in {"linear", "soft_l1", "huber", "cauchy"}:
             raise FitError(f"Unknown least-squares loss: {self.loss}")
+        if not math.isfinite(self.f_scale) or self.f_scale <= 0:
+            raise FitError("Loss scale must be finite and positive.")
+        if not all(math.isfinite(value) and value > 0 for value in
+                   (self.de_lower_percent, self.de_upper_percent)):
+            raise FitError("Automatic search bound percentages must be finite and positive.")
         if not 0 < self.confidence_level < 1:
             raise FitError("Confidence level must be between zero and one.")
         if self.max_nfev <= 0:
@@ -540,20 +548,11 @@ class Fitter:
             settings = plan.settings
             initial = np.clip(problem.initial, lower, upper)
             if settings.solver == "differential_evolution":
-                if not np.all(np.isfinite(lower)) or not np.all(np.isfinite(upper)):
-                    unbounded = [
-                        path
-                        for path, lo, hi in zip(problem.free_paths, lower, upper, strict=True)
-                        if not (math.isfinite(lo) and math.isfinite(hi))
-                    ]
-                    raise FitError(
-                        "Differential Evolution requires finite user bounds for: "
-                        + ", ".join(unbounded)
-                    )
+                lower, upper = _automatic_de_bounds(problem, settings)
                 if progress:
                     progress(0.0, "Differential Evolution initial search")
                 differential = optimize.differential_evolution(
-                    lambda vector: _sum_of_squares(problem.residual(vector, report=False)),
+                    lambda vector: _objective(problem.residual(vector, report=False), settings),
                     list(zip(lower, upper, strict=True)),
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
@@ -584,8 +583,30 @@ class Fitter:
                     jac=problem.jacobian(vector), nfev=int(least_squares.nfev),
                     success=bool(least_squares.success), status=int(least_squares.status),
                     message=str(least_squares.message))
+            elif settings.solver in {"nelder_mead", "powell", "lbfgsb"}:
+                method = {"nelder_mead": "Nelder-Mead", "powell": "Powell",
+                          "lbfgsb": "L-BFGS-B"}[settings.solver]
+                minimised = optimize.minimize(
+                    lambda vector: _objective(problem.residual(vector), settings),
+                    initial, method=method, bounds=list(zip(lower, upper, strict=True)),
+                    options={"maxfev": settings.max_nfev} if method != "L-BFGS-B"
+                            else {"maxfun": settings.max_nfev},
+                )
+                cancellation.raise_if_cancelled()
+                from types import SimpleNamespace
+                vector = np.clip(minimised.x, lower, upper)
+                least_squares = SimpleNamespace(
+                    x=vector, fun=problem.residual(vector, report=False),
+                    jac=problem.jacobian(vector), nfev=minimised.nfev,
+                    success=minimised.success, status=minimised.status,
+                    message=minimised.message,
+                )
             else:
-                method = _select_method(settings, lower, upper)
+                method = (settings.solver if settings.solver in {"trf", "dogbox", "lm"}
+                          else _select_method(settings, lower, upper))
+                if method == "lm" and (np.any(np.isfinite(lower)) or
+                                       np.any(np.isfinite(upper)) or settings.loss != "linear"):
+                    raise FitError("Levenberg-Marquardt requires no bounds and linear loss.")
                 least_squares = optimize.least_squares(
                     problem.residual,
                     initial,
@@ -688,6 +709,54 @@ def _select_method(settings: FitSettings, lower: np.ndarray, upper: np.ndarray) 
 
 def _sum_of_squares(residual: np.ndarray) -> float:
     return float(np.dot(residual, residual))
+
+
+def _objective(residual: np.ndarray, settings: FitSettings) -> float:
+    """The same robust loss used by least_squares, including f_scale."""
+    if settings.loss == "linear":
+        return _sum_of_squares(residual)
+    z = (residual / settings.f_scale) ** 2
+    if settings.loss == "soft_l1":
+        rho = 2 * np.expm1(np.log1p(z) / 2)
+    elif settings.loss == "huber":
+        rho = np.where(z <= 1, z, 2 * np.sqrt(z) - 1)
+    else:
+        rho = np.log1p(z)
+    return float(settings.f_scale**2 * np.sum(rho))
+
+
+def _automatic_de_bounds(problem: _Problem, settings: FitSettings) -> tuple[np.ndarray, np.ndarray]:
+    """Fill only missing bounds, centred on each current parameter value."""
+    lower, upper = (array.copy() for array in problem.bounds)
+    xs = np.concatenate([data[0] for data in problem._data.values()])
+    ys = np.concatenate([data[1] for data in problem._data.values()])
+    x_span = float(np.ptp(xs))
+    y_span = float(np.ptp(ys))
+    for index, path in enumerate(problem.free_paths):
+        value = float(problem.initial[index])
+        if not math.isfinite(value):
+            raise FitError(f"Differential Evolution needs a finite initial value for {path}.")
+        if value:
+            scale = abs(value)
+        else:
+            name = problem.parameters[path].name.lower()
+            if name in {"center", "position"}:
+                scale = x_span
+            elif name == "area":
+                scale = y_span * x_span
+            elif name == "slope":
+                scale = y_span / x_span if x_span else y_span
+            else:
+                scale = y_span
+            scale = max(scale, 1.0)
+        if not math.isfinite(lower[index]):
+            lower[index] = value - scale * settings.de_lower_percent / 100
+        if not math.isfinite(upper[index]):
+            upper[index] = value + scale * settings.de_upper_percent / 100
+        if not (math.isfinite(lower[index]) and math.isfinite(upper[index])
+                and lower[index] < upper[index]):
+            raise FitError(f"Cannot create finite search bounds for {path}; adjust its limits.")
+    return lower, upper
 
 
 def _restore_parameters(
