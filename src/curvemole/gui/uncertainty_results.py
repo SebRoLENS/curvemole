@@ -28,15 +28,15 @@ class UncertaintyResults(QWidget):
         self.summary = QLabel("Run an analysis to inspect confidence intervals.")
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
-        self.table = QTableWidget(0, 9)
+        self.table = QTableWidget(0, 8)
         self.table.setHorizontalHeaderLabels([
             "Spectrum", "Function", "Parameter", "Fit value", "Lower", "Upper",
-            "Target ±", "Assessment", "Reason",
+            "Target ±", "Assessment",
         ])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(8, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
         self.table.setMinimumHeight(160)
         layout.addWidget(self.table)
         self.target_button = QPushButton("Set acceptable uncertainty for selected parameter…")
@@ -44,7 +44,7 @@ class UncertaintyResults(QWidget):
         layout.addWidget(self.target_button)
         legend = QLabel(
             "OK: meets your absolute precision target with no flagged issue. Attention/Critical: "
-            "see the reason. Not assessed: no precision target. Thresholds: |r| ≥0.95; "
+            "hover over the assessment for its reasons. Not assessed: no precision target. Thresholds: |r| ≥0.95; "
             "interval ≥80% of bounded range. These are diagnostic heuristics, not scientific validation. "
             "Alternative minima are not tested automatically. "
             "200 replicates give a quick estimate; repeat with more for stable interval endpoints.")
@@ -95,12 +95,12 @@ class UncertaintyResults(QWidget):
         colors = {"OK": "#187541", "Attention": "#9b6500", "Critical": "#ba3030", "Not assessed": "#777777", "Fixed": "#777777"}
         for row, data in enumerate(rows):
             self.table.insertRow(row)
-            for col, key in enumerate(("spectrum", "function", "parameter", "value", "lower", "upper", "target", "status", "reasons")):
+            for col, key in enumerate(("spectrum", "function", "parameter", "value", "lower", "upper", "target", "status")):
                 value = data[key]
                 label = "—" if value is None else f"{value:.8g}" if isinstance(value, float) else str(value)
                 item = QTableWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, data["path"])
-                item.setToolTip(data["reasons"] if col >= 7 else data["path"])
+                item.setToolTip(data["reasons"] if col == 7 else data["path"])
                 if col == 7:
                     item.setForeground(QColor(colors[data["status"]]))
                 self.table.setItem(row, col, item)

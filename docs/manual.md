@@ -563,6 +563,8 @@ The **View** and **Tools** menus show or hide these docks:
 Opening a tool places it in the shared tab group beside **Model and parameters** and
 selects its tab. Closing or hiding a tab preserves the panel and its current state;
 opening it again returns to the same panel. Tabs can still be moved or floated.
+When many tabs are open, use the arrows to scroll through their titles. Titles longer
+than 25 characters end in an ellipsis; hover over one to read its full title.
 CurveMole remembers window geometry, dock arrangement, and theme. Use **View > Reset
 layout** to restore the standard tabbed layout.
 
@@ -1469,9 +1471,11 @@ The optimizer's default evaluation budget is unchanged. Two hundred replicas are
 quick estimate; use more and check stability when precise percentile endpoints matter.
 
 All methods display a table with spectrum/function names, parameter, original fitted
-value, confidence interval endpoints, optional acceptable absolute uncertainty,
-assessment and an explicit reason. Intervals are not symmetric +/- errors and their
-midpoint is not necessarily the original fitted value. Technical paths, seed and the
+value, confidence interval endpoints, optional acceptable absolute uncertainty and
+assessment. Hover over the assessment to read its explicit reasons, including the
+names and correlation coefficients of strongly correlated parameters. Intervals are
+not symmetric +/- errors and their midpoint is not necessarily the original fitted
+value. Technical paths, seed and the
 baseline timestamp remain available under **Technical details**. The confidence
 level is configurable for resampling/profile; covariance shows the recorded fit's
 confidence level. Changing the method recalls its most recent recorded analysis.
@@ -1494,8 +1498,8 @@ strong correlation means absolute r >=0.95; coverage of at least 80% of a finite
 allowed parameter range is flagged; fewer than 20 successful replicas is critical,
 and fewer than 200 is flagged for unstable percentile endpoints. Correlations use
 empirical samples for resampling when available, otherwise the fit covariance.
-A parameter touching a bound is not necessarily physically wrong. The table explains
-why it is flagged, and no color certifies the correctness of the physical model.
+A parameter touching a bound is not necessarily physically wrong. The assessment tooltip
+explains why it is flagged, and no color certifies the correctness of the physical model.
 Analyses describe their recorded baseline; editing data or models requires refitting
 before resampling. Reports remain inspectable but are marked outdated when appropriate.
 

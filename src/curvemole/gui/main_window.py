@@ -17,6 +17,7 @@ from typing import Any
 import numpy as np
 from platformdirs import user_cache_path
 from PySide6.QtCore import (
+    QEvent,
     QItemSelectionModel,
     QObject,
     QSettings,
@@ -57,6 +58,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QTabBar,
     QTabWidget,
     QToolBar,
     QTreeWidget,
@@ -465,6 +467,29 @@ class CurveTree(QTreeWidget):
             self.curveRenamed.emit(curve_id, item.text(1))
 
 
+class DockTabTitleFilter(QObject):
+    """Reapply labels when Qt refreshes its own dock tabs during layout."""
+
+    def format_titles(self, bar: QTabBar) -> None:
+        window = self.parent()
+        docks = [window.model_dock, *window.tabifiedDockWidgets(window.model_dock)]
+        for index in range(bar.count()):
+            dock = docks[index] if len(docks) == bar.count() else None
+            full = (dock.property("curvemole_full_tab_title") if dock is not None else None)
+            full = full or bar.tabToolTip(index) or bar.tabText(index)
+            label = full if len(full) <= 25 else full[:22] + "..."
+            if bar.tabText(index) != label:
+                bar.setTabText(index, label)
+            if bar.tabToolTip(index) != full:
+                bar.setTabToolTip(index, full)
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if (isinstance(watched, QTabBar)
+                and event.type() in (QEvent.Type.Paint, QEvent.Type.LayoutRequest)):
+            self.format_titles(watched)
+        return False
+
+
 class MainWindow(QMainWindow):
     _LAYOUT_SCHEMA_VERSION = 2
 
@@ -493,6 +518,8 @@ class MainWindow(QMainWindow):
         self.undo_stack.setUndoLimit(20)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
         self._tool_docks: list[QDockWidget] = []
+        self._tool_tab_filter = DockTabTitleFilter(self)
+        self._tab_refresh_pending = False
         self._notebook_widget = None
         self._notebook_placeholder: QWidget | None = None
 
@@ -633,19 +660,50 @@ class MainWindow(QMainWindow):
         self.setDockNestingEnabled(True)
         self.setDocumentMode(True)
         self.setTabPosition(Qt.DockWidgetArea.AllDockWidgetAreas, QTabWidget.TabPosition.North)
+        self.tabifiedDockWidgetActivated.connect(lambda _: self._queue_tool_tab_refresh())
 
     def _dock(self, title: str, widget: QWidget, area: Qt.DockWidgetArea) -> QDockWidget:
         dock = QDockWidget(title, self)
         dock.setObjectName(title.replace(" ", "_"))
         dock.setWidget(widget)
         dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
+        if area == Qt.DockWidgetArea.RightDockWidgetArea:
+            self._prepare_tool_dock(dock)
         self.addDockWidget(area, dock)
         return dock
+
+    def _prepare_tool_dock(self, dock: QDockWidget) -> None:
+        if dock.property("curvemole_full_tab_title") is not None:
+            return
+        dock.setProperty("curvemole_full_tab_title", dock.windowTitle())
+        dock.windowTitleChanged.connect(lambda title, item=dock: self._tool_dock_title_changed(item, title))
+        dock.topLevelChanged.connect(lambda floating, item=dock: self._display_tool_dock_title(item, floating))
+        self._display_tool_dock_title(dock, dock.isFloating())
+
+    def _tool_dock_title_changed(self, dock: QDockWidget, title: str) -> None:
+        if getattr(self, "_setting_tool_dock_title", False):
+            return
+        dock.setProperty("curvemole_full_tab_title", title)
+        self._display_tool_dock_title(dock, dock.isFloating())
+        self._queue_tool_tab_refresh()
+
+    def _display_tool_dock_title(self, dock: QDockWidget, floating: bool) -> None:
+        full = dock.property("curvemole_full_tab_title")
+        visible = full if floating or len(full) <= 25 else full[:22] + "..."
+        if dock.windowTitle() != visible:
+            self._setting_tool_dock_title = True
+            try:
+                dock.setWindowTitle(visible)
+            finally:
+                self._setting_tool_dock_title = False
+        dock.setToolTip(full)
+        self._queue_tool_tab_refresh()
 
     def register_tool_dock(self, dock: QDockWidget) -> None:
         """Add a native or plugin tool to the shared tabbed workspace."""
         if dock not in self._tool_docks:
             self._tool_docks.append(dock)
+        self._prepare_tool_dock(dock)
         if dock is self.model_dock:
             return
         if dock in self.tabifiedDockWidgets(self.model_dock):
@@ -656,11 +714,32 @@ class MainWindow(QMainWindow):
         if dock.isHidden():
             return
         self.tabifyDockWidget(self.model_dock, dock)
+        self._queue_tool_tab_refresh()
 
     def activate_tool_dock(self, dock: QDockWidget) -> None:
         dock.show()
         self.register_tool_dock(dock)
         dock.raise_()
+        self._queue_tool_tab_refresh()
+
+    def _queue_tool_tab_refresh(self) -> None:
+        if not self._tab_refresh_pending:
+            self._tab_refresh_pending = True
+            QTimer.singleShot(0, self._configure_tool_tabs)
+
+    def _configure_tool_tabs(self) -> None:
+        self._tab_refresh_pending = False
+        # QMainWindow owns its dock tab bars; QTabWidget bars inside panels are separate.
+        for bar in self.findChildren(QTabBar):
+            if bar.parent() is not self:
+                continue
+            if not bar.property("curvemole_tool_tabs"):
+                bar.installEventFilter(self._tool_tab_filter)
+                bar.setProperty("curvemole_tool_tabs", True)
+            bar.setExpanding(False)
+            bar.setUsesScrollButtons(True)
+            bar.setElideMode(Qt.TextElideMode.ElideNone)
+            self._tool_tab_filter.format_titles(bar)
 
     def _apply_tabbed_tool_layout(self) -> None:
         """Create the shared tabs without transiently showing every dock.
@@ -681,6 +760,7 @@ class MainWindow(QMainWindow):
         for dock, was_hidden in hidden.items():
             dock.setVisible(not was_hidden)
         self.model_dock.show()
+        self._queue_tool_tab_refresh()
 
     def _tool_action(self, dock: QDockWidget, text: str) -> QAction:
         action = dock.toggleViewAction()
@@ -3335,6 +3415,7 @@ class MainWindow(QMainWindow):
             self.settings.setValue("layout/schema_version", self._LAYOUT_SCHEMA_VERSION)
             self.settings.remove("layout/tabbed_tools_v1")
         self.apply_theme(str(self.settings.value("theme", "system")))
+        self._queue_tool_tab_refresh()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         if self.automation_runner.process is not None:

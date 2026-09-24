@@ -60,7 +60,9 @@ def test_correlation_and_profile_edge_have_explanations(gaussian_curve):
     record = b.to_dict()
     record["correlation"] = np.ones((3,3)).tolist()
     rows = summarize(p, record, {}, "covariance")
-    assert all("Strong parameter correlation" in row["reasons"] for row in rows)
+    assert all("Strong correlation with" in row["reasons"] for row in rows)
+    assert all(any(other["parameter"] in row["reasons"] for other in rows if other is not row)
+               for row in rows)
     path = b.free_parameter_paths[0]
     a = dict(parameter_path=path, interval=[1,2], values=[1,2,3], failed_points=0)
     r = summarize(p, record, a, "profile_likelihood")[0]
@@ -93,6 +95,9 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     other.uncertainty_panel.method.setCurrentIndex(other.uncertainty_panel.method.findData("covariance"))
     other.uncertainty_panel.results.set_project(reopened)
     assert other.uncertainty_panel.results.table.rowCount() == 3
+    assert other.uncertainty_panel.results.table.columnCount() == 8
+    assert other.uncertainty_panel.results.table.horizontalHeaderItem(7).text() == "Assessment"
+    assert "precision target" in other.uncertainty_panel.results.table.item(0, 7).toolTip()
     assert other.uncertainty_panel.results.table.item(0,1).text() == "NH2 stretching α"
     export_bundle(reopened, tmp_path / "export", selection=BundleExportSelection(fit_results=False, uncertainty=True))
     assert "NH2 stretching α" in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8")
@@ -100,6 +105,21 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     window.close()
     other.close()
     app.processEvents()
+
+
+def test_resampling_correlation_identifies_other_parameter_and_coefficient(gaussian_curve):
+    p, baseline = setup(gaussian_curve)
+    paths = baseline.free_parameter_paths[:2]
+    baseline_record = baseline.to_dict()
+    baseline_record["correlation"] = None
+    analysis = dict(parameter_paths=paths, intervals={
+        path: [baseline_record["parameters"][path]["value"] - .1,
+               baseline_record["parameters"][path]["value"] + .1] for path in paths
+    }, completed=200, failed=0, sample_correlation=[[1., -.97], [-.97, 1.]])
+    rows = summarize(p, baseline_record, analysis, "block_bootstrap")
+    assert len(rows) == 2
+    assert rows[1]["parameter"] in rows[0]["reasons"]
+    assert "r=-0.970" in rows[0]["reasons"]
 
 
 def test_default_replicates_and_method_controls():

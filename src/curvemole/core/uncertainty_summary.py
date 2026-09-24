@@ -41,6 +41,8 @@ def summarize(project, baseline, analysis, method, targets=None):
                      for path in analysis.get("parameter_paths", [])}
     paths = baseline.get("free_parameter_paths", [])
     correlation = analysis.get("sample_correlation", baseline.get("correlation"))
+    if method not in {"covariance", "profile_likelihood"} and "sample_correlation" in analysis:
+        paths = analysis.get("parameter_paths", [])
     # Empirical correlations are more relevant for resampling when available.
     if method not in {"covariance", "profile_likelihood"}:
         samples = np.asarray(analysis.get("samples", []), dtype=float)
@@ -122,9 +124,14 @@ def summarize(project, baseline, analysis, method, targets=None):
             matrix = np.asarray(correlation, dtype=float)
             i = paths.index(path)
             if matrix.shape == (len(paths), len(paths)):
-                others = np.abs(np.delete(matrix[i], i))
-                if np.any(np.isfinite(others) & (others >= .95)):
-                    flag(1, "Strong parameter correlation (|r| >=0.95); parameters may compensate each other.")
+                linked = []
+                for j, coefficient in enumerate(matrix[i]):
+                    if j != i and np.isfinite(coefficient) and abs(coefficient) >= .95:
+                        spectrum, function, parameter = parameter_label(project, paths[j])
+                        linked.append(f"{spectrum} / {function} / {parameter} (r={coefficient:+.3f})")
+                if linked:
+                    flag(1, "Strong correlation with " + "; ".join(linked)
+                         + "; parameters may compensate each other.")
         target = targets.get(path)
         status = ("Critical" if severity == 2 else "Attention" if severity == 1 else
                   "Fixed" if fixed else "OK" if finite and target and target > 0 else "Not assessed")
