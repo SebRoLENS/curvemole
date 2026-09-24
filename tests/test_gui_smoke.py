@@ -302,6 +302,16 @@ def test_bulk_selection_controls(tmp_path) -> None:
     assert window.curve_tree.selected_curve_ids() == set()
 
     fit = FitPlanDialog(project, set(), FitSettings())
+    assert fit.solver.currentData() == "local"
+    for index in range(fit.solver.count()):
+        assert fit.solver.itemData(index, Qt.ItemDataRole.ToolTipRole)
+    for index in range(fit.loss.count()):
+        assert fit.loss.itemData(index, Qt.ItemDataRole.ToolTipRole)
+    fit.solver.setCurrentIndex(fit.solver.findData("differential_evolution"))
+    fit.de_lower_percent.setValue(75)
+    fit.de_upper_percent.setValue(125)
+    assert fit.plan().settings.de_lower_percent == 75
+    assert fit.plan().settings.de_upper_percent == 125
     fit.deselect_all_curves_button.click()
     assert all(
         fit.curves.item(row, 0).checkState() == Qt.CheckState.Unchecked

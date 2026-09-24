@@ -60,14 +60,28 @@ def test_global_cross_spectrum_link() -> None:
     assert result.parameters[target_path].standard_error is not None
 
 
-def test_differential_evolution_requires_explicit_finite_bounds(gaussian_curve: Curve) -> None:
-    model = Model(components=[Component.create("gaussian")])
-    with pytest.raises(Exception, match="finite user bounds"):
-        Fitter().fit_single(
-            gaussian_curve,
-            model,
-            FitSettings(solver="differential_evolution", de_maxiter=2),
-        )
+def test_differential_evolution_creates_bounds_without_changing_user_limits(gaussian_curve: Curve) -> None:
+    peak = Component.create("gaussian", initial={"area": 3, "center": 0, "sigma": 0.8})
+    peak.parameters["sigma"].maximum = 1.0
+    model = Model(components=[peak])
+    result = Fitter().fit_single(
+        gaussian_curve, model,
+        FitSettings(solver="differential_evolution", de_lower_percent=50,
+                    de_upper_percent=100, de_maxiter=30),
+    )
+    assert result.success
+    assert peak.parameters["center"].value == pytest.approx(0.7, abs=0.05)
+    assert np.isneginf(peak.parameters["center"].minimum)
+    assert peak.parameters["sigma"].maximum == 1.0
+
+
+@pytest.mark.parametrize("solver", ["nelder_mead", "powell", "lbfgsb", "trf", "dogbox"])
+def test_additional_solvers_fit_bounded_peak(gaussian_curve: Curve, solver: str) -> None:
+    peak = Component.create("gaussian", initial={"area": 2.8, "center": 0.5, "sigma": 0.9})
+    model = Model(components=[peak])
+    result = Fitter().fit_single(gaussian_curve, model, FitSettings(solver=solver))
+    assert result.success
+    assert peak.parameters["center"].value == pytest.approx(0.7, abs=0.05)
 
 
 def test_robust_loss_does_not_report_information_criteria(gaussian_curve: Curve) -> None:
