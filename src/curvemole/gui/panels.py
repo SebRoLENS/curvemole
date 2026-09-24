@@ -54,6 +54,7 @@ class ModelPanel(QWidget):
     copyFitRequested = Signal()
     copyFitNextRequested = Signal()
     descriptionRequested = Signal(str, str)
+    renameRequested = Signal(str, str)
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -719,38 +720,62 @@ class UncertaintyPanel(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QFormLayout(self)
+        self.form = layout
         self.method = QComboBox()
+        self.method.addItem(self.tr("Fit covariance"), "covariance")
         self.method.addItem(self.tr("Parametric Monte Carlo"), "monte_carlo")
         self.method.addItem(self.tr("Residual bootstrap"), "residual_bootstrap")
         self.method.addItem(self.tr("Block bootstrap"), "block_bootstrap")
         self.method.addItem(self.tr("Profile likelihood"), "profile_likelihood")
+        self.method.setCurrentIndex(1)
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
-        self.replicates.setValue(1000)
+        self.replicates.setValue(200)
         self.block_length = QSpinBox()
         self.block_length.setRange(0, 1_000_000)
         self.block_length.setSpecialValueText(self.tr("Automatic"))
         self.parameter = QComboBox()
+        self.profile_points = QSpinBox()
+        self.profile_points.setRange(5, 1001)
+        self.profile_points.setValue(31)
+        self.profile_lower = QLineEdit()
+        self.profile_upper = QLineEdit()
+        self.profile_lower.setPlaceholderText(self.tr("Automatic"))
+        self.profile_upper.setPlaceholderText(self.tr("Automatic"))
+        self.confidence = QDoubleSpinBox()
+        self.confidence.setRange(50, 99.9)
+        self.confidence.setValue(95)
+        self.confidence.setSuffix(" %")
+        from curvemole.gui.uncertainty_results import UncertaintyResults
+        self.results = UncertaintyResults(self)
+        self.status = self.results.details
         run = QPushButton(self.tr("Run explicit uncertainty analysis"))
         run.clicked.connect(self._run)
-        self.status = QPlainTextEdit()
-        self.status.setReadOnly(True)
         layout.addRow(self.tr("Method"), self.method)
         layout.addRow(self.tr("Replicates"), self.replicates)
         layout.addRow(self.tr("Block length"), self.block_length)
         layout.addRow(self.tr("Profile parameter"), self.parameter)
+        layout.addRow(self.tr("Profile grid points"), self.profile_points)
+        layout.addRow(self.tr("Profile lower limit"), self.profile_lower)
+        layout.addRow(self.tr("Profile upper limit"), self.profile_upper)
+        layout.addRow(self.tr("Confidence level"), self.confidence)
         layout.addRow(run)
-        layout.addRow(self.status)
+        layout.addRow(self.results)
         self.method.currentIndexChanged.connect(self._update_controls)
         self._update_controls()
 
     def set_parameters(self, project: Project, curve_id: str | None) -> None:
+        self.results.set_project(project)
         current = self.parameter.currentData()
         self.parameter.clear()
         if curve_id:
             model = project.model_for(curve_id)
             for component in model.components:
-                for name in component.parameters:
+                if not component.enabled:
+                    continue
+                for name, parameter in component.parameters.items():
+                    if not parameter.is_free:
+                        continue
                     path = model.parameter_path(curve_id, component.id, name)
                     self.parameter.addItem(f"{component.name} · {name}", path)
         index = self.parameter.findData(current)
@@ -758,9 +783,24 @@ class UncertaintyPanel(QWidget):
 
     def _update_controls(self) -> None:
         method = self.method.currentData()
-        self.replicates.setEnabled(method != "profile_likelihood")
+        self.replicates.setEnabled(method not in {"profile_likelihood", "covariance"})
+        self.profile_points.setEnabled(method == "profile_likelihood")
+        self.profile_lower.setEnabled(method == "profile_likelihood")
+        self.profile_upper.setEnabled(method == "profile_likelihood")
+        self.confidence.setEnabled(method != "covariance")
         self.block_length.setEnabled(method == "block_bootstrap")
         self.parameter.setEnabled(method == "profile_likelihood")
+        for widget, visible in (
+            (self.replicates, method not in {"profile_likelihood", "covariance"}),
+            (self.block_length, method == "block_bootstrap"),
+            (self.parameter, method == "profile_likelihood"),
+            (self.profile_points, method == "profile_likelihood"),
+            (self.profile_lower, method == "profile_likelihood"),
+            (self.profile_upper, method == "profile_likelihood"),
+            (self.confidence, method != "covariance"),
+        ):
+            self.form.setRowVisible(widget, visible)
+        self.results.show_method(method)
 
     def _run(self) -> None:
         method = self.method.currentData()

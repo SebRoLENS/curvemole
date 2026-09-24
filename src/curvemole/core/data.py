@@ -360,8 +360,15 @@ class Curve:
         applied = np.zeros(len(self), dtype=bool)
         if source_x.size:
             finite_target = np.isfinite(self._x)
-            for value in source_x[np.isfinite(source_x)]:
-                applied |= finite_target & (np.abs(self._x - value) <= tolerance)
+            sorted_source = np.sort(source_x[np.isfinite(source_x)])
+            if sorted_source.size:
+                values = self._x[finite_target]
+                positions = np.searchsorted(sorted_source, values)
+                left = np.clip(positions - 1, 0, len(sorted_source) - 1)
+                right = np.clip(positions, 0, len(sorted_source) - 1)
+                distance = np.minimum(np.abs(values - sorted_source[left]),
+                                      np.abs(values - sorted_source[right]))
+                applied[finite_target] = distance <= tolerance
         target.excluded |= applied
         for lo, hi in source_mask.ranges:
             target.ranges.append((lo - tolerance, hi + tolerance))

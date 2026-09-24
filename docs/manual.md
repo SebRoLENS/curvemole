@@ -444,7 +444,13 @@ Controls above it provide:
 - **Display:** Single, Overlay, or Waterfall;
 - **All series / Active series / Selected:** one-click scope for Overlay and Waterfall;
 - **X offset** and **Y offset:** display-only Waterfall spacing;
-- **Residuals:** show or hide the linked residual panel.
+- **Residuals:** show or hide the linked residual panel;
+- **Autoscale:** automatically frame the experimental data when the active spectrum changes;
+- **All points / Unmasked points:** choose whether automatic framing includes masked data.
+
+With Autoscale off, switching spectra preserves the view. **View all** and
+**View unmasked** explicitly frame the corresponding experimental points; model
+extrapolations, labels and handles do not affect these limits.
 
 The main toolbar contains the graphical **Mask** button. Its scope is chosen on
 entry in Overlay/Waterfall; mouse buttons determine the operation.
@@ -460,12 +466,16 @@ keeps the full display resolution. Descending x arrays may be reversed only in t
 temporary display copy so that fast clipping remains available. Fitting, project
 storage, and export always use the complete original arrays.
 
-Model functions receive systematic names such as **Voigt1**, **Voigt2**, and
-**Gaussian1**. Their labels are shown above each function maximum by default and are
+Model functions initially receive names such as **Voigt1**, **Voigt2**, and
+**Gaussian1**. Right-click a function and choose **Rename function...** to assign
+any non-empty name, including Unicode. The name belongs to that component of that
+spectrum; internal identifiers and parameter links do not change. Renaming supports
+Undo/Redo, preserves fitted status, and survives saving/reopening, duplication and
+copying. Plot labels, notebook entries, uncertainty tables and exports use the name. Their labels are shown above each function maximum by default and are
 shifted vertically when necessary to avoid overlap. Right-click the main plot and
 toggle **Show component labels** to hide or show these labels. After every completed
 fit, CurveMole explicitly applies the returned optimized parameters to the displayed
-model, redraws and auto-ranges the plot so the newly fitted curves are visible immediately.
+model and redraws the plot while preserving the current zoom.
 The **Model sum is always red**; imported spectra and selectable series palettes exclude red
 so a data curve can never be confused with the fitted sum.
 
@@ -980,7 +990,8 @@ main toolbar. The list includes built-in peaks and backgrounds, generic function
 project-contained formulas, reusable formulas, and trusted plugin functions. The last
 choice is remembered.
 
-- a peak opens graphical centre/FWHM placement;
+- a peak opens continuous graphical centre/FWHM placement: add several peaks,
+  then press Enter, Esc, or Finish to leave placement mode;
 - a cubic spline opens point-by-point node placement;
 - every other function is added immediately with its default parameters.
 
@@ -1279,6 +1290,41 @@ Powell, and L-BFGS-B. The latter three minimize the selected loss directly;
 they can be useful for difficult models but may take more evaluations. LM needs
 unbounded parameters and `linear` loss. Hover over a solver to see its intended use.
 
+### 10.4.1 Advanced algorithm options and Reset default
+
+The default remains **Local least squares (automatic)** with **linear** loss.
+**Advanced algorithm options** shows only the controls relevant to the chosen solver.
+Numeric fields accept scientific notation such as `1e-8`; tooltips explain each option.
+
+| Algorithm | Configurable controls |
+|---|---|
+| Automatic, TRF, Dogbox, LM | `ftol`, `xtol`, `gtol`, `x_scale`; automatic mode also offers the local method |
+| Differential Evolution | Generations, population multiplier, mutation minimum/maximum, recombination, relative/absolute tolerance, seed and automatic search limits; least-squares controls apply to local refinement |
+| Nelder-Mead | Iteration limit, `xatol`, `fatol`, adaptive coefficients and optional initial simplex |
+| Powell | Iteration limit, `xtol`, `ftol` |
+| L-BFGS-B | Iteration limit, `ftol`, projected-gradient tolerance, line-search steps and correction history |
+
+Maximum evaluations remains configurable for all built-in solvers. For Differential
+Evolution it limits the local refinement; generations/population control the global
+search. Numerical Jacobian probes and L-BFGS-B numerical gradients may require
+additional model calls beyond the solver's reported evaluation budget.
+
+An iteration limit of `0` retains the minimizer's automatic limit. An optional
+Nelder-Mead simplex is a JSON matrix with N+1 rows and N columns in the fitter's
+free-parameter order (selected curve, component and parameter order, including
+referenced link dependencies). Leave it blank for normal automatic initialization.
+Vertices must satisfy bounds. LM requires unbounded parameters and linear loss.
+
+**Reset default** restores all algorithm/loss parameter fields, evaluation budget
+and confidence level. It preserves the selected algorithm and loss, fit mode,
+spectrum selection/weights and model parameters. Defaults include 1,000 evaluations,
+`ftol=1e-10`, `xtol=1e-8`, `gtol=1e-10`, `x_scale=jac`, and loss scale 1.
+DE defaults are 400 generations, population multiplier 15, mutation 0.5-1,
+recombination 0.7, relative tolerance 0.01, absolute tolerance 0 and seed 1729.
+Nelder-Mead and Powell tolerances default to `1e-4`; L-BFGS-B uses
+`ftol=2.220446049250313e-9`, `gtol=1e-5`, 20 line-search steps and 10 corrections.
+These are starting configurations, not guarantees for every dataset.
+
 ### 10.5 Robust losses
 
 Available losses are:
@@ -1295,6 +1341,14 @@ Robust loss can reduce the influence of large residuals, but it is not a substit
 for understanding outliers, detector artifacts, or an incomplete model. AIC, AICc,
 and BIC are reported only for the linear loss. Robust-loss covariance uses a sandwich
 estimate, and CurveMole recommends explicit resampling.
+
+For `soft_l1`, `huber` and `cauchy`, the **Loss scale (f_scale)** field appears.
+It must be positive and sets the transition between small and large residuals.
+It is hidden for `linear`, where it has no effect. The scale is expressed in the
+residual units passed to the optimizer: signal units without uncertainty weighting,
+standardized residual units with `sigma_y`, further modified by spectrum weights
+and equal-contribution scaling. The default of 1 is not an automatic noise estimate;
+choose a scale appropriate to the data. Reset default restores it to 1.
 
 ### 10.6 Differential Evolution initial search
 
@@ -1408,7 +1462,42 @@ or data treatment deserves review.
 
 Open **Fit > Uncertainty Analysis** only after a successful fit. These calculations
 run in the background, can be cancelled, and may be substantially slower than the
-baseline fit.
+baseline fit. **Fit covariance** displays the uncertainty already calculated by
+the fit without running replicas. Monte Carlo, residual bootstrap and block bootstrap
+default to **200 replicates** (not optimizer iterations), and remain configurable.
+The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
+quick estimate; use more and check stability when precise percentile endpoints matter.
+
+All methods display a table with spectrum/function names, parameter, original fitted
+value, confidence interval endpoints, optional acceptable absolute uncertainty,
+assessment and an explicit reason. Intervals are not symmetric +/- errors and their
+midpoint is not necessarily the original fitted value. Technical paths, seed and the
+baseline timestamp remain available under **Technical details**. The confidence
+level is configurable for resampling/profile; covariance shows the recorded fit's
+confidence level. Changing the method recalls its most recent recorded analysis.
+
+Select a row and **Set acceptable uncertainty for selected parameter...** to enter
+an absolute target in that parameter's units. Enter zero to remove it. The assessment
+uses the larger distance from the original fit to either interval endpoint; it never
+divides by the parameter value. Targets and reports are saved in the project.
+
+| Assessment | Meaning |
+|---|---|
+| OK | Interval meets your absolute precision target and no diagnostic issue is flagged |
+| Not assessed | No precision target is set; scientific adequacy cannot be inferred |
+| Attention | Bound contact, strong correlation, insufficient precision, failed replicates, an open profile scan, or another stated caveat |
+| Critical | No usable interval, too few successful replicas, rank-deficient covariance, or an interval spanning most of the allowed range |
+| Fixed | Parameter was fixed; its uncertainty was not estimated |
+
+These are deterministic diagnostic heuristics, not universal scientific thresholds:
+strong correlation means absolute r >=0.95; coverage of at least 80% of a finite
+allowed parameter range is flagged; fewer than 20 successful replicas is critical,
+and fewer than 200 is flagged for unstable percentile endpoints. Correlations use
+empirical samples for resampling when available, otherwise the fit covariance.
+A parameter touching a bound is not necessarily physically wrong. The table explains
+why it is flagged, and no color certifies the correctness of the physical model.
+Analyses describe their recorded baseline; editing data or models requires refitting
+before resampling. Reports remain inspectable but are marked outdated when appropriate.
 
 ### 12.1 Parametric Monte Carlo
 
@@ -1442,8 +1531,11 @@ refits all remaining free parameters, and compares chi-square with the baseline.
 The default grid spans approximately three covariance standard errors on either side,
 or a fallback span when no standard error is available, while respecting bounds.
 
-Preview 0.28.4 uses 31 grid points and a one-parameter chi-square threshold. Failed
-grid points are counted. A profile interval is more informative than a symmetric
+The default uses 31 grid points and a one-parameter chi-square threshold. The grid
+size, confidence level and lower/upper scan limits can be changed in the panel;
+blank limits select the automatic range, and explicit limits must respect parameter
+bounds. Failed grid points are counted. The desktop profile currently requires a
+single-spectrum baseline; it does not profile a global multi-spectrum fit. A profile interval is more informative than a symmetric
 standard error near bounds or in nonlinear problems, but grid resolution should be
 considered when interpreting endpoints.
 
@@ -1452,7 +1544,10 @@ considered when interpreting endpoints.
 The default seed is 1729 unless changed through programmatic settings. Resampling
 outputs record configuration and up to the first 100 failure messages. Do not report
 an empirical interval without also reporting how many replicates completed and
-failed.
+failed. Selecting **Uncertainty intervals, assessments and matrices** in the export
+dialog also writes `uncertainty/parameter_assessments.csv` for the recorded analyses,
+including names, fitted values, interval endpoints, confidence level, targets and
+reasons. Covariance/correlation matrices remain available in the same export option.
 
 ## 13. Projects, saving, and recovery
 
@@ -1597,6 +1692,17 @@ or QtiPlot. Depending on data and model, columns include:
 - mask flag.
 
 Rows remain aligned with the complete curve, including masked and invalid entries.
+
+### 14.5.1 Exporting optimizer and loss settings
+
+**Last fit: all solver/loss settings (CSV)** writes `fit_settings.csv`, containing
+all recorded `FitSettings` fields, including advanced solver parameters, loss and
+`f_scale`. Each row includes the fit timestamp, mode and curve IDs. It describes the
+selected last fit result, not unsaved edits in the Fit dialog; fields for inactive
+algorithms are retained for completeness. No settings file is produced without a
+fit result. `fit_results.csv` separately contains all model parameter values, bounds,
+links and available errors. The JSON result includes the same optimizer settings;
+the full reproducibility HTML report also shows them as a table.
 
 ### 14.6 Tidy data and JSON
 
@@ -2041,7 +2147,12 @@ components using a plugin before unloading it. Close the manager to refresh menu
 Changed local source needs approval again. Callback errors disable the plugin;
 failed registration rolls back additions. After a crash or forced termination,
 CurveMole disables persisted plugins before importing their code and explains recovery.
-Normal closure clears the session marker. Set `CURVEMOLE_DISABLE_PLUGINS=1` to skip
+Normal closure clears the session marker. The integrated validated-plugin browser
+can download selected plugins through **Install selected**. A **Plugins** status
+badge checks updates for loaded supported plugins, lets you select updates, and
+indicates when a restart is needed to activate staged code. Checking for an update
+does not install it automatically. Manual artifact download remains an alternative.
+Set `CURVEMOLE_DISABLE_PLUGINS=1` to skip
 automatic loading manually. This is failure recovery, not a sandbox for Python code.
 
 \newpage
@@ -2164,8 +2275,9 @@ fitting.
 ### 19.7 A spline looks unstable
 
 Use fewer, well-spaced nodes. Place nodes where background information exists rather
-than at every data feature. Remember that every node y value is a fit parameter by
-default. Fix or bound nodes when the data do not independently determine them.
+than at every data feature. Graphically placed node y values are fixed by default;
+unlock only those that the data can independently determine. Nodes created through
+the API are ordinary free parameters unless explicitly fixed.
 
 ### 19.8 Differential Evolution searches too narrow an interval
 
@@ -2284,7 +2396,9 @@ directly. Clearing the description removes its icon and notebook entry.
 
 CurveMole performs fitting locally. It has no telemetry and does not upload data,
 projects, models, results, or formulas. Its automatic startup and hourly version check
-requests only the public latest-release metadata from GitHub. Opening documentation or
+requests public latest-release metadata from GitHub. When plugins are loaded, the
+application also checks the public validated-plugin catalog at startup and hourly.
+These checks do not upload scientific data. Opening documentation or
 release notes, downloading an update, reporting an issue, or using Zenodo is otherwise
 an explicit external action.
 
@@ -2336,7 +2450,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | F1 or platform Help shortcut | Quick Start |
 | Esc | Cancel graphical peak or spline placement |
 | Ctrl while dragging | Change a fixed graphical parameter without unfixing it |
-| Right-drag on plot | Mask or unmask an interval directly |
+| Right-drag / left-drag with Mask active | Mask / unmask an interval |
 | Up / Down with plot focus | Activate previous / next spectrum |
 
 ## Appendix B. Built-in identifiers
@@ -2372,7 +2486,8 @@ Shortcuts use the platform's standard key sequence where applicable.
 The following boundaries are important when evaluating this release:
 
 - scientific validation toward 1.0.0 is still in progress;
-- only nonlinear least squares is implemented as the final local optimizer;
+- local optimizers include nonlinear least squares, Nelder-Mead, Powell, and L-BFGS-B;
+  none guarantees the global optimum for an arbitrary nonlinear model;
 - `sigma_x` is stored but not used in optimization;
 - the GUI does not yet provide a dedicated parameter-path picker for complex links;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;

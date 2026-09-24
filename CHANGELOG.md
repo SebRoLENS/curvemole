@@ -5,6 +5,28 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Named functions and uncertainty assessments
+
+- Add undoable arbitrary function names, retained across reopen, labels and exports.
+- Share named confidence-interval tables and deterministic, explained diagnostics
+  across covariance, Monte Carlo, both bootstrap methods and profile likelihood.
+- Add per-parameter absolute precision targets; never classify precision by dividing
+  by a coordinate-dependent fitted value. Preserve reports and export assessments.
+- Default to 200 resampling replicas, preserve fit evaluation defaults, and expose
+  profile grid size, scan limits and analysis confidence level.
+
+### Fit audit and advanced configuration
+
+- Keep automatic local least squares and linear loss as defaults; expose solver-specific
+  controls, robust loss scale and Reset default without changing curve/model selection.
+- Export every recorded optimizer/loss setting as optional CSV and in full HTML/JSON.
+- Exclude unused disabled parameters from fitting while retaining transitive link dependencies.
+- Fix masked block bootstrap, transformed resampling uncertainties, linked uncertainties at
+  upper bounds, one-parameter profiles and copying values together with new bounds.
+- Speed up point-mask transfer and block-bootstrap construction.
+- Align manual/Quick Start with current navigation, splines, solvers and plugin updates;
+  regenerate PDF/LaTeX and support both PDF document-ID string representations.
+
 ### Added
 
 - Add native desktop integration: `.fitproj` Open With registration, Linux AppImage

@@ -8,7 +8,7 @@ import os
 import re
 import tempfile
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -62,6 +62,7 @@ class BundleExportSelection:
     """User-selectable contents for an analysis export."""
 
     fit_results: bool = True
+    fit_settings: bool = False
     wide_tables: bool = False
     tidy_table: bool = False
     results_json: bool = False
@@ -83,6 +84,7 @@ class BundleExportSelection:
     def to_dict(self) -> dict[str, bool]:
         return {
             "fit_results": self.fit_results,
+            "fit_settings": self.fit_settings,
             "wide_tables": self.wide_tables,
             "tidy_table": self.tidy_table,
             "results_json": self.results_json,
@@ -263,6 +265,27 @@ def parameter_dataframe(
     return pd.DataFrame(rows)
 
 
+def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:
+    """Export the recorded fit configuration, never the current dialog edits."""
+    columns = ["timestamp", "curve_ids", "mode", "setting", "value"]
+    if result is None:
+        return pd.DataFrame(columns=columns)
+    return pd.DataFrame([
+        {"timestamp": result.timestamp, "curve_ids": ";".join(result.curve_outputs),
+         "mode": result.mode.value, "setting": name, "value": json.dumps(value)}
+        for name, value in asdict(result.settings).items()
+    ], columns=columns)
+
+
+def uncertainty_dataframe(project: Project) -> pd.DataFrame:
+    from curvemole.core.uncertainty_summary import summarize
+    rows = []
+    for method, record in project.results.get("uncertainty_reports", {}).items():
+        rows.extend(summarize(project, record["baseline"], record["analysis"], method,
+                              project.ui_state.get("uncertainty_targets", {})))
+    return pd.DataFrame(rows)
+
+
 def value_with_error(value: float, error: float | None) -> str:
     if error is None or not math.isfinite(error) or error <= 0:
         return f"{value:.10g}"
@@ -371,6 +394,8 @@ def generate_html_report(
     if full:
         sections.extend(
             [
+                "<h2>Recorded solver and loss settings</h2>",
+                fit_settings_dataframe(result).to_html(index=False, border=0),
                 "<h2>Reproducibility</h2>",
                 f"<pre>{_escape(json.dumps(project.to_metadata(), indent=2, default=str))}</pre>",
             ]
@@ -423,6 +448,8 @@ def export_bundle(
     selection: BundleExportSelection | None = None,
 ) -> ExportSummary:
     selection = selection or BundleExportSelection()
+    if result is None and isinstance(project.results.get("last_fit"), FitResult):
+        result = project.results["last_fit"]
     if not selection.any_selected():
         raise CurveMoleError("Select at least one item to export.")
 
@@ -495,6 +522,9 @@ def export_bundle(
             root / "fit_results.csv",
             delimiter=delimiter,
         )
+
+    if selection.fit_settings and result is not None:
+        export_dataframe(fit_settings_dataframe(result), root / "fit_settings.csv", delimiter=delimiter)
 
     if selection.wide_tables:
         for curve in project.curves:
@@ -596,6 +626,10 @@ def export_bundle(
             correlation_path.parent.mkdir(parents=True, exist_ok=True)
             np.savetxt(correlation_path, result.correlation, delimiter=delimiter)
 
+    if selection.uncertainty and project.results.get("uncertainty_reports"):
+        export_dataframe(uncertainty_dataframe(project), root / "uncertainty" / "parameter_assessments.csv",
+                         delimiter=delimiter)
+
     if selection.diagnostics and result:
         for curve_id, output in result.curve_outputs.items():
             diagnostics = residual_diagnostics(output.residual)
@@ -645,6 +679,8 @@ def _bundle_paths(
     paths: list[str] = []
     if selection.fit_results:
         paths.append("fit_results.csv")
+    if selection.fit_settings and result is not None:
+        paths.append("fit_settings.csv")
     if selection.wide_tables:
         paths.extend(
             f"data/{_safe_name(curve.name)}_wide.csv"
@@ -673,6 +709,8 @@ def _bundle_paths(
             paths.append("uncertainty/covariance.csv")
         if result.correlation is not None:
             paths.append("uncertainty/correlation.csv")
+    if selection.uncertainty and project.results.get("uncertainty_reports"):
+        paths.append("uncertainty/parameter_assessments.csv")
     if selection.diagnostics and result:
         paths.extend(
             f"diagnostics/{curve_id}_autocorrelation.csv"

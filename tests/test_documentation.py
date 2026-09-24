@@ -103,3 +103,12 @@ def test_release_bump_updates_every_manual_version(
     assert f"# CurveMole User Manual - Preview {new_version}" in updated
     assert f"releases/tag/v{new_version}" in updated
     assert "[Computer software]. GitHub." in updated
+
+
+def test_pdf_document_id_normalisation_accepts_literal_strings(tmp_path: Path) -> None:
+    pdf, tex = tmp_path / "literal.pdf", tmp_path / "manual.tex"
+    tex.write_text("manual source", encoding="utf-8")
+    pdf.write_bytes(rb"%PDF-1.5 /ID[(abc\123\(x\))(abc\123\(x\))] %%EOF")
+    normalise_pdf_document_id(pdf, tex)
+    expected = hashlib.sha256(tex.read_bytes()).hexdigest()[:32].encode()
+    assert b"/ID[<" + expected + b"><" + expected + b">]" in pdf.read_bytes()

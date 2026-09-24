@@ -62,6 +62,23 @@ class FitSettings:
     confidence_level: float = 0.95
     absolute_sigma: bool | None = None
 
+    de_mutation_min: float = 0.5
+    de_mutation_max: float = 1.0
+    de_recombination: float = 0.7
+    de_tol: float = 0.01
+    de_atol: float = 0.0
+    nm_xatol: float = 1e-4
+    nm_fatol: float = 1e-4
+    nm_adaptive: bool = False
+    nm_initial_simplex: list[list[float]] | None = None
+    minimize_maxiter: int = 0  # zero preserves the solver's automatic limit
+    powell_xtol: float = 1e-4
+    powell_ftol: float = 1e-4
+    lbfgsb_ftol: float = 2.220446049250313e-9
+    lbfgsb_gtol: float = 1e-5
+    lbfgsb_maxls: int = 20
+    lbfgsb_maxcor: int = 10
+
     def validate(self) -> None:
         from curvemole.core.extensions import extensions
         if self.solver not in {"local", "differential_evolution", "trf", "dogbox", "lm",
@@ -81,6 +98,43 @@ class FitSettings:
             raise FitError("Confidence level must be between zero and one.")
         if self.max_nfev <= 0:
             raise FitError("Maximum function evaluations must be positive.")
+        positive = ("ftol", "xtol", "gtol", "nm_xatol", "nm_fatol",
+                    "powell_xtol", "powell_ftol", "lbfgsb_ftol", "lbfgsb_gtol")
+        for name in positive:
+            value = getattr(self, name)
+            if not math.isfinite(value) or value <= 0:
+                raise FitError(f"{name} must be finite and positive.")
+        if min(self.ftol, self.xtol, self.gtol) <= np.finfo(float).eps:
+            raise FitError("Least-squares tolerances must exceed machine precision.")
+        if self.x_scale != "jac":
+            try:
+                scale = float(self.x_scale)
+            except (TypeError, ValueError) as exc:
+                raise FitError("Parameter scale must be 'jac' or a positive number.") from exc
+            if not math.isfinite(scale) or scale <= 0:
+                raise FitError("Parameter scale must be 'jac' or a positive number.")
+        for name in ("max_nfev", "de_maxiter", "de_popsize", "lbfgsb_maxls", "lbfgsb_maxcor"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+                raise FitError(f"{name} must be a positive integer.")
+        if not isinstance(self.minimize_maxiter, int) or self.minimize_maxiter < 0:
+            raise FitError("Iteration limit must be a nonnegative integer (0 means automatic).")
+        if not isinstance(self.seed, int) or not 0 <= self.seed <= 2**32 - 1:
+            raise FitError("Random seed must be an integer between 0 and 4294967295.")
+        if not (0 <= self.de_mutation_min <= self.de_mutation_max < 2):
+            raise FitError("DE mutation bounds must satisfy 0 <= minimum <= maximum < 2.")
+        if not 0 <= self.de_recombination <= 1:
+            raise FitError("DE recombination must be between 0 and 1.")
+        if any(not math.isfinite(v) or v < 0 for v in (self.de_tol, self.de_atol)):
+            raise FitError("DE tolerances must be finite and nonnegative.")
+        if self.nm_initial_simplex is not None:
+            try:
+                simplex = np.asarray(self.nm_initial_simplex, dtype=float)
+            except (TypeError, ValueError) as exc:
+                raise FitError("Initial simplex must be a numeric matrix.") from exc
+            if simplex.ndim != 2 or simplex.shape[0] != simplex.shape[1] + 1 or not np.all(np.isfinite(simplex)):
+                raise FitError("Initial simplex must be a finite (N+1) by N matrix.")
+
 
 
 @dataclass(slots=True)
@@ -291,6 +345,25 @@ class _Problem:
                     raise FitError(f"Duplicate parameter path: {path}")
                 self.parameters[path] = parameter
             self._data[curve.id] = curve.fit_arrays()
+        # Only enabled model parameters and their transitive link dependencies
+        # affect the objective. Disabled independent components must not add DOF.
+        from curvemole.core.expressions import SafeExpression
+        active = {model.parameter_path(curve.id, component.id, name)
+                  for curve in self.curves for model in [models[curve.id]]
+                  for component in model.components if component.enabled
+                  for name in component.parameters}
+        pending = list(active)
+        while pending:
+            path = pending.pop()
+            if path not in self.parameters:
+                raise ConstraintError(f"Linked parameter does not exist: {path}")
+            link = self.parameters[path].link
+            if link:
+                for dependency in SafeExpression.compile(link).references:
+                    if dependency not in active:
+                        active.add(dependency)
+                        pending.append(dependency)
+        self.parameters = {path: value for path, value in self.parameters.items() if path in active}
         resolve_parameter_values(self.parameters)
         self.free_paths = [path for path, parameter in self.parameters.items() if parameter.is_free]
         if not self.free_paths:
@@ -557,6 +630,10 @@ class Fitter:
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
                     popsize=settings.de_popsize,
+                    mutation=(settings.de_mutation_min, settings.de_mutation_max),
+                    recombination=settings.de_recombination,
+                    tol=settings.de_tol,
+                    atol=settings.de_atol,
                     workers=settings.workers,
                     updating="immediate" if settings.workers == 1 else "deferred",
                     polish=False,
@@ -586,11 +663,17 @@ class Fitter:
             elif settings.solver in {"nelder_mead", "powell", "lbfgsb"}:
                 method = {"nelder_mead": "Nelder-Mead", "powell": "Powell",
                           "lbfgsb": "L-BFGS-B"}[settings.solver]
+                options = _minimize_options(settings)
+                if settings.solver == "nelder_mead" and settings.nm_initial_simplex is not None:
+                    simplex = np.asarray(settings.nm_initial_simplex, dtype=float)
+                    if simplex.shape != (len(initial) + 1, len(initial)):
+                        raise FitError("Initial simplex dimension does not match the free parameters.")
+                    if np.any(simplex < lower) or np.any(simplex > upper):
+                        raise FitError("Initial simplex vertices must satisfy parameter bounds.")
                 minimised = optimize.minimize(
                     lambda vector: _objective(problem.residual(vector), settings),
                     initial, method=method, bounds=list(zip(lower, upper, strict=True)),
-                    options={"maxfev": settings.max_nfev} if method != "L-BFGS-B"
-                            else {"maxfun": settings.max_nfev},
+                    options=options,
                 )
                 cancellation.raise_if_cancelled()
                 from types import SimpleNamespace
@@ -695,6 +778,25 @@ class Fitter:
             for curve in curves:
                 curve.state = CurveState.FAILED
         return result
+
+
+def _minimize_options(settings: FitSettings) -> dict[str, Any]:
+    """Translate explicit controls without changing the historical SciPy defaults."""
+    if settings.solver == "nelder_mead":
+        options = dict(maxfev=settings.max_nfev, xatol=settings.nm_xatol,
+                       fatol=settings.nm_fatol, adaptive=settings.nm_adaptive)
+        if settings.nm_initial_simplex is not None:
+            options["initial_simplex"] = np.asarray(settings.nm_initial_simplex, dtype=float)
+    elif settings.solver == "powell":
+        options = dict(maxfev=settings.max_nfev, xtol=settings.powell_xtol,
+                       ftol=settings.powell_ftol)
+    else:
+        options = dict(maxfun=settings.max_nfev, ftol=settings.lbfgsb_ftol,
+                       gtol=settings.lbfgsb_gtol, maxls=settings.lbfgsb_maxls,
+                       maxcor=settings.lbfgsb_maxcor)
+    if settings.minimize_maxiter:
+        options["maxiter"] = settings.minimize_maxiter
+    return options
 
 
 def _select_method(settings: FitSettings, lower: np.ndarray, upper: np.ndarray) -> str:
@@ -836,6 +938,9 @@ def _parameter_estimates(
             shifted = optimum.copy()
             shifted[index] = min(max(shifted[index] + step, problem.bounds[0][index]), problem.bounds[1][index])
             actual = shifted[index] - optimum[index]
+            if actual == 0:
+                shifted[index] = max(optimum[index] - step, problem.bounds[0][index])
+                actual = shifted[index] - optimum[index]
             if actual == 0:
                 continue
             shifted_values = problem.values(shifted)

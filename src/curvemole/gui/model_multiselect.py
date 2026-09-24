@@ -160,6 +160,9 @@ def _install_model_panel() -> None:
         if ref is None:
             return
         menu = QMenu(panel)
+        rename = menu.addAction(panel.tr("Rename function…"))
+        rename.setEnabled(panel.project is not None and not panel.project.read_only)
+        rename.triggered.connect(lambda checked=False: panel.renameRequested.emit(*ref))
         action = menu.addAction(panel.tr("Add description…"))
         action.setEnabled(panel.project is not None and not panel.project.read_only)
         action.triggered.connect(lambda checked=False: panel.descriptionRequested.emit(*ref))

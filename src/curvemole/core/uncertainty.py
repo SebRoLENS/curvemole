@@ -78,7 +78,7 @@ class UncertaintyAnalyzer:
         curves: Mapping[str, Curve] | Sequence[Curve],
         models: Mapping[str, Model],
         *,
-        replicates: int = 1000,
+        replicates: int = 200,
         seed: int | None = None,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
@@ -119,7 +119,7 @@ class UncertaintyAnalyzer:
         curves: Mapping[str, Curve] | Sequence[Curve],
         models: Mapping[str, Model],
         *,
-        replicates: int = 1000,
+        replicates: int = 200,
         seed: int | None = None,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
@@ -155,7 +155,7 @@ class UncertaintyAnalyzer:
         curves: Mapping[str, Curve] | Sequence[Curve],
         models: Mapping[str, Model],
         *,
-        replicates: int = 1000,
+        replicates: int = 200,
         block_length: int | None = None,
         seed: int | None = None,
         cancellation: CancellationToken | None = None,
@@ -174,12 +174,16 @@ class UncertaintyAnalyzer:
             residual = np.asarray(output.residual) - np.mean(output.residual)
             length = max(1, min(lengths[curve.id], len(residual)))
             blocks: list[np.ndarray] = []
-            while sum(len(item) for item in blocks) < len(residual):
+            collected_count = 0
+            while collected_count < len(residual):
                 start = int(rng.integers(0, len(residual)))
                 indices = (start + np.arange(length)) % len(residual)
                 blocks.append(residual[indices])
+                collected_count += length
             sampled = np.concatenate(blocks)[: len(residual)]
-            return full_fit + sampled
+            synthetic = full_fit.copy()
+            synthetic[output.indices] += sampled
+            return synthetic
 
         return self._resample(
             "block_bootstrap",
@@ -206,6 +210,8 @@ class UncertaintyAnalyzer:
         upper: float | None = None,
         points: int = 31,
         confidence_level: float = 0.95,
+        spectrum_weight: float = 1.0,
+        equal_contribution: bool = False,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ProfileResult:
@@ -219,6 +225,12 @@ class UncertaintyAnalyzer:
         span = 3 * error if error and error > 0 else max(abs(parameter.value) * 0.25, 1.0)
         lo = max(parameter.minimum, parameter.value - span) if lower is None else lower
         hi = min(parameter.maximum, parameter.value + span) if upper is None else upper
+        if not math.isfinite(spectrum_weight) or spectrum_weight <= 0:
+            raise FitError("Profile spectrum weight must be positive and finite.")
+        if not 0 < confidence_level < 1 or points < 3:
+            raise FitError("Profile requires 0 < confidence < 1 and at least three grid points.")
+        if lo < parameter.minimum or hi > parameter.maximum:
+            raise FitError("Profile scan limits must respect parameter bounds.")
         if not math.isfinite(lo) or not math.isfinite(hi) or lo >= hi:
             raise FitError("Profile likelihood needs a finite, increasing interval.")
         grid = np.linspace(lo, hi, points)
@@ -238,9 +250,29 @@ class UncertaintyAnalyzer:
             settings = copy.deepcopy(baseline.settings)
             settings.solver = "local"
             try:
-                result = self.fitter.fit_single(curve, trial_model, settings, cancellation=token)
-                chi = float(result.statistics.get("chi_square") or math.nan)
+                if any(p.is_free and path in baseline.free_parameter_paths
+                       for path, p in trial_model.parameter_map(curve.id).items()):
+                    trial_plan = FitPlan([curve.id], settings=settings,
+                                         spectrum_weights={curve.id: spectrum_weight},
+                                         equal_contribution=equal_contribution)
+                    result = self.fitter.fit(trial_plan, [copy.deepcopy(curve)],
+                                            {curve.id: trial_model}, cancellation=token)
+                    if not result.success:
+                        raise FitError(result.message)
+                    chi = float(result.statistics["chi_square"])
+                else:
+                    x, observed, scale, _ = curve.fit_arrays()
+                    residual = observed - trial_model.evaluate(
+                        x, curve_id=curve.id, registry=self.fitter.registry)
+                    if scale is not None:
+                        residual = residual * scale
+                    residual *= math.sqrt(spectrum_weight)
+                    if equal_contribution:
+                        residual /= math.sqrt(len(residual))
+                    chi = float(np.dot(residual, residual))
                 delta[index] = max(0.0, chi - baseline_chi)
+            except FitCancelled:
+                raise
             except FitError:
                 failed += 1
             if progress:
@@ -288,6 +320,8 @@ class UncertaintyAnalyzer:
                 synthetic = simulate(rng, curve, baseline.curve_outputs[curve_id])
                 trial.original_x = np.asarray(curve.x).copy()
                 trial.original_y = np.asarray(synthetic).copy()
+                trial.sigma_y = (None if curve.current_sigma_y is None
+                                 else np.asarray(curve.current_sigma_y).copy())
                 trial.transformations = []
                 trial.redo_transformations = []
                 trial.__post_init__()

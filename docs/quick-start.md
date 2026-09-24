@@ -75,8 +75,8 @@ background...** later. The imported original data remain retained.
 
 ## 4. Add the peaks
 
-Choose a peak shape in the toolbar selector and press **Quick Add Function** once for
-each visible peak. Click its centre and drag horizontally to either half-height edge;
+Choose a peak shape in the toolbar selector and press **Quick Add Function** once.
+The placement mode stays active for several peaks; press Enter, Esc, or Finish to exit. Click its centre and drag horizontally to either half-height edge;
 the highlighted width is the complete initial FWHM. Repeat to add as many peaks as
 needed. The selected Quick Add function is remembered.
 
@@ -128,6 +128,10 @@ Alternatively, press **Quick Fit**. On first use it fits the selected curves (or
 the active curve when nothing is selected) independently with the default solver
 settings, without opening a dialog. Once a fit has been configured, Quick Fit
 reuses those settings. Use **Fit…** whenever you want to change them.
+**Advanced algorithm options** exposes controls for the selected solver; robust
+losses also expose **Loss scale (f_scale)**. **Reset default** restores recommended
+parameter values while keeping the selected algorithm, loss, spectra and mode.
+The initial default remains automatic local least squares with linear loss.
 
 The other available modes are:
 
@@ -263,3 +267,15 @@ Appearance settings are stored with the project and include experimental-data
 style, line widths/styles, point size and symbols, optional per-spectrum symbol
 cycling, model/component colours and widths, residual rendering, masked-point
 appearance, and grid visibility/opacity.
+
+## Named functions and readable uncertainty results
+
+Right-click a model function and choose **Rename function...**. Names are preserved
+in projects, labels and exports; Undo/Redo works without invalidating the fit.
+
+The uncertainty panel uses the same named result table for covariance, Monte Carlo,
+residual bootstrap, block bootstrap and profile likelihood. Resampling defaults to
+200 replicas; profile defaults to 31 adjustable grid points. Assessments always
+include reasons. Select a parameter row to set an acceptable absolute uncertainty;
+without one the program does not declare its precision adequate. Export the
+recorded tables using **Uncertainty intervals, assessments and matrices**.
