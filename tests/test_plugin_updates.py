@@ -275,17 +275,45 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
 
 
 def test_secondary_plugin_windows_follow_active_modal_parent(controller_case):
-    from PySide6.QtCore import Qt
+    from PySide6.QtCore import QPoint, Qt, QTimer
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QDialog
 
-    app, controller, _, _, _, _ = controller_case
+    app, controller, requests, catalog, _, _ = controller_case
     plugin_manager = QDialog(controller.window)
     plugin_manager.setWindowModality(Qt.WindowModality.ApplicationModal)
     plugin_manager.show()
     app.processEvents()
+    observed = []
+    controller.busy = False
 
+    def interact_with_updates():
+        observed.append(("updates modal", app.activeModalWidget() is controller.dialog))
+        before = len(requests)
+        QTest.mouseClick(controller.check_button, Qt.MouseButton.LeftButton)
+        observed.append(("updates click", len(requests) == before + 1))
+        controller.dialog.accept()
+
+    QTimer.singleShot(0, interact_with_updates)
     controller.open(check=False)
+    controller.plugins.disable("test.plugin")
+    controller.plugins.remove("test.plugin")
+    controller.catalog_entries = community_plugins(catalog)
+
+    def interact_with_catalog():
+        observed.append(("catalog modal", app.activeModalWidget() is controller.catalog_dialog))
+        item = controller.catalog_table.item(0, 0)
+        if item is not None:
+            rect = controller.catalog_table.visualItemRect(item)
+            QTest.mouseClick(controller.catalog_table.viewport(), Qt.MouseButton.LeftButton,
+                             pos=rect.topLeft() + QPoint(8, rect.height() // 2))
+        observed.append(("catalog click", item is not None and item.checkState() == Qt.CheckState.Checked))
+        controller.catalog_dialog.accept()
+
+    QTimer.singleShot(0, interact_with_catalog)
     controller.browse()
 
     assert controller.catalog_dialog.parent() is plugin_manager
     assert controller.dialog.parent() is plugin_manager
+    assert plugin_manager.isVisible()
+    assert all(success for _, success in observed), observed
