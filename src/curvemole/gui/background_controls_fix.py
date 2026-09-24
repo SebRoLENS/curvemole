@@ -616,10 +616,7 @@ def _install_corrected_window_controls(window: MainWindow) -> None:
 
     toolbar = window.findChild(QToolBar, "Main_toolbar")
     if toolbar is not None:
-        before_action = visual if isinstance(visual, QAction) else window._background_toolbar_separator
-        toolbar.insertAction(before_action, window.revert_background_action)
-        if isinstance(visual, QAction):
-            toolbar.removeAction(visual)
+        toolbar.insertAction(window._background_toolbar_separator, window.revert_background_action)
         button = toolbar.widgetForAction(window.revert_background_action)
         if isinstance(button, QToolButton):
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
