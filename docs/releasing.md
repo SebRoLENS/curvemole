@@ -39,6 +39,10 @@ A second workflow builds and smoke-tests:
 - versioned LaTeX and PDF user manuals
 
 All downloadable files and `SHA256SUMS.txt` are attached to the same release.
+The Linux AppImage and its detached signature are attached directly to the tagged
+release. They are downloaded briefly to calculate the release checksums, without
+creating a separate Actions AppImage artifact. A downloadable Actions AppImage test
+artifact is built only from a human-triggered `main` commit containing `[skip release]`.
 
 The first installer-enabled release also publishes the legacy raw Windows executable
 so older self-updaters can reach the transition release. Remove that raw executable
