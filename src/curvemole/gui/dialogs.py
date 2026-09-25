@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -787,6 +788,14 @@ class FitPlanDialog(QDialog):
         self.loss.currentIndexChanged.connect(self._update_loss_options)
         self._update_loss_options()
         advanced.addRow(self.tr("Maximum evaluations"), self.max_nfev)
+        self.workers = QSpinBox()
+        self.workers.setRange(1, max(1, os.cpu_count() or 1))
+        self.workers.setValue(min(settings.workers, self.workers.maximum()))
+        self.workers.setToolTip(self.tr(
+            "Run independent fits of multiple spectra in separate CPU processes. "
+            "Sequential and global fits remain single-process. Plugins with custom "
+            "functions or solvers use the single-process path."))
+        advanced.addRow(self.tr("CPU processes (independent fits)"), self.workers)
         advanced.addRow(self.tr("Confidence level (%)"), self.confidence)
         from curvemole.gui.solver_options import SolverOptions
         self.solver_options = SolverOptions(settings)
@@ -833,6 +842,7 @@ class FitPlanDialog(QDialog):
         self.solver_options.load(defaults)
         self.f_scale.setText(str(defaults.f_scale))
         self.max_nfev.setValue(defaults.max_nfev)
+        self.workers.setValue(defaults.workers)
         self.confidence.setValue(defaults.confidence_level * 100)
         self.de_lower_percent.setValue(defaults.de_lower_percent)
         self.de_upper_percent.setValue(defaults.de_upper_percent)
@@ -862,6 +872,7 @@ class FitPlanDialog(QDialog):
         settings.de_lower_percent = self.de_lower_percent.value()
         settings.de_upper_percent = self.de_upper_percent.value()
         settings.max_nfev = self.max_nfev.value()
+        settings.workers = self.workers.value()
         settings.confidence_level = self.confidence.value() / 100
         return FitPlan(
             curve_ids,

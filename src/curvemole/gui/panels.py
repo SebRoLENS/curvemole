@@ -55,6 +55,8 @@ class ModelPanel(QWidget):
     copyFitNextRequested = Signal()
     descriptionRequested = Signal(str, str)
     renameRequested = Signal(str, str)
+    reorderRequested = Signal()
+    reorderRulesRequested = Signal()
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -91,6 +93,19 @@ class ModelPanel(QWidget):
             button.setToolTip(tooltip)
             button.clicked.connect(slot)
             buttons.addWidget(button)
+        buttons.addStretch(1)
+        self.reorder_button = QPushButton(self.tr("Reorder"))
+        self.reorder_button.setToolTip(self.tr(
+            "Renumber automatically named functions by the selected parameter."))
+        self.reorder_button.clicked.connect(self.reorderRequested)
+        buttons.addWidget(self.reorder_button)
+        self.reorder_rules_button = QToolButton()
+        self.reorder_rules_button.setText("⚙")
+        self.reorder_rules_button.setToolTip(self.tr("Advanced reorder rules…"))
+        self.reorder_rules_button.clicked.connect(self.reorderRulesRequested)
+        buttons.addWidget(self.reorder_rules_button)
+        single_layout.addLayout(buttons)
+        buttons = QHBoxLayout()
         buttons.addStretch(1)
         copy_button = QPushButton(self.tr("Copy fit…"))
         copy_button.clicked.connect(self.copyFitRequested)

@@ -97,6 +97,8 @@ def _add_fit_arguments(parser: argparse.ArgumentParser, *, multiple: bool = Fals
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    import multiprocessing
+    multiprocessing.freeze_support()
     parser = build_parser()
     args = parser.parse_args(argv)
     logging.basicConfig(

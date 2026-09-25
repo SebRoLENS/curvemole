@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import copy
 import math
+import multiprocessing
+import os
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -98,6 +101,8 @@ class FitSettings:
             raise FitError("Confidence level must be between zero and one.")
         if self.max_nfev <= 0:
             raise FitError("Maximum function evaluations must be positive.")
+        if not isinstance(self.workers, int) or isinstance(self.workers, bool) or self.workers < 1:
+            raise FitError("Worker process count must be a positive integer.")
         positive = ("ftol", "xtol", "gtol", "nm_xatol", "nm_fatol",
                     "powell_xtol", "powell_ftol", "lbfgsb_ftol", "lbfgsb_gtol")
         for name in positive:
@@ -312,6 +317,37 @@ class CancellationToken:
             raise FitCancelled("Fit cancelled by the user.")
 
 
+class _ProcessCancellationToken:
+    """Read a shared cancellation flag inside a spawned fit process."""
+
+    def __init__(self, event: Any) -> None:
+        self._event = event
+
+    @property
+    def cancelled(self) -> bool:
+        return self._event.is_set()
+
+    def raise_if_cancelled(self) -> None:
+        if self.cancelled:
+            raise FitCancelled("Fit cancelled by the user.")
+
+
+_FIT_STOP_EVENT: Any = None
+
+
+def _init_fit_process(event: Any) -> None:
+    global _FIT_STOP_EVENT
+    _FIT_STOP_EVENT = event
+
+
+def _fit_in_process(curve: Curve, model: Model, plan: FitPlan) -> FitResult:
+    # A separate process owns its copy of the spectrum and model. The parent
+    # commits the returned estimates only after the task has completed.
+    return Fitter()._fit_problem(
+        [curve], {curve.id: model}, plan, _ProcessCancellationToken(_FIT_STOP_EVENT), None,
+    )
+
+
 class _Problem:
     def __init__(
         self,
@@ -495,6 +531,8 @@ class Fitter:
             result = self._fit_problem(selected, models, plan, cancellation, progress)
         elif plan.mode == FitMode.SEQUENTIAL:
             result = self._fit_sequential(selected, models, plan, cancellation, progress)
+        elif plan.mode == FitMode.INDEPENDENT and len(selected) > 1 and plan.settings.workers > 1:
+            result = self._fit_independent_parallel(selected, models, plan, cancellation, progress)
         else:
             result = self._fit_independent(selected, models, plan, cancellation, progress)
         result.elapsed_seconds = time.monotonic() - started
@@ -549,6 +587,85 @@ class Fitter:
             if progress:
                 progress((index + 1) / len(curves), f"Completed {curve.name}")
         return _merge_results(results, plan.mode, plan.settings)
+
+    def _fit_independent_parallel(
+        self,
+        curves: Sequence[Curve],
+        models: Mapping[str, Model],
+        plan: FitPlan,
+        cancellation: CancellationToken,
+        progress: ProgressCallback | None,
+    ) -> FitResult:
+        from curvemole.core.extensions import extensions
+        from curvemole.core.functions import builtin_definitions
+
+        # Plugin callbacks cannot safely be transferred to spawned processes.
+        builtins = {definition.identifier: definition.evaluator
+                    for definition in builtin_definitions()}
+        if (any(
+                component.enabled and (
+                    component.function_id not in builtins or
+                    self.registry.get(component.function_id).evaluator is not builtins[component.function_id]
+                )
+                for curve in curves for component in models[curve.id].components
+            ) or any(entry.identifier == plan.settings.solver
+                     for entry in extensions.values("fit_solvers"))):
+            return self._fit_independent(curves, models, plan, cancellation, progress)
+
+        jobs = []
+        for curve in curves:
+            settings = copy.deepcopy(plan.settings)
+            settings.workers = 1  # No nested pools for differential evolution.
+            local_plan = FitPlan(
+                [curve.id], FitMode.INDEPENDENT, settings,
+                {curve.id: plan.spectrum_weights.get(curve.id, 1.0)},
+                plan.equal_contribution,
+            )
+            jobs.append((curve, models[curve.id], local_plan))
+
+        # Spawn also works when the GUI invokes the fitter from a QThread.
+        context = multiprocessing.get_context("spawn")
+        results: dict[str, FitResult] = {}
+        stop = context.Event()
+        with ProcessPoolExecutor(
+            max_workers=min(plan.settings.workers, len(curves), os.cpu_count() or 1),
+            mp_context=context,
+            initializer=_init_fit_process,
+            initargs=(stop,),
+        ) as pool:
+            pending = {
+                pool.submit(_fit_in_process, curve, model, local_plan): curve
+                for curve, model, local_plan in jobs
+            }
+            try:
+                while pending:
+                    cancellation.raise_if_cancelled()
+                    done, _ = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
+                    for future in done:
+                        curve = pending.pop(future)
+                        results[curve.id] = future.result()
+                        if progress:
+                            progress(len(results) / len(curves),
+                                     f"Completed {curve.name}")
+            except BaseException:
+                stop.set()
+                for future in pending:
+                    future.cancel()
+                raise
+
+        # Match the serial path: failed fits leave the original model intact.
+        for curve in curves:
+            result = results[curve.id]
+            curve.state = CurveState.FITTED if result.success else CurveState.FAILED
+            if result.success:
+                for path, parameter in models[curve.id].parameter_map(curve.id).items():
+                    estimate = result.parameters.get(path)
+                    if estimate is not None:
+                        parameter.value = estimate.value
+                        parameter.standard_error = estimate.standard_error
+                        parameter.ci_low = estimate.ci_low
+                        parameter.ci_high = estimate.ci_high
+        return _merge_results([results[curve.id] for curve in curves], plan.mode, plan.settings)
 
     def _fit_sequential(
         self,
@@ -634,8 +751,8 @@ class Fitter:
                     recombination=settings.de_recombination,
                     tol=settings.de_tol,
                     atol=settings.de_atol,
-                    workers=settings.workers,
-                    updating="immediate" if settings.workers == 1 else "deferred",
+                    workers=1,
+                    updating="immediate",
                     polish=False,
                     callback=lambda intermediate_result: cancellation.cancelled,
                 )

@@ -1096,6 +1096,8 @@ class MainWindow(QMainWindow):
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
         self.model_panel.renameRequested.connect(self.rename_function)
+        self.model_panel.reorderRequested.connect(self.reorder_functions)
+        self.model_panel.reorderRulesRequested.connect(self.edit_reorder_rules)
 
     def refresh_all(self) -> None:
         self.setWindowTitle(self._title())
@@ -2037,6 +2039,43 @@ class MainWindow(QMainWindow):
                 target.metadata.pop("custom_name", None)
         self._push_change(self.tr("Rename function"), lambda: assign(new, True), lambda: assign(old, old_custom),
                           modified_curve_ids=set())
+
+    def edit_reorder_rules(self) -> None:
+        if not self.active_curve_id or self._thread is not None:
+            return
+        from curvemole.gui.reorder import ReorderRulesDialog, load_reorder_rules
+
+        dialog = ReorderRulesDialog(
+            self.project.model_for(self.active_curve_id), self.registry,
+            load_reorder_rules(self.settings), self,
+        )
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            rules = load_reorder_rules(self.settings)
+            rules.update(dialog.rules())
+            self.settings.setValue("model/reorder_rules", json.dumps(rules))
+
+    def reorder_functions(self) -> None:
+        if self._thread is not None or not self.active_curve_id or not self._ensure_editable():
+            return
+        from curvemole.core.reorder import reorder_component_names
+        from curvemole.gui.reorder import load_reorder_rules
+
+        curve_id = self.active_curve_id
+        model = self.project.model_for(curve_id)
+        before = model.to_dict()
+        count = reorder_component_names(model, self.registry, load_reorder_rules(self.settings))
+        if count == 0:
+            self._notify(self.tr("Function names are already in order."))
+            return
+        after = model.to_dict()
+        self.project.models[curve_id] = Model.from_dict(before)
+        self._push_change(
+            self.tr("Reorder function names"),
+            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
+            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+            modified_curve_ids=set(),
+        )
+        self._notify(self.tr("Renamed {count} functions.").format(count=count))
 
     def start_uncertainty(self, method: str, replicates: int, option: Any) -> None:
         if not self._ensure_editable():

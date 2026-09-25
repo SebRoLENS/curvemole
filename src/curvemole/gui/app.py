@@ -482,6 +482,9 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    # PyInstaller's spawned fit processes enter through this executable.
+    import multiprocessing
+    multiprocessing.freeze_support()
     arguments = list(argv) if argv is not None else sys.argv
     if len(arguments) == 3 and arguments[1] == "--run-automation-job":
         from curvemole.core.automation_job import run_job
