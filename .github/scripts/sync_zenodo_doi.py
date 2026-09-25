@@ -84,7 +84,9 @@ def find_doi(version: str) -> str | None:
     candidates: list[dict] = []
     seen: set[str] = set()
     last_error: RuntimeError | None = None
-    for query in ('"CurveMole"', f'"CurveMole" AND "{version}"', version):
+    # Zenodo shows only the newest version of a record in broad searches.
+    # Filtering by the indexed version field exposes older published releases.
+    for query in (f'metadata.version:v{version}', f'metadata.version:{version}', '"CurveMole"'):
         try:
             records = zenodo_records(query)
         except RuntimeError as exc:
@@ -100,6 +102,8 @@ def find_doi(version: str) -> str | None:
                 continue
             if version_matches(metadata.get("version"), version) and extract_doi(record):
                 candidates.append(record)
+        if candidates:
+            break
     if not candidates:
         if last_error is not None:
             raise last_error
@@ -168,11 +172,14 @@ DOI: [**{doi}**]({doi_url})
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version")
+    parser.add_argument("--doi", help="Use a DOI already resolved by the workflow")
     parser.add_argument("--apply", action="store_true")
     args = parser.parse_args()
     version = args.version or current_version()
+    if args.doi and not re.fullmatch(r"10\.5281/zenodo\.\d+", args.doi):
+        parser.error("--doi must be a Zenodo version DOI")
     try:
-        doi = find_doi(version)
+        doi = args.doi or find_doi(version)
     except RuntimeError as exc:
         print(str(exc), file=sys.stderr)
         raise SystemExit(3) from exc
@@ -180,6 +187,8 @@ def main() -> None:
         print(f"Zenodo DOI for v{version} not found yet.", file=sys.stderr)
         raise SystemExit(2)
     if args.apply:
+        if version != current_version():
+            parser.error("cannot apply a historical release DOI to the current README and citation")
         apply_metadata(version, doi)
     print(doi)
 

@@ -1,6 +1,8 @@
 name: Sync Zenodo DOI
 
 on:
+  schedule:
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       version:
@@ -32,6 +34,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           VERSION="${REQUESTED_VERSION#v}"
+          if [ -z "$VERSION" ]; then
+            VERSION="$(python3 -c 'import importlib.util; spec = importlib.util.spec_from_file_location("version", "src/curvemole/version.py"); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.__version__)')"
+          fi
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Invalid release version: $VERSION"
             exit 1
@@ -46,7 +51,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           DOI=""
-          for attempt in $(seq 1 120); do
+          ATTEMPTS=120
+          if [ "$GITHUB_EVENT_NAME" = schedule ]; then ATTEMPTS=1; fi
+          for attempt in $(seq 1 "$ATTEMPTS"); do
             set +e
             DOI="$(python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" 2>/tmp/zenodo-error.txt)"
             STATUS=$?
@@ -56,25 +63,39 @@ jobs:
               break
             fi
             if [ "$attempt" -eq 1 ] || [ $((attempt % 10)) -eq 0 ]; then
-              echo "Zenodo record not available yet (attempt $attempt/120)."
+              echo "Zenodo record not available yet (attempt $attempt/$ATTEMPTS)."
               cat /tmp/zenodo-error.txt || true
+            fi
+            if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+              if [ "$STATUS" -eq 3 ]; then exit 1; fi
+              break
             fi
             sleep 30
           done
           if [ -z "$DOI" ]; then
-            echo "::error title=Zenodo archive missing::No public Zenodo record for v${VERSION} after one hour. This workflow only finds an existing archive and links its DOI; it cannot create the Zenodo deposit. Check the CurveMole repository in your Zenodo account under GitHub (Sync now, enabled toggle, release status), then rerun this workflow when the record is published."
-            exit 1
+            if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+              echo "DOI for v${VERSION} is still pending; the next scheduled run will retry."
+              exit 0
+            fi
+            echo "::warning title=Zenodo DOI pending::No public DOI for v${VERSION} after one hour. The scheduled workflow will retry hourly."
+            exit 0
           fi
           echo "doi=$DOI" >> "$GITHUB_OUTPUT"
 
       - name: Apply DOI metadata
+        if: steps.zenodo.outputs.doi != ''
         env:
           VERSION: ${{ steps.version.outputs.version }}
           DOI: ${{ steps.zenodo.outputs.doi }}
         run: |
           git fetch origin main
           git reset --hard origin/main
-          python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" --apply >/dev/null
+          CURRENT_VERSION="$(python3 -c 'import importlib.util; spec = importlib.util.spec_from_file_location("version", "src/curvemole/version.py"); module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module); print(module.__version__)')"
+          if [ "$VERSION" != "$CURRENT_VERSION" ]; then
+            echo "Skipping README and citation: v$VERSION is no longer the current release."
+            exit 0
+          fi
+          python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION" --doi "$DOI" --apply >/dev/null
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add README.md CITATION.cff
@@ -84,6 +105,7 @@ jobs:
           fi
 
       - name: Add DOI to GitHub release
+        if: steps.zenodo.outputs.doi != ''
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -106,3 +128,41 @@ jobs:
           gh release edit "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
             --notes-file /tmp/release-notes.md
+
+      - name: Recover recent release DOI notes
+        if: github.event_name == 'schedule'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 10 --json tagName --jq '.[].tagName' |
+          while IFS= read -r tag; do
+            VERSION="${tag#v}"
+            if [ "$VERSION" = "$CURRENT_VERSION" ] || ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              continue
+            fi
+            gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > /tmp/release-notes.md
+            if grep -q '^\*\*Zenodo DOI:\*\* https://doi.org/10\.5281/zenodo\.' /tmp/release-notes.md; then
+              continue
+            fi
+            if ! DOI="$(python3 .github/scripts/sync_zenodo_doi.py --version "$VERSION")"; then
+              echo "DOI for $tag is pending; retrying on the next schedule."
+              continue
+            fi
+            export DOI
+            python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          path = Path('/tmp/release-notes.md')
+          text = path.read_text(encoding='utf-8')
+          line = f"**Zenodo DOI:** https://doi.org/{os.environ['DOI']}"
+          updated, count = re.subn(r"(?m)^\*\*Zenodo DOI:\*\*.*$", line, text, count=1)
+          if count == 0:
+              updated = text.rstrip() + "\n\n" + line + "\n"
+          path.write_text(updated, encoding='utf-8')
+          PY
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file /tmp/release-notes.md
+            echo "Linked $tag to $DOI"
+          done
