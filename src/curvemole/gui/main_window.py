@@ -75,7 +75,7 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
-from curvemole.core.export import export_bundle
+from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
     FitMode,
@@ -798,6 +798,8 @@ class MainWindow(QMainWindow):
         self.export_action = QAction(self.tr("Export analysis bundle…"), self)
         self.export_action.setShortcut("Ctrl+E")
         self.export_action.triggered.connect(self.export_analysis)
+        self.export_parameters_action = QAction(self.tr("Export functions parameters…"), self)
+        self.export_parameters_action.triggered.connect(self.export_parameters)
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
         self.notebook_action.setCheckable(True)
@@ -943,6 +945,7 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
+        file_menu.addAction(self.export_parameters_action)
         file_menu.addAction(self.notebook_action)
         file_menu.addAction(self.recovery_action)
         file_menu.addAction(self.plugins_action)
@@ -1369,6 +1372,23 @@ class MainWindow(QMainWindow):
             )
         except Exception as exc:
             self._show_error(self.tr("Export analysis"), exc)
+
+    def export_parameters(self) -> None:
+        if not self.project.curves:
+            self._notify(self.tr("There are no spectra to export."), warning=True)
+            return
+        suggested = (self.project.path.parent if self.project.path else Path.cwd()) / f"{self.project.name}-functions-parameters.csv"
+        selected, _ = QFileDialog.getSaveFileName(
+            self, self.tr("Export functions parameters"), str(suggested),
+            self.tr("CSV files (*.csv)"),
+        )
+        if not selected:
+            return
+        try:
+            destination = export_function_parameters(self.project, selected)
+            self._notify(self.tr("Functions parameters exported: ") + str(destination))
+        except Exception as exc:
+            self._show_error(self.tr("Export functions parameters"), exc)
 
     def add_component(self) -> None:
         if not self._ensure_editable():

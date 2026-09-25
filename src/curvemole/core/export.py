@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
@@ -30,7 +31,7 @@ matplotlib.use("Agg")
 from matplotlib import pyplot as plt  # noqa: E402
 from matplotlib.backends.backend_pdf import PdfPages  # noqa: E402
 
-from curvemole.core.data import Curve
+from curvemole.core.data import Curve, CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.fitting import FitResult
@@ -263,6 +264,46 @@ def parameter_dataframe(
                         }
                     )
     return pd.DataFrame(rows)
+
+
+def export_function_parameters(project: Project, path: str | Path) -> Path:
+    """Write a spectrum-by-function CSV with two header rows and fit errors."""
+    columns: list[tuple[str, str]] = []
+    values: list[dict[tuple[str, str], str]] = []
+    resolved = project.resolved_parameter_values()
+    for curve in project.curves:
+        cells: dict[tuple[str, str], str] = {}
+        model = project.models.get(curve.id)
+        occurrences: dict[str, int] = {}
+        if model is not None:
+            for component in model.components:
+                occurrences[component.name] = occurrences.get(component.name, 0) + 1
+                # Keep separately named instances aligned across spectra, even
+                # when a model contains more than one with the same name.
+                label = (component.name if occurrences[component.name] == 1 else
+                         f"{component.name} ({occurrences[component.name]})")
+                for name, parameter in component.parameters.items():
+                    key = (label, name)
+                    if key not in columns:
+                        columns.extend((key, (label, f"{name}_err")))
+                    if curve.state == CurveState.FITTED:
+                        parameter_path = model.parameter_path(curve.id, component.id, name)
+                        value = resolved.get(parameter_path, parameter.value)
+                        error = parameter.standard_error
+                        cells[key] = f"{value:.12g}"
+                        if error is not None and math.isfinite(error) and error >= 0:
+                            cells[(label, f"{name}_err")] = f"{error:.12g}"
+        values.append(cells)
+
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with destination.open("w", encoding="utf-8-sig", newline="") as stream:
+        writer = csv.writer(stream)
+        writer.writerow(["Spectrum", *(function for function, _ in columns)])
+        writer.writerow(["", *(parameter for _, parameter in columns)])
+        for curve, cells in zip(project.curves, values, strict=True):
+            writer.writerow([curve.name, *(cells.get(key, "") for key in columns)])
+    return destination
 
 
 def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:
