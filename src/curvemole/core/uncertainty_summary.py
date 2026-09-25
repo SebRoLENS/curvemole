@@ -22,15 +22,14 @@ def parameter_label(project, path):
         return "Removed spectrum", "Removed function", path.rsplit(".", 1)[-1]
 
 
-def summarize(project, baseline, analysis, method, targets=None):
+def summarize(project, baseline, analysis, method):
     """Return recorded values and interpretable intervals, never relative-to-origin errors.
 
-    Green requires a user-defined absolute precision target. Correlation/bound
-    heuristics are warnings, not certificates of scientific correctness.
+    Correlation/bound heuristics are warnings, not certificates of scientific
+    correctness. OK only means none of these checks flagged an issue.
     """
     baseline = baseline.to_dict(arrays=False) if hasattr(baseline, "to_dict") else baseline
     analysis = analysis.to_dict() if hasattr(analysis, "to_dict") else analysis
-    targets = targets or {}
     estimates = baseline.get("parameters", {})
     if method == "covariance":
         intervals = {path: (e.get("ci_low"), e.get("ci_high")) for path, e in estimates.items()}
@@ -112,14 +111,6 @@ def summarize(project, baseline, analysis, method, targets=None):
                     flag(1, "Profile interval reaches the scanned range; extend the scan before interpreting its endpoints.")
                 if analysis.get("failed_points", 0):
                     flag(1, "Some profile grid fits failed; the profile is incomplete.")
-            target = targets.get(path)
-            if target is not None and target > 0:
-                if max(abs(value-low), abs(high-value)) > target:
-                    flag(1, "Interval exceeds your acceptable absolute uncertainty.")
-                else:
-                    reasons.append("Interval satisfies your acceptable absolute uncertainty.")
-            else:
-                reasons.append("No absolute precision target set; practical adequacy is not assessed.")
         if not fixed and correlation is not None and path in paths:
             matrix = np.asarray(correlation, dtype=float)
             i = paths.index(path)
@@ -132,12 +123,13 @@ def summarize(project, baseline, analysis, method, targets=None):
                 if linked:
                     flag(1, "Strong correlation with " + "; ".join(linked)
                          + "; parameters may compensate each other.")
-        target = targets.get(path)
         status = ("Critical" if severity == 2 else "Attention" if severity == 1 else
-                  "Fixed" if fixed else "OK" if finite and target and target > 0 else "Not assessed")
+                  "Fixed" if fixed else "OK")
+        if status == "OK":
+            reasons.append("No diagnostic issue was flagged by these checks; practical adequacy is not assessed.")
         curve, component, name = parameter_label(project, path)
         rows.append(dict(path=path, spectrum=curve, function=component, parameter=name,
-                         value=value, lower=low, upper=high, target=target,
+                         value=value, lower=low, upper=high,
                          status=status, reasons=" ".join(reasons), reason_items=reasons,
                          method=method,
                          confidence_level=analysis.get("confidence_level", baseline.get("settings", {}).get("confidence_level", .95))))

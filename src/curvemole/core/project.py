@@ -60,10 +60,22 @@ class Project:
         return series
 
     def remove_curve(self, curve_id: str) -> Curve:
+        fitted = self.results.get("fit_by_curve", {})
+        global_key = fitted.get(curve_id, {}).get("global_key") if isinstance(fitted, dict) else None
         series = self.dataset.series_for(curve_id)
         curve = series.remove(curve_id)
         self.models.pop(curve_id, None)
         self.results.pop(curve_id, None)
+        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve"):
+            if isinstance(self.results.get(key), dict):
+                self.results[key].pop(curve_id, None)
+        if global_key is not None:
+            self.results.get("global_fit_baselines", {}).pop(global_key, None)
+            for other_id, record in list(self.results.get("fit_by_curve", {}).items()):
+                if record.get("global_key") == global_key:
+                    self.results["fit_by_curve"].pop(other_id, None)
+                    self.results.get("uncertainty_by_curve", {}).pop(other_id, None)
+                    self.results.get("uncertainty_reports_by_curve", {}).pop(other_id, None)
         self.touch()
         return curve
 

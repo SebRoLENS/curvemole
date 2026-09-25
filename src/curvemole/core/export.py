@@ -280,9 +280,14 @@ def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:
 def uncertainty_dataframe(project: Project) -> pd.DataFrame:
     from curvemole.core.uncertainty_summary import summarize
     rows = []
+    by_curve = project.results.get("uncertainty_reports_by_curve", {})
+    for curve_id, reports in by_curve.items():
+        for method, record in reports.items():
+            rows.extend(row for row in summarize(project, record["baseline"], record["analysis"], method)
+                        if row["path"].startswith(curve_id + "."))
     for method, record in project.results.get("uncertainty_reports", {}).items():
-        rows.extend(summarize(project, record["baseline"], record["analysis"], method,
-                              project.ui_state.get("uncertainty_targets", {})))
+        rows.extend(row for row in summarize(project, record["baseline"], record["analysis"], method)
+                    if method not in by_curve.get(row["path"].split(".", 1)[0], {}))
     return pd.DataFrame(rows)
 
 
@@ -626,7 +631,8 @@ def export_bundle(
             correlation_path.parent.mkdir(parents=True, exist_ok=True)
             np.savetxt(correlation_path, result.correlation, delimiter=delimiter)
 
-    if selection.uncertainty and project.results.get("uncertainty_reports"):
+    if selection.uncertainty and (project.results.get("uncertainty_reports") or
+                                  project.results.get("uncertainty_reports_by_curve")):
         export_dataframe(uncertainty_dataframe(project), root / "uncertainty" / "parameter_assessments.csv",
                          delimiter=delimiter)
 
@@ -709,7 +715,8 @@ def _bundle_paths(
             paths.append("uncertainty/covariance.csv")
         if result.correlation is not None:
             paths.append("uncertainty/correlation.csv")
-    if selection.uncertainty and project.results.get("uncertainty_reports"):
+    if selection.uncertainty and (project.results.get("uncertainty_reports") or
+                                  project.results.get("uncertainty_reports_by_curve")):
         paths.append("uncertainty/parameter_assessments.csv")
     if selection.diagnostics and result:
         paths.extend(
