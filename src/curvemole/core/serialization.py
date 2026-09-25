@@ -22,6 +22,7 @@ from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series, Transf
 from curvemole.core.errors import ProjectFormatError
 from curvemole.core.models import Model
 from curvemole.core.notebook import LaboratoryNotebook
+from curvemole.core.process import process_alive
 from curvemole.core.project import Project
 from curvemole.version import FITMODEL_SCHEMA_VERSION, PROJECT_SCHEMA_VERSION, __version__
 
@@ -325,14 +326,38 @@ class ProjectLock(AbstractContextManager["ProjectLock"]):
         try:
             descriptor = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         except FileExistsError:
-            self.acquired = False
-            return self
+            if not self._discard_stale_lock():
+                self.acquired = False
+                return self
+            try:
+                descriptor = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                self.acquired = False
+                return self
         try:
             os.write(descriptor, payload)
         finally:
             os.close(descriptor)
         self.acquired = True
         return self
+
+    def _discard_stale_lock(self) -> bool:
+        """Reclaim only locks whose owner has exited on this same computer."""
+        assert self.lock_path is not None
+        try:
+            before = self.lock_path.stat()
+            owner = json.loads(self.lock_path.read_text(encoding="utf-8"))
+            if owner.get("host") != socket.gethostname() or process_alive(int(owner["pid"])):
+                return False
+            after = self.lock_path.stat()
+            if (before.st_ino, before.st_mtime_ns, before.st_size) != (
+                after.st_ino, after.st_mtime_ns, after.st_size
+            ):
+                return False
+            self.lock_path.unlink()
+            return True
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            return False
 
     def __exit__(self, *exc: object) -> None:
         if self.acquired and self.lock_path:

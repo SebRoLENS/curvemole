@@ -119,15 +119,21 @@ def register(api):
 
 
 def test_abnormal_exit_and_clean_exit(tmp_path):
+    from curvemole.gui.plugin_host import _plugin_recovery_problems
+
     manager = PluginManager(storage=tmp_path)
     manager.installed = {"test": {"enabled": True}}
     manager._save()
     (tmp_path / "session-dead.json").write_text(json.dumps({"pid": 99999999}))
     assert manager.start_session()
     assert not manager.installed["test"]["enabled"]
+    assert _plugin_recovery_problems(manager.installed)
     manager.finish_session()
-    assert not manager.start_session()
-    manager.finish_session()
+    restarted = PluginManager(storage=tmp_path)
+    assert not restarted.start_session()
+    assert restarted.autoload() == set()
+    assert _plugin_recovery_problems(restarted.installed, set()) == []
+    restarted.finish_session()
 
 
 def test_solver_integrates_standard_fit(tmp_path):

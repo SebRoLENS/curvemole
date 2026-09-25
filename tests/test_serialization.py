@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import os
+import socket
 import zipfile
 
 import numpy as np
@@ -10,12 +13,31 @@ from curvemole.core.calculator import apply_scalar
 from curvemole.core.errors import ProjectFormatError
 from curvemole.core.fitting import FitResult
 from curvemole.core.serialization import (
+    ProjectLock,
     load_fitmodel,
     load_project,
     save_fitmodel,
     save_project,
     validate_project_archive,
 )
+
+
+def test_project_lock_recovers_dead_owner_but_preserves_live_owner(tmp_path, monkeypatch) -> None:
+    project_path = tmp_path / "saved.fitproj"
+    lock_path = tmp_path / "saved.fitproj.lock"
+    lock_path.write_text(json.dumps({"pid": 99999999, "host": socket.gethostname()}))
+    monkeypatch.setattr("curvemole.core.serialization.process_alive", lambda pid: False)
+
+    with ProjectLock(project_path) as lock:
+        assert lock.acquired
+        assert json.loads(lock_path.read_text())["pid"] == os.getpid()
+    assert not lock_path.exists()
+
+    lock_path.write_text(json.dumps({"pid": os.getpid(), "host": socket.gethostname()}))
+    monkeypatch.setattr("curvemole.core.serialization.process_alive", lambda pid: True)
+    with ProjectLock(project_path) as lock:
+        assert not lock.acquired
+    assert lock_path.exists()
 
 
 def test_project_round_trip(tmp_path) -> None:

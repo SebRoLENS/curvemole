@@ -15,6 +15,7 @@ from types import ModuleType
 from typing import Any
 
 from curvemole.core.errors import CurveMoleError, PluginTrustError
+from curvemole.core.process import process_alive as _process_alive
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.version import PLUGIN_API_VERSION
 
@@ -160,9 +161,10 @@ class PluginManager:
                 continue
         return result
 
-    def autoload(self) -> None:
+    def autoload(self) -> set[str]:
+        failed: set[str] = set()
         if os.environ.get("CURVEMOLE_DISABLE_PLUGINS") == "1":
-            return
+            return failed
         for candidate in self.installed_candidates():
             record = self.installed[candidate.metadata.identifier]
             if not record.get("enabled"):
@@ -173,6 +175,8 @@ class PluginManager:
                 self.load(candidate, trust=True)
             except Exception as exc:
                 self.disable(candidate.metadata.identifier, str(exc))
+                failed.add(candidate.metadata.identifier)
+        return failed
 
     def _fingerprint(self, candidate: PluginCandidate) -> str:
         if candidate.kind != "local":
@@ -362,31 +366,3 @@ def import_custom_function(path: str | Path) -> Any:
 def _distribution_version(entry_point: importlib.metadata.EntryPoint) -> str:
     distribution = getattr(entry_point, "dist", None)
     return str(distribution.version) if distribution is not None else "unknown"
-
-
-def _process_alive(pid: int) -> bool:
-    if pid <= 0:
-        return False
-    if os.name == "nt":
-        import ctypes
-        from ctypes import wintypes
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-        kernel.OpenProcess.restype = wintypes.HANDLE
-        kernel.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
-        kernel.CloseHandle.argtypes = [wintypes.HANDLE]
-        handle = kernel.OpenProcess(0x1000, False, pid)
-        if not handle:
-            return ctypes.get_last_error() == 5  # Access denied: assume alive.
-        try:
-            code = wintypes.DWORD()
-            return not kernel.GetExitCodeProcess(handle, ctypes.byref(code)) or code.value == 259
-        finally:
-            kernel.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-        return True
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True

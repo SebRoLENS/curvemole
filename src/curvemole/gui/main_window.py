@@ -513,6 +513,7 @@ class MainWindow(QMainWindow):
         self._worker: Worker | None = None
         self._cancellation: CancellationToken | None = None
         self._project_lock: ProjectLock | None = None
+        self._session_finished = False
         self._pending_component: Component | None = None
         self._pending_component_curve_id: str | None = None
         self.settings = QSettings("CurveMole", "CurveMole")
@@ -559,10 +560,10 @@ class MainWindow(QMainWindow):
         self.plugin_manager = PluginManager(self.registry, storage=user_config_path("CurveMole") / "plugins")
         plugin_recovery = self.plugin_manager.start_session()
         self._load_custom_functions()
-        self.plugin_manager.autoload()
+        plugin_load_failures = self.plugin_manager.autoload()
         from curvemole.gui.plugin_host import PluginHost
         self.plugin_host = PluginHost(self)
-        self.plugin_host.startup_notice(plugin_recovery)
+        self.plugin_host.startup_notice(plugin_recovery, plugin_load_failures)
         self.plugin_host.emit("startup")
         from curvemole.gui.automation import AutomationRunner
         self.automation_runner = AutomationRunner(self)
@@ -3607,6 +3608,14 @@ class MainWindow(QMainWindow):
             return
         self.settings.setValue("geometry", self.saveGeometry())
         self.settings.setValue("window_state", self.saveState())
+        self._finish_session()
+        event.accept()
+
+    def _finish_session(self) -> None:
+        """Release session markers on window close and on application quit."""
+        if self._session_finished:
+            return
+        self._session_finished = True
         self._release_lock()
         session = getattr(self, "_recovery_session", None)
         if session is not None:
@@ -3614,10 +3623,11 @@ class MainWindow(QMainWindow):
                 session.finish()
             except OSError as exc:
                 self._log(f"Recovery session cleanup failed: {exc}")
-        self.folder_import.shutdown()
-        self.plugin_host.emit("shutdown")
-        self.plugin_manager.finish_session()
-        event.accept()
+        try:
+            self.folder_import.shutdown()
+            self.plugin_host.emit("shutdown")
+        finally:
+            self.plugin_manager.finish_session()
 
     def _release_lock(self) -> None:
         if self._project_lock:

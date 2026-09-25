@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog
 
 from curvemole import Component, Curve, Project
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
+from curvemole.core.serialization import save_project
 from curvemole.gui.app import _missing_toolbar_icons
 from curvemole.gui.dialogs import (
     CopyFitDialog,
@@ -35,6 +36,29 @@ def test_main_window_starts_offscreen() -> None:
     assert window.plot_workspace is not None
     window.close()
     app.processEvents()
+
+
+def test_quit_cleanup_allows_project_to_reopen_editable(tmp_path, monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("CURVEMOLE_DISABLE_PLUGINS", "1")
+    path = save_project(Project("Reopen"), tmp_path / "reopen.fitproj")
+    lock_path = tmp_path / "reopen.fitproj.lock"
+
+    first = MainWindow()
+    first.open_project(path)
+    assert not first.project.read_only
+    assert lock_path.exists()
+    first._finish_session()  # QApplication.quit() bypasses QMainWindow.closeEvent.
+    first.close()
+    assert not lock_path.exists()
+
+    second = MainWindow()
+    second.open_project(path)
+    assert not second.project.read_only
+    second.close()
+    app.processEvents()
+    assert not lock_path.exists()
 
 
 def test_quick_toolbar_actions_use_bundled_icons_and_text_tooltips() -> None:

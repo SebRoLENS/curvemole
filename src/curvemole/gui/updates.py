@@ -18,7 +18,7 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QSettings, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
-from PySide6.QtWidgets import QApplication, QMessageBox, QToolButton
+from PySide6.QtWidgets import QMessageBox, QToolButton
 
 from curvemole.gui.windowing import secondary_window_parent
 from curvemole.version import __version__
@@ -584,7 +584,7 @@ class UpdateController(QObject):
             # _confirm_discard_or_save() already handled the user's choice; avoid
             # prompting a second time from MainWindow.closeEvent during restart.
             self.window.project.dirty = False
-            QApplication.instance().quit()
+            self.window.close()
             return
 
         raise RuntimeError(
