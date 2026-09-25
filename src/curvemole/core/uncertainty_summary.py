@@ -138,6 +138,7 @@ def summarize(project, baseline, analysis, method, targets=None):
         curve, component, name = parameter_label(project, path)
         rows.append(dict(path=path, spectrum=curve, function=component, parameter=name,
                          value=value, lower=low, upper=high, target=target,
-                         status=status, reasons=" ".join(reasons), method=method,
+                         status=status, reasons=" ".join(reasons), reason_items=reasons,
+                         method=method,
                          confidence_level=analysis.get("confidence_level", baseline.get("settings", {}).get("confidence_level", .95))))
     return rows

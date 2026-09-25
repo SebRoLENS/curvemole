@@ -1,13 +1,16 @@
 """Readable uncertainty results with explicit, editable precision targets."""
 from __future__ import annotations
 
+from html import escape
+
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QInputDialog,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QTableWidget,
@@ -38,13 +41,15 @@ class UncertaintyResults(QWidget):
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(7, QHeaderView.ResizeMode.Stretch)
         self.table.setMinimumHeight(160)
+        self.table.cellClicked.connect(self._cell_clicked)
         layout.addWidget(self.table)
         self.target_button = QPushButton("Set acceptable uncertainty for selected parameter…")
         self.target_button.clicked.connect(self._set_target)
         layout.addWidget(self.target_button)
         legend = QLabel(
             "OK: meets your absolute precision target with no flagged issue. Attention/Critical: "
-            "hover over the assessment for its reasons. Not assessed: no precision target. Thresholds: |r| ≥0.95; "
+            "click the assessment for its reasons. Not assessed: no precision target has been set. "
+            "Set one with the button above. Thresholds: |r| ≥0.95; "
             "interval ≥80% of bounded range. These are diagnostic heuristics, not scientific validation. "
             "Alternative minima are not tested automatically. "
             "200 replicates give a quick estimate; repeat with more for stable interval endpoints.")
@@ -93,21 +98,41 @@ class UncertaintyResults(QWidget):
             text += f" · {analysis['failed_points']} failed grid points"
         self.summary.setText(text)
         colors = {"OK": "#187541", "Attention": "#9b6500", "Critical": "#ba3030", "Not assessed": "#777777", "Fixed": "#777777"}
+        self._assessment_rows = rows
         for row, data in enumerate(rows):
             self.table.insertRow(row)
             for col, key in enumerate(("spectrum", "function", "parameter", "value", "lower", "upper", "target", "status")):
                 value = data[key]
-                label = "—" if value is None else f"{value:.8g}" if isinstance(value, float) else str(value)
+                label = ("Not set" if col == 6 and value is None else "—" if value is None
+                         else f"{value:.8g}" if isinstance(value, float) else str(value))
                 item = QTableWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, data["path"])
-                item.setToolTip(data["reasons"] if col == 7 else data["path"])
+                item.setToolTip(
+                    "Click to see why this assessment was assigned." if col == 7 else
+                    "Your maximum acceptable absolute uncertainty; set it with the button below."
+                    if col == 6 else data["path"])
                 if col == 7:
                     item.setForeground(QColor(colors[data["status"]]))
+                    font = QFont(item.font())
+                    font.setUnderline(True)
+                    item.setFont(font)
                 self.table.setItem(row, col, item)
         self.details.setPlainText(
             f"Method: {self.method}\nBaseline timestamp: {baseline.get('timestamp', '')}\n"
             f"Seed: {analysis.get('seed', 'not applicable')}\n"
             + "\n".join(f"{r['path']}: ({r['lower']}, {r['upper']})" for r in rows))
+
+    def _cell_clicked(self, row: int, column: int) -> None:
+        if column != 7 or row >= len(getattr(self, "_assessment_rows", [])):
+            return
+        data = self._assessment_rows[row]
+        reasons = data.get("reason_items") or ([data["reasons"]] if data["reasons"] else [])
+        details = "".join(f"<li>{escape(reason)}</li>" for reason in reasons)
+        box = QMessageBox(self)
+        box.setWindowTitle("Assessment details")
+        box.setText(escape(f"{data['spectrum']} / {data['function']} / {data['parameter']}: {data['status']}"))
+        box.setInformativeText(f"<ul>{details}</ul>" if details else "No reasons were recorded.")
+        box.exec()
 
     def _set_target(self):
         if self.project is None or self.project.read_only or getattr(self.window(), "_thread", None) is not None:

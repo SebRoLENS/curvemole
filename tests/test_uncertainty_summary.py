@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-from PySide6.QtWidgets import QApplication, QInputDialog
+from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from curvemole import Component, Fitter, Model, Project
 from curvemole.core.export import BundleExportSelection, export_bundle
@@ -97,7 +97,18 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     assert other.uncertainty_panel.results.table.rowCount() == 3
     assert other.uncertainty_panel.results.table.columnCount() == 8
     assert other.uncertainty_panel.results.table.horizontalHeaderItem(7).text() == "Assessment"
-    assert "precision target" in other.uncertainty_panel.results.table.item(0, 7).toolTip()
+    results = other.uncertainty_panel.results
+    assert "Click to see" in results.table.item(0, 7).toolTip()
+    assert "precision target" not in results.table.item(0, 7).toolTip()
+    assert results.table.item(0, 6).text() == "Not set"
+    shown = []
+    monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.informativeText()))
+    results._cell_clicked(0, 7)
+    assert len(shown) == 1 and "No absolute precision target" in shown[0]
+    results.table.setCurrentCell(0, 6)
+    monkeypatch.setattr(QInputDialog, "getDouble", lambda *a, **kw: (.2, True))
+    results._set_target()
+    assert results.table.item(0, 6).text() == "0.2"
     assert other.uncertainty_panel.results.table.item(0,1).text() == "NH2 stretching α"
     export_bundle(reopened, tmp_path / "export", selection=BundleExportSelection(fit_results=False, uncertainty=True))
     assert "NH2 stretching α" in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8")
