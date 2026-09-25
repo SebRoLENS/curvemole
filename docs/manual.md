@@ -1470,9 +1470,17 @@ default to **200 replicates** (not optimizer iterations), and remain configurabl
 The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
 quick estimate; use more and check stability when precise percentile endpoints matter.
 
+**Run on** selects the active spectrum, spectra selected in the project tree, or all
+fitted spectra. Each independent spectrum uses its own last successful fit, even if
+another spectrum was fitted more recently. Switching the active spectrum updates the
+report shown in the panel. Results are saved separately for each spectrum and method.
+Older projects may need a new fit for spectra whose individual baselines were not
+recorded. Profile likelihood accepts one active spectrum at a time; coupled global
+fits are analyzed together when resampling is requested.
+
 All methods display a table with spectrum/function names, parameter, original fitted
-value, confidence interval endpoints, optional acceptable absolute uncertainty and
-assessment. Hover over the assessment to read its explicit reasons, including the
+value, confidence interval endpoints and assessment. Click the assessment to read its
+explicit reasons, including the
 names and correlation coefficients of strongly correlated parameters. Intervals are
 not symmetric +/- errors and their midpoint is not necessarily the original fitted
 value. Technical paths, seed and the
@@ -1480,16 +1488,10 @@ baseline timestamp remain available under **Technical details**. The confidence
 level is configurable for resampling/profile; covariance shows the recorded fit's
 confidence level. Changing the method recalls its most recent recorded analysis.
 
-Select a row and **Set acceptable uncertainty for selected parameter...** to enter
-an absolute target in that parameter's units. Enter zero to remove it. The assessment
-uses the larger distance from the original fit to either interval endpoint; it never
-divides by the parameter value. Targets and reports are saved in the project.
-
 | Assessment | Meaning |
 |---|---|
-| OK | Interval meets your absolute precision target and no diagnostic issue is flagged |
-| Not assessed | No precision target is set; scientific adequacy cannot be inferred |
-| Attention | Bound contact, strong correlation, insufficient precision, failed replicates, an open profile scan, or another stated caveat |
+| OK | No diagnostic issue is flagged by these checks; this does not establish practical adequacy |
+| Attention | Bound contact, strong correlation, failed replicates, an open profile scan, or another stated caveat |
 | Critical | No usable interval, too few successful replicas, rank-deficient covariance, or an interval spanning most of the allowed range |
 | Fixed | Parameter was fixed; its uncertainty was not estimated |
 
@@ -1498,8 +1500,8 @@ strong correlation means absolute r >=0.95; coverage of at least 80% of a finite
 allowed parameter range is flagged; fewer than 20 successful replicas is critical,
 and fewer than 200 is flagged for unstable percentile endpoints. Correlations use
 empirical samples for resampling when available, otherwise the fit covariance.
-A parameter touching a bound is not necessarily physically wrong. The assessment tooltip
-explains why it is flagged, and no color certifies the correctness of the physical model.
+A parameter touching a bound is not necessarily physically wrong. Click the assessment
+to see why it is flagged; no color certifies the correctness of the physical model.
 Analyses describe their recorded baseline; editing data or models requires refitting
 before resampling. Reports remain inspectable but are marked outdated when appropriate.
 
