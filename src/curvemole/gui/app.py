@@ -502,6 +502,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
     window = CurveMoleMainWindow()
+    app.aboutToQuit.connect(window._finish_session)
     window._release_update_controller = UpdateController(window)
     from curvemole.gui.plugin_updates import PluginUpdateController
     window.plugin_update_controller = PluginUpdateController(window)

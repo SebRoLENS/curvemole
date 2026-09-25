@@ -22,12 +22,15 @@ from curvemole.core.extensions import extensions
 from curvemole.core.plugin_identity import contribution_tooltip
 
 
-def _plugin_recovery_problems(installed: dict[str, dict[str, Any]]) -> list[str]:
+def _plugin_recovery_problems(
+    installed: dict[str, dict[str, Any]], identifiers: set[str] | None = None
+) -> list[str]:
     """Return genuine recovery failures, excluding intentional disablement."""
     return [
         f"{key}: {record.get('error')}"
         for key, record in installed.items()
-        if record.get("error") and record.get("error") != "Disabled by user"
+        if (identifiers is None or key in identifiers)
+        and record.get("error") and record.get("error") != "Disabled by user"
     ]
 
 
@@ -230,8 +233,11 @@ class PluginHost:
                 self.window._log(str(exc))
                 self.refresh()
 
-    def startup_notice(self, unclean: bool) -> None:
-        problems = _plugin_recovery_problems(self.window.plugin_manager.installed)
+    def startup_notice(self, unclean: bool, load_failures: set[str]) -> None:
+        problems = _plugin_recovery_problems(
+            self.window.plugin_manager.installed,
+            None if unclean else load_failures,
+        )
         if unclean or problems:
             QTimer.singleShot(0, lambda: QMessageBox.warning(
                 self.window, "Plugin recovery", "Some plugins are disabled. CurveMole can be used normally.\n"
