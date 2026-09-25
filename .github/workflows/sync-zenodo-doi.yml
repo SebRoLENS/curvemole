@@ -62,7 +62,7 @@ jobs:
             sleep 30
           done
           if [ -z "$DOI" ]; then
-            echo "Zenodo DOI for v$VERSION was not found within one hour."
+            echo "::error title=Zenodo archive missing::No public Zenodo record for v${VERSION} after one hour. This workflow only finds an existing archive and links its DOI; it cannot create the Zenodo deposit. Check the CurveMole repository in your Zenodo account under GitHub (Sync now, enabled toggle, release status), then rerun this workflow when the record is published."
             exit 1
           fi
           echo "doi=$DOI" >> "$GITHUB_OUTPUT"

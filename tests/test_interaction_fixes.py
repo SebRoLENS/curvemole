@@ -46,6 +46,9 @@ def test_abort_bootstrap_waits_for_worker_exit_and_preserves_fit(window, monkeyp
         window.start_uncertainty("residual_bootstrap", 10, None)
         assert window._thread is thread
         assert window._cancellation is token
+        # Do not depend on the first bootstrap replicate reaching its progress
+        # callback; SciPy startup can be much slower on a new Python version.
+        window.cancel_action.trigger()
         deadline = time.monotonic() + 10
         while window._thread is not None and time.monotonic() < deadline:
             app.processEvents()
