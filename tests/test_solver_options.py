@@ -28,9 +28,11 @@ def test_controls_follow_algorithm_loss_and_reset_preserves_selection(gaussian_c
     assert not d.solver_options.fields["powell_ftol"].isHidden()
     assert d.solver_options.fields["de_popsize"].isHidden()
     d.solver_options.fields["powell_ftol"].setText("2e-5")
+    d.workers.setValue(min(2, d.workers.maximum()))
     plan = d.plan()
     assert plan.settings.f_scale == 2.5
     assert plan.settings.powell_ftol == 2e-5
+    assert plan.settings.workers == d.workers.value()
     d.reset_defaults.click()
     plan = d.plan()
     assert plan.curve_ids == [gaussian_curve.id]
@@ -46,7 +48,7 @@ def test_controls_follow_algorithm_loss_and_reset_preserves_selection(gaussian_c
 @pytest.mark.parametrize("kwargs", [
     {"f_scale": 0}, {"xtol": float("nan")}, {"de_recombination": 1.1},
     {"de_mutation_min": 1.5, "de_mutation_max": 1.0}, {"x_scale": 0},
-    {"nm_initial_simplex": [[0, 1]]}, {"minimize_maxiter": -1},
+    {"nm_initial_simplex": [[0, 1]]}, {"minimize_maxiter": -1}, {"workers": 0},
 ])
 def test_invalid_advanced_options_rejected(kwargs):
     with pytest.raises(FitError):

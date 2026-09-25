@@ -22,6 +22,29 @@ def test_gaussian_fit_recovers_parameters(gaussian_curve: Curve) -> None:
     assert result.statistics["AIC"] is not None
 
 
+def test_independent_fits_use_multiple_processes_and_commit_results() -> None:
+    x = np.linspace(-4, 4, 121)
+    curves = [Curve(f"spectrum {i}", x, np.exp(-0.5 * ((x - center) / 0.7) ** 2))
+              for i, center in enumerate((-0.8, 0.2, 1.1))]
+    models = {
+        curve.id: Model(components=[Component.create(
+            "gaussian", initial={"area": 1.5, "center": 0.0, "sigma": 1.0})])
+        for curve in curves
+    }
+    progress = []
+    result = Fitter().fit(
+        FitPlan([curve.id for curve in curves], FitMode.INDEPENDENT,
+                FitSettings(workers=2)), curves, models,
+        progress=lambda fraction, _: progress.append(fraction),
+    )
+
+    assert result.success
+    assert len(result.curve_outputs) == 3
+    assert progress[-1] == 1.0
+    for curve, center in zip(curves, (-0.8, 0.2, 1.1), strict=True):
+        assert models[curve.id].components[0].parameters["center"].value == pytest.approx(center, abs=0.01)
+
+
 def test_fixed_and_bound_parameter_states(gaussian_curve: Curve) -> None:
     peak = Component.create("gaussian", initial={"area": 2.5, "center": 0.7, "sigma": 1.0})
     peak.parameters["center"].fixed = True
