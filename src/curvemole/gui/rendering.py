@@ -26,25 +26,45 @@ def _normalise_display_x(item: pg.PlotDataItem) -> bool:
 
 
 def _optimise_plot_data_item(item: pg.PlotDataItem, *, adaptive: bool) -> None:
-    """Configure one line item for pixel-aware rendering without changing source data."""
-    if item.opts.get("pen") is None:
+    """Clip visible data and thin dense lines or symbols without changing source data."""
+    has_line = item.opts.get("pen") is not None
+    has_symbols = item.opts.get("symbol") is not None
+    if not has_line and not has_symbols:
         return
     x_data, _ = item.getOriginalDataset()
     if x_data is None:
         return
     monotonic = _normalise_display_x(item)
     item.setClipToView(monotonic)
-    use_downsampling = adaptive and monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
+    use_downsampling = (adaptive or has_symbols) and monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
     item.setDownsampling(
         ds=None if use_downsampling else 1,
         auto=use_downsampling,
-        method="peak",
+        method="subsample" if has_symbols else "peak",
     )
-    if adaptive:
+    if adaptive and has_line:
         pen = item.opts.get("pen")
         if isinstance(pen, QPen) and not np.isclose(pen.widthF(), 1.0):
             fast_pen = QPen(pen)
             fast_pen.setWidthF(1.0)
             item.setPen(fast_pen)
 
+
+def _split_dense_symbols(plot: pg.PlotItem, item: pg.PlotDataItem) -> pg.PlotDataItem | None:
+    """Keep peak-preserving line reduction separate from real sampled markers."""
+    if item.opts.get("pen") is None or item.opts.get("symbol") is None:
+        return None
+    x, y = item.getOriginalDataset()
+    if x is None or len(x) < _ADAPTIVE_RENDER_MIN_POINTS:
+        return None
+    symbols = pg.PlotDataItem(
+        x, y, pen=None, symbol=item.opts["symbol"],
+        symbolSize=item.opts["symbolSize"],
+        symbolPen=item.opts["symbolPen"],
+        symbolBrush=item.opts["symbolBrush"],
+    )
+    item.setSymbol(None)
+    plot.addItem(symbols, ignoreBounds=True)
+    _optimise_plot_data_item(symbols, adaptive=True)
+    return symbols
 

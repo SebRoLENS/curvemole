@@ -2175,7 +2175,7 @@ class MainWindow(QMainWindow):
         return baseline_for_curve(latest, curve_id), individual_plan(plan, curve_id)
 
     def start_uncertainty(self, method: str, replicates: int, option: Any,
-                          scope: str = "active") -> None:
+                          scope: str = "active", workers: int = 1) -> None:
         if not self._ensure_editable():
             return
         if self._thread is not None:
@@ -2263,11 +2263,13 @@ class MainWindow(QMainWindow):
                         points=profile_points, lower=profile_lower, upper=profile_upper,
                         spectrum_weight=plan.spectrum_weights.get(curve_id, 1.0),
                         equal_contribution=plan.equal_contribution,
+                        workers=workers,
                         cancellation=self._cancellation, progress=step)
                 else:
                     arguments = dict(
                         baseline=baseline, plan=plan, curves=curve_map,
                         models=self.project.models, replicates=replicates,
+                        workers=workers,
                         cancellation=self._cancellation, progress=step)
                     if method == "monte_carlo":
                         result = analyzer.parametric_monte_carlo(**arguments)

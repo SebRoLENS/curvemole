@@ -21,7 +21,7 @@ from curvemole.core.models import Component
 from curvemole.gui.main_window import MainWindow, _resource_path
 from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
-from curvemole.gui.rendering import _optimise_plot_data_item
+from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols
 from curvemole.gui.updates import UpdateController
 from curvemole.version import __version__
 
@@ -82,7 +82,8 @@ def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
     """Apply adaptive rendering to dense Overlay/Waterfall views after each refresh."""
     adaptive = workspace.display_mode.currentIndex() != 0
     for plot in (workspace.plot, workspace.residual_plot):
-        for item in plot.listDataItems():
+        for item in tuple(plot.listDataItems()):
+            _split_dense_symbols(plot, item)
             _optimise_plot_data_item(item, adaptive=adaptive)
 
 
