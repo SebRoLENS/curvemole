@@ -11,6 +11,7 @@ from PySide6.QtGui import QPen
 from PySide6.QtWidgets import QApplication
 
 from curvemole.gui.app import _optimise_plot_data_item
+from curvemole.gui.rendering import _split_dense_symbols
 
 
 def test_dense_line_uses_peak_downsampling_and_clip_to_view() -> None:
@@ -84,5 +85,46 @@ def test_non_monotonic_line_falls_back_safely() -> None:
     assert item.opts["clipToView"] is False
     assert item.opts["autoDownsample"] is False
     np.testing.assert_array_equal(item.xData, x)
+    widget.close()
+    app.processEvents()
+
+
+def test_dense_points_are_clipped_and_subsampled_for_the_view() -> None:
+    app = QApplication.instance() or QApplication([])
+    widget = pg.PlotWidget()
+    x = np.linspace(0, 100, 12000)
+    y = np.sin(x)
+    item = widget.plot(x, y, pen=None, symbol="o", symbolSize=4)
+    widget.setXRange(0, 100, padding=0)
+
+    _optimise_plot_data_item(item, adaptive=False)
+    displayed = item._getDisplayDataset()
+
+    assert item.opts["clipToView"] is True
+    assert item.opts["autoDownsample"] is True
+    assert item.opts["downsampleMethod"] == "subsample"
+    assert displayed is not None and len(displayed.x) < len(x)
+    np.testing.assert_array_equal(item.getOriginalDataset()[0], x)
+    widget.close()
+    app.processEvents()
+
+
+def test_dense_line_and_points_use_separate_reduction_methods() -> None:
+    app = QApplication.instance() or QApplication([])
+    widget = pg.PlotWidget()
+    x = np.linspace(0, 100, 12000)
+    y = np.sin(x)
+    item = widget.plot(x, y, pen=pg.mkPen("#336699", width=2), symbol="o", symbolSize=4)
+
+    markers = _split_dense_symbols(widget.getPlotItem(), item)
+    _optimise_plot_data_item(item, adaptive=True)
+
+    assert markers is not None
+    assert item.opts["symbol"] is None
+    assert item.opts["downsampleMethod"] == "peak"
+    assert markers.opts["pen"] is None
+    assert markers.opts["downsampleMethod"] == "subsample"
+    assert markers.opts["autoDownsample"] is True
+    np.testing.assert_array_equal(markers.getOriginalDataset()[0], x)
     widget.close()
     app.processEvents()

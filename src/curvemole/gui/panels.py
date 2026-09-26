@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from typing import Any
 
@@ -730,7 +731,7 @@ class DiagnosticsPanel(QWidget):
 
 
 class UncertaintyPanel(QWidget):
-    runRequested = Signal(str, int, object, str)
+    runRequested = Signal(str, int, object, str, int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -750,6 +751,10 @@ class UncertaintyPanel(QWidget):
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
         self.replicates.setValue(200)
+        self.workers = QSpinBox()
+        self.workers.setRange(1, max(1, os.cpu_count() or 1))
+        self.workers.setValue(min(4, self.workers.maximum()))
+        self.workers.setToolTip(self.tr("Parallel processes for resampling and profile scans. Plugin functions run in one process."))
         self.block_length = QSpinBox()
         self.block_length.setRange(0, 1_000_000)
         self.block_length.setSpecialValueText(self.tr("Automatic"))
@@ -773,6 +778,7 @@ class UncertaintyPanel(QWidget):
         layout.addRow(self.tr("Method"), self.method)
         layout.addRow(self.tr("Run on"), self.scope)
         layout.addRow(self.tr("Replicates"), self.replicates)
+        layout.addRow(self.tr("CPU processes"), self.workers)
         layout.addRow(self.tr("Block length"), self.block_length)
         layout.addRow(self.tr("Profile parameter"), self.parameter)
         layout.addRow(self.tr("Profile grid points"), self.profile_points)
@@ -804,6 +810,7 @@ class UncertaintyPanel(QWidget):
     def _update_controls(self) -> None:
         method = self.method.currentData()
         self.replicates.setEnabled(method not in {"profile_likelihood", "covariance"})
+        self.workers.setEnabled(method != "covariance")
         self.profile_points.setEnabled(method == "profile_likelihood")
         self.profile_lower.setEnabled(method == "profile_likelihood")
         self.profile_upper.setEnabled(method == "profile_likelihood")
@@ -815,6 +822,7 @@ class UncertaintyPanel(QWidget):
             self.scope.setCurrentIndex(0)
         for widget, visible in (
             (self.replicates, method not in {"profile_likelihood", "covariance"}),
+            (self.workers, method != "covariance"),
             (self.block_length, method == "block_bootstrap"),
             (self.parameter, method == "profile_likelihood"),
             (self.profile_points, method == "profile_likelihood"),
@@ -834,4 +842,5 @@ class UncertaintyPanel(QWidget):
             if self.block_length.value() == 0
             else self.block_length.value()
         )
-        self.runRequested.emit(method, self.replicates.value(), option, self.scope.currentData())
+        self.runRequested.emit(method, self.replicates.value(), option,
+                               self.scope.currentData(), self.workers.value())

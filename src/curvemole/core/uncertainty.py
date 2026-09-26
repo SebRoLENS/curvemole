@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import copy
 import math
+import multiprocessing
+import os
 from collections.abc import Callable, Mapping, Sequence
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -12,8 +15,14 @@ import numpy as np
 
 from curvemole.core.data import Curve
 from curvemole.core.diagnostics import estimate_block_length
-from curvemole.core.errors import FitCancelled, FitError
-from curvemole.core.fitting import CancellationToken, FitPlan, FitResult, Fitter
+from curvemole.core.errors import FitError
+from curvemole.core.fitting import (
+    CancellationToken,
+    FitPlan,
+    FitResult,
+    Fitter,
+    _ProcessCancellationToken,
+)
 from curvemole.core.models import Model
 
 
@@ -67,6 +76,168 @@ class ProfileResult:
         }
 
 
+_WORKER_CONTEXT: tuple[Any, ...] | None = None
+
+
+def _init_uncertainty_worker(stop: Any, *context: Any) -> None:
+    global _WORKER_CONTEXT
+    _WORKER_CONTEXT = (stop, *context)
+
+
+def _parallel_map(
+    function: Callable[[Any], Any], inputs: Sequence[Any], workers: int,
+    context: tuple[Any, ...], cancellation: CancellationToken,
+    progress: Callable[[int], None] | None,
+) -> list[Any]:
+    """Keep only a few spawned-process jobs queued and return results in input order."""
+    mp_context = multiprocessing.get_context("spawn")
+    stop = mp_context.Event()
+    results: list[Any] = [None] * len(inputs)
+    with ProcessPoolExecutor(
+        max_workers=min(workers, len(inputs), os.cpu_count() or 1),
+        mp_context=mp_context, initializer=_init_uncertainty_worker,
+        initargs=(stop, *context),
+    ) as pool:
+        pending = {}
+        next_index = 0
+        completed = 0
+        try:
+            while completed < len(inputs):
+                cancellation.raise_if_cancelled()
+                while next_index < len(inputs) and len(pending) < 2 * workers:
+                    future = pool.submit(function, inputs[next_index])
+                    pending[future] = next_index
+                    next_index += 1
+                done, _ = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
+                for future in done:
+                    index = pending.pop(future)
+                    results[index] = future.result()
+                    completed += 1
+                    if progress:
+                        progress(completed)
+        except BaseException:
+            stop.set()
+            for future in pending:
+                future.cancel()
+            raise
+    return results
+
+
+def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str]) -> bool:
+    """A spawned process can reconstruct builtin evaluators, but not plugin callbacks."""
+    from curvemole.core.functions import builtin_definitions
+
+    builtins = {definition.identifier: definition.evaluator for definition in builtin_definitions()}
+    return all(
+        component.function_id in builtins
+        and fitter.registry.get(component.function_id).evaluator is builtins[component.function_id]
+        for curve_id in curve_ids for component in models[curve_id].components if component.enabled
+    )
+
+
+def _resample_trial(
+    seed: int, method: str, baseline: FitResult, plan: FitPlan,
+    curves: Mapping[str, Curve], models: Mapping[str, Model],
+    lengths: Mapping[str, int], fitter: Fitter, cancellation: CancellationToken,
+) -> tuple[list[float] | None, str | None]:
+    cancellation.raise_if_cancelled()
+    rng = np.random.default_rng(seed)
+    trial_models = {key: model.clone() for key, model in models.items()}
+    trial_curves: dict[str, Curve] = {}
+    for curve_id in plan.curve_ids:
+        curve = curves[curve_id]
+        trial = copy.deepcopy(curve)
+        output = baseline.curve_outputs[curve_id]
+        full_fit = np.asarray(models[curve_id].evaluate(
+            curve.x, curve_id=curve_id, registry=fitter.registry))
+        if method == "parametric_monte_carlo":
+            sigma = curve.current_sigma_y
+            assert sigma is not None
+            synthetic = full_fit + rng.normal(0.0, sigma)
+        elif method == "residual_bootstrap":
+            residual = np.asarray(output.residual)
+            synthetic = full_fit + rng.choice(residual - np.mean(residual), size=len(curve), replace=True)
+        else:
+            residual = np.asarray(output.residual) - np.mean(output.residual)
+            length = max(1, min(lengths[curve_id], len(residual)))
+            blocks = []
+            count = 0
+            while count < len(residual):
+                start = int(rng.integers(0, len(residual)))
+                blocks.append(residual[(start + np.arange(length)) % len(residual)])
+                count += length
+            synthetic = full_fit.copy()
+            synthetic[output.indices] += np.concatenate(blocks)[:len(residual)]
+        trial.original_x = np.asarray(curve.x).copy()
+        trial.original_y = np.asarray(synthetic).copy()
+        trial.sigma_y = (None if curve.current_sigma_y is None
+                         else np.asarray(curve.current_sigma_y).copy())
+        trial.transformations = []
+        trial.redo_transformations = []
+        trial.__post_init__()
+        trial_curves[curve_id] = trial
+    try:
+        result = fitter.fit(copy.deepcopy(plan), trial_curves, trial_models, cancellation=cancellation)
+        if result.success:
+            return [result.parameters[path].value for path in baseline.free_parameter_paths], None
+        return None, result.message
+    except FitError as exc:
+        return None, str(exc)
+
+
+def _resample_in_process(seed: int) -> tuple[list[float] | None, str | None]:
+    assert _WORKER_CONTEXT is not None
+    stop, method, baseline, plan, curves, models, lengths = _WORKER_CONTEXT
+    return _resample_trial(seed, method, baseline, plan, curves, models, lengths,
+                           Fitter(), _ProcessCancellationToken(stop))
+
+
+def _profile_trial(
+    value: float, curve: Curve, model: Model, parameter_path: str,
+    baseline: FitResult, baseline_chi: float, spectrum_weight: float,
+    equal_contribution: bool, fitter: Fitter, cancellation: CancellationToken,
+) -> float | None:
+    cancellation.raise_if_cancelled()
+    trial_model = model.clone()
+    trial_parameter = trial_model.parameter_map(curve.id)[parameter_path]
+    trial_parameter.value = float(value)
+    trial_parameter.fixed = True
+    settings = copy.deepcopy(baseline.settings)
+    settings.solver = "local"
+    settings.workers = 1
+    try:
+        if any(p.is_free and path in baseline.free_parameter_paths
+               for path, p in trial_model.parameter_map(curve.id).items()):
+            trial_plan = FitPlan([curve.id], settings=settings,
+                                 spectrum_weights={curve.id: spectrum_weight},
+                                 equal_contribution=equal_contribution)
+            result = fitter.fit(trial_plan, [copy.deepcopy(curve)],
+                                {curve.id: trial_model}, cancellation=cancellation)
+            if not result.success:
+                raise FitError(result.message)
+            chi = float(result.statistics["chi_square"])
+        else:
+            x, observed, scale, _ = curve.fit_arrays()
+            residual = observed - trial_model.evaluate(
+                x, curve_id=curve.id, registry=fitter.registry)
+            if scale is not None:
+                residual = residual * scale
+            residual *= math.sqrt(spectrum_weight)
+            if equal_contribution:
+                residual /= math.sqrt(len(residual))
+            chi = float(np.dot(residual, residual))
+        return max(0.0, chi - baseline_chi)
+    except FitError:
+        return None
+
+
+def _profile_in_process(value: float) -> float | None:
+    assert _WORKER_CONTEXT is not None
+    stop, curve, model, parameter_path, baseline, baseline_chi, spectrum_weight, equal = _WORKER_CONTEXT
+    return _profile_trial(value, curve, model, parameter_path, baseline, baseline_chi,
+                          spectrum_weight, equal, Fitter(), _ProcessCancellationToken(stop))
+
+
 class UncertaintyAnalyzer:
     def __init__(self, fitter: Fitter | None = None) -> None:
         self.fitter = fitter or Fitter()
@@ -80,6 +251,7 @@ class UncertaintyAnalyzer:
         *,
         replicates: int = 200,
         seed: int | None = None,
+        workers: int = 1,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ResamplingResult:
@@ -90,23 +262,15 @@ class UncertaintyAnalyzer:
                     f"Parametric Monte Carlo requires absolute sigma_y for '{curve_map[curve_id].name}'."
                 )
 
-        def simulate(rng: np.random.Generator, curve: Curve, output: Any) -> np.ndarray:
-            sigma = curve.current_sigma_y
-            assert sigma is not None
-            full_fit = np.asarray(
-                models[curve.id].evaluate(curve.x, curve_id=curve.id, registry=self.fitter.registry)
-            )
-            return full_fit + rng.normal(0.0, sigma)
-
         return self._resample(
             "parametric_monte_carlo",
             baseline,
             plan,
             curve_map,
             models,
-            simulate,
             replicates,
             seed,
+            workers,
             cancellation,
             progress,
             {},
@@ -121,18 +285,11 @@ class UncertaintyAnalyzer:
         *,
         replicates: int = 200,
         seed: int | None = None,
+        workers: int = 1,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ResamplingResult:
         curve_map = _curve_map(curves)
-
-        def simulate(rng: np.random.Generator, curve: Curve, output: Any) -> np.ndarray:
-            full_fit = np.asarray(
-                models[curve.id].evaluate(curve.x, curve_id=curve.id, registry=self.fitter.registry)
-            )
-            residual = np.asarray(output.residual)
-            sampled = rng.choice(residual - np.mean(residual), size=len(curve), replace=True)
-            return full_fit + sampled
 
         return self._resample(
             "residual_bootstrap",
@@ -140,9 +297,9 @@ class UncertaintyAnalyzer:
             plan,
             curve_map,
             models,
-            simulate,
             replicates,
             seed,
+            workers,
             cancellation,
             progress,
             {},
@@ -158,6 +315,7 @@ class UncertaintyAnalyzer:
         replicates: int = 200,
         block_length: int | None = None,
         seed: int | None = None,
+        workers: int = 1,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ResamplingResult:
@@ -167,33 +325,15 @@ class UncertaintyAnalyzer:
             for curve_id in plan.curve_ids
         }
 
-        def simulate(rng: np.random.Generator, curve: Curve, output: Any) -> np.ndarray:
-            full_fit = np.asarray(
-                models[curve.id].evaluate(curve.x, curve_id=curve.id, registry=self.fitter.registry)
-            )
-            residual = np.asarray(output.residual) - np.mean(output.residual)
-            length = max(1, min(lengths[curve.id], len(residual)))
-            blocks: list[np.ndarray] = []
-            collected_count = 0
-            while collected_count < len(residual):
-                start = int(rng.integers(0, len(residual)))
-                indices = (start + np.arange(length)) % len(residual)
-                blocks.append(residual[indices])
-                collected_count += length
-            sampled = np.concatenate(blocks)[: len(residual)]
-            synthetic = full_fit.copy()
-            synthetic[output.indices] += sampled
-            return synthetic
-
         return self._resample(
             "block_bootstrap",
             baseline,
             plan,
             curve_map,
             models,
-            simulate,
             replicates,
             seed,
+            workers,
             cancellation,
             progress,
             {"block_lengths": lengths},
@@ -212,6 +352,7 @@ class UncertaintyAnalyzer:
         confidence_level: float = 0.95,
         spectrum_weight: float = 1.0,
         equal_contribution: bool = False,
+        workers: int = 1,
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ProfileResult:
@@ -229,6 +370,8 @@ class UncertaintyAnalyzer:
             raise FitError("Profile spectrum weight must be positive and finite.")
         if not 0 < confidence_level < 1 or points < 3:
             raise FitError("Profile requires 0 < confidence < 1 and at least three grid points.")
+        if not isinstance(workers, int) or workers < 1:
+            raise FitError("Worker process count must be a positive integer.")
         if lo < parameter.minimum or hi > parameter.maximum:
             raise FitError("Profile scan limits must respect parameter bounds.")
         if not math.isfinite(lo) or not math.isfinite(hi) or lo >= hi:
@@ -241,42 +384,28 @@ class UncertaintyAnalyzer:
             raise FitError(f"The baseline result does not contain curve '{curve.name}'.")
         baseline_weighted = baseline.curve_outputs[curve.id].weighted_residual
         baseline_chi = float(np.dot(baseline_weighted, baseline_weighted))
-        for index, value in enumerate(grid):
-            token.raise_if_cancelled()
-            trial_model = model.clone()
-            trial_parameter = trial_model.parameter_map(curve.id)[parameter_path]
-            trial_parameter.value = float(value)
-            trial_parameter.fixed = True
-            settings = copy.deepcopy(baseline.settings)
-            settings.solver = "local"
-            try:
-                if any(p.is_free and path in baseline.free_parameter_paths
-                       for path, p in trial_model.parameter_map(curve.id).items()):
-                    trial_plan = FitPlan([curve.id], settings=settings,
-                                         spectrum_weights={curve.id: spectrum_weight},
-                                         equal_contribution=equal_contribution)
-                    result = self.fitter.fit(trial_plan, [copy.deepcopy(curve)],
-                                            {curve.id: trial_model}, cancellation=token)
-                    if not result.success:
-                        raise FitError(result.message)
-                    chi = float(result.statistics["chi_square"])
-                else:
-                    x, observed, scale, _ = curve.fit_arrays()
-                    residual = observed - trial_model.evaluate(
-                        x, curve_id=curve.id, registry=self.fitter.registry)
-                    if scale is not None:
-                        residual = residual * scale
-                    residual *= math.sqrt(spectrum_weight)
-                    if equal_contribution:
-                        residual /= math.sqrt(len(residual))
-                    chi = float(np.dot(residual, residual))
-                delta[index] = max(0.0, chi - baseline_chi)
-            except FitCancelled:
-                raise
-            except FitError:
-                failed += 1
+        def report(count: int) -> None:
             if progress:
-                progress((index + 1) / points, f"Profile point {index + 1}/{points}")
+                progress(count / points, f"Profile point {count}/{points}")
+
+        if workers > 1 and _parallel_safe(self.fitter, {curve.id: model}, [curve.id]):
+            values = _parallel_map(
+                _profile_in_process, grid.tolist(), workers,
+                (curve, model, parameter_path, baseline, baseline_chi,
+                 spectrum_weight, equal_contribution), token, report,
+            )
+        else:
+            values = []
+            for index, value in enumerate(grid):
+                values.append(_profile_trial(
+                    value, curve, model, parameter_path, baseline, baseline_chi,
+                    spectrum_weight, equal_contribution, self.fitter, token))
+                report(index + 1)
+        for index, value in enumerate(values):
+            if value is None:
+                failed += 1
+            else:
+                delta[index] = value
         threshold = 3.841458820694124 if math.isclose(confidence_level, 0.95) else _chi2_one(confidence_level)
         inside = np.isfinite(delta) & (delta <= threshold)
         interval = (
@@ -292,59 +421,49 @@ class UncertaintyAnalyzer:
         plan: FitPlan,
         curves: Mapping[str, Curve],
         models: Mapping[str, Model],
-        simulate: Callable[[np.random.Generator, Curve, Any], np.ndarray],
         replicates: int,
         seed: int | None,
+        workers: int,
         cancellation: CancellationToken | None,
         progress: Callable[[float | None, str], None] | None,
         extra_configuration: dict[str, Any],
     ) -> ResamplingResult:
         if replicates <= 0:
             raise FitError("The requested number of replicates must be positive.")
+        if not isinstance(workers, int) or workers < 1:
+            raise FitError("Worker process count must be a positive integer.")
         token = cancellation or CancellationToken()
         selected_seed = baseline.settings.seed if seed is None else seed
         rng = np.random.default_rng(selected_seed)
         paths = list(baseline.free_parameter_paths)
-        collected: list[list[float]] = []
-        failures: list[str] = []
         base_models = {key: model.clone() for key, model in models.items()}
         settings = copy.deepcopy(plan.settings)
         settings.solver = "local"
-        for replicate in range(replicates):
-            token.raise_if_cancelled()
-            trial_curves: dict[str, Curve] = {}
-            trial_models = {key: model.clone() for key, model in base_models.items()}
-            for curve_id in plan.curve_ids:
-                curve = curves[curve_id]
-                trial = copy.deepcopy(curve)
-                synthetic = simulate(rng, curve, baseline.curve_outputs[curve_id])
-                trial.original_x = np.asarray(curve.x).copy()
-                trial.original_y = np.asarray(synthetic).copy()
-                trial.sigma_y = (None if curve.current_sigma_y is None
-                                 else np.asarray(curve.current_sigma_y).copy())
-                trial.transformations = []
-                trial.redo_transformations = []
-                trial.__post_init__()
-                trial_curves[curve_id] = trial
-            trial_plan = copy.deepcopy(plan)
-            trial_plan.settings = copy.deepcopy(settings)
-            try:
-                result = self.fitter.fit(
-                    trial_plan,
-                    trial_curves,
-                    trial_models,
-                    cancellation=token,
-                )
-                if result.success:
-                    collected.append([result.parameters[path].value for path in paths])
-                else:
-                    failures.append(result.message)
-            except (FitError, FitCancelled) as exc:
-                if isinstance(exc, FitCancelled):
-                    raise
-                failures.append(str(exc))
+        settings.workers = 1
+        trial_plan = copy.deepcopy(plan)
+        trial_plan.settings = settings
+        lengths = extra_configuration.get("block_lengths", {})
+        seeds = rng.integers(0, np.iinfo(np.int64).max, size=replicates).tolist()
+        parallel = workers > 1 and replicates > 1 and _parallel_safe(self.fitter, base_models, plan.curve_ids)
+
+        def report(count: int) -> None:
             if progress:
-                progress((replicate + 1) / replicates, f"{method}: {replicate + 1}/{replicates}")
+                progress(count / replicates, f"{method}: {count}/{replicates}")
+
+        if parallel:
+            outcomes = _parallel_map(
+                _resample_in_process, seeds, workers,
+                (method, baseline, trial_plan, curves, base_models, lengths), token, report,
+            )
+        else:
+            outcomes = []
+            for replicate, trial_seed in enumerate(seeds):
+                outcomes.append(_resample_trial(
+                    trial_seed, method, baseline, trial_plan, curves, base_models,
+                    lengths, self.fitter, token))
+                report(replicate + 1)
+        collected = [sample for sample, _ in outcomes if sample is not None]
+        failures = [message for _, message in outcomes if message is not None]
         samples = np.asarray(collected, dtype=float)
         if samples.size == 0:
             samples = np.empty((0, len(paths)), dtype=float)
@@ -367,7 +486,9 @@ class UncertaintyAnalyzer:
             samples=samples,
             intervals=intervals,
             confidence_level=settings.confidence_level,
-            configuration={"fit_settings": asdict(settings), **extra_configuration},
+            configuration={"fit_settings": asdict(settings),
+                           "workers_used": min(workers, replicates, os.cpu_count() or 1) if parallel else 1,
+                           **extra_configuration},
             failure_messages=failures[:100],
         )
 
