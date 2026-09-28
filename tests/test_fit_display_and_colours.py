@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication, QColorDialog
 
 from curvemole import Component, Curve, Project
 from curvemole.core.data import CurveState, Series
-from curvemole.core.fitting import FitSettings, Fitter
+from curvemole.core.fitting import FitMode, FitPlan, FitSettings, Fitter
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.colours import (
     MODEL_SUM_COLOUR,
@@ -63,6 +63,48 @@ def test_fit_finished_commits_returned_estimates_to_displayed_model() -> None:
     output = result.curve_outputs[curve.id]
     np.testing.assert_allclose(rendered[output.indices], output.fitted, rtol=1e-9, atol=1e-11)
     assert curve.state == CurveState.FITTED
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_failed_multicore_refit_updates_the_spectrum_state() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, good, _ = _gaussian_project()
+    bad = Curve("invalid spectrum", good.x, good.y)
+    project.add_curve(bad)
+    bad.state = CurveState.FITTED
+    plan = FitPlan([good.id, bad.id], FitMode.INDEPENDENT, FitSettings(workers=2))
+    window = MainWindow(project)
+    window._running_fit_plan = plan
+    result = Fitter().fit(plan, project.curves, project.models)
+    window._fit_finished(result)
+
+    assert good.state == CurveState.FITTED
+    assert bad.state == CurveState.FAILED
+    assert good.id in project.results["fit_by_curve"]
+    assert bad.id not in project.results["fit_by_curve"]
+    states = {window.curve_tree.topLevelItem(0).child(index).text(2)
+              for index in range(window.curve_tree.topLevelItem(0).childCount())}
+    assert states == {CurveState.FITTED.value, CurveState.FAILED.value}
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_unexpected_fit_task_error_marks_attempted_spectra_failed(monkeypatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    project, curve, _ = _gaussian_project()
+    curve.state = CurveState.FITTED
+    window = MainWindow(project)
+    window._running_fit_plan = FitPlan([curve.id])
+    window._fit_task_active = True
+    monkeypatch.setattr(window, "_show_error", lambda *_: None)
+
+    window._task_failed("Unexpected worker error", "traceback")
+
+    assert curve.state == CurveState.FAILED
+    assert window.curve_tree.topLevelItem(0).child(0).text(2) == CurveState.FAILED.value
     project.dirty = False
     window.close()
     app.processEvents()

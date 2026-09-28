@@ -1954,6 +1954,7 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         self._running_fit_plan = copy.deepcopy(plan)
+        self._fit_task_active = True
         self._cancellation = CancellationToken()
         fitter = Fitter(self.registry)
         curve_map = {curve.id: curve for curve in self.project.curves}
@@ -3389,6 +3390,10 @@ class MainWindow(QMainWindow):
         if "cancelled" in message.lower():
             self._notify(self.tr("Task cancelled; the previous valid result was retained."), warning=True)
         else:
+            if getattr(self, "_fit_task_active", False):
+                for curve_id in self._running_fit_plan.curve_ids:
+                    self.project.dataset.curve(curve_id).state = CurveState.FAILED
+                self.project.touch()
             self._show_error(self.tr("Task failed"), RuntimeError(message))
         self.refresh_all()
 
@@ -3398,6 +3403,7 @@ class MainWindow(QMainWindow):
         self._thread = None
         self._worker = None
         self._cancellation = None
+        self._fit_task_active = False
         self.progress.setVisible(False)
         self.cancel_action.setEnabled(False)
         self.fit_action.setEnabled(True)

@@ -343,9 +343,20 @@ def _init_fit_process(event: Any) -> None:
 def _fit_in_process(curve: Curve, model: Model, plan: FitPlan) -> FitResult:
     # A separate process owns its copy of the spectrum and model. The parent
     # commits the returned estimates only after the task has completed.
-    return Fitter()._fit_problem(
-        [curve], {curve.id: model}, plan, _ProcessCancellationToken(_FIT_STOP_EVENT), None,
-    )
+    try:
+        return Fitter()._fit_problem(
+            [curve], {curve.id: model}, plan, _ProcessCancellationToken(_FIT_STOP_EVENT), None,
+        )
+    except FitCancelled:
+        raise
+    except (FitError, ConstraintError) as exc:
+        return _failed_fit_result(curve, plan, exc)
+
+
+def _failed_fit_result(curve: Curve, plan: FitPlan, error: Exception) -> FitResult:
+    message = f"Fit failed for '{curve.name}': {error}"
+    return FitResult(False, plan.mode, message, -1, 0, {}, {}, {}, [message],
+                     copy.deepcopy(plan.settings), [])
 
 
 class _Problem:
@@ -578,12 +589,17 @@ class Fitter:
                 {curve.id: plan.spectrum_weights.get(curve.id, 1.0)},
                 plan.equal_contribution,
             )
-            results.append(
-                self._fit_problem(
+            try:
+                current = self._fit_problem(
                     [curve], models, local_plan, cancellation,
                     progress=_batch_progress(progress, index, len(curves)),
                 )
-            )
+            except FitCancelled:
+                raise
+            except (FitError, ConstraintError) as exc:
+                curve.state = CurveState.FAILED
+                current = _failed_fit_result(curve, local_plan, exc)
+            results.append(current)
             if progress:
                 progress((index + 1) / len(curves), f"Completed {curve.name}")
         return _merge_results(results, plan.mode, plan.settings)
@@ -1168,6 +1184,9 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
     outputs = {path: value for result in results for path, value in result.curve_outputs.items()}
     warnings = [warning for result in results for warning in result.warnings]
     free_paths = [path for result in results for path in result.free_parameter_paths]
+    completed = sum(result.success for result in results)
+    message = (f"Completed {len(results)} fit(s)." if completed == len(results)
+               else f"Completed {completed} of {len(results)} fit(s); {len(results) - completed} failed.")
     covariance = None
     correlation = None
     if all(result.covariance is not None for result in results):
@@ -1181,12 +1200,12 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
     return FitResult(
         success=all(result.success for result in results),
         mode=mode,
-        message=f"Completed {len(results)} fit(s).",
+        message=message,
         status=1 if all(result.success for result in results) else -1,
         evaluations=sum(result.evaluations for result in results),
         parameters=parameters,
         curve_outputs=outputs,
-        statistics=_global_statistics(outputs, len(free_paths), settings.loss),
+        statistics=_global_statistics(outputs, len(free_paths), settings.loss) if outputs else {},
         warnings=warnings,
         settings=copy.deepcopy(settings),
         free_parameter_paths=free_paths,
