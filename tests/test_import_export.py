@@ -82,7 +82,7 @@ def test_function_parameter_matrix_aligns_names_and_fit_errors(tmp_path: Path) -
 
 
 def test_file_menu_exports_function_parameters(gaussian_curve, tmp_path: Path, monkeypatch) -> None:
-    from PySide6.QtWidgets import QApplication, QFileDialog
+    from PySide6.QtWidgets import QApplication, QCheckBox, QFileDialog
 
     from curvemole.gui.main_window import MainWindow
 
@@ -92,7 +92,12 @@ def test_file_menu_exports_function_parameters(gaussian_curve, tmp_path: Path, m
     project.model_for(gaussian_curve.id).add(Component.create("gaussian", name="Gaussian 1"))
     gaussian_curve.state = CurveState.FITTED
     output = tmp_path / "functions.csv"
-    monkeypatch.setattr(QFileDialog, "getSaveFileName", lambda *args: (str(output), "CSV files (*.csv)"))
+    def accept(dialog):
+        assert not dialog.findChild(QCheckBox, "export_covariance").isChecked()
+        return QFileDialog.DialogCode.Accepted
+
+    monkeypatch.setattr(QFileDialog, "exec", accept)
+    monkeypatch.setattr(QFileDialog, "selectedFiles", lambda dialog: [str(output)])
     window = MainWindow(project)
     file_menu = next(action.menu() for action in window.menuBar().actions()
                      if action.text().replace("&", "") == "File")
@@ -106,6 +111,90 @@ def test_file_menu_exports_function_parameters(gaussian_curve, tmp_path: Path, m
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_optional_covariance_export_keeps_fit_and_sample_estimates_separate(
+    gaussian_curve, tmp_path: Path,
+) -> None:
+    from curvemole import Fitter
+    from curvemole.core.serialization import load_project, save_project
+
+    project = Project()
+    project.add_curve(gaussian_curve)
+    model = project.model_for(gaussian_curve.id)
+    model.add(Component.create("gaussian", initial={"area": 3, "center": .7, "sigma": .8}))
+    baseline = Fitter().fit_single(gaussian_curve, model)
+    curve_id = gaussian_curve.id
+    project.results["fit_by_curve"] = {curve_id: {"baseline": baseline}}
+    paths = baseline.free_parameter_paths
+    samples = np.array([[1., 2., 3.], [2., 4., 5.], [3., 5., 9.], [4., 8., 12.]])
+    project.results["uncertainty_by_curve"] = {
+        curve_id: {"residual_bootstrap": {"parameter_paths": paths, "samples": samples.tolist()}}}
+    project.results["uncertainty_reports_by_curve"] = {
+        curve_id: {"residual_bootstrap": {"baseline": baseline.to_dict(arrays=False),
+                                          "analysis": {"parameter_paths": paths}}}}
+    project.results["uncertainty_display_method_by_curve"] = {curve_id: "residual_bootstrap"}
+    output = tmp_path / "parameters.csv"
+    export_function_parameters(project, output)
+    assert not (tmp_path / "parameters_covariance").exists()
+    export_function_parameters(project, output, include_covariance=True)
+    directory = tmp_path / "parameters_covariance"
+    files = sorted(directory.glob("*.csv"))
+    assert len(files) == 3  # fit covariance, sample covariance, and index
+    index = list(csv.DictReader((directory / "index.csv").open(encoding="utf-8-sig")))
+    assert {entry["Source"] for entry in index} == {"fit", "analysis"}
+    sample_file = next(directory / entry["File"] for entry in index if entry["Source"] == "analysis")
+    with sample_file.open(encoding="utf-8-sig", newline="") as stream:
+        rows = list(csv.reader(stream))
+    assert rows[0][1:] == paths
+    np.testing.assert_allclose(float(rows[1][1]), np.cov(samples, rowvar=False)[0, 0])
+    fit_file = next(directory / entry["File"] for entry in index if entry["Source"] == "fit")
+    with fit_file.open(encoding="utf-8-sig", newline="") as stream:
+        fit_rows = list(csv.reader(stream))
+    np.testing.assert_allclose(float(fit_rows[1][1]), baseline.covariance[0, 0], rtol=1e-10)
+
+    saved = tmp_path / "saved.fitproj"
+    save_project(project, saved)
+    restored = load_project(saved)
+    export_function_parameters(restored, tmp_path / "reopened.csv", include_covariance=True)
+    assert len(list((tmp_path / "reopened_covariance").glob("*.csv"))) == 3
+
+
+def test_global_covariance_export_keeps_cross_spectrum_terms(gaussian_curve, tmp_path: Path) -> None:
+    from curvemole import Fitter
+    from curvemole.core.fitting import FitMode, FitPlan
+
+    x = gaussian_curve.x
+    second = Curve("second", x, gaussian_curve.y + .02)
+    project = Project()
+    for curve in (gaussian_curve, second):
+        project.add_curve(curve)
+        project.model_for(curve.id).add(Component.create(
+            "gaussian", initial={"area": 3, "center": .7, "sigma": .8}))
+    baseline = Fitter().fit(FitPlan([gaussian_curve.id, second.id], FitMode.GLOBAL),
+                            [gaussian_curve, second], project.models)
+    assert baseline.covariance is not None
+    project.results["global_fit_baselines"] = {"joint": baseline}
+    project.results["fit_by_curve"] = {
+        curve.id: {"global_key": "joint"} for curve in (gaussian_curve, second)}
+    samples = np.arange(4 * len(baseline.free_parameter_paths), dtype=float).reshape(
+        4, len(baseline.free_parameter_paths))
+    for curve in (gaussian_curve, second):
+        project.results.setdefault("uncertainty_display_method_by_curve", {})[curve.id] = "residual_bootstrap"
+        project.results.setdefault("uncertainty_reports_by_curve", {})[curve.id] = {
+            "residual_bootstrap": {"analysis": {}}}
+        project.results.setdefault("uncertainty_by_curve", {})[curve.id] = {
+            "residual_bootstrap": {"parameter_paths": baseline.free_parameter_paths,
+                                   "samples": samples.tolist()}}
+    export_function_parameters(project, tmp_path / "global.csv", include_covariance=True)
+    directory = tmp_path / "global_covariance"
+    matrices = [path for path in directory.glob("*.csv") if path.name != "index.csv"]
+    assert len(matrices) == 2  # One fit and one sample matrix, not one per spectrum.
+    fit_matrix = next(path for path in matrices if "_fit_" in path.name)
+    with fit_matrix.open(encoding="utf-8-sig", newline="") as stream:
+        rows = list(csv.reader(stream))
+    assert rows[0][1:] == baseline.free_parameter_paths
+    assert len(rows) == len(baseline.free_parameter_paths) + 1
 
 
 def test_bundle_preserves_unrelated_files_and_requires_confirmation(gaussian_curve, tmp_path: Path) -> None:

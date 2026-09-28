@@ -1380,14 +1380,27 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("There are no spectra to export."), warning=True)
             return
         suggested = (self.project.path.parent if self.project.path else Path.cwd()) / f"{self.project.name}-functions-parameters.csv"
-        selected, _ = QFileDialog.getSaveFileName(
-            self, self.tr("Export functions parameters"), str(suggested),
-            self.tr("CSV files (*.csv)"),
-        )
-        if not selected:
+        from PySide6.QtWidgets import QCheckBox, QGridLayout
+
+        dialog = QFileDialog(self, self.tr("Export functions parameters"), str(suggested),
+                             self.tr("CSV files (*.csv)"))
+        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+        dialog.setDefaultSuffix("csv")
+        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+        covariance = QCheckBox(self.tr("Also export covariance matrices"), dialog)
+        covariance.setObjectName("export_covariance")
+        covariance.setToolTip(self.tr(
+            "Write fit covariance and, when available, a separate sample covariance "
+            "for the selected bootstrap or Monte Carlo analysis."))
+        layout = dialog.layout()
+        if isinstance(layout, QGridLayout):
+            layout.addWidget(covariance, layout.rowCount(), 0, 1, layout.columnCount())
+        if dialog.exec() != dialog.DialogCode.Accepted:
             return
+        selected = dialog.selectedFiles()[0]
         try:
-            destination = export_function_parameters(self.project, selected)
+            destination = export_function_parameters(
+                self.project, selected, include_covariance=covariance.isChecked())
             self._notify(self.tr("Functions parameters exported: ") + str(destination))
         except Exception as exc:
             self._show_error(self.tr("Export functions parameters"), exc)
