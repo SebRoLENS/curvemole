@@ -115,12 +115,13 @@ class ModelPanel(QWidget):
         self.copy_fit_next_button.clicked.connect(self.copyFitNextRequested)
         buttons.addWidget(self.copy_fit_next_button)
         single_layout.addLayout(buttons)
-        self.parameters = QTableWidget(0, 7)
+        self.parameters = QTableWidget(0, 8)
         self.parameters.setHorizontalHeaderLabels(
             [
                 self.tr("Parameter"),
                 self.tr("Value"),
                 self.tr("±1σ"),
+                self.tr("Analysis − / +"),
                 self.tr("Fixed"),
                 self.tr("Lower"),
                 self.tr("Upper"),
@@ -236,6 +237,13 @@ class ModelPanel(QWidget):
             self.background_toggle.setChecked(component.is_background)
             self.background_toggle.blockSignals(False)
             self.parameters.setRowCount(len(component.parameters))
+            from curvemole.core.analysis_errors import (
+                DISPLAY_METHODS,
+                analysis_error,
+                selected_method,
+            )
+
+            chosen = selected_method(self.project, self.curve_id)
             for row, (name, parameter) in enumerate(component.parameters.items()):
                 name_item = QTableWidgetItem(("🔗 " if parameter.link else "") + name)
                 name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -248,17 +256,28 @@ class ModelPanel(QWidget):
                 )
                 error.setFlags(error.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.parameters.setItem(row, 2, error)
+                path = model.parameter_path(self.curve_id, component.id, name)
+                offsets = analysis_error(self.project, self.curve_id, path)
+                analysis_item = QTableWidgetItem(
+                    f"−{offsets[0]:.5g} / +{offsets[1]:.5g}" if offsets else "—")
+                analysis_item.setFlags(analysis_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                analysis_item.setForeground(QColor("#2877b7"))
+                analysis_item.setToolTip(
+                    self.tr("{method}: errors below and above the fitted value (confidence interval).")
+                    .format(method=DISPLAY_METHODS[chosen]) if offsets and chosen else
+                    self.tr("No valid interval for this parameter in the selected analysis."))
+                self.parameters.setItem(row, 3, analysis_item)
                 fixed = QTableWidgetItem("🔒" if parameter.fixed else "")
                 fixed.setFlags(fixed.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 fixed.setCheckState(Qt.CheckState.Checked if parameter.fixed else Qt.CheckState.Unchecked)
                 fixed.setData(Qt.ItemDataRole.UserRole, (component.id, name, "fixed"))
-                self.parameters.setItem(row, 3, fixed)
+                self.parameters.setItem(row, 4, fixed)
                 lower = QTableWidgetItem("" if math.isinf(parameter.minimum) else f"{parameter.minimum:.12g}")
                 lower.setData(Qt.ItemDataRole.UserRole, (component.id, name, "minimum"))
-                self.parameters.setItem(row, 4, lower)
+                self.parameters.setItem(row, 5, lower)
                 upper = QTableWidgetItem("" if math.isinf(parameter.maximum) else f"{parameter.maximum:.12g}")
                 upper.setData(Qt.ItemDataRole.UserRole, (component.id, name, "maximum"))
-                self.parameters.setItem(row, 5, upper)
+                self.parameters.setItem(row, 6, upper)
                 link_button = QPushButton(self._link_button_text(parameter.link))
                 link_button.setToolTip(parameter.link or self.tr("Choose a source parameter"))
                 link_button.clicked.connect(
@@ -266,7 +285,7 @@ class ModelPanel(QWidget):
                         self.parameterLinkRequested.emit(component_id, parameter_name)
                     )
                 )
-                self.parameters.setCellWidget(row, 6, link_button)
+                self.parameters.setCellWidget(row, 7, link_button)
             self.parameters.resizeColumnsToContents()
             if component.function_id not in self.registry.identifiers():
                 self.derived.setText(self.tr("Function unavailable — enable its plugin in File → Plugin Manager."))
@@ -732,6 +751,7 @@ class DiagnosticsPanel(QWidget):
 
 class UncertaintyPanel(QWidget):
     runRequested = Signal(str, int, object, str, int)
+    displayMethodChanged = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -748,6 +768,11 @@ class UncertaintyPanel(QWidget):
         self.scope.addItem(self.tr("Active spectrum"), "active")
         self.scope.addItem(self.tr("Selected spectra"), "selected")
         self.scope.addItem(self.tr("All fitted spectra"), "all")
+        self.display_method = QComboBox()
+        self.display_method.setToolTip(self.tr(
+            "Choose which saved analysis supplies the coloured errors in Model and parameters. "
+            "The original fit ±1σ remains visible."))
+        self.display_method.currentIndexChanged.connect(self._display_method_changed)
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
         self.replicates.setValue(200)
@@ -780,6 +805,7 @@ class UncertaintyPanel(QWidget):
         run.clicked.connect(self._run)
         layout.addRow(self.tr("Method"), self.method)
         layout.addRow(self.tr("Run on"), self.scope)
+        layout.addRow(self.tr("Displayed uncertainty"), self.display_method)
         layout.addRow(self.tr("Replicates"), self.replicates)
         layout.addRow(self.tr("CPU processes"), self.workers)
         layout.addRow(self.tr("Block length"), self.block_length)
@@ -794,7 +820,20 @@ class UncertaintyPanel(QWidget):
         self._update_controls()
 
     def set_parameters(self, project: Project, curve_id: str | None) -> None:
+        from curvemole.core.analysis_errors import DISPLAY_METHODS, selected_method
+
         self.results.set_project(project, curve_id)
+        self.display_method.blockSignals(True)
+        self.display_method.clear()
+        self.display_method.addItem(self.tr("Fit error only"), "")
+        reports = project.results.get("uncertainty_reports_by_curve", {}).get(curve_id, {})
+        for method, label in DISPLAY_METHODS.items():
+            if method in reports:
+                self.display_method.addItem(self.tr(label), method)
+        chosen = selected_method(project, curve_id) if curve_id else None
+        self.display_method.setCurrentIndex(max(0, self.display_method.findData(chosen or "")))
+        self.display_method.setEnabled(bool(curve_id) and self.display_method.count() > 1)
+        self.display_method.blockSignals(False)
         current = self.parameter.currentData()
         self.parameter.clear()
         if curve_id:
@@ -809,6 +848,9 @@ class UncertaintyPanel(QWidget):
                     self.parameter.addItem(f"{component.name} · {name}", path)
         index = self.parameter.findData(current)
         self.parameter.setCurrentIndex(max(0, index))
+
+    def _display_method_changed(self) -> None:
+        self.displayMethodChanged.emit(self.display_method.currentData() or "")
 
     def _update_controls(self) -> None:
         method = self.method.currentData()

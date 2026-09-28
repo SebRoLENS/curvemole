@@ -66,7 +66,8 @@ class Project:
         curve = series.remove(curve_id)
         self.models.pop(curve_id, None)
         self.results.pop(curve_id, None)
-        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve"):
+        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
+                    "uncertainty_display_method_by_curve"):
             if isinstance(self.results.get(key), dict):
                 self.results[key].pop(curve_id, None)
         if global_key is not None:
@@ -76,6 +77,7 @@ class Project:
                     self.results["fit_by_curve"].pop(other_id, None)
                     self.results.get("uncertainty_by_curve", {}).pop(other_id, None)
                     self.results.get("uncertainty_reports_by_curve", {}).pop(other_id, None)
+                    self.results.get("uncertainty_display_method_by_curve", {}).pop(other_id, None)
         self.touch()
         return curve
 

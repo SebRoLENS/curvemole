@@ -1474,6 +1474,16 @@ quick estimate; use more and check stability when precise percentile endpoints m
 fitted spectra. Each independent spectrum uses its own last successful fit, even if
 another spectrum was fitted more recently. Switching the active spectrum updates the
 report shown in the panel. Results are saved separately for each spectrum and method.
+**Displayed uncertainty** selects which saved analysis supplies the coloured
+**Analysis − / +** column in **Model and parameters** for the active spectrum.
+The most recently completed resampling/profile analysis is selected automatically;
+the choice is saved per spectrum and can be changed or set to **Fit error only**.
+The adjacent **±1σ** column always retains the original fit error. The analysis
+column shows the distances below and above the fitted value separately. It shows
+a dash when a parameter has no valid interval or the interval excludes the
+original fitted value; inspect the assessment for details. The parameter CSV
+retains `parameter_err` for the fit error and adds `parameter_analysis_err_minus`,
+`parameter_analysis_err_plus`, and the selected method when applicable.
 Older projects may need a new fit for spectra whose individual baselines were not
 recorded. Profile likelihood accepts one active spectrum at a time; coupled global
 fits are analyzed together when resampling is requested.

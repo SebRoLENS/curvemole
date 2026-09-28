@@ -267,7 +267,10 @@ def parameter_dataframe(
 
 
 def export_function_parameters(project: Project, path: str | Path) -> Path:
-    """Write a spectrum-by-function CSV with two header rows and fit errors."""
+    """Write fit errors and, when selected, separate analysis error bounds."""
+    from curvemole.core.analysis_errors import DISPLAY_METHODS, analysis_error, selected_method
+
+    include_analysis = any(selected_method(project, curve.id) for curve in project.curves)
     columns: list[tuple[str, str]] = []
     values: list[dict[tuple[str, str], str]] = []
     resolved = project.resolved_parameter_values()
@@ -286,6 +289,9 @@ def export_function_parameters(project: Project, path: str | Path) -> Path:
                     key = (label, name)
                     if key not in columns:
                         columns.extend((key, (label, f"{name}_err")))
+                        if include_analysis:
+                            columns.extend(((label, f"{name}_analysis_err_minus"),
+                                            (label, f"{name}_analysis_err_plus")))
                     if curve.state == CurveState.FITTED:
                         parameter_path = model.parameter_path(curve.id, component.id, name)
                         value = resolved.get(parameter_path, parameter.value)
@@ -293,16 +299,25 @@ def export_function_parameters(project: Project, path: str | Path) -> Path:
                         cells[key] = f"{value:.12g}"
                         if error is not None and math.isfinite(error) and error >= 0:
                             cells[(label, f"{name}_err")] = f"{error:.12g}"
+                        if include_analysis:
+                            offsets = analysis_error(project, curve.id, parameter_path)
+                            if offsets:
+                                cells[(label, f"{name}_analysis_err_minus")] = f"{offsets[0]:.12g}"
+                                cells[(label, f"{name}_analysis_err_plus")] = f"{offsets[1]:.12g}"
         values.append(cells)
 
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["Spectrum", *(function for function, _ in columns)])
-        writer.writerow(["", *(parameter for _, parameter in columns)])
+        writer.writerow(["Spectrum", *(function for function, _ in columns),
+                         *(["Analysis"] if include_analysis else [])])
+        writer.writerow(["", *(parameter for _, parameter in columns),
+                         *(["method"] if include_analysis else [])])
         for curve, cells in zip(project.curves, values, strict=True):
-            writer.writerow([curve.name, *(cells.get(key, "") for key in columns)])
+            method = selected_method(project, curve.id) if include_analysis else None
+            writer.writerow([curve.name, *(cells.get(key, "") for key in columns),
+                             *([DISPLAY_METHODS.get(method, "")] if include_analysis else [])])
     return destination
 
 
