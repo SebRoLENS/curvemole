@@ -266,7 +266,9 @@ def parameter_dataframe(
     return pd.DataFrame(rows)
 
 
-def export_function_parameters(project: Project, path: str | Path) -> Path:
+def export_function_parameters(
+    project: Project, path: str | Path, *, include_covariance: bool = False,
+) -> Path:
     """Write fit errors and, when selected, separate analysis error bounds."""
     from curvemole.core.analysis_errors import DISPLAY_METHODS, analysis_error, selected_method
 
@@ -318,7 +320,93 @@ def export_function_parameters(project: Project, path: str | Path) -> Path:
             method = selected_method(project, curve.id) if include_analysis else None
             writer.writerow([curve.name, *(cells.get(key, "") for key in columns),
                              *([DISPLAY_METHODS.get(method, "")] if include_analysis else [])])
+    if include_covariance:
+        export_parameter_covariances(project, destination)
     return destination
+
+
+def export_parameter_covariances(project: Project, parameter_path: str | Path) -> list[Path]:
+    """Export fit covariance and separate sample covariance for selected analyses.
+
+    A coupled global fit is written once with all cross-spectrum terms intact.
+    Profile intervals are not covariance estimates and therefore have no matrix.
+    """
+    from curvemole.core.analysis_errors import selected_method
+
+    destination = Path(parameter_path)
+    directory = destination.with_name(destination.stem + "_covariance")
+    records = project.results.get("fit_by_curve", {})
+    written: list[Path] = []
+    manifest: list[tuple[str, str, str, str, int]] = []
+    seen: set[tuple[str, str]] = set()
+
+    def write_matrix(paths: list[str], matrix: np.ndarray, source: str,
+                     method: str, curve_name: str, samples: int = 0) -> None:
+        if matrix.shape != (len(paths), len(paths)) or not len(paths):
+            return
+        if not np.isfinite(matrix).all():
+            return
+        directory.mkdir(parents=True, exist_ok=True)
+        filename = f"{len(written) + 1:03d}_{source}_{method}.csv"
+        output = directory / filename
+        with output.open("w", encoding="utf-8-sig", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["Parameter", *paths])
+            for path, row in zip(paths, matrix, strict=True):
+                writer.writerow([path, *(f"{value:.12g}" for value in row)])
+        written.append(output)
+        manifest.append((curve_name, source, method, filename, samples))
+
+    for curve in project.curves:
+        if curve.state != CurveState.FITTED:
+            continue
+        record = records.get(curve.id, {})
+        global_key = record.get("global_key")
+        key = str(global_key or curve.id)
+        fit = (project.results.get("global_fit_baselines", {}).get(global_key)
+               if global_key is not None else record.get("baseline"))
+        if fit is None:
+            latest = project.results.get("last_fit")
+            if latest is not None:
+                curve_outputs = (latest.curve_outputs if isinstance(latest, FitResult)
+                                 else latest.get("curve_outputs", {}))
+                if curve.id in curve_outputs:
+                    fit = latest
+                    key = "legacy-fit"
+        if fit is not None and (key, "fit") not in seen:
+            seen.add((key, "fit"))
+            paths = fit.free_parameter_paths if isinstance(fit, FitResult) else fit.get("free_parameter_paths", [])
+            covariance = fit.covariance if isinstance(fit, FitResult) else fit.get("covariance")
+            if covariance is not None:
+                write_matrix(paths, np.asarray(covariance, dtype=float), "fit", "covariance",
+                             "Global fit" if global_key is not None else curve.name)
+        method = selected_method(project, curve.id)
+        if method not in {"parametric_monte_carlo", "residual_bootstrap", "block_bootstrap"}:
+            continue
+        if (key, method) in seen:
+            continue
+        seen.add((key, method))
+        result = project.results.get("uncertainty_by_curve", {}).get(curve.id, {}).get(method)
+        if result is None:
+            continue
+        paths = result.parameter_paths if hasattr(result, "parameter_paths") else result.get("parameter_paths", [])
+        samples = result.samples if hasattr(result, "samples") else result.get("samples")
+        if samples is None:
+            continue
+        samples = np.asarray(samples, dtype=float)
+        if samples.ndim != 2 or samples.shape[0] < 2 or samples.shape[1] != len(paths):
+            continue
+        with np.errstate(invalid="ignore", divide="ignore"):
+            covariance = np.atleast_2d(np.cov(samples, rowvar=False))
+        write_matrix(paths, covariance, "analysis", method,
+                     "Global fit" if global_key is not None else curve.name,
+                     len(samples))
+    if manifest:
+        with (directory / "index.csv").open("w", encoding="utf-8-sig", newline="") as stream:
+            writer = csv.writer(stream)
+            writer.writerow(["Spectrum or scope", "Source", "Method", "File", "Samples"])
+            writer.writerows(manifest)
+    return written
 
 
 def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:

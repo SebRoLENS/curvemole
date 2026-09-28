@@ -180,7 +180,11 @@ def test_selected_analysis_adds_asymmetric_errors_without_replacing_fit_sigma(ga
     window.uncertainty_panel.set_parameters(project, curve_id)
     window.model_panel.refresh_parameters()
     assert window.uncertainty_panel.display_method.currentData() == "residual_bootstrap"
+    assert "Model and parameters" in window.uncertainty_panel.form.labelForField(
+        window.uncertainty_panel.display_method).toolTip()
     assert window.model_panel.parameters.item(0, 3).text() == "−0.2 / +0.4"
+    assert "Calculated with Residual bootstrap (95.0% confidence)" in (
+        window.model_panel.parameters.item(0, 3).toolTip())
     assert window.model_panel.parameters.item(0, 2).text() == f"{original_sigma:.5g}"
 
     profile = ProfileResult(path, np.array([value]), np.array([0.]), .95,

@@ -1484,6 +1484,13 @@ a dash when a parameter has no valid interval or the interval excludes the
 original fitted value; inspect the assessment for details. The parameter CSV
 retains `parameter_err` for the fit error and adds `parameter_analysis_err_minus`,
 `parameter_analysis_err_plus`, and the selected method when applicable.
+In **File > Export functions parameters**, **Also export covariance matrices**
+is off by default. When selected, a sibling `*_covariance` folder contains an
+`index.csv` and labelled matrices: the fit covariance and, separately, sample
+covariance for the selected bootstrap or Monte Carlo analysis when raw samples
+are available. Global fits retain cross-spectrum terms in one joint matrix.
+Profile likelihood provides intervals, not a sample covariance matrix. Running
+an uncertainty analysis never changes the original fit covariance.
 Older projects may need a new fit for spectra whose individual baselines were not
 recorded. Profile likelihood accepts one active spectrum at a time; coupled global
 fits are analyzed together when resampling is requested.

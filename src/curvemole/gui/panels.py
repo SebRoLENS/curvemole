@@ -244,6 +244,15 @@ class ModelPanel(QWidget):
             )
 
             chosen = selected_method(self.project, self.curve_id)
+            report = self.project.results.get("uncertainty_reports_by_curve", {}).get(
+                self.curve_id, {}).get(chosen, {}) if chosen else {}
+            recorded_analysis = report.get("analysis", {})
+            if hasattr(recorded_analysis, "to_dict"):
+                recorded_analysis = recorded_analysis.to_dict()
+            confidence = recorded_analysis.get("confidence_level")
+            provenance = DISPLAY_METHODS[chosen] if chosen else self.tr("No analysis selected")
+            if confidence is not None:
+                provenance += f" ({confidence:.1%} confidence)"
             for row, (name, parameter) in enumerate(component.parameters.items()):
                 name_item = QTableWidgetItem(("🔗 " if parameter.link else "") + name)
                 name_item.setFlags(name_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -263,9 +272,11 @@ class ModelPanel(QWidget):
                 analysis_item.setFlags(analysis_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 analysis_item.setForeground(QColor("#2877b7"))
                 analysis_item.setToolTip(
-                    self.tr("{method}: errors below and above the fitted value (confidence interval).")
-                    .format(method=DISPLAY_METHODS[chosen]) if offsets and chosen else
-                    self.tr("No valid interval for this parameter in the selected analysis."))
+                    self.tr("Calculated with {method}. Negative and positive errors are "
+                            "distances from the fitted value to the confidence limits.")
+                    .format(method=provenance) if offsets else
+                    self.tr("{method}: no valid interval for this parameter.")
+                    .format(method=provenance))
                 self.parameters.setItem(row, 3, analysis_item)
                 fixed = QTableWidgetItem("🔒" if parameter.fixed else "")
                 fixed.setFlags(fixed.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -806,6 +817,7 @@ class UncertaintyPanel(QWidget):
         layout.addRow(self.tr("Method"), self.method)
         layout.addRow(self.tr("Run on"), self.scope)
         layout.addRow(self.tr("Displayed uncertainty"), self.display_method)
+        layout.labelForField(self.display_method).setToolTip(self.display_method.toolTip())
         layout.addRow(self.tr("Replicates"), self.replicates)
         layout.addRow(self.tr("CPU processes"), self.workers)
         layout.addRow(self.tr("Block length"), self.block_length)
