@@ -754,7 +754,10 @@ class UncertaintyPanel(QWidget):
         self.workers = QSpinBox()
         self.workers.setRange(1, max(1, os.cpu_count() or 1))
         self.workers.setValue(min(4, self.workers.maximum()))
-        self.workers.setToolTip(self.tr("Parallel processes for resampling and profile scans. Plugin functions run in one process."))
+        self.workers.setToolTip(self.tr(
+            "Maximum spectra processed in parallel: one process per spectrum, "
+            "with remaining spectra queued. Profile scans parallelize grid points. "
+            "Plugin functions run in one process."))
         self.block_length = QSpinBox()
         self.block_length.setRange(0, 1_000_000)
         self.block_length.setSpecialValueText(self.tr("Automatic"))
