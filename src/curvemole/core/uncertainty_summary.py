@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 import numpy as np
 
@@ -20,6 +21,26 @@ def parameter_label(project, path):
         return curve.name, component.name, name
     except (KeyError, ValueError):
         return "Removed spectrum", "Removed function", path.rsplit(".", 1)[-1]
+
+
+def _readable_function(project, path, name):
+    """Put a space before the index of an automatically numbered builtin."""
+    try:
+        from curvemole.core.errors import DataValidationError
+        from curvemole.core.registry import default_registry
+
+        curve_id, component_id, _ = path.split(".", 2)
+        component = project.models[curve_id].component(component_id)
+        if component.metadata.get("custom_name"):
+            return name
+        display = default_registry().get(component.function_id).display_name
+        base = re.sub(r"[\W_]+", "", display, flags=re.UNICODE)
+        suffix = name[len(base):] if name.startswith(base) else ""
+        if base and suffix.isdecimal():
+            return f"{display} {suffix}"
+    except (KeyError, ValueError, DataValidationError):
+        pass
+    return name
 
 
 def summarize(project, baseline, analysis, method):
@@ -116,12 +137,20 @@ def summarize(project, baseline, analysis, method):
             i = paths.index(path)
             if matrix.shape == (len(paths), len(paths)):
                 linked = []
+                source_spectrum, source_function, source_parameter = parameter_label(project, path)
+                source_function = _readable_function(project, path, source_function)
                 for j, coefficient in enumerate(matrix[i]):
                     if j != i and np.isfinite(coefficient) and abs(coefficient) >= .95:
                         spectrum, function, parameter = parameter_label(project, paths[j])
-                        linked.append(f"{spectrum} / {function} / {parameter} (r={coefficient:+.3f})")
+                        function = _readable_function(project, paths[j], function)
+                        other = f"{function} {parameter}"
+                        if spectrum != source_spectrum:
+                            other = f"{spectrum}: {other}"
+                        linked.append(f"{other} (r={coefficient:+.3f})")
                 if linked:
-                    flag(1, "Strong correlation with " + "; ".join(linked)
+                    flag(1, f"Strong correlation in {source_spectrum}: "
+                         f"{source_function} {source_parameter} ↔ "
+                         + "; ".join(linked)
                          + "; parameters may compensate each other.")
         status = ("Critical" if severity == 2 else "Attention" if severity == 1 else
                   "Fixed" if fixed else "OK")

@@ -59,7 +59,7 @@ def test_correlation_and_profile_edge_have_explanations(gaussian_curve):
     record = b.to_dict()
     record["correlation"] = np.ones((3,3)).tolist()
     rows = summarize(p, record, {}, "covariance")
-    assert all("Strong correlation with" in row["reasons"] for row in rows)
+    assert all("Strong correlation in" in row["reasons"] for row in rows)
     assert all(any(other["parameter"] in row["reasons"] for other in rows if other is not row)
                for row in rows)
     path = b.free_parameter_paths[0]
@@ -125,7 +125,27 @@ def test_resampling_correlation_identifies_other_parameter_and_coefficient(gauss
     rows = summarize(p, baseline_record, analysis, "block_bootstrap")
     assert len(rows) == 2
     assert rows[1]["parameter"] in rows[0]["reasons"]
+    assert rows[0]["parameter"] in rows[0]["reasons"]
+    assert gaussian_curve.name in rows[0]["reasons"]
     assert "r=-0.970" in rows[0]["reasons"]
+
+
+def test_correlation_names_both_functions_and_preserves_custom_name(gaussian_curve):
+    p, baseline = setup(gaussian_curve)
+    model = p.model_for(gaussian_curve.id)
+    model.components[0].name = "Gaussian2"
+    paths = baseline.free_parameter_paths[:2]
+    record = baseline.to_dict()
+    record["correlation"] = [[1., -.954], [-.954, 1.]]
+    record["free_parameter_paths"] = paths
+    rows = summarize(p, record, {}, "covariance")
+    assert (f"Strong correlation in {gaussian_curve.name}: Gaussian 2 "
+            f"{rows[0]['parameter']} ↔ Gaussian 2 {rows[1]['parameter']} "
+            "(r=-0.954)") in rows[0]["reasons"]
+    model.components[0].name = "NH2 custom"
+    model.components[0].metadata["custom_name"] = True
+    rows = summarize(p, record, {}, "covariance")
+    assert "NH2 custom" in rows[0]["reasons"]
 
 
 def test_default_replicates_and_method_controls():
