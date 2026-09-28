@@ -211,6 +211,62 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     app.processEvents()
 
 
+@pytest.mark.parametrize("legacy_project", [False, True])
+def test_partial_parallel_batch_preserves_usable_baselines_after_reopen(tmp_path, legacy_project):
+    import time
+
+    from curvemole import Curve
+    from curvemole.core.data import CurveState
+    from curvemole.core.fitting import FitMode, FitPlan, FitSettings
+
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    x = np.linspace(-4, 4, 81)
+    curves = [Curve(f"scan {index}", x, np.exp(-.5 * ((x - center) / .7) ** 2))
+              for index, center in enumerate((-.5, .8, 1.5))]
+    for curve in curves:
+        project.add_curve(curve)
+        project.model_for(curve.id).add(Component.create(
+            "gaussian", initial={"area": 1.5, "center": 0, "sigma": 1}))
+    plan = FitPlan([curve.id for curve in curves], FitMode.INDEPENDENT,
+                   FitSettings(workers=2))
+    result = Fitter().fit(plan, curves, project.models)
+    assert result.success
+    # One failed member makes the merged batch unsuccessful while the other
+    # spectra and their output arrays remain valid.
+    result.success = False
+    curves[-1].state = CurveState.FAILED
+    window = MainWindow(project)
+    if legacy_project:
+        project.results["last_attempt"] = result
+    else:
+        window._running_fit_plan = plan
+        window._fit_finished(result)
+        assert set(project.results["fit_by_curve"]) == {curves[0].id, curves[1].id}
+
+    path = tmp_path / "partial.fitproj"
+    save_project(project, path)
+    restored = load_project(path)
+    other = MainWindow(restored)
+    for curve in curves[:2]:
+        baseline, selected_plan = other._fit_for_uncertainty(curve.id)
+        assert baseline.success
+        assert selected_plan.curve_ids == [curve.id]
+        assert len(baseline.curve_outputs[curve.id].residual) == len(x)
+    assert other._fit_for_uncertainty(curves[-1].id) is None
+    other.start_uncertainty("residual_bootstrap", 10, None, "all", workers=2)
+    deadline = time.monotonic() + 30
+    while other._thread is not None and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(.001)
+    assert other._thread is None
+    assert set(restored.results["uncertainty_reports_by_curve"]) == {curves[0].id, curves[1].id}
+    project.dirty = restored.dirty = False
+    window.close()
+    other.close()
+    app.processEvents()
+
+
 def test_refitting_a_spectrum_invalidates_its_previous_assessment(gaussian_curve):
     from curvemole.core.fitting import FitPlan
 

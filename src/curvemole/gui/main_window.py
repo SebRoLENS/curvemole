@@ -1972,14 +1972,7 @@ class MainWindow(QMainWindow):
     def _apply_fit_result_to_project(self, result: FitResult) -> None:
         # Fitting runs in a worker thread. Commit the returned estimates explicitly
         # to the GUI-side project so the redraw never depends on worker-side mutation.
-        if result.success:
-            fitted_curve_ids = set(result.curve_outputs) or {
-                path.split(".", 1)[0] for path in result.parameters
-            }
-        elif result.paused_curve_id:
-            fitted_curve_ids = set(result.curve_outputs)
-        else:
-            fitted_curve_ids = set()
+        fitted_curve_ids = self._successful_fit_curve_ids(result)
         if not fitted_curve_ids:
             return
 
@@ -1999,11 +1992,25 @@ class MainWindow(QMainWindow):
             except KeyError:
                 continue
 
+    def _successful_fit_curve_ids(self, result: FitResult) -> set[str]:
+        if result.success:
+            return set(result.curve_outputs)
+        if result.mode == FitMode.GLOBAL:
+            return set()
+        # A merged independent/sequential result fails when any one fit fails.
+        # Its successful spectra are still marked FITTED by the fitter.
+        return {
+            curve_id for curve_id in result.curve_outputs
+            if self.project.dataset.curve(curve_id).state == CurveState.FITTED
+        }
+
     def _fit_finished(self, result: FitResult) -> None:
+        successful_ids = self._successful_fit_curve_ids(result)
         self._apply_fit_result_to_project(result)
         self.project.results["last_attempt"] = result
         if result.success:
             self.project.results["last_fit"] = result
+        if successful_ids:
             from curvemole.core.fit_records import (
                 baseline_for_curve,
                 individual_plan,
@@ -2019,7 +2026,7 @@ class MainWindow(QMainWindow):
             reports = dict(self.project.results.get("uncertainty_reports_by_curve", {}))
             analyses = dict(self.project.results.get("uncertainty_by_curve", {}))
             global_baselines = dict(self.project.results.get("global_fit_baselines", {}))
-            for curve_id in result.curve_outputs:
+            for curve_id in successful_ids:
                 previous_key = records.get(curve_id, {}).get("global_key")
                 if previous_key is not None:
                     for related_id, record in list(records.items()):
@@ -2034,12 +2041,14 @@ class MainWindow(QMainWindow):
             if result.mode == FitMode.GLOBAL:
                 global_key = result.timestamp
                 global_baselines[global_key] = result
-            for curve_id in result.curve_outputs:
+            for curve_id in successful_ids:
                 record = {"plan": plan_to_record(individual_plan(plan, curve_id))}
                 if global_key is not None:
                     record["global_key"] = global_key
                 else:
-                    record["baseline"] = baseline_for_curve(result, curve_id)
+                    baseline = baseline_for_curve(result, curve_id)
+                    baseline.success = True  # The aggregate may include failed neighbours.
+                    record["baseline"] = baseline
                 records[curve_id] = record
             self.project.results["fit_by_curve"] = records
             self.project.results["global_fit_baselines"] = global_baselines
@@ -2146,6 +2155,30 @@ class MainWindow(QMainWindow):
         )
         self._notify(self.tr("Renamed {count} functions.").format(count=count))
 
+    def _recover_missing_fit_records(self) -> None:
+        """Recover successful spectra from an older, partially failed batch fit."""
+        from curvemole.core.fit_records import baseline_for_curve, individual_plan, plan_to_record
+
+        attempt = self.project.results.get("last_attempt")
+        if not isinstance(attempt, FitResult) or attempt.mode == FitMode.GLOBAL:
+            return
+        records = self.project.results.setdefault("fit_by_curve", {})
+        available = {curve.id for curve in self.project.curves}
+        plan = FitPlan(list(attempt.curve_outputs), attempt.mode, copy.deepcopy(attempt.settings))
+        recovered = False
+        for curve_id in attempt.curve_outputs:
+            if curve_id not in available or curve_id in records:
+                continue
+            if self.project.dataset.curve(curve_id).state != CurveState.FITTED:
+                continue
+            baseline = baseline_for_curve(attempt, curve_id)
+            baseline.success = True
+            records[curve_id] = {"plan": plan_to_record(individual_plan(plan, curve_id)),
+                                 "baseline": baseline}
+            recovered = True
+        if recovered:
+            self.project.touch()
+
     def _fit_for_uncertainty(self, curve_id: str) -> tuple[FitResult, FitPlan] | None:
         from curvemole.core.fit_records import (
             baseline_for_curve,
@@ -2153,6 +2186,7 @@ class MainWindow(QMainWindow):
             plan_from_record,
         )
 
+        self._recover_missing_fit_records()
         record = self.project.results.get("fit_by_curve", {}).get(curve_id)
         if record:
             baseline = (self.project.results.get("global_fit_baselines", {}).get(record["global_key"])
