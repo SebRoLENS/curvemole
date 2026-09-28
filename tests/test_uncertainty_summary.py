@@ -5,7 +5,7 @@ import pytest
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from curvemole import Component, Fitter, Model, Project
-from curvemole.core.export import BundleExportSelection, export_bundle
+from curvemole.core.export import BundleExportSelection, export_bundle, export_function_parameters
 from curvemole.core.serialization import load_project, save_project
 from curvemole.core.uncertainty_summary import summarize
 from curvemole.gui.main_window import MainWindow
@@ -161,6 +161,62 @@ def test_default_replicates_and_method_controls():
     app.processEvents()
 
 
+def test_selected_analysis_adds_asymmetric_errors_without_replacing_fit_sigma(gaussian_curve, tmp_path):
+    import csv
+
+    from curvemole.core.uncertainty import ProfileResult, ResamplingResult
+
+    app = QApplication.instance() or QApplication([])
+    project, baseline = setup(gaussian_curve)
+    curve_id = gaussian_curve.id
+    path = baseline.free_parameter_paths[0]
+    value = baseline.parameters[path].value
+    original_sigma = project.model_for(curve_id).components[0].parameters[path.rsplit(".", 1)[-1]].standard_error
+    window = MainWindow(project)
+    interval = {path: (value - .2, value + .4)}
+    bootstrap = ResamplingResult("residual_bootstrap", 200, 200, 0, 42, [path],
+                                 np.array([[value]] * 200), interval, .95, {})
+    window._store_uncertainty_result(curve_id, baseline, bootstrap)
+    window.uncertainty_panel.set_parameters(project, curve_id)
+    window.model_panel.refresh_parameters()
+    assert window.uncertainty_panel.display_method.currentData() == "residual_bootstrap"
+    assert window.model_panel.parameters.item(0, 3).text() == "−0.2 / +0.4"
+    assert window.model_panel.parameters.item(0, 2).text() == f"{original_sigma:.5g}"
+
+    profile = ProfileResult(path, np.array([value]), np.array([0.]), .95,
+                            (value - .1, value + .3), 0)
+    window._store_uncertainty_result(curve_id, baseline, profile)
+    window.uncertainty_panel.set_parameters(project, curve_id)
+    window.model_panel.refresh_parameters()
+    assert window.model_panel.parameters.item(0, 3).text() == "−0.1 / +0.3"
+    window.uncertainty_panel.display_method.setCurrentIndex(
+        window.uncertainty_panel.display_method.findData("residual_bootstrap"))
+    assert window.model_panel.parameters.item(0, 3).text() == "−0.2 / +0.4"
+
+    export = export_function_parameters(project, tmp_path / "parameters.csv")
+    with export.open(encoding="utf-8-sig", newline="") as stream:
+        rows = list(csv.reader(stream))
+    minus = rows[1].index("area_analysis_err_minus")
+    assert rows[2][minus:minus + 2] == ["0.2", "0.4"]
+    assert rows[2][-1] == "Residual bootstrap"
+    assert rows[2][rows[1].index("area_err")] == f"{original_sigma:.12g}"
+
+    saved = tmp_path / "saved.fitproj"
+    save_project(project, saved)
+    restored = load_project(saved)
+    assert restored.results["uncertainty_display_method_by_curve"][curve_id] == "residual_bootstrap"
+    assert restored.results["uncertainty_reports_by_curve"][curve_id]["profile_likelihood"]
+    from curvemole.core.fitting import FitPlan
+
+    window._running_fit_plan = FitPlan([curve_id])
+    window._fit_finished(Fitter().fit_single(gaussian_curve, project.model_for(curve_id)))
+    assert curve_id not in project.results["uncertainty_display_method_by_curve"]
+    assert window.model_panel.parameters.item(0, 3).text() == "—"
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
 def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path):
     from curvemole import Curve
     from curvemole.core.fitting import FitPlan
@@ -196,7 +252,9 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     assert window._thread is None
     assert "residual_bootstrap" in project.results["uncertainty_reports_by_curve"][first]
     assert "residual_bootstrap" not in project.results["uncertainty_reports_by_curve"].get(second, {})
+    assert window.uncertainty_panel.display_method.currentData() == "residual_bootstrap"
     window._set_active_curve(second)
+    assert window.uncertainty_panel.display_method.currentData() == ""
     assert window.uncertainty_panel.results.table.rowCount() == 0
     window.curve_tree.clearSelection()
     window.curve_tree.topLevelItem(0).child(0).setSelected(True)
@@ -214,6 +272,7 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     assert "target" not in rows.columns
     assert {window.uncertainty_panel.results.table.item(i, 0).text() for i in range(3)} == {"scan 1"}
     window._set_active_curve(first)
+    assert window.uncertainty_panel.display_method.currentData() == "residual_bootstrap"
     assert {window.uncertainty_panel.results.table.item(i, 0).text() for i in range(3)} == {"scan 0"}
 
     path = tmp_path / "scans.fitproj"
