@@ -18,6 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 KINDS = {"functions", "importers", "exporters", "transformations", "analysis", "actions",
          "workflows", "import_processors", "panels", "plot_layers", "hooks", "fit_solvers"}
+CATEGORIES = ("by_main_developer", "by_community")
 
 
 def inspect_manifest(path: Path) -> dict:
@@ -89,8 +90,18 @@ def validate(root: Path, output: Path):
     output.unlink(missing_ok=True)
     records = []
     identifiers = set()
-    folders = sorted(p for p in root.iterdir() if p.is_dir() and not p.name.startswith("."))
-    for folder in folders:
+    unexpected = [p for p in root.iterdir() if p.is_dir() and p.name not in CATEGORIES
+                  and not p.name.startswith(".")]
+    if unexpected:
+        raise ValueError(f"{unexpected[0]}: plugins must be in a category folder")
+    for category in CATEGORIES:
+        directory = root / category
+        if not directory.is_dir() or directory.is_symlink():
+            raise ValueError(f"{directory}: category folder is missing or a symlink")
+    folders = [(category, folder) for category in CATEGORIES
+               for folder in sorted((root / category).iterdir())
+               if folder.is_dir() and not folder.name.startswith(".")]
+    for category, folder in folders:
         if folder.is_symlink():
             raise ValueError("Plugin folders cannot be symlinks")
         manifests = list(folder.glob("*.curvemole-plugin.json"))
@@ -110,7 +121,7 @@ def validate(root: Path, output: Path):
                        check=True, timeout=120, env=environment)
         if fingerprint(folder) != before:
             raise ValueError("Plugin files changed during validation")
-        records.append({**data, "folder": folder.name, "sha256": before})
+        records.append({**data, "category": category, "folder": folder.name, "sha256": before})
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps({"plugins": records}, indent=2) + "\n", encoding="utf-8", newline="\n")
 

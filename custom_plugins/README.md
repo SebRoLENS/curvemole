@@ -1,9 +1,12 @@
-# Community plugins for CurveMole
+# Plugins for CurveMole
 
 **Created your own plugin? [Start here: submit your plugin](#submit-a-plugin).**
 
-The destination in this repository is **`custom_plugins/your_plugin/`**.
-For example, a plugin called My Exporter belongs in `custom_plugins/my_exporter/`.
+The repository has two categories: **`by_main_developer/`** for the main
+developer's plugins and **`by_community/`** for contributions. For example, a
+contributed My Exporter belongs in `custom_plugins/by_community/my_exporter/`.
+Authors are named in each community plugin's manifest; there is no directory per author.
+Both categories go through the same cross-platform validation and review.
 To use a private plugin only on your own computer, use **File > Plugin manager >
 Choose plugin folder...** instead; you do not need to submit it to GitHub.
 
@@ -15,13 +18,13 @@ this source directory is **not itself a validation badge**.
 
 **[Download all plugins — ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
 
-| Plugin | Direct download |
-| --- | --- |
-| Cosmic-ray removal | [cosmic_ray_removal.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/cosmic_ray_removal.zip) |
-| Fityk project importer | [fityk_importer.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/fityk_importer.zip) |
-| Ruby fluorescence pressure monitor | [ruby_fluo_pressure_monitor.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip) |
-| X-axis calibration | [x_axis_calibration.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/x_axis_calibration.zip) |
-| TSV exporter | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
+| Plugin | Source | Direct download |
+| --- | --- | --- |
+| Cosmic-ray removal | by main developer | [cosmic_ray_removal.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/cosmic_ray_removal.zip) |
+| Fityk project importer | by main developer | [fityk_importer.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/fityk_importer.zip) |
+| Ruby fluorescence pressure monitor | by main developer | [ruby_fluo_pressure_monitor.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip) |
+| X-axis calibration | by main developer | [x_axis_calibration.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/x_axis_calibration.zip) |
+| TSV exporter | by main developer | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
 
 These stable links download the latest published ZIP directly, without a GitHub
 account. [Package details and validation provenance](https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest)
@@ -44,7 +47,7 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 1. Open [this repository](https://github.com/SebRoLENS/curvemole) and use **Fork** to
    create your own copy. An ordinary contributor does not upload directly to main.
 2. In **your fork**, open `custom_plugins`, then **Add file > Upload files**.
-   Upload your complete plugin folder, for example `my_exporter`, containing the
+   Upload your complete plugin folder inside `by_community`, for example `my_exporter`, containing the
    files listed below. Do not scatter its files directly inside `custom_plugins`.
 3. Commit the uploaded files in your fork. Then choose **Contribute > Open pull
    request**, targeting `SebRoLENS/curvemole`, branch `main`. Describe what the plugin
@@ -59,7 +62,7 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 ### What your plugin folder must contain
 
 
-1. Fork CurveMole. Copy `custom_plugins/tsv_exporter` into a new directory with a
+1. Fork CurveMole. Copy `custom_plugins/by_main_developer/tsv_exporter` into a new directory under `custom_plugins/by_community/` with a
    simple unique name. Do not upload directly to main.
 2. Rename the module and manifest, assign your own identifier, and implement
    `register(api)` using the [plugin author guide](https://github.com/SebRoLENS/curvemole/blob/main/docs/plugins.md).

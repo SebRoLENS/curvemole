@@ -11,7 +11,7 @@ spec.loader.exec_module(validator)
 
 
 def test_rejects_invalid_manifest_and_paths(tmp_path):
-    source = ROOT / "custom_plugins/tsv_exporter/tsv_exporter.curvemole-plugin.json"
+    source = ROOT / "custom_plugins/by_main_developer/tsv_exporter/tsv_exporter.curvemole-plugin.json"
     data = json.loads(source.read_text())
     for key, value in (("module", "../outside.py"), ("capabilities", ["invented"]),
                        ("version", "bad"), ("author", "")):
@@ -23,16 +23,19 @@ def test_rejects_invalid_manifest_and_paths(tmp_path):
 
 def test_failed_validation_removes_stale_catalog(tmp_path):
     root = tmp_path / "plugins"
-    (root / "broken").mkdir(parents=True)
+    root.mkdir()
     catalog = tmp_path / "catalog.json"
     catalog.write_text('{"plugins": ["stale"]}')
+    (root / "by_main_developer").mkdir()
+    (root / "by_community").mkdir()
+    (root / "by_community" / "broken").mkdir()
     with pytest.raises(ValueError, match="exactly one manifest"):
         validator.validate(root, catalog)
     assert not catalog.exists()
 
 
 def test_example_manifest_and_fingerprint():
-    folder = ROOT / "custom_plugins/tsv_exporter"
+    folder = ROOT / "custom_plugins/by_main_developer/tsv_exporter"
     data = validator.inspect_manifest(next(folder.glob("*.curvemole-plugin.json")))
     assert data["capabilities"] == ["exporters"]
     assert len(validator.fingerprint(folder)) == 64

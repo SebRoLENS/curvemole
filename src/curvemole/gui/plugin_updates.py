@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl
+from PySide6.QtGui import QFont
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QDialog,
@@ -166,7 +167,7 @@ class PluginUpdateController(QObject):
             dialog.resize(800, 440)
             layout = QVBoxLayout(dialog)
             help_text = QLabel(
-                "Only loaded plugins are checked against the validated Community Plugins catalog. "
+                "Only loaded plugins are checked against the validated plugins catalog. "
                 "Update selected downloads and trusts the listed versions. They become active when "
                 "you reopen CurveMole; current fits and monitoring continue with the running versions."
             )
@@ -264,7 +265,7 @@ class PluginUpdateController(QObject):
             dialog = QDialog(secondary_window_parent(self.window))
             self.catalog_dialog = dialog
             dialog.destroyed.connect(self._catalog_dialog_destroyed)
-            dialog.setWindowTitle("Validated Community Plugins")
+            dialog.setWindowTitle("Validated Plugins")
             dialog.resize(950, 520)
             layout = QVBoxLayout(dialog)
             help_text = QLabel(
@@ -287,12 +288,12 @@ class PluginUpdateController(QObject):
             self.catalog_status = QLabel()
             self.catalog_status.setWordWrap(True)
             layout.addWidget(self.catalog_status)
-            self.catalog_table = QTableWidget(0, 5)
+            self.catalog_table = QTableWidget(0, 7)
             self.catalog_table.setHorizontalHeaderLabels(
-                ["Install", "Plugin", "Version", "Description", "Status"]
+                ["Install", "Plugin", "Source", "Author", "Version", "Description", "Status"]
             )
             self.catalog_table.horizontalHeader().setSectionResizeMode(
-                3, QHeaderView.ResizeMode.Stretch
+                5, QHeaderView.ResizeMode.Stretch
             )
             layout.addWidget(self.catalog_table, 1)
             buttons = QHBoxLayout()
@@ -352,35 +353,49 @@ class PluginUpdateController(QObject):
         self.catalog_check.setEnabled(not self.catalog_busy)
         available = False
         self.catalog_table.setRowCount(0)
-        for plugin in self.catalog_entries:
+        for category, heading in (("by_main_developer", "by main developer"),
+                                  ("by_community", "by community")):
+            entries = sorted((plugin for plugin in self.catalog_entries
+                              if plugin.category == category), key=lambda plugin: plugin.name.casefold())
+            if not entries:
+                continue
             row = self.catalog_table.rowCount()
             self.catalog_table.insertRow(row)
-            installed = self.plugins.installed.get(plugin.identifier)
-            status = (
-                f"Installed {installed['metadata']['version']}"
-                if installed
-                else "Update CurveMole first"
-                if not plugin.compatible
-                else "Available"
-            )
-            values = ("", plugin.name, plugin.latest, plugin.description, status)
-            for column, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
-                if column == 0:
-                    item.setData(Qt.ItemDataRole.UserRole, plugin.identifier)
-                    if not installed and plugin.compatible:
-                        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                        item.setCheckState(Qt.CheckState.Unchecked)
-                        available = True
-                if column == 1:
-                    item.setToolTip(
-                        f"{plugin.identifier}\nAuthor: {plugin.author}\nLicence: {plugin.licence}\n"
-                        f"Capabilities: {', '.join(plugin.capabilities)}"
-                    )
-                self.catalog_table.setItem(row, column, item)
+            label = QTableWidgetItem(heading)
+            label.setFlags(Qt.ItemFlag.ItemIsEnabled)
+            font = QFont(label.font())
+            font.setBold(True)
+            label.setFont(font)
+            self.catalog_table.setItem(row, 0, label)
+            self.catalog_table.setSpan(row, 0, 1, 7)
+            for plugin in entries:
+                row = self.catalog_table.rowCount()
+                self.catalog_table.insertRow(row)
+                installed = self.plugins.installed.get(plugin.identifier)
+                status = (
+                    f"Installed {installed['metadata']['version']}"
+                    if installed else "Update CurveMole first" if not plugin.compatible else "Available"
+                )
+                values = ("", plugin.name, heading,
+                          plugin.author if category == "by_community" else "",
+                          plugin.latest, plugin.description, status)
+                for column, value in enumerate(values):
+                    item = QTableWidgetItem(value)
+                    item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                    if column == 0:
+                        item.setData(Qt.ItemDataRole.UserRole, plugin.identifier)
+                        if not installed and plugin.compatible:
+                            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                            item.setCheckState(Qt.CheckState.Unchecked)
+                            available = True
+                    if column == 1:
+                        item.setToolTip(
+                            f"{plugin.identifier}\n{heading}\nAuthor: {plugin.author}\n"
+                            f"Licence: {plugin.licence}\nCapabilities: {', '.join(plugin.capabilities)}"
+                        )
+                    self.catalog_table.setItem(row, column, item)
         self.catalog_table.resizeColumnsToContents()
-        self.catalog_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.catalog_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         self.catalog_install.setEnabled(not self.catalog_busy and available)
 
     def install_catalog_selected(self):
@@ -393,7 +408,8 @@ class PluginUpdateController(QObject):
         selected = {
             self.catalog_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
             for row in range(self.catalog_table.rowCount())
-            if self.catalog_table.item(row, 0).checkState() == Qt.CheckState.Checked
+            if self.catalog_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
+            and self.catalog_table.item(row, 0).checkState() == Qt.CheckState.Checked
         }
         self.catalog_queue = [
             plugin for plugin in self.catalog_entries if plugin.identifier in selected
@@ -404,7 +420,7 @@ class PluginUpdateController(QObject):
         answer = QMessageBox.warning(
             self.catalog_dialog,
             "Install Python plugins",
-            "The selected plugins are validated community contributions, but loading them "
+            "The selected plugins are validated, but loading them "
             "still executes Python code with your user permissions. Download and load them now?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,

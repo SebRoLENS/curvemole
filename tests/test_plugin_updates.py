@@ -161,10 +161,20 @@ def test_catalog_plugin_installs_into_chosen_folder(update_case, tmp_path):
     metadata = install_community_plugin(manager, plugin, archive, destination)
     assert metadata.identifier == plugin.identifier
     assert Path(manager.installed[plugin.identifier]["reference"]).parent == (
-        destination / plugin.folder
+        destination / "by_community" / plugin.folder
     )
     assert plugin.identifier in manager.loaded
     assert "test.plugin:test" in extensions.entries
+
+
+def test_catalog_categories_are_validated_and_preserve_community_author(update_case):
+    _, catalog, _, _, _ = update_case
+    assert community_plugins(catalog)[0].category == "by_community"
+    catalog["plugins"][0]["category"] = "by_main_developer"
+    assert community_plugins(catalog)[0].category == "by_main_developer"
+    catalog["plugins"][0]["category"] = "by_unknown"
+    with pytest.raises(CurveMoleError, match="Invalid community plugin catalog entry"):
+        community_plugins(catalog)
 
 
 def test_catalog_install_rejects_existing_destination(update_case, tmp_path):
@@ -172,7 +182,7 @@ def test_catalog_install_rejects_existing_destination(update_case, tmp_path):
     manager.disable("test.plugin")
     manager.remove("test.plugin")
     plugin = community_plugins(catalog)[0]
-    (tmp_path / plugin.folder).mkdir()
+    (tmp_path / "by_community" / plugin.folder).mkdir(parents=True)
     with pytest.raises(CurveMoleError, match="already exists"):
         install_community_plugin(manager, plugin, archive, tmp_path)
 
@@ -264,14 +274,31 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     controller.browse()
     controller.catalog_folder.setText(str(destination))
     requests[-1][1](json.dumps(catalog).encode(), "")
-    assert controller.catalog_table.rowCount() == 1
-    controller.catalog_table.item(0, 0).setCheckState(Qt.CheckState.Checked)
+    assert controller.catalog_table.rowCount() == 2
+    assert controller.catalog_table.item(0, 0).text() == "by community"
+    assert controller.catalog_table.item(1, 2).text() == "by community"
+    assert controller.catalog_table.item(1, 3).text() == "Test author"
+    controller.catalog_table.item(1, 0).setCheckState(Qt.CheckState.Checked)
     controller.install_catalog_selected()
     assert requests[-1][0].endswith("/test_plugin.zip")
     requests[-1][1](archive, "")
     assert update.identifier in controller.plugins.loaded
-    assert (destination / "test_plugin" / "plugin.py").is_file()
+    assert (destination / "by_community" / "test_plugin" / "plugin.py").is_file()
     assert "installed and loaded" in controller.catalog_status.text().lower()
+
+
+def test_catalog_groups_developer_and_community_plugins(controller_case):
+    _, controller, requests, catalog, _, _ = controller_case
+    developer = dict(catalog["plugins"][0], identifier="developer.plugin",
+                     name="Developer plugin", category="by_main_developer")
+    catalog["plugins"].append(developer)
+    controller.browse()
+    requests[-1][1](json.dumps(catalog).encode(), "")
+    assert controller.catalog_table.rowCount() == 4
+    assert controller.catalog_table.item(0, 0).text() == "by main developer"
+    assert controller.catalog_table.item(1, 1).text() == "Developer plugin"
+    assert controller.catalog_table.item(2, 0).text() == "by community"
+    assert controller.catalog_table.item(3, 3).text() == "Test author"
 
 
 def test_secondary_plugin_windows_follow_active_modal_parent(controller_case):
@@ -302,7 +329,7 @@ def test_secondary_plugin_windows_follow_active_modal_parent(controller_case):
 
     def interact_with_catalog():
         observed.append(("catalog modal", app.activeModalWidget() is controller.catalog_dialog))
-        item = controller.catalog_table.item(0, 0)
+        item = controller.catalog_table.item(1, 0)
         if item is not None:
             rect = controller.catalog_table.visualItemRect(item)
             QTest.mouseClick(controller.catalog_table.viewport(), Qt.MouseButton.LeftButton,

@@ -75,8 +75,10 @@ jobs:
           (destination / 'README.md').write_bytes(pathlib.Path('custom_plugins/README.md').read_bytes())
           for plugin in json.loads(content)['plugins']:
               folder = plugin['folder']
+              category = plugin['category']
               assert pathlib.Path(folder).name == folder and folder not in ('.', '..')
-              source = pathlib.Path('custom_plugins') / folder
+              assert category in ('by_main_developer', 'by_community')
+              source = pathlib.Path('custom_plugins') / category / folder
               digest = hashlib.sha256()
               for path in sorted(source.rglob('*'), key=lambda item: item.relative_to(source).as_posix()):
                   assert not path.is_symlink()
@@ -85,7 +87,7 @@ jobs:
                       digest.update(b'\0')
                       digest.update(path.read_bytes())
               assert digest.hexdigest() == plugin['sha256'], 'Untested source change'
-              shutil.copytree(source, destination / folder)
+              shutil.copytree(source, destination / category / folder)
       - uses: actions/upload-artifact@v4
         with:
           name: validated-community-plugins
@@ -103,7 +105,9 @@ jobs:
           shutil.make_archive(str(output / 'validated-community-plugins'), 'zip', source)
           for plugin in json.loads((source / 'catalog.json').read_text())['plugins']:
               folder = plugin['folder']
-              shutil.make_archive(str(output / folder), 'zip', source, folder)
+              category = plugin['category']
+              assert category in ('by_main_developer', 'by_community')
+              shutil.make_archive(str(output / folder), 'zip', source / category, folder)
           shutil.copy2(source / 'catalog.json', output / 'catalog.json')
           (output / 'SHA256SUMS.txt').write_text(''.join(
               f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
@@ -163,10 +167,10 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             gh api "repos/$GH_REPO/git/refs/tags/$tag" -X PATCH -f sha="$TESTED_SHA" -F force=true
             gh release upload "$tag" downloads/* --clobber
-            gh release edit "$tag" --title "Community plugins — latest validated downloads" \
+            gh release edit "$tag" --title "Validated plugins — latest downloads" \
               --notes-file /tmp/plugin-release-notes.md --prerelease --latest=false
           else
             gh release create "$tag" downloads/* --target "$TESTED_SHA" \
-              --title "Community plugins — latest validated downloads" \
+              --title "Validated plugins — latest downloads" \
               --notes-file /tmp/plugin-release-notes.md --prerelease --latest=false
           fi

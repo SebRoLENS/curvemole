@@ -207,7 +207,7 @@ saved analyses remain readable and exportable.
 From the repository root, with development dependencies installed:
 
 ```bash
-QT_QPA_PLATFORM=offscreen python -m pytest custom_plugins/ruby_fluo_pressure_monitor/test_plugin.py -q
+QT_QPA_PLATFORM=offscreen python -m pytest custom_plugins/by_main_developer/ruby_fluo_pressure_monitor/test_plugin.py -q
 python scripts/validate_community_plugins.py
 ```
 
