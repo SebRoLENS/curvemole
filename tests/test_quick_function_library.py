@@ -59,9 +59,19 @@ def test_quick_add_can_add_a_generic_function() -> None:
     window.quick_function_selector.setCurrentIndex(index)
     window.quick_peak()
 
+    assert window.plot_workspace._placement_mode == "spline"
+    assert window.plot_workspace._manual_points_active
+    assert not project.model_for(curve.id).components
+    window.plot_workspace._add_spline_point(0.0, 1.0)
+    window.plot_workspace._add_spline_point(2.0, 5.0)
+    window.plot_workspace.finish_placement()
+
     components = project.model_for(curve.id).components
     assert len(components) == 1
     assert components[0].function_id == "linear"
+    assert components[0].parameters["slope"].value == pytest.approx(2.0)
+    assert components[0].parameters["intercept"].value == pytest.approx(1.0)
+    assert all(parameter.fixed for parameter in components[0].parameters.values())
     assert window.settings.value("last_quick_function") == "linear"
 
     project.dirty = False

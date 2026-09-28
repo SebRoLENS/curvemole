@@ -236,6 +236,7 @@ def _quick_add_function(window: MainWindow) -> None:
         window._notify(window.tr("Activate a curve first."), warning=True)
         return
     window.plot_workspace.cancel_placement()
+    window._pending_manual_points = False
     try:
         function_id = _selected_quick_function(window)
         definition = window.registry.get(function_id)
@@ -272,6 +273,22 @@ def _quick_add_function(window: MainWindow) -> None:
             return
 
         component = Component.create(function_id, registry=window.registry)
+        # Quick Add should use the same preferred placement as Add component.
+        # In particular, Linear is defined by two clicks on the plot, rather
+        # than silently inserting a line with default slope and intercept.
+        from curvemole.gui.manual_points import manual_points_default, minimum_manual_points
+
+        if manual_points_default(definition):
+            window._pending_component = component
+            window._pending_component_curve_id = window.active_curve_id
+            window._pending_manual_points = True
+            window.plot_workspace.begin_manual_point_placement(
+                definition.display_name, function_id, minimum_manual_points(component)
+            )
+            window._notify(
+                window.tr("Quick Add Function: select points on the graph, then press Finish.")
+            )
+            return
         window._commit_component(component, window.active_curve_id)
         window._notify(window.tr("Quick Add Function: added ") + definition.display_name + ".")
     except Exception as exc:
