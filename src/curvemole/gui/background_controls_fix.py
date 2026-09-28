@@ -183,12 +183,12 @@ def _subtract_current_background(window: MainWindow) -> None:
             curve.redo_transformation()
         elif transformation not in curve.transformations:
             curve.apply_transformation(transformation)
-        _restore_component_states(model, states_after)
+        _restore_component_states(window.project.model_for(curve_id), states_after)
 
     def undo() -> None:
         if curve.transformations and curve.transformations[-1] is transformation:
             curve.undo_transformation()
-        _restore_component_states(model, states_before)
+        _restore_component_states(window.project.model_for(curve_id), states_before)
         curve.state = state_before
 
     window._push_change(window.tr("Subtract background"), redo, undo)
@@ -303,18 +303,18 @@ def _subtract_all_backgrounds(
         return
 
     def redo() -> None:
-        for curve, model, transformation, _before, after, _state_before in records:
+        for curve, _model, transformation, _before, after, _state_before in records:
             if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
                 curve.redo_transformation()
             elif transformation not in curve.transformations:
                 curve.apply_transformation(transformation)
-            _restore_component_states(model, after)
+            _restore_component_states(window.project.model_for(curve.id), after)
 
     def undo() -> None:
-        for curve, model, transformation, before, _after, state_before in reversed(records):
+        for curve, _model, transformation, before, _after, state_before in reversed(records):
             if curve.transformations and curve.transformations[-1] is transformation:
                 curve.undo_transformation()
-            _restore_component_states(model, before)
+            _restore_component_states(window.project.model_for(curve.id), before)
             curve.state = state_before
 
     window.undo_stack.push(
