@@ -2491,10 +2491,23 @@ and check stability when precise percentile endpoints matter.
 project tree, or all fitted spectra. Each independent spectrum uses its
 own last successful fit, even if another spectrum was fitted more
 recently. Switching the active spectrum updates the report shown in the
-panel. Results are saved separately for each spectrum and method. Older
-projects may need a new fit for spectra whose individual baselines were
-not recorded. Profile likelihood accepts one active spectrum at a time;
-coupled global fits are analyzed together when resampling is requested.
+panel. Results are saved separately for each spectrum and method.
+\textbf{Displayed uncertainty} selects which saved analysis supplies the
+coloured \textbf{Analysis − / +} column in \textbf{Model and parameters}
+for the active spectrum. The most recently completed resampling/profile
+analysis is selected automatically; the choice is saved per spectrum and
+can be changed or set to \textbf{Fit error only}. The adjacent
+\textbf{±1σ} column always retains the original fit error. The analysis
+column shows the distances below and above the fitted value separately.
+It shows a dash when a parameter has no valid interval or the interval
+excludes the original fitted value; inspect the assessment for details.
+The parameter CSV retains \texttt{parameter\_err} for the fit error and
+adds \texttt{parameter\_analysis\_err\_minus},
+\texttt{parameter\_analysis\_err\_plus}, and the selected method when
+applicable. Older projects may need a new fit for spectra whose
+individual baselines were not recorded. Profile likelihood accepts one
+active spectrum at a time; coupled global fits are analyzed together
+when resampling is requested.
 
 All methods display a table with spectrum/function names, parameter,
 original fitted value, confidence interval endpoints and assessment.
