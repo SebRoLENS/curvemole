@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.models import component_height
@@ -158,6 +159,7 @@ class PlotWorkspace(QWidget):
         self._peak_preview: tuple[float, float, float] | None = None
         self._spline_points: list[tuple[float, float]] = []
         self._placement_items: list[Any] = []
+        self._placement_mouse_targets: dict[Any, tuple[Qt.MouseButtons, bool]] = {}
         self._placement_name = ""
         self._plot_appearance = normalize_plot_appearance(None)
 
@@ -657,6 +659,7 @@ class PlotWorkspace(QWidget):
         self._apply_grid_appearance()
         self._layout_component_labels()
         self._render_placement_preview()
+        self._sync_placement_mouse_targets()
         self.plot.setTitle("")
         if initial_view:
             self.auto_range()
@@ -846,6 +849,7 @@ class PlotWorkspace(QWidget):
         self.placement_bar.show()
         self.graphics.setCursor(Qt.CursorShape.CrossCursor)
         self._update_interaction_state()
+        self._sync_placement_mouse_targets()
 
     def begin_spline_placement(self, name: str) -> None:
         self.cancel_placement()
@@ -865,6 +869,7 @@ class PlotWorkspace(QWidget):
         self.placement_bar.show()
         self.graphics.setCursor(Qt.CursorShape.CrossCursor)
         self._update_interaction_state()
+        self._sync_placement_mouse_targets()
 
     def cancel_placement(self) -> None:
         if self._placement_mode is None:
@@ -1022,6 +1027,47 @@ class PlotWorkspace(QWidget):
         self.mask_toggle.setEnabled(True)
         self.graphics.unsetCursor()
         self._update_interaction_state()
+        self._sync_placement_mouse_targets()
+
+    def _sync_placement_mouse_targets(self) -> None:
+        """Let placement clicks pass through plot symbols, curves and handles."""
+        if self._placement_mode is None:
+            for item, (buttons, enabled) in self._placement_mouse_targets.items():
+                if isValid(item):
+                    item.setAcceptedMouseButtons(buttons)
+                    item.setEnabled(enabled)
+            self._placement_mouse_targets.clear()
+            return
+
+        no_button = Qt.MouseButton.NoButton
+        roots = (
+            *self.plot.items,
+            *self._data_items.values(),
+            *self._component_items.values(),
+            *self._placement_items,
+            *self._handles,
+        )
+        items: list[Any] = []
+        seen: set[Any] = set()
+        for root in roots:
+            pending = [root]
+            while pending:
+                item = pending.pop()
+                if not isValid(item) or item in seen:
+                    continue
+                seen.add(item)
+                items.append(item)
+                pending.extend(item.childItems())
+        # Snapshot all children before disabling their parents: Qt propagates
+        # the disabled state, so reading a child afterwards loses its old value.
+        for item in items:
+            if item not in self._placement_mouse_targets:
+                self._placement_mouse_targets[item] = (
+                    item.acceptedMouseButtons(), item.isEnabled()
+                )
+        for item in items:
+            item.setAcceptedMouseButtons(no_button)
+            item.setEnabled(False)
 
     def _update_spline_instruction(self) -> None:
         count = len(self._spline_points)

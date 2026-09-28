@@ -9,13 +9,17 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import QPointF, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QInputDialog
 
-from curvemole import Curve, Project
+from curvemole import Component, Curve, Project
 from curvemole.core.functions import formula_definition
 from curvemole.core.plugins import export_custom_function
+from curvemole.core.registry import default_registry
 from curvemole.gui import app as gui_app  # noqa: F401 - installs GUI compatibility patches
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.plot import PlotWorkspace
 
 
 def _app() -> QApplication:
@@ -76,6 +80,71 @@ def test_quick_add_can_add_a_generic_function() -> None:
 
     project.dirty = False
     window.close()
+    app.processEvents()
+
+
+def test_manual_placement_clicks_pass_through_plot_points_and_previews() -> None:
+    app = _app()
+    project, curve = _project("Manual placement over points")
+    component = Component.create("linear")
+    project.model_for(curve.id).add(component)
+    window = MainWindow(project)
+    workspace = window.plot_workspace
+    workspace.set_plot_appearance({"data_style": "points", "function_style": "points"})
+    data = workspace._data_items[curve.id]
+    model = workspace._component_items[component.id]
+    original_data = data.scatter.acceptedMouseButtons()
+    original_model = model.scatter.acceptedMouseButtons()
+    assert original_data != Qt.MouseButton.NoButton
+
+    workspace.begin_manual_point_placement("Linear", "linear", 2)
+    assert data.scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    assert model.scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    assert model.curve.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    workspace._add_spline_point(2.0, 1.0)
+    assert workspace._placement_items[0].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+
+    workspace.refresh()  # A redraw must keep newly created symbols transparent.
+    assert workspace._data_items[curve.id].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    assert workspace._component_items[component.id].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    data = workspace._data_items[curve.id]
+    model = workspace._component_items[component.id]
+    workspace.cancel_placement()
+    assert data.scatter.acceptedMouseButtons() == original_data
+    assert model.scatter.acceptedMouseButtons() == original_model
+
+    workspace.begin_peak_placement("Gaussian")
+    assert data.scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    workspace.cancel_placement()
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_click_exactly_on_visible_data_symbol_places_manual_point() -> None:
+    app = _app()
+    project, curve = _project("Click on a data symbol")
+    workspace = PlotWorkspace(default_registry())
+    workspace.resize(1100, 750)
+    workspace.show()
+    workspace.set_context(project, curve.id)
+    workspace.set_plot_appearance({"data_style": "points", "data_point_size": 28})
+    app.processEvents()
+    workspace.view_box.setRange(xRange=(-1, 9), yRange=(-1, 11), padding=0)
+    workspace.begin_manual_point_placement("Linear", "linear", 2)
+    app.processEvents()
+
+    # (3, 4) is an experimental point. Exercise real scene dispatch, since
+    # pyqtgraph symbols can intercept a click even with NoButton set.
+    target = workspace.graphics.mapFromScene(
+        workspace.view_box.mapViewToScene(QPointF(3.0, 4.0))
+    )
+    QTest.mouseClick(workspace.graphics.viewport(), Qt.MouseButton.LeftButton, pos=target)
+    app.processEvents()
+    assert len(workspace._spline_points) == 1
+    assert workspace._spline_points[0] == pytest.approx((3.0, 4.0), abs=0.1)
+
+    workspace.close()
     app.processEvents()
 
 

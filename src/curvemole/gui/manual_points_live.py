@@ -424,8 +424,10 @@ def _install_live_manual_points() -> None:
     def render(workspace: PlotWorkspace) -> None:
         if getattr(workspace, "_manual_points_active", False):
             _render_live_manual_preview(workspace)
-            return
-        original_render(workspace)
+        else:
+            original_render(workspace)
+        if workspace._placement_mode is not None:
+            workspace._sync_placement_mouse_targets()
 
     def add_handles(
         workspace: PlotWorkspace,
