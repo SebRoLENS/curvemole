@@ -113,9 +113,14 @@ def bump_version(version: str, part: str) -> str:
     return f"{major}.{minor}.{patch + 1}"
 
 
-def choose_version(explicit_bump: str | None = None) -> str:
+def choose_version(explicit_bump: str | None = None, explicit_version: str | None = None) -> str:
     current = read_current_version()
     releases = released_versions()
+    if explicit_version is not None:
+        target = version_tuple(explicit_version)
+        if target <= max(version_tuple(v) for v in [current, *releases]):
+            raise SystemExit("Release version must be newer than source and every existing tag.")
+        return explicit_version
     if not releases:
         return current
     latest = max(releases, key=version_tuple)
@@ -246,10 +251,11 @@ def apply_version(version: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--bump", choices=["patch", "minor", "major"])
+    parser.add_argument("--version", help="Exact new version, for a requested release")
     parser.add_argument("--version-only", action="store_true")
     args = parser.parse_args()
 
-    version = choose_version(args.bump)
+    version = choose_version(args.bump, args.version)
     if not args.version_only:
         apply_version(version)
     print(version)

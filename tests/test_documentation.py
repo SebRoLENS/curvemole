@@ -105,6 +105,19 @@ def test_release_bump_updates_every_manual_version(
     assert "[Computer software]. GitHub." in updated
 
 
+def test_explicit_release_version_must_advance_source_and_tags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = load_script("prepare_release_exact", PREPARE_RELEASE)
+    monkeypatch.setattr(module, "read_current_version", lambda: "0.28.15")
+    monkeypatch.setattr(module, "released_versions", lambda: ["0.28.15"])
+    assert module.choose_version(explicit_version="0.30.0") == "0.30.0"
+    with pytest.raises(SystemExit, match="newer"):
+        module.choose_version(explicit_version="0.28.15")
+    with pytest.raises(SystemExit, match="Unsupported version"):
+        module.choose_version(explicit_version="0.30")
+
+
 def test_pdf_document_id_normalisation_accepts_literal_strings(tmp_path: Path) -> None:
     pdf, tex = tmp_path / "literal.pdf", tmp_path / "manual.tex"
     tex.write_text("manual source", encoding="utf-8")
