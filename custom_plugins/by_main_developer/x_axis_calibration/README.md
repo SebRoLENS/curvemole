@@ -68,6 +68,6 @@ calculator transformations remain readable even without the plugin.
 From the repository root:
 
 ```sh
-QT_QPA_PLATFORM=offscreen python -m pytest custom_plugins/x_axis_calibration/test_plugin.py
+QT_QPA_PLATFORM=offscreen python -m pytest custom_plugins/by_main_developer/x_axis_calibration/test_plugin.py
 python scripts/validate_community_plugins.py
 ```

@@ -272,7 +272,7 @@ rather than monkey-patching CurveMole internals.
 
 ## Contributing a community plugin
 
-**Where to send it:** create `custom_plugins/your_plugin/` in your GitHub fork,
+**Where to send it:** create `custom_plugins/by_community/your_plugin/` in your GitHub fork,
 then open a pull request to `SebRoLENS/curvemole:main`. For browser upload steps,
 see [Submit a plugin](../custom_plugins/README.md#submit-a-plugin).
 Inside CurveMole, **File > Plugin manager > Share my plugin on GitHub...** opens

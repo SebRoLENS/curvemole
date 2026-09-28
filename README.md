@@ -78,7 +78,7 @@ is needed. The link always serves the latest published, validated plugin bundle.
 
 - **Use it on your PC:** open **File > Plugin manager > Choose plugin folder…**,
   select the folder containing your manifest and Python module, then **Review and trust**.
-- **Share it with other users:** submit a folder at **`custom_plugins/your_plugin/`**
+- **Share it with other users:** submit a folder at **`custom_plugins/by_community/your_plugin/`**
   through a GitHub pull request. Follow the upload steps linked above. GitHub tests
   the submission; only successful main runs produce the validated catalog bundle.
 

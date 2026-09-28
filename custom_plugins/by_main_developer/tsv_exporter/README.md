@@ -11,5 +11,5 @@ Requires only CurveMole's bundled NumPy; no network access or extra packages.
 Install: extract this directory, open **File > Plugin manager**, select it,
 review the manifest and trust/load the plugin. Choose an output file when exporting.
 
-Test: `python -m pytest custom_plugins/tsv_exporter/test_plugin.py`.
+Test: `python -m pytest custom_plugins/by_main_developer/tsv_exporter/test_plugin.py`.
 The test checks the actual exported header and numerical values.

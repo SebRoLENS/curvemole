@@ -62,6 +62,7 @@ class CommunityPlugin:
     api: str
     licence: str
     capabilities: tuple[str, ...]
+    category: str = "by_community"
 
     @property
     def url(self) -> str:
@@ -87,7 +88,10 @@ def community_plugins(payload: Any) -> list[CommunityPlugin]:
                 or not all(isinstance(value, str) for value in item["capabilities"])
                 or version(item["version"]) is None
                 or not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]*", item["folder"])
-                or not re.fullmatch(r"[a-f0-9]{64}", item["sha256"])):
+                or not re.fullmatch(r"[a-f0-9]{64}", item["sha256"])
+                or not isinstance(item.get("category", "by_community"), str)
+                or item.get("category", "by_community") not in
+                {"by_main_developer", "by_community"}):
             raise CurveMoleError("Invalid community plugin catalog entry.")
         if item["identifier"] in identifiers:
             raise CurveMoleError("Duplicate plugin identifier in catalog.")
@@ -96,6 +100,7 @@ def community_plugins(payload: Any) -> list[CommunityPlugin]:
             item["identifier"], item["name"], item["description"], item["author"],
             item["version"], item["folder"], item["sha256"], item["api_compatibility"],
             item["licence"], tuple(item["capabilities"]),
+            item.get("category", "by_community"),
         ))
     return result
 
@@ -222,9 +227,11 @@ def install_community_plugin(
     root = Path(destination).expanduser().resolve()
     if not root.is_dir():
         raise CurveMoleError("Choose an existing folder for downloaded plugins.")
-    final = root / plugin.folder
+    category_root = root / plugin.category
+    final = category_root / plugin.folder
     if final.exists():
         raise CurveMoleError(f"Destination already exists: {final}")
+    category_root.mkdir(exist_ok=True)
     temporary = Path(tempfile.mkdtemp(prefix=".curvemole-plugin-", dir=root))
     moved = False
     try:

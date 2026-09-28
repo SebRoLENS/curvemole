@@ -2211,7 +2211,7 @@ included with CurveMole; no additional dependencies are required.
 
 To share a plugin, open **File > Plugin manager > Share my plugin on GitHub...**.
 This opens the submission guide: fork the repository, upload your complete plugin
-folder at `custom_plugins/your_plugin/`, then open a pull request to main.
+folder at `custom_plugins/by_community/your_plugin/`, then open a pull request to main.
 For private use, **Choose plugin folder...** installs it on your computer only;
 loading a plugin does not publish its source. **Browse validated plugins** opens
 the downloads that have passed the checks.
