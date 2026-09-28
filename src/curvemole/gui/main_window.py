@@ -2285,6 +2285,21 @@ class MainWindow(QMainWindow):
 
         def operation(progress: Callable[[float | None, str], None]) -> Any:
             completed = []
+            if method != "profile_likelihood" and workers > 1 and len(unique_jobs) > 1:
+                batch = []
+                for _, baseline, plan, _ in unique_jobs:
+                    batch.append((baseline, plan,
+                                  {cid: curve_map[cid] for cid in plan.curve_ids},
+                                  {cid: self.project.model_for(cid) for cid in plan.curve_ids}))
+                results = analyzer.resampling_batch(
+                    method, batch, replicates=replicates, option=option,
+                    workers=workers, cancellation=self._cancellation,
+                    progress=lambda count: progress(count / len(unique_jobs),
+                                                    f"{method}: {count}/{len(unique_jobs)} spectra"),
+                )
+                for (_, baseline, _, key), result in zip(unique_jobs, results, strict=True):
+                    completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
+                return completed
             for index, (curve_id, baseline, plan, key) in enumerate(unique_jobs):
                 self._cancellation.raise_if_cancelled()
                 def step(value, message, index=index):
@@ -2304,7 +2319,7 @@ class MainWindow(QMainWindow):
                     arguments = dict(
                         baseline=baseline, plan=plan, curves=curve_map,
                         models=self.project.models, replicates=replicates,
-                        workers=workers,
+                        workers=1,
                         cancellation=self._cancellation, progress=step)
                     if method == "monte_carlo":
                         result = analyzer.parametric_monte_carlo(**arguments)

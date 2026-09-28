@@ -192,6 +192,21 @@ def _resample_in_process(seed: int) -> tuple[list[float] | None, str | None]:
                            Fitter(), _ProcessCancellationToken(stop))
 
 
+def _batch_resample_in_process(job: tuple[Any, ...]) -> ResamplingResult:
+    assert _WORKER_CONTEXT is not None
+    stop = _WORKER_CONTEXT[0]
+    method, baseline, plan, curves, models, replicates, option = job
+    analyzer = UncertaintyAnalyzer()
+    arguments = dict(replicates=replicates, workers=1,
+                     cancellation=_ProcessCancellationToken(stop))
+    if method == "monte_carlo":
+        return analyzer.parametric_monte_carlo(baseline, plan, curves, models, **arguments)
+    if method == "block_bootstrap":
+        return analyzer.block_bootstrap(baseline, plan, curves, models,
+                                        block_length=option, **arguments)
+    return analyzer.residual_bootstrap(baseline, plan, curves, models, **arguments)
+
+
 def _profile_trial(
     value: float, curve: Curve, model: Model, parameter_path: str,
     baseline: FitResult, baseline_chi: float, spectrum_weight: float,
@@ -241,6 +256,48 @@ def _profile_in_process(value: float) -> float | None:
 class UncertaintyAnalyzer:
     def __init__(self, fitter: Fitter | None = None) -> None:
         self.fitter = fitter or Fitter()
+
+    def resampling_batch(
+        self, method: str, jobs: Sequence[tuple[FitResult, FitPlan,
+                                               Mapping[str, Curve], Mapping[str, Model]]],
+        *, replicates: int, option: int | None = None, workers: int = 1,
+        cancellation: CancellationToken | None = None,
+        progress: Callable[[int], None] | None = None,
+    ) -> list[ResamplingResult]:
+        """Process independent spectra in one pool, without spawning per spectrum.
+
+        Each process runs a spectrum's replicates serially. A joint/global fit
+        is one job, so its replicates also run on one core.
+        """
+        if method not in {"monte_carlo", "block_bootstrap", "residual_bootstrap"}:
+            raise FitError(f"Unknown resampling method: {method}")
+        if not isinstance(workers, int) or workers < 1:
+            raise FitError("Worker process count must be a positive integer.")
+        token = cancellation or CancellationToken()
+        parallel = (workers > 1 and len(jobs) > 1 and all(
+            _parallel_safe(self.fitter, models, plan.curve_ids)
+            for _, plan, _, models in jobs
+        ))
+        if parallel:
+            payloads = [(method, baseline, plan, curves, models, replicates, option)
+                        for baseline, plan, curves, models in jobs]
+            return _parallel_map(_batch_resample_in_process, payloads, workers,
+                                 (), token, progress)
+        results = []
+        for baseline, plan, curves, models in jobs:
+            token.raise_if_cancelled()
+            arguments = dict(replicates=replicates, workers=1, cancellation=token)
+            if method == "monte_carlo":
+                result = self.parametric_monte_carlo(baseline, plan, curves, models, **arguments)
+            elif method == "block_bootstrap":
+                result = self.block_bootstrap(baseline, plan, curves, models,
+                                             block_length=option, **arguments)
+            else:
+                result = self.residual_bootstrap(baseline, plan, curves, models, **arguments)
+            results.append(result)
+            if progress:
+                progress(len(results))
+        return results
 
     def parametric_monte_carlo(
         self,

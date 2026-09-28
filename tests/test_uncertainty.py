@@ -10,6 +10,37 @@ from curvemole.core.fitting import FitMode, FitPlan
 from curvemole.core.uncertainty import UncertaintyAnalyzer
 
 
+def test_batch_resampling_uses_one_pool_and_preserves_results(gaussian_curve, monkeypatch) -> None:
+    from curvemole import Curve
+    from curvemole.core import uncertainty
+
+    analyzer = UncertaintyAnalyzer()
+    x = gaussian_curve.x.copy()
+    curves = [gaussian_curve, Curve("second", x, gaussian_curve.y.copy())]
+    jobs = []
+    for curve in curves:
+        model = Model(components=[Component.create(
+            "gaussian", initial={"area": 3, "center": .7, "sigma": .8})])
+        plan = FitPlan([curve.id])
+        baseline = analyzer.fitter.fit(plan, [curve], {curve.id: model})
+        jobs.append((baseline, plan, {curve.id: curve}, {curve.id: model}))
+
+    serial = analyzer.resampling_batch("residual_bootstrap", jobs, replicates=5, workers=1)
+    original = uncertainty._parallel_map
+    calls = []
+
+    def count_pools(*args, **kwargs):
+        calls.append(1)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(uncertainty, "_parallel_map", count_pools)
+    parallel = analyzer.resampling_batch("residual_bootstrap", jobs, replicates=5, workers=2)
+    assert len(calls) == 1
+    for expected, actual in zip(serial, parallel, strict=True):
+        assert actual.completed == expected.completed == 5
+        np.testing.assert_array_equal(actual.samples, expected.samples)
+
+
 def test_parametric_monte_carlo_is_reproducible(gaussian_curve) -> None:
     model = Model(components=[Component.create("gaussian", initial={"area": 3, "center": 0.7, "sigma": 0.8})])
     models = {gaussian_curve.id: model}
