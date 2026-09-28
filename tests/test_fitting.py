@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 from curvemole import Component, Curve, Fitter, Model
+from curvemole.core.data import CurveState
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 
 
@@ -43,6 +44,42 @@ def test_independent_fits_use_multiple_processes_and_commit_results() -> None:
     assert progress[-1] == 1.0
     for curve, center in zip(curves, (-0.8, 0.2, 1.1), strict=True):
         assert models[curve.id].components[0].parameters["center"].value == pytest.approx(center, abs=0.01)
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_failed_spectrum_is_marked_failed_without_aborting_other_fits(workers: int) -> None:
+    x = np.linspace(-3, 3, 81)
+    good = Curve("good", x, np.exp(-x ** 2))
+    bad = Curve("bad", x, np.exp(-x ** 2))
+    bad.state = CurveState.FITTED  # A failed refit must clear the previous tick.
+    models = {
+        good.id: Model(components=[Component.create("gaussian")]),
+        bad.id: Model(),  # No free parameters raises FitError inside the fit.
+    }
+    result = Fitter().fit(
+        FitPlan([good.id, bad.id], FitMode.INDEPENDENT, FitSettings(workers=workers)),
+        [good, bad], models,
+    )
+    assert not result.success
+    assert set(result.curve_outputs) == {good.id}
+    assert good.state == CurveState.FITTED
+    assert bad.state == CurveState.FAILED
+    assert "1 failed" in result.message
+    assert any("no free parameters" in warning for warning in result.warnings)
+
+
+def test_all_failed_independent_fits_keep_failed_state() -> None:
+    x = np.linspace(-2, 2, 21)
+    curves = [Curve(f"bad {i}", x, np.zeros_like(x)) for i in range(2)]
+    for curve in curves:
+        curve.state = CurveState.FITTED
+    result = Fitter().fit(
+        FitPlan([curve.id for curve in curves], FitMode.INDEPENDENT, FitSettings(workers=2)),
+        curves, {curve.id: Model() for curve in curves},
+    )
+    assert not result.success
+    assert not result.curve_outputs
+    assert all(curve.state == CurveState.FAILED for curve in curves)
 
 
 def test_fixed_and_bound_parameter_states(gaussian_curve: Curve) -> None:
