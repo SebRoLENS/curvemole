@@ -20,7 +20,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.models import Model
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
-from curvemole.gui.panels import ModelPanel
+from curvemole.gui.panels import ModelPanel, background_component_subtracted
 
 _CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _BATCH = "__curvemole_batch_components__"
@@ -247,8 +247,20 @@ def _install_model_panel() -> None:
                 if first_function_row is None:
                     first_function_row = row_index
                 label = component.name
+                background_status = ""
                 if component.is_background:
                     label += panel.tr("  ·  Background")
+                    if background_component_subtracted(curve, component.id):
+                        label += panel.tr("  ·  Subtracted")
+                        background_status = panel.tr(
+                            "Background status: subtracted from this spectrum."
+                        )
+                    else:
+                        label += panel.tr("  ·  Not subtracted")
+                        background_status = panel.tr(
+                            "Background status: present in the model and not subtracted "
+                            "from this spectrum."
+                        )
                 if show_all:
                     label = "        " + label
                 item = QListWidgetItem(label)
@@ -266,6 +278,7 @@ def _install_model_panel() -> None:
                     + "\n"
                     + panel.tr("Type: ")
                     + component.function_id
+                    + (("\n" + background_status) if background_status else "")
                 )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(

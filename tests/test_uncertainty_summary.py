@@ -5,6 +5,7 @@ import pytest
 from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
 
 from curvemole import Component, Fitter, Model, Project
+from curvemole.core.data import CurveState
 from curvemole.core.export import BundleExportSelection, export_bundle, export_function_parameters
 from curvemole.core.serialization import load_project, save_project
 from curvemole.core.uncertainty_summary import summarize
@@ -111,6 +112,28 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     p.dirty = reopened.dirty = False
     window.close()
     other.close()
+    app.processEvents()
+
+
+def test_spectrum_state_shows_uncertainty_only_when_an_analysis_exists(gaussian_curve):
+    app = QApplication.instance() or QApplication([])
+    project, baseline = setup(gaussian_curve)
+    window = MainWindow(project)
+    state_item = window.curve_tree.topLevelItem(0).child(0)
+
+    assert state_item.text(2) == "Fitted"
+    assert state_item.toolTip(2) == ""
+
+    window._uncertainty_finished(baseline)
+    state_item = window.curve_tree.topLevelItem(0).child(0)
+    assert state_item.text(2) == "Fitted  ·  Uncertainty analysed"
+    assert state_item.toolTip(2) == "Saved uncertainty analyses: Fit covariance"
+
+    gaussian_curve.state = CurveState.MODIFIED
+    window.curve_tree.populate(project, gaussian_curve.id)
+    assert "Uncertainty analysis outdated" in window.curve_tree.topLevelItem(0).child(0).text(2)
+    project.dirty = False
+    window.close()
     app.processEvents()
 
 

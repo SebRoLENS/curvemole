@@ -222,6 +222,29 @@ class CallbackCommand(QUndoCommand):
         self._undo()
 
 
+def _curve_state_presentation(project: Project, curve: Curve) -> tuple[str, str]:
+    """Return the fit state plus any uncertainty analysis saved for this spectrum."""
+    reports_by_curve = project.results.get("uncertainty_reports_by_curve", {})
+    reports = reports_by_curve.get(curve.id, {}) if isinstance(reports_by_curve, dict) else {}
+    methods = [method for method, report in reports.items() if report]
+    if not methods:
+        return curve.state.value, ""
+
+    from curvemole.core.analysis_errors import DISPLAY_METHODS
+
+    labels = {
+        method: "Fit covariance" if method == "covariance" else DISPLAY_METHODS.get(method, method)
+        for method in methods
+    }
+    analysis_state = (
+        "Uncertainty analysed"
+        if curve.state == CurveState.FITTED
+        else "Uncertainty analysis outdated"
+    )
+    tooltip = "Saved uncertainty analyses: " + ", ".join(labels[method] for method in methods)
+    return f"{curve.state.value}  ·  {analysis_state}", tooltip
+
+
 class CurveTree(QTreeWidget):
     noteRequested = Signal(object)
     activeCurveChanged = Signal(object)
@@ -297,7 +320,10 @@ class CurveTree(QTreeWidget):
                     self.addTopLevelItem(parent)
                     items[("series", series.id)] = parent
                     for curve in series.curves:
-                        child = QTreeWidgetItem(["", curve.name, curve.state.value])
+                        state_text, state_tooltip = _curve_state_presentation(project, curve)
+                        child = QTreeWidgetItem(["", curve.name, state_text])
+                        if state_tooltip:
+                            child.setToolTip(2, state_tooltip)
                         attach_note(child, project, "spectrum", curve.id, column=1)
                         child.setData(1, Qt.ItemDataRole.UserRole, ("curve", curve.id))
                         child.setFlags(
@@ -2431,6 +2457,7 @@ class MainWindow(QMainWindow):
         for curve_id, baseline, analysis_result in completed:
             self._store_uncertainty_result(curve_id, baseline, analysis_result)
         self.project.touch()
+        self.curve_tree.populate(self.project, self.active_curve_id)
         if self.active_curve_id in {curve_id for curve_id, _, _ in completed}:
             self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
             self.model_panel.refresh_parameters()
@@ -2443,6 +2470,7 @@ class MainWindow(QMainWindow):
             if curve_id is not None:
                 self._store_uncertainty_result(curve_id, baseline, analysis_result)
         self.project.touch()
+        self.curve_tree.populate(self.project, self.active_curve_id)
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.model_panel.refresh_parameters()
         if result:

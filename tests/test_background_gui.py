@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 pytest.importorskip("PySide6", exc_type=ImportError)
@@ -9,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Component, Curve, Project
+from curvemole.core.calculator import apply_background_subtraction
 from curvemole.core.registry import default_registry
 from curvemole.gui.dialogs import AddComponentDialog, BackgroundComponentsDialog
 from curvemole.gui.main_window import MainWindow
@@ -66,6 +68,33 @@ def test_model_panel_can_mark_selected_component_as_background() -> None:
     window.model_panel.background_toggle.setChecked(True)
     assert first.is_background is True
     assert "Background" in window.model_panel.components.currentItem().text()
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_model_panel_shows_whether_each_background_was_subtracted() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, curve, first, second = make_project()
+    first.is_background = True
+    second.is_background = True
+    window = MainWindow(project)
+
+    assert "Not subtracted" in window.model_panel.components.item(0).text()
+    assert "Not subtracted" in window.model_panel.components.item(1).text()
+
+    apply_background_subtraction(
+        curve,
+        np.ones_like(curve.y),
+        method="model_components",
+        description="test subtraction",
+        parameters={"component_ids": [first.id]},
+    )
+    window.model_panel.refresh()
+
+    assert "Subtracted" in window.model_panel.components.item(0).text()
+    assert "Not subtracted" in window.model_panel.components.item(1).text()
+    assert "subtracted from this spectrum" in window.model_panel.components.item(0).toolTip()
     project.dirty = False
     window.close()
     app.processEvents()

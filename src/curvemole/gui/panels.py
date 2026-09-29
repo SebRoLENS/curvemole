@@ -40,6 +40,15 @@ from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 
 
+def background_component_subtracted(curve: Any, component_id: str) -> bool:
+    """Whether an active curve transformation contains this model background."""
+    return any(
+        transformation.operation == "background_subtract"
+        and component_id in transformation.parameters.get("component_ids", ())
+        for transformation in curve.transformations
+    )
+
+
 class ModelPanel(QWidget):
     noteRequested = Signal(object)
     componentSelected = Signal(str)
@@ -190,16 +199,31 @@ class ModelPanel(QWidget):
             selected_row = 0
             for row, component in enumerate(model.components):
                 label = component.name
+                tooltip = ""
                 if component.is_background:
                     label += self.tr("  ·  Background")
+                    subtracted = background_component_subtracted(curve, component.id)
+                    if subtracted:
+                        label += self.tr("  ·  Subtracted")
+                        tooltip = self.tr(
+                            "Background status: subtracted from this spectrum."
+                        )
+                    else:
+                        label += self.tr("  ·  Not subtracted")
+                        tooltip = self.tr(
+                            "Background status: present in the model and not subtracted "
+                            "from this spectrum."
+                        )
                 if component.function_id in self.registry.identifiers():
                     definition = self.registry.get(component.function_id)
                     symbol = definition.custom_metadata.get("plugin_symbol", "")
                     if symbol and not label.startswith(symbol + " "):
                         label = symbol + " " + label
+                    function_help = function_tooltip(definition)
+                    tooltip = "\n\n".join(part for part in (function_help, tooltip) if part)
                 item = QListWidgetItem(label)
-                if component.function_id in self.registry.identifiers():
-                    item.setToolTip(function_tooltip(self.registry.get(component.function_id)))
+                if tooltip:
+                    item.setToolTip(tooltip)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)
