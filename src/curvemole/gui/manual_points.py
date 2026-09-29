@@ -356,6 +356,12 @@ def _install_main_window() -> None:
             component = dialog.component()
             definition = window.registry.get(component.function_id)
             use_points = bool(dialog.use_manual_points())
+            window.settings.setValue(
+                f"quick_add/{component.function_id}/manual_points", use_points
+            )
+            window.settings.setValue(
+                f"quick_add/{component.function_id}/background", component.is_background
+            )
 
             if definition.kind == "peak":
                 window.last_peak_function_id = component.function_id

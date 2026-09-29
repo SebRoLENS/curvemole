@@ -272,10 +272,13 @@ def _install_model_panel() -> None:
                     Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked
                 )
                 if component.is_background:
-                    from PySide6.QtGui import QColor, QPalette
+                    from PySide6.QtGui import QColor, QFont, QPalette
 
                     dark = panel.palette().color(QPalette.ColorRole.Base).lightness() < 128
-                    item.setForeground(QColor("#B4BEC9" if dark else "#555F69"))
+                    item.setForeground(QColor("#63D7C4" if dark else "#087565"))
+                    font = item.font()
+                    font.setWeight(QFont.Weight.DemiBold)
+                    item.setFont(font)
                 panel.components.addItem(item)
 
                 ref = (str(curve.id), str(component.id))

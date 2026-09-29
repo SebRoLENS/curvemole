@@ -422,10 +422,13 @@ class CurveMoleMainWindow(MainWindow):
             return
 
         self.plot_workspace.cancel_placement()
-        from curvemole.gui.quick_function_library import _selected_quick_function
+        from curvemole.gui.manual_points import manual_points_default
+        from curvemole.gui.quick_function_library import _quick_add_option, _selected_quick_function
 
         definition = self.registry.get(_selected_quick_function(self))
-        if definition.kind != "peak":
+        if definition.kind != "peak" or _quick_add_option(
+            self, definition.identifier, "manual_points", manual_points_default(definition)
+        ):
             self._continuous_quick_peak_function_id = None
             super().quick_peak()
             return
@@ -444,6 +447,11 @@ class CurveMoleMainWindow(MainWindow):
         if not function_id or not self.active_curve_id:
             return
         self._pending_component = Component.create(function_id, registry=self.registry)
+        from curvemole.gui.quick_function_library import _quick_add_option
+
+        self._pending_component.is_background = _quick_add_option(
+            self, function_id, "background", False
+        )
         self._pending_component_curve_id = self.active_curve_id
 
     def _graphical_peak_placed(self, centre: float, height: float, fwhm: float) -> None:

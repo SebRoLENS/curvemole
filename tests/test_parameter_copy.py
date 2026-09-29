@@ -70,6 +70,7 @@ def test_value_only_copy_preserves_target_constraints_and_is_undoable() -> None:
         (first.id, source.id),
         [(second.id, target.id)],
         "center",
+        copy_value=True,
     )
 
     copied = window.project.model_for(second.id).component(target.id).parameters["center"]
@@ -116,6 +117,7 @@ def test_copy_can_include_fixed_bounds_and_relation_across_spectra() -> None:
         (first.id, source.id),
         [(second.id, target.id)],
         "center",
+        copy_value=True,
         copy_fixed=True,
         copy_bounds=True,
         copy_link=True,
@@ -152,6 +154,7 @@ def test_targets_without_parameter_or_with_incompatible_bounds_are_skipped() -> 
         (first.id, source.id),
         [(second.id, target.id), (second.id, linear.id)],
         "center",
+        copy_value=True,
     )
 
     assert result.copied == 0
@@ -160,6 +163,49 @@ def test_targets_without_parameter_or_with_incompatible_bounds_are_skipped() -> 
     unchanged = window.project.model_for(second.id).component(target.id).parameters["center"]
     assert unchanged.value == pytest.approx(0.0)
 
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_copy_fixed_without_value_ignores_unrelated_value_bounds() -> None:
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    src = window.project.model_for(first.id).component(source.id).parameters["center"]
+    dst = window.project.model_for(second.id).component(target.id).parameters["center"]
+    src.value = 8.0
+    src.fixed = True
+    dst.value = -2.0
+    dst.minimum, dst.maximum = -3.0, 1.0
+
+    result = copy_parameter_to_refs(
+        window, (first.id, source.id), [(second.id, target.id)], "center",
+        copy_fixed=True,
+    )
+    copied = window.project.model_for(second.id).component(target.id).parameters["center"]
+    assert result.copied == 1
+    assert copied.value == -2.0
+    assert copied.fixed is True
+    window.undo_stack.undo()
+    assert window.project.model_for(second.id).component(target.id).parameters["center"].fixed is False
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_copy_bounds_without_value_skips_targets_outside_new_bounds() -> None:
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    src = window.project.model_for(first.id).component(source.id).parameters["center"]
+    dst = window.project.model_for(second.id).component(target.id).parameters["center"]
+    src.minimum, src.maximum = 0.0, 2.0
+    src.value = 1.0
+    dst.value = -1.0
+    result = copy_parameter_to_refs(
+        window, (first.id, source.id), [(second.id, target.id)], "center",
+        copy_bounds=True,
+    )
+    assert result.copied == 0
+    assert result.incompatible_bounds == [(second.id, target.id)]
+    assert dst.value == -1.0
     window.project.dirty = False
     window.close()
     app.processEvents()
@@ -199,6 +245,9 @@ def test_single_source_enables_copy_and_dialog_lists_project_targets() -> None:
     target_item.setCheckState(Qt.CheckState.Checked)
     app.processEvents()
     assert dialog.target_refs() == [(first.id, anchor.id), (second.id, target.id)]
+    assert not dialog.copy_value.isChecked()
+    assert not dialog.copy_button.isEnabled()
+    dialog.copy_value.setChecked(True)
     assert dialog.copy_button.isEnabled()
     assert "2" in dialog.copy_button.text()
     dialog.close()
