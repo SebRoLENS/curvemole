@@ -103,19 +103,20 @@ class CopyParameterDialog(QDialog):
         selection_buttons.addStretch(1)
         layout.addLayout(selection_buttons)
 
-        layout.addWidget(QLabel(self.tr("Also copy:")))
+        layout.addWidget(QLabel(self.tr("Copy these fields:")))
+        self.copy_value = QCheckBox(self.tr("Numerical value"))
         self.copy_fixed = QCheckBox(self.tr("Fixed/free state"))
         self.copy_bounds = QCheckBox(self.tr("Lower and upper bounds"))
         self.copy_link = QCheckBox(self.tr("Link / relation constraint"))
+        layout.addWidget(self.copy_value)
         layout.addWidget(self.copy_fixed)
         layout.addWidget(self.copy_bounds)
         layout.addWidget(self.copy_link)
 
         note = QLabel(
             self.tr(
-                "The numerical value is always copied. If the optional boxes are left unchecked, "
-                "each target keeps its current fixed state, bounds, and relation. Functions without "
-                "the selected parameter cannot be chosen."
+                "Select at least one field to copy. Unchecked fields keep their target values. "
+                "Functions without the selected parameter cannot be chosen."
             )
         )
         note.setWordWrap(True)
@@ -135,6 +136,9 @@ class CopyParameterDialog(QDialog):
 
         self.parameter.currentIndexChanged.connect(self._parameter_changed)
         self.copy_bounds.toggled.connect(lambda *_: self._refresh_targets(preserve=True))
+        self.copy_value.toggled.connect(lambda *_: self._refresh_targets(preserve=True))
+        self.copy_fixed.toggled.connect(self._refresh_summary)
+        self.copy_link.toggled.connect(self._refresh_summary)
         self.targets.itemChanged.connect(lambda *_: self._refresh_summary())
         self._refresh_targets(preserve=False)
         self._refresh_source_summary()
@@ -178,7 +182,7 @@ class CopyParameterDialog(QDialog):
             + component.name
             + self.tr("' (")
             + f"{parameter.value:.12g}"
-            + self.tr(") will be copied to:")
+            + self.tr(") can be copied to:")
         )
 
     def _refresh_targets(self, *, preserve: bool) -> None:
@@ -203,11 +207,19 @@ class CopyParameterDialog(QDialog):
                     label += self.tr("  — parameter unavailable")
                 elif (
                     source_parameter is not None
+                    and self.copy_value.isChecked()
                     and not self.copy_bounds.isChecked()
                     and not target.minimum <= source_parameter.value <= target.maximum
                 ):
                     available = False
                     label += self.tr("  — value outside current bounds")
+                elif (
+                    source_parameter is not None and target is not None
+                    and self.copy_bounds.isChecked() and not self.copy_value.isChecked()
+                    and not source_parameter.minimum <= target.value <= source_parameter.maximum
+                ):
+                    available = False
+                    label += self.tr("  — current value outside copied bounds")
 
                 item = QListWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, ref)
@@ -247,7 +259,9 @@ class CopyParameterDialog(QDialog):
 
     def _refresh_summary(self) -> None:
         count = len(self.target_refs())
-        self.copy_button.setEnabled(bool(self.parameter_name()) and count > 0)
+        chosen = any(box.isChecked() for box in
+            (self.copy_value, self.copy_fixed, self.copy_bounds, self.copy_link))
+        self.copy_button.setEnabled(bool(self.parameter_name()) and count > 0 and chosen)
         if count:
             self.summary.setText(str(count) + " " + self.tr("target function(s) selected."))
             self.copy_button.setText(
@@ -301,8 +315,7 @@ def _update_button(panel: ModelPanel) -> None:
         button.setText(panel.tr("Copy parameter from ") + _component_name(panel, source_ref) + "…")
     button.setToolTip(
         panel.tr(
-            "Open a project-wide target list. The value is always copied; fixed/free state, bounds, "
-            "and link/relation constraints are optional."
+            "Open a project-wide target list and choose which parameter fields to copy."
         )
     )
 
@@ -333,6 +346,7 @@ def _copy_selected(panel: ModelPanel) -> None:
             dialog.source_ref(),
             dialog.target_refs(),
             dialog.parameter_name(),
+            copy_value=dialog.copy_value.isChecked(),
             copy_fixed=dialog.copy_fixed.isChecked(),
             copy_bounds=dialog.copy_bounds.isChecked(),
             copy_link=dialog.copy_link.isChecked(),

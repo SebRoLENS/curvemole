@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QEvent, Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -204,7 +204,11 @@ class ModelPanel(QWidget):
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)
                 if component.is_background:
-                    item.setForeground(QColor("#666666"))
+                    dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
+                    item.setForeground(QColor("#63D7C4" if dark else "#087565"))
+                    font = item.font()
+                    font.setWeight(QFont.Weight.DemiBold)
+                    item.setFont(font)
                 self.components.addItem(item)
                 if component.id == selected_component_id:
                     selected_row = row

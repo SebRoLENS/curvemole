@@ -11,6 +11,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
@@ -229,6 +230,14 @@ def _load_user_function_library(window: MainWindow) -> None:
     _refresh_quick_function_selector(window)
 
 
+def _quick_add_option(window: MainWindow, function_id: str, option: str, default: bool) -> bool:
+    """Reuse the last accepted Add Function choice for the selected function."""
+    value = window.settings.value(f"quick_add/{function_id}/{option}", default)
+    if isinstance(value, str):
+        return value.lower() in {"true", "1", "yes"}
+    return bool(value)
+
+
 def _quick_add_function(window: MainWindow) -> None:
     if not window._ensure_editable():
         return
@@ -244,8 +253,18 @@ def _quick_add_function(window: MainWindow) -> None:
 
         if definition.kind == "peak":
             component = Component.create(function_id, registry=window.registry)
+            component.is_background = _quick_add_option(window, function_id, "background", False)
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
+            from curvemole.gui.manual_points import manual_points_default, minimum_manual_points
+
+            if _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
+                window._pending_manual_points = True
+                window.plot_workspace.begin_manual_point_placement(
+                    definition.display_name, function_id, minimum_manual_points(component)
+                )
+                window._notify(window.tr("Quick Add Function: select points on the graph, then press Finish."))
+                return
             window.plot_workspace.begin_peak_placement(definition.display_name)
             window._notify(
                 window.tr(
@@ -262,6 +281,28 @@ def _quick_add_function(window: MainWindow) -> None:
                 name=definition.display_name,
                 parameters={},
             )
+            component.is_background = _quick_add_option(window, function_id, "background", False)
+            from curvemole.gui.manual_points import manual_points_default
+
+            if not _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
+                curve = window.project.dataset.curve(window.active_curve_id)
+                finite = np.isfinite(curve.x) & np.isfinite(curve.y)
+                if not np.any(finite):
+                    raise ValueError(window.tr("The active curve has no usable points."))
+                xs = curve.x[finite]
+                ys = curve.y[finite]
+                nodes = sorted({float(np.min(xs)), float(np.median(xs)), float(np.max(xs))})
+                if len(nodes) < 2:
+                    raise ValueError(window.tr("The spline needs at least two distinct x values."))
+                order = np.argsort(xs)
+                component = Component.create(
+                    function_id, registry=window.registry, metadata={"x_nodes": nodes}
+                )
+                for index, node in enumerate(nodes):
+                    component.parameters[f"y{index}"].value = float(np.interp(node, xs[order], ys[order]))
+                component.is_background = _quick_add_option(window, function_id, "background", False)
+                window._commit_component(component, window.active_curve_id)
+                return
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
             window.plot_workspace.begin_spline_placement(definition.display_name)
@@ -273,12 +314,13 @@ def _quick_add_function(window: MainWindow) -> None:
             return
 
         component = Component.create(function_id, registry=window.registry)
+        component.is_background = _quick_add_option(window, function_id, "background", False)
         # Quick Add should use the same preferred placement as Add component.
         # In particular, Linear is defined by two clicks on the plot, rather
         # than silently inserting a line with default slope and intercept.
         from curvemole.gui.manual_points import manual_points_default, minimum_manual_points
 
-        if manual_points_default(definition):
+        if _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
             window._pending_manual_points = True

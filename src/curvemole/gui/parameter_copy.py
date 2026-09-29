@@ -52,15 +52,15 @@ def copy_parameter_to_refs(
     target_refs: list[tuple[str, str]],
     parameter_name: str,
     *,
+    copy_value: bool = False,
     copy_fixed: bool = False,
     copy_bounds: bool = False,
     copy_link: bool = False,
 ) -> ParameterCopyResult:
     """Copy one named parameter to compatible targets as one undoable edit.
 
-    The numerical value is always copied exactly. Optional constraint fields are
-    copied independently. Fit-derived uncertainties are cleared on changed target
-    parameters because they no longer describe the edited model state.
+    Value and constraint fields are copied independently. Fit-derived uncertainties
+    are cleared on changed target parameters.
     """
     if not window._ensure_editable():
         return ParameterCopyResult(0, [], [])
@@ -70,6 +70,8 @@ def copy_parameter_to_refs(
     if parameter_name not in source_component.parameters:
         raise KeyError(parameter_name)
     source = source_component.parameters[parameter_name]
+    if not any((copy_value, copy_fixed, copy_bounds, copy_link)):
+        return ParameterCopyResult(0, [], [])
 
     unique_targets = [ref for ref in dict.fromkeys(target_refs) if ref != source_ref]
     compatible: list[tuple[str, str]] = []
@@ -82,7 +84,10 @@ def copy_parameter_to_refs(
         if target is None:
             missing.append((curve_id, component_id))
             continue
-        if not copy_bounds and not target.minimum <= source.value <= target.maximum:
+        if copy_value and not copy_bounds and not target.minimum <= source.value <= target.maximum:
+            incompatible_bounds.append((curve_id, component_id))
+            continue
+        if copy_bounds and not copy_value and not source.minimum <= target.value <= source.maximum:
             incompatible_bounds.append((curve_id, component_id))
             continue
         compatible.append((curve_id, component_id))
@@ -102,7 +107,8 @@ def copy_parameter_to_refs(
             if copy_bounds:
                 target.minimum = source.minimum
                 target.maximum = source.maximum
-            target.value = source.value
+            if copy_value:
+                target.value = source.value
             if copy_fixed:
                 target.fixed = source.fixed
             if copy_link:
@@ -173,23 +179,22 @@ class CopyParameterDialog(QDialog):
 
         options_label = QLabel(self.tr("4. Choose what is copied"))
         layout.addWidget(options_label)
-        value_note = QLabel(self.tr("✓ Numerical value (always copied)"))
-        layout.addWidget(value_note)
+        self.copy_value = QCheckBox(self.tr("Numerical value"))
         self.copy_fixed = QCheckBox(self.tr("Also copy fixed/free state"))
         self.copy_bounds = QCheckBox(self.tr("Also copy lower and upper bounds"))
         self.copy_link = QCheckBox(self.tr("Also copy link / relation"))
         self.copy_fixed.setChecked(False)
         self.copy_bounds.setChecked(False)
         self.copy_link.setChecked(False)
+        layout.addWidget(self.copy_value)
         layout.addWidget(self.copy_fixed)
         layout.addWidget(self.copy_bounds)
         layout.addWidget(self.copy_link)
 
         note = QLabel(
             self.tr(
-                "Value-only mode preserves each target's existing constraints and relations. "
-                "Targets without the chosen parameter are skipped. If the source value lies outside "
-                "a target's existing bounds, that target is skipped unless bounds are also copied."
+                "Choose at least one field. Targets without the chosen parameter are skipped. "
+                "Copied values must fit the target bounds; copied bounds must contain the retained value."
             )
         )
         note.setWordWrap(True)
@@ -211,6 +216,9 @@ class CopyParameterDialog(QDialog):
         self.source.currentIndexChanged.connect(self._source_changed)
         self.parameter.currentIndexChanged.connect(self._refresh_summary)
         self.copy_bounds.toggled.connect(self._refresh_summary)
+        self.copy_value.toggled.connect(self._refresh_summary)
+        self.copy_fixed.toggled.connect(self._refresh_summary)
+        self.copy_link.toggled.connect(self._refresh_summary)
         self.targets.itemChanged.connect(lambda *_: self._refresh_summary())
         self._refresh_parameters()
         if current_parameter:
@@ -280,7 +288,8 @@ class CopyParameterDialog(QDialog):
             return
         name = self.parameter_name()
         source_curve_id, source_component_id = self.source_ref()
-        value = self.window.project.model_for(source_curve_id).component(source_component_id).parameters[name].value
+        source = self.window.project.model_for(source_curve_id).component(source_component_id).parameters[name]
+        value = source.value
         compatible = 0
         missing = 0
         bound_conflicts = 0
@@ -290,7 +299,13 @@ class CopyParameterDialog(QDialog):
             target = component.parameters.get(name)
             if target is None:
                 missing += 1
-            elif not self.copy_bounds.isChecked() and not target.minimum <= value <= target.maximum:
+            elif (
+                self.copy_value.isChecked() and not self.copy_bounds.isChecked()
+                and not target.minimum <= value <= target.maximum
+            ) or (
+                self.copy_bounds.isChecked() and not self.copy_value.isChecked()
+                and not source.minimum <= target.value <= source.maximum
+            ):
                 bound_conflicts += 1
             else:
                 compatible += 1
@@ -300,7 +315,8 @@ class CopyParameterDialog(QDialog):
         if bound_conflicts:
             parts.append(f"{bound_conflicts} " + self.tr("outside existing bounds"))
         self.summary.setText(" · ".join(parts))
-        self.copy_button.setEnabled(bool(targets))
+        self.copy_button.setEnabled(bool(targets) and any(box.isChecked() for box in
+            (self.copy_value, self.copy_fixed, self.copy_bounds, self.copy_link)))
         self.copy_button.setText(
             self.tr("Copy '") + name + self.tr("' to ") + str(len(targets)) + self.tr(" target(s)")
         )
@@ -346,8 +362,7 @@ def _install_parameter_copy() -> None:
         panel.copy_parameter_button.setToolTip(
             panel.tr(
                 "Workflow: 1) select the source function; 2) click the parameter row you want to copy; "
-                "3) Ctrl/Shift-select the target functions; 4) press this button. The value is copied "
-                "by default; fixed state, bounds and relations are optional."
+                "3) Ctrl/Shift-select the target functions; 4) choose which fields to copy."
             )
         )
         single = panel.stack.widget(0)
@@ -438,6 +453,7 @@ def _install_parameter_copy() -> None:
                 dialog.source_ref(),
                 dialog.target_refs(),
                 dialog.parameter_name(),
+                copy_value=dialog.copy_value.isChecked(),
                 copy_fixed=dialog.copy_fixed.isChecked(),
                 copy_bounds=dialog.copy_bounds.isChecked(),
                 copy_link=dialog.copy_link.isChecked(),

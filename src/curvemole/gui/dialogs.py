@@ -378,6 +378,8 @@ class AddComponentDialog(QDialog):
         self.name = QLineEdit()
         self.operator = QComboBox()
         self.operator.addItems(["add", "subtract", "multiply", "divide", "convolve"])
+        self.add_as_background = QCheckBox(self.tr("Add as background"))
+        self.add_as_background.setToolTip(self.tr("Mark this function as part of the spectrum background."))
         self.polynomial_order = QSpinBox()
         self.polynomial_order.setRange(0, 50)
         self.polynomial_order.setValue(2)
@@ -397,6 +399,7 @@ class AddComponentDialog(QDialog):
         form.addRow(self.tr("Function"), self.function)
         form.addRow(self.tr("Component name"), self.name)
         form.addRow(self.tr("Composition"), self.operator)
+        form.addRow("", self.add_as_background)
         form.addRow(self.tr("Polynomial order"), self.polynomial_order)
         form.addRow(self.spline_nodes_label, self.spline_nodes)
         form.addRow("", self.spline_help)
@@ -418,13 +421,15 @@ class AddComponentDialog(QDialog):
             metadata["x_nodes"] = [
                 float(value.strip()) for value in self.spline_nodes.text().split(",") if value.strip()
             ]
-        return Component.create(
+        component = Component.create(
             identifier,
             registry=self.registry,
             name=self.name.text().strip() or None,
             metadata=metadata,
             operator=self.operator.currentText(),
         )
+        component.is_background = self.add_as_background.isChecked()
+        return component
 
     def _update(self) -> None:
         definition = self.registry.get(self.function.currentData())
