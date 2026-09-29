@@ -33,14 +33,17 @@ def test_independent_fits_use_multiple_processes_and_commit_results() -> None:
         for curve in curves
     }
     progress = []
+    completed = []
     result = Fitter().fit(
         FitPlan([curve.id for curve in curves], FitMode.INDEPENDENT,
                 FitSettings(workers=2)), curves, models,
         progress=lambda fraction, _: progress.append(fraction),
+        on_curve_result=lambda curve_id, fit: completed.append((curve_id, fit.success)),
     )
 
     assert result.success
     assert len(result.curve_outputs) == 3
+    assert set(completed) == {(curve.id, True) for curve in curves}
     assert progress[-1] == 1.0
     for curve, center in zip(curves, (-0.8, 0.2, 1.1), strict=True):
         assert models[curve.id].components[0].parameters["center"].value == pytest.approx(center, abs=0.01)

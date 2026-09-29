@@ -34,8 +34,13 @@ def test_batch_resampling_uses_one_pool_and_preserves_results(gaussian_curve, mo
         return original(*args, **kwargs)
 
     monkeypatch.setattr(uncertainty, "_parallel_map", count_pools)
-    parallel = analyzer.resampling_batch("residual_bootstrap", jobs, replicates=5, workers=2)
+    completed = []
+    parallel = analyzer.resampling_batch(
+        "residual_bootstrap", jobs, replicates=5, workers=2,
+        on_result=lambda index, result: completed.append((index, result.completed)),
+    )
     assert len(calls) == 1
+    assert set(completed) == {(0, 5), (1, 5)}
     for expected, actual in zip(serial, parallel, strict=True):
         assert actual.completed == expected.completed == 5
         np.testing.assert_array_equal(actual.samples, expected.samples)

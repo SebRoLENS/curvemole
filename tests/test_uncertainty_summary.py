@@ -93,17 +93,18 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     assert reopened.models[curve_id].components[0].name == "NH2 stretching α"
     other.uncertainty_panel.method.setCurrentIndex(other.uncertainty_panel.method.findData("covariance"))
     other.uncertainty_panel.results.set_project(reopened)
-    assert other.uncertainty_panel.results.table.rowCount() == 3
-    assert other.uncertainty_panel.results.table.columnCount() == 7
-    assert other.uncertainty_panel.results.table.horizontalHeaderItem(6).text() == "Assessment"
+    assert other.uncertainty_panel.results.table.rowCount() == 4
+    assert other.uncertainty_panel.results.table.columnCount() == 5
+    assert other.uncertainty_panel.results.table.horizontalHeaderItem(4).text() == "Assessment"
     results = other.uncertainty_panel.results
-    assert "Click to see" in results.table.item(0, 6).toolTip()
+    assert "Click to see" in results.table.item(1, 4).toolTip()
     assert not hasattr(results, "target_button")
     shown = []
     monkeypatch.setattr(QMessageBox, "exec", lambda box: shown.append(box.informativeText()))
-    results._cell_clicked(0, 6)
+    results._cell_clicked(1, 4)
     assert len(shown) == 1 and "diagnostic issue" in shown[0]
-    assert other.uncertainty_panel.results.table.item(0,1).text() == "NH2 stretching α"
+    assert other.uncertainty_panel.results.table.item(0,0).text() == "NH2 stretching α"
+    assert other.uncertainty_panel.results.table.item(1,0).text() in {"area", "center", "sigma"}
     export_bundle(reopened, tmp_path / "export", selection=BundleExportSelection(fit_results=False, uncertainty=True))
     assert "NH2 stretching α" in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8")
     assert "target" not in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8").splitlines()[0]
@@ -244,8 +245,8 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
 
     window._set_active_curve(first)
     window.start_uncertainty("covariance", 0, None)
-    assert window.uncertainty_panel.results.table.rowCount() == 3
-    assert {window.uncertainty_panel.results.table.item(i, 0).text() for i in range(3)} == {"scan 0"}
+    assert window.uncertainty_panel.results.table.rowCount() == 4
+    assert window.uncertainty_panel.results.spectrum_heading.text() == "Spectrum: scan 0"
     import time
 
     window.start_uncertainty("residual_bootstrap", 10, None)
@@ -274,10 +275,10 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     rows = uncertainty_dataframe(project)
     assert len(rows[rows.method == "covariance"]) == 9
     assert "target" not in rows.columns
-    assert {window.uncertainty_panel.results.table.item(i, 0).text() for i in range(3)} == {"scan 1"}
+    assert window.uncertainty_panel.results.spectrum_heading.text() == "Spectrum: scan 1"
     window._set_active_curve(first)
     assert window.uncertainty_panel.display_method.currentData() == "residual_bootstrap"
-    assert {window.uncertainty_panel.results.table.item(i, 0).text() for i in range(3)} == {"scan 0"}
+    assert window.uncertainty_panel.results.spectrum_heading.text() == "Spectrum: scan 0"
 
     path = tmp_path / "scans.fitproj"
     save_project(project, path)
@@ -285,7 +286,7 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     other = MainWindow(restored)
     other.uncertainty_panel.method.setCurrentIndex(other.uncertainty_panel.method.findData("covariance"))
     other._set_active_curve(second)
-    assert other.uncertainty_panel.results.table.rowCount() == 3
+    assert other.uncertainty_panel.results.table.rowCount() == 4
     assert other._fit_for_uncertainty(first)[0].curve_outputs.keys() == {first}
     assert other._fit_for_uncertainty(second)[0].curve_outputs.keys() == {second}
     project.dirty = restored.dirty = False
@@ -362,13 +363,44 @@ def test_refitting_a_spectrum_invalidates_its_previous_assessment(gaussian_curve
     first = Fitter().fit_single(gaussian_curve, project.model_for(gaussian_curve.id))
     window._fit_finished(first)
     window.start_uncertainty("covariance", 0, None)
-    assert window.uncertainty_panel.results.table.rowCount() == 3
+    assert window.uncertainty_panel.results.table.rowCount() == 4
     saved = dict(project.results)
     second = Fitter().fit_single(gaussian_curve, project.model_for(gaussian_curve.id))
     window._fit_finished(second)
     assert gaussian_curve.id in saved["uncertainty_reports_by_curve"]
     assert gaussian_curve.id not in project.results["uncertainty_reports_by_curve"]
     assert window.uncertainty_panel.results.table.rowCount() == 0
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_uncertainty_table_groups_parameters_under_each_function(gaussian_curve):
+    app = QApplication.instance() or QApplication([])
+    project = Project("grouped uncertainty")
+    project.add_curve(gaussian_curve)
+    model = project.model_for(gaussian_curve.id)
+    model.add(Component.create("gaussian", name="First", initial={
+        "area": 2, "center": -1, "sigma": 1,
+    }))
+    model.add(Component.create("gaussian", name="Second", initial={
+        "area": 1, "center": 1, "sigma": 1,
+    }))
+    baseline = Fitter().fit_single(gaussian_curve, model)
+    window = MainWindow(project)
+    window._uncertainty_finished([(gaussian_curve.id, baseline, baseline)])
+    table = window.uncertainty_panel.results.table
+    assert window.uncertainty_panel.results.spectrum_heading.text() == (
+        "Spectrum: " + gaussian_curve.name
+    )
+    assert table.rowCount() == 8
+    assert table.item(0, 0).text() == model.components[0].name
+    assert table.item(4, 0).text() == model.components[1].name
+    assert {table.item(i, 0).text() for i in (1, 2, 3, 5, 6, 7)} == {
+        "area", "center", "sigma",
+    }
+    assert table.item(0, 4) is None
+    assert table.item(1, 4) is not None
     project.dirty = False
     window.close()
     app.processEvents()

@@ -26,6 +26,7 @@ from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.core.registry import FunctionRegistry, default_registry
 
 ProgressCallback = Callable[[float | None, str], None]
+CurveResultCallback = Callable[[str, "FitResult"], None]
 
 
 def _batch_progress(progress: ProgressCallback | None, completed: int, total: int) -> ProgressCallback | None:
@@ -529,6 +530,7 @@ class Fitter:
         *,
         cancellation: CancellationToken | None = None,
         progress: ProgressCallback | None = None,
+        on_curve_result: CurveResultCallback | None = None,
     ) -> FitResult:
         plan.validate()
         curve_map = {curve.id: curve for curve in curves} if not isinstance(curves, Mapping) else curves
@@ -543,9 +545,9 @@ class Fitter:
         elif plan.mode == FitMode.SEQUENTIAL:
             result = self._fit_sequential(selected, models, plan, cancellation, progress)
         elif plan.mode == FitMode.INDEPENDENT and len(selected) > 1 and plan.settings.workers > 1:
-            result = self._fit_independent_parallel(selected, models, plan, cancellation, progress)
+            result = self._fit_independent_parallel(selected, models, plan, cancellation, progress, on_curve_result)
         else:
-            result = self._fit_independent(selected, models, plan, cancellation, progress)
+            result = self._fit_independent(selected, models, plan, cancellation, progress, on_curve_result)
         result.elapsed_seconds = time.monotonic() - started
         if progress and not result.paused_curve_id:
             progress(1.0, result.message)
@@ -576,6 +578,7 @@ class Fitter:
         plan: FitPlan,
         cancellation: CancellationToken,
         progress: ProgressCallback | None,
+        on_curve_result: CurveResultCallback | None = None,
     ) -> FitResult:
         results: list[FitResult] = []
         for index, curve in enumerate(curves):
@@ -600,6 +603,8 @@ class Fitter:
                 curve.state = CurveState.FAILED
                 current = _failed_fit_result(curve, local_plan, exc)
             results.append(current)
+            if on_curve_result:
+                on_curve_result(curve.id, current)
             if progress:
                 progress((index + 1) / len(curves), f"Completed {curve.name}")
         return _merge_results(results, plan.mode, plan.settings)
@@ -611,6 +616,7 @@ class Fitter:
         plan: FitPlan,
         cancellation: CancellationToken,
         progress: ProgressCallback | None,
+        on_curve_result: CurveResultCallback | None = None,
     ) -> FitResult:
         from curvemole.core.extensions import extensions
         from curvemole.core.functions import builtin_definitions
@@ -626,7 +632,7 @@ class Fitter:
                 for curve in curves for component in models[curve.id].components
             ) or any(entry.identifier == plan.settings.solver
                      for entry in extensions.values("fit_solvers"))):
-            return self._fit_independent(curves, models, plan, cancellation, progress)
+            return self._fit_independent(curves, models, plan, cancellation, progress, on_curve_result)
 
         jobs = []
         for curve in curves:
@@ -660,6 +666,8 @@ class Fitter:
                     for future in done:
                         curve = pending.pop(future)
                         results[curve.id] = future.result()
+                        if on_curve_result:
+                            on_curve_result(curve.id, results[curve.id])
                         if progress:
                             progress(len(results) / len(curves),
                                      f"Completed {curve.name}")
