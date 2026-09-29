@@ -31,15 +31,20 @@ class UncertaintyResults(QWidget):
         self.summary = QLabel("Run an analysis to inspect confidence intervals.")
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
-        self.table = QTableWidget(0, 7)
+        self.spectrum_heading = QLabel()
+        self.spectrum_heading.setWordWrap(True)
+        font = self.spectrum_heading.font()
+        font.setBold(True)
+        self.spectrum_heading.setFont(font)
+        layout.addWidget(self.spectrum_heading)
+        self.table = QTableWidget(0, 5)
         self.table.setHorizontalHeaderLabels([
-            "Spectrum", "Function", "Parameter", "Fit value", "Lower", "Upper",
-            "Assessment",
+            "Function / parameter", "Fit value", "Lower", "Upper", "Assessment",
         ])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.table.setMinimumHeight(160)
         self.table.cellClicked.connect(self._cell_clicked)
         layout.addWidget(self.table)
@@ -81,6 +86,11 @@ class UncertaintyResults(QWidget):
                                      for path in baseline.get("parameters", {})):
                 record = legacy
         self.table.setRowCount(0)
+        self.spectrum_heading.setText(
+            "Spectrum: " + self.project.dataset.curve(self.curve_id).name
+            if self.curve_id else ""
+        )
+        self.spectrum_heading.setToolTip(self.spectrum_heading.text())
         if not record:
             self.summary.setText("No recorded result for this spectrum and method. Run an analysis.")
             self.details.clear()
@@ -100,17 +110,32 @@ class UncertaintyResults(QWidget):
             text += f" · {analysis['failed_points']} failed grid points"
         self.summary.setText(text)
         colors = {"OK": "#187541", "Attention": "#9b6500", "Critical": "#ba3030", "Fixed": "#777777"}
-        self._assessment_rows = rows
-        for row, data in enumerate(rows):
+        self._assessment_rows = {}
+        current_function = None
+        for data in rows:
+            function_key = data["path"].rsplit(".", 1)[0]
+            if function_key != current_function:
+                current_function = function_key
+                heading_row = self.table.rowCount()
+                self.table.insertRow(heading_row)
+                self.table.setSpan(heading_row, 0, 1, self.table.columnCount())
+                heading = QTableWidgetItem(data["function"])
+                heading.setFlags(heading.flags() & ~Qt.ItemFlag.ItemIsSelectable)
+                font = heading.font()
+                font.setBold(True)
+                heading.setFont(font)
+                self.table.setItem(heading_row, 0, heading)
+            row = self.table.rowCount()
             self.table.insertRow(row)
-            for col, key in enumerate(("spectrum", "function", "parameter", "value", "lower", "upper", "status")):
+            self._assessment_rows[row] = data
+            for col, key in enumerate(("parameter", "value", "lower", "upper", "status")):
                 value = data[key]
                 label = "—" if value is None else f"{value:.8g}" if isinstance(value, float) else str(value)
                 item = QTableWidgetItem(label)
                 item.setData(Qt.ItemDataRole.UserRole, data["path"])
                 item.setToolTip(
-                    "Click to see why this assessment was assigned." if col == 6 else data["path"])
-                if col == 6:
+                    "Click to see why this assessment was assigned." if col == 4 else data["path"])
+                if col == 4:
                     item.setForeground(QColor(colors[data["status"]]))
                     font = QFont(item.font())
                     font.setUnderline(True)
@@ -122,7 +147,7 @@ class UncertaintyResults(QWidget):
             + "\n".join(f"{r['path']}: ({r['lower']}, {r['upper']})" for r in rows))
 
     def _cell_clicked(self, row: int, column: int) -> None:
-        if column != 6 or row >= len(getattr(self, "_assessment_rows", [])):
+        if column != 4 or row not in getattr(self, "_assessment_rows", {}):
             return
         data = self._assessment_rows[row]
         reasons = data.get("reason_items") or ([data["reasons"]] if data["reasons"] else [])

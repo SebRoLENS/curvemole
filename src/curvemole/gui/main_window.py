@@ -152,15 +152,20 @@ class Worker(QObject):
     finished = Signal(object)
     failed = Signal(str, str)
     progress = Signal(object, str)
+    partial = Signal(object)
 
-    def __init__(self, operation: Callable[[Callable[[float | None, str], None]], Any]) -> None:
+    def __init__(self, operation: Callable[..., Any], *, streaming: bool = False) -> None:
         super().__init__()
         self.operation = operation
+        self.streaming = streaming
 
     @Slot()
     def run(self) -> None:
         try:
-            result = self.operation(lambda value, text: self.progress.emit(value, text))
+            def progress(value, text):
+                self.progress.emit(value, text)
+            result = (self.operation(progress, self.partial.emit) if self.streaming
+                      else self.operation(progress))
             self.finished.emit(result)
         except Exception as exc:
             self.failed.emit(str(exc), traceback.format_exc())
@@ -169,14 +174,20 @@ class Worker(QObject):
 class TaskCallbacks(QObject):
     """Stable Qt slots keep wrapped Python handlers on the GUI thread."""
 
-    def __init__(self, window, finished):
+    def __init__(self, window, finished, partial=None):
         super().__init__(window)
         self.window = window
         self.on_finished = finished
+        self.on_partial = partial
 
     @Slot(object, str)
     def progress(self, value, text):
         self.window._task_progress(value, text)
+
+    @Slot(object)
+    def partial(self, result):
+        if self.on_partial is not None:
+            self.on_partial(result)
 
     @Slot(object)
     def finished(self, result):
@@ -1972,17 +1983,70 @@ class MainWindow(QMainWindow):
         self._cancellation = CancellationToken()
         fitter = Fitter(self.registry)
         curve_map = {curve.id: curve for curve in self.project.curves}
-        self._run_background(
-            lambda progress: fitter.fit(
-                plan,
-                curve_map,
-                self.project.models,
-                cancellation=self._cancellation,
+        stream = plan.mode == FitMode.INDEPENDENT and len(plan.curve_ids) > 1
+        # The worker must not modify the model objects currently being viewed.
+        if stream:
+            curve_map = {cid: copy.deepcopy(curve_map[cid]) for cid in plan.curve_ids}
+            models = {cid: self.project.model_for(cid).clone() for cid in plan.curve_ids}
+        else:
+            models = self.project.models
+
+        def operation(progress, publish=None):
+            return fitter.fit(
+                plan, curve_map, models, cancellation=self._cancellation,
                 progress=progress,
-            ),
-            self._fit_finished,
-            self.tr("Fitting…"),
-        )
+                on_curve_result=(lambda cid, result: publish((cid, result))) if publish else None,
+            )
+
+        if stream:
+            self._run_background(operation, self._fit_finished, self.tr("Fitting…"),
+                                 partial=self._partial_fit_result)
+        else:
+            self._run_background(operation, self._fit_finished, self.tr("Fitting…"))
+
+    def _partial_fit_result(self, item: tuple[str, FitResult]) -> None:
+        """Expose a completed independent spectrum while other fits are queued."""
+        curve_id, result = item
+        curve = self.project.dataset.curve(curve_id)
+        if result.success:
+            self._apply_fit_result_to_project(result)
+            from curvemole.core.fit_records import (
+                baseline_for_curve,
+                individual_plan,
+                plan_to_record,
+            )
+
+            plan = self._running_fit_plan
+            baseline = baseline_for_curve(result, curve_id)
+            baseline.success = True
+            records = dict(self.project.results.get("fit_by_curve", {}))
+            previous_key = records.get(curve_id, {}).get("global_key")
+            affected_ids = {curve_id}
+            if previous_key is not None:
+                affected_ids.update(cid for cid, record in records.items()
+                                    if record.get("global_key") == previous_key)
+                records = {cid: record for cid, record in records.items()
+                           if record.get("global_key") != previous_key}
+                baselines = dict(self.project.results.get("global_fit_baselines", {}))
+                baselines.pop(previous_key, None)
+                self.project.results["global_fit_baselines"] = baselines
+            records[curve_id] = {
+                "plan": plan_to_record(individual_plan(plan, curve_id)),
+                "baseline": baseline,
+            }
+            self.project.results["fit_by_curve"] = records
+            for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve",
+                        "uncertainty_display_method_by_curve"):
+                updated = dict(self.project.results.get(key, {}))
+                for affected_id in affected_ids:
+                    updated.pop(affected_id, None)
+                self.project.results[key] = updated
+            self.project.results["last_fit"] = result
+        else:
+            curve.state = CurveState.FAILED
+        self.project.results["last_attempt"] = result
+        self.project.touch()
+        self.refresh_all()
 
     def _apply_fit_result_to_project(self, result: FitResult) -> None:
         # Fitting runs in a worker thread. Commit the returned estimates explicitly
@@ -2301,7 +2365,7 @@ class MainWindow(QMainWindow):
                 grouped[key] = []
             grouped[key].append(curve_id)
 
-        def operation(progress: Callable[[float | None, str], None]) -> Any:
+        def operation(progress: Callable[[float | None, str], None], publish=None) -> Any:
             completed = []
             if method != "profile_likelihood" and workers > 1 and len(unique_jobs) > 1:
                 batch = []
@@ -2314,6 +2378,10 @@ class MainWindow(QMainWindow):
                     workers=workers, cancellation=self._cancellation,
                     progress=lambda count: progress(count / len(unique_jobs),
                                                     f"{method}: {count}/{len(unique_jobs)} spectra"),
+                    on_result=(lambda index, result: publish([
+                        (selected_id, unique_jobs[index][1], result)
+                        for selected_id in grouped[unique_jobs[index][3]]
+                    ])) if publish else None,
                 )
                 for (_, baseline, _, key), result in zip(unique_jobs, results, strict=True):
                     completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
@@ -2346,10 +2414,26 @@ class MainWindow(QMainWindow):
                     else:
                         result = analyzer.residual_bootstrap(**arguments)
                 completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
+                if publish:
+                    publish([(selected_id, baseline, result) for selected_id in grouped[key]])
                 progress((index + 1) / len(unique_jobs), f"Completed {curve_map[curve_id].name}")
             return completed
 
-        self._run_background(operation, self._uncertainty_finished, self.tr("Uncertainty analysis…"))
+        if len(unique_jobs) > 1:
+            self._run_background(operation, self._uncertainty_finished,
+                                 self.tr("Uncertainty analysis…"),
+                                 partial=self._partial_uncertainty_result)
+        else:
+            self._run_background(operation, self._uncertainty_finished,
+                                 self.tr("Uncertainty analysis…"))
+
+    def _partial_uncertainty_result(self, completed: list[tuple[str, FitResult, Any]]) -> None:
+        for curve_id, baseline, analysis_result in completed:
+            self._store_uncertainty_result(curve_id, baseline, analysis_result)
+        self.project.touch()
+        if self.active_curve_id in {curve_id for curve_id, _, _ in completed}:
+            self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
+            self.model_panel.refresh_parameters()
 
     def _uncertainty_finished(self, result: Any) -> None:
         if not isinstance(result, list):
@@ -3394,19 +3478,22 @@ class MainWindow(QMainWindow):
 
     def _run_background(
         self,
-        operation: Callable[[Callable[[float | None, str], None]], Any],
+        operation: Callable[..., Any],
         finished: Callable[[Any], None],
         status: str,
+        partial: Callable[[Any], None] | None = None,
     ) -> None:
         if self._thread is not None:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         self._thread = QThread(self)
-        self._worker = Worker(operation)
-        self._task_callbacks = TaskCallbacks(self, finished)
+        self._worker = Worker(operation, streaming=partial is not None)
+        self._task_callbacks = TaskCallbacks(self, finished, partial)
         self._worker.moveToThread(self._thread)
         self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._task_callbacks.progress, Qt.ConnectionType.QueuedConnection)
+        if partial is not None:
+            self._worker.partial.connect(self._task_callbacks.partial, Qt.ConnectionType.QueuedConnection)
         self._worker.finished.connect(self._task_callbacks.finished, Qt.ConnectionType.QueuedConnection)
         self._worker.failed.connect(self._task_callbacks.failed, Qt.ConnectionType.QueuedConnection)
         # Keep the worker and thread alive until run() has actually returned.
@@ -3487,7 +3574,15 @@ class MainWindow(QMainWindow):
         return value if isinstance(value, FitResult) else None
 
     def _refresh_diagnostics(self) -> None:
-        result = self._last_fit_result()
+        record = self.project.results.get("fit_by_curve", {}).get(self.active_curve_id, {})
+        if "global_key" in record:
+            result = self.project.results.get("global_fit_baselines", {}).get(record["global_key"])
+        else:
+            result = record.get("baseline")
+        if isinstance(result, dict):
+            result = FitResult.from_dict(result)
+        if result is None:
+            result = self._last_fit_result()
         output = result.curve_outputs.get(self.active_curve_id) if result and self.active_curve_id else None
         self.diagnostics.set_residual(output.residual if output else None)
 

@@ -123,14 +123,16 @@ def test_file_actions_do_not_forward_qaction_checked_state(monkeypatch: pytest.M
     app.processEvents()
 
 
-def test_quick_peak_reuses_last_peak_function() -> None:
+def test_quick_add_uses_selected_peak_function() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("Quick peak")
     curve = Curve("curve", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
     project.add_curve(curve)
     project.dirty = False
     window = MainWindow(project)
-    window.last_peak_function_id = "lorentzian"
+    window.quick_function_selector.setCurrentIndex(
+        window.quick_function_selector.findData("lorentzian")
+    )
 
     window.quick_peak()
 

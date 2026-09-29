@@ -88,6 +88,7 @@ def _parallel_map(
     function: Callable[[Any], Any], inputs: Sequence[Any], workers: int,
     context: tuple[Any, ...], cancellation: CancellationToken,
     progress: Callable[[int], None] | None,
+    on_result: Callable[[int, Any], None] | None = None,
 ) -> list[Any]:
     """Keep only a few spawned-process jobs queued and return results in input order."""
     mp_context = multiprocessing.get_context("spawn")
@@ -112,6 +113,8 @@ def _parallel_map(
                 for future in done:
                     index = pending.pop(future)
                     results[index] = future.result()
+                    if on_result:
+                        on_result(index, results[index])
                     completed += 1
                     if progress:
                         progress(completed)
@@ -263,6 +266,7 @@ class UncertaintyAnalyzer:
         *, replicates: int, option: int | None = None, workers: int = 1,
         cancellation: CancellationToken | None = None,
         progress: Callable[[int], None] | None = None,
+        on_result: Callable[[int, ResamplingResult], None] | None = None,
     ) -> list[ResamplingResult]:
         """Process independent spectra in one pool, without spawning per spectrum.
 
@@ -282,7 +286,7 @@ class UncertaintyAnalyzer:
             payloads = [(method, baseline, plan, curves, models, replicates, option)
                         for baseline, plan, curves, models in jobs]
             return _parallel_map(_batch_resample_in_process, payloads, workers,
-                                 (), token, progress)
+                                 (), token, progress, on_result)
         results = []
         for baseline, plan, curves, models in jobs:
             token.raise_if_cancelled()
@@ -295,6 +299,8 @@ class UncertaintyAnalyzer:
             else:
                 result = self.residual_bootstrap(baseline, plan, curves, models, **arguments)
             results.append(result)
+            if on_result:
+                on_result(len(results) - 1, result)
             if progress:
                 progress(len(results))
         return results
