@@ -333,6 +333,12 @@ class CurveTree(QTreeWidget):
                             | Qt.ItemFlag.ItemIsSelectable
                         )
                         child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
+                        child.setToolTip(0, self.tr(
+                            "Checked: show this spectrum in Overlay and Waterfall.\n"
+                            "Unchecked: hide it from these views without deleting its data or fit.\n"
+                            "Row highlighting selects spectra for operations; this checkbox "
+                            "controls visibility. Hidden spectra are excluded from fit plans."
+                        ))
                         child.setForeground(2, _state_colour(curve.state))
                         parent.addChild(child)
                         items[("curve", curve.id)] = child
