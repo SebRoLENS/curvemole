@@ -65,6 +65,11 @@ def install_sequential_resume_button() -> None:
         if stop is not None:
             stop.setVisible(available)
             stop.setEnabled(enabled)
+        reason = getattr(window, "sequential_pause_reason_button", None)
+        if reason is not None:
+            has_reason = bool(window.project.results.get("last_sequential_pause_message"))
+            reason.setVisible(has_reason)
+            reason.setEnabled(has_reason)
 
     def terminate_sequence(window: MainWindow) -> None:
         if window._thread is not None:
@@ -104,6 +109,15 @@ def install_sequential_resume_button() -> None:
         stop.clicked.connect(window.terminate_sequence)
         window.sequential_stop_button = stop
         window.statusBar().addPermanentWidget(stop)
+        reason = QPushButton(window.tr("Last pause reason"), window)
+        reason.setMinimumHeight(38)
+        reason.setToolTip(window.tr(
+            "Reopen the last sequential-fit interruption message, including after "
+            "closing the warning, resuming, or terminating the sequence."
+        ))
+        reason.clicked.connect(window.show_sequential_pause_reason)
+        window.sequential_pause_reason_button = reason
+        window.statusBar().addPermanentWidget(reason)
         style_button(window)
         sync(window)
 

@@ -66,7 +66,14 @@ def _refresh_ignored_functions(dialog: FitPlanDialog) -> None:
             excluded = QListWidgetItem(f"{component.name}  ({component.function_id})")
             excluded.setData(Qt.ItemDataRole.UserRole, component.id)
             excluded.setFlags(excluded.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            excluded.setCheckState(Qt.CheckState.Unchecked)
+            excluded.setCheckState(
+                Qt.CheckState.Checked if component.is_background else Qt.CheckState.Unchecked
+            )
+            excluded.setToolTip(dialog.tr(
+                "Checked: do not copy this function to subsequent spectra. "
+                "Background functions are excluded by default; uncheck to include one. "
+                "Functions already present on each target are retained."
+            ))
             excluded_widget.addItem(excluded)
 
 

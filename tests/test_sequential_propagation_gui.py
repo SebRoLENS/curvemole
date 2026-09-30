@@ -50,6 +50,8 @@ def test_sequential_dialog_exposes_propagation_and_ignore_controls() -> None:
     assert dialog.sequential_propagate_enabled.isChecked()
     assert dialog.sequential_propagate_composition.isChecked()
     assert dialog.sequential_ignored_functions.count() == 2
+    assert dialog.sequential_excluded_copy_functions.item(0).checkState() == Qt.CheckState.Unchecked
+    assert dialog.sequential_excluded_copy_functions.item(1).checkState() == Qt.CheckState.Checked
 
     dialog.sequential_ignored_functions.item(0).setCheckState(Qt.CheckState.Checked)
     plan = dialog.plan()
