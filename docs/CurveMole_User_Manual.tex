@@ -1398,8 +1398,10 @@ running.
 
 Quick Fit is available before opening Fit\ldots: its first run uses the
 default independent-fit settings on the selected curves, falling back to
-the active curve. Later runs reuse the last configured fit settings.
-Open Fit\ldots{} to adjust the solver or fitting mode.
+the active curve. Later runs retain the configured solver, loss and
+algorithm settings but always use \textbf{Single/Independent}, even
+after a sequential or global fit. Open Fit\ldots{} to use another
+fitting mode.
 
 \hypertarget{data-calculator}{%
 \section{7.5 Data Calculator}\label{data-calculator}}
@@ -2107,14 +2109,15 @@ for the following spectrum. Selected spectra before the chosen source
 are excluded; target spectra do not need models in advance.
 
 Use \textbf{Functions excluded from copying} to select any source
-functions to leave out. Functions already present on each target retain
-their values, metadata, constraints, and order during copying; the fit
-still respects their fixed/free state. A function with the same internal
-identity is kept rather than duplicated. Distinct functions remain
-distinct even if their names match. Target-local functions are not
-carried into later spectra. The selection is also preserved when
-resuming a paused sequence. This is independent of ignoring functions in
-the parameter-change pause monitor.
+functions to leave out. Functions marked as background are excluded by
+default; uncheck one to copy it. Functions already present on each
+target retain their values, metadata, constraints, and order during
+copying; the fit still respects their fixed/free state. A function with
+the same internal identity is kept rather than duplicated. Distinct
+functions remain distinct even if their names match. Target-local
+functions are not carried into later spectra. The selection is also
+preserved when resuming a paused sequence. This is independent of
+ignoring functions in the parameter-change pause monitor.
 
 For newly copied functions, parameter values and structure are
 propagated. The dialog separately controls whether to preserve bounds,
@@ -2143,7 +2146,12 @@ residual. If fitting or a safeguard pauses the sequence, the affected
 spectrum becomes active and a persistent \textbf{Continue sequential
 fit} button appears in the status bar. Inspect or edit that spectrum,
 then continue; the accepted current model becomes the new propagation
-source. CurveMole does not silently skip a paused spectrum.
+source. CurveMole does not silently skip a paused spectrum. The warning
+explains the affected spectrum, reason, measured change and threshold,
+and next action. \textbf{Last pause reason}, beside the sequential
+controls, reopens the latest warning even after continuing or
+terminating. It is saved with the project and is replaced when a later
+sequential fit pauses.
 
 \hypertarget{global-simultaneous}{%
 \subsection{Global simultaneous}\label{global-simultaneous}}
