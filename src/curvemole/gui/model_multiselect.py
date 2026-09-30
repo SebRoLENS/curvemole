@@ -332,6 +332,14 @@ def _install_model_panel() -> None:
                     + (("\n" + background_status) if background_status else "")
                 )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+                from curvemole.gui.note_indicators import CHECKBOX_TOOLTIP_ROLE
+
+                item.setData(CHECKBOX_TOOLTIP_ROLE, panel.tr(
+                    "Checked: this function contributes to the model and fit.\n"
+                    "Unchecked: exclude it without deleting it.\n"
+                    "Row highlighting selects functions for editing. Changing a selected "
+                    "checkbox applies to all selected functions."
+                ))
                 item.setCheckState(
                     Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked
                 )
