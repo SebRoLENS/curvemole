@@ -6,7 +6,7 @@ import copy
 from collections import defaultdict
 from typing import Any
 
-from PySide6.QtCore import QItemSelectionModel, Qt
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem,
     QMenu,
     QMessageBox,
+    QPushButton,
     QWidget,
 )
 
@@ -150,10 +151,53 @@ def _install_model_panel() -> None:
 
         single = panel.stack.widget(0)
         single.layout().insertWidget(1, row)
+        selection_row = QWidget(panel)
+        selection_layout = QHBoxLayout(selection_row)
+        selection_layout.setContentsMargins(0, 0, 0, 0)
+        panel.select_all_functions_button = QPushButton(panel.tr("Select all"))
+        panel.select_non_background_functions_button = QPushButton(
+            panel.tr("Select all except backgrounds")
+        )
+        for button in (
+            panel.select_all_functions_button,
+            panel.select_non_background_functions_button,
+        ):
+            button.setToolTip(panel.tr(
+                "Select functions in the displayed list for editing. "
+                "This does not change their enabled checkboxes."
+            ))
+            selection_layout.addWidget(button)
+        single.layout().insertWidget(2, selection_row)
+        panel.select_all_functions_button.clicked.connect(
+            lambda: select_functions(panel, exclude_backgrounds=False)
+        )
+        panel.select_non_background_functions_button.clicked.connect(
+            lambda: select_functions(panel, exclude_backgrounds=True)
+        )
         panel.show_all_functions.toggled.connect(lambda *_: panel.refresh())
         panel.components.itemSelectionChanged.connect(panel._multi_selection_changed)
         panel.components.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         panel.components.customContextMenuRequested.connect(lambda position: description_menu(panel, position))
+
+    def select_functions(panel: ModelPanel, *, exclude_backgrounds: bool) -> None:
+        selection = QItemSelection()
+        for row in range(panel.components.count()):
+            ref = _item_ref(panel.components.item(row))
+            if ref is None or panel.project is None:
+                continue
+            curve_id, component_id = ref
+            component = panel.project.model_for(curve_id).component(component_id)
+            if exclude_backgrounds and component.is_background:
+                continue
+            index = panel.components.model().index(row, 0)
+            selection.select(index, index)
+        panel.components.selectionModel().select(
+            selection, QItemSelectionModel.SelectionFlag.ClearAndSelect
+        )
+        if not selection.isEmpty():
+            panel.components.selectionModel().setCurrentIndex(
+                selection.indexes()[0], QItemSelectionModel.SelectionFlag.NoUpdate
+            )
 
     def description_menu(panel: ModelPanel, position: Any) -> None:
         ref = _item_ref(panel.components.itemAt(position))
@@ -278,6 +322,13 @@ def _install_model_panel() -> None:
                     + "\n"
                     + panel.tr("Type: ")
                     + component.function_id
+                    + "\n"
+                    + panel.tr(
+                        "Checkbox: include this function in the model and fit. "
+                        "Uncheck to exclude it without deleting it. "
+                        "Highlight rows to select functions for editing; with multiple "
+                        "functions selected, changing a selected checkbox applies to all of them."
+                    )
                     + (("\n" + background_status) if background_status else "")
                 )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)

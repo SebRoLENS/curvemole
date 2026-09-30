@@ -1261,6 +1261,14 @@ from the plan; the sequential source chooser follows the same scope. Weights and
 checkbox choices are retained while switching scope. In the Functions panel,
 **Show all functions** groups entries by series, then spectrum, then function;
 headings cannot be selected as functions, and multi-selection remains available.
+**Select all** selects every displayed function; **Select all except backgrounds**
+selects only functions that are not marked as background, clearing any previous
+background selection. In Show all functions mode these actions span the whole project.
+Selection does not change the function checkboxes: a checked function contributes
+to the model and fit, while an unchecked function is retained but excluded.
+Changing a checkbox on a selected function applies the enabled state to the whole
+selection. **Mark as background** classifies the selected functions as background;
+it does not subtract them from the data.
 
 The Fit dialog accepts a positive numeric spectrum weight for every selected curve.
 If $s_j$ is the spectrum weight, all point residuals from spectrum $j$ are multiplied
