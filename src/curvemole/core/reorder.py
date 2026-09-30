@@ -1,4 +1,4 @@
-"""Rename automatically named model functions by a chosen parameter."""
+"""Order model functions and their automatic names by a chosen parameter."""
 
 from __future__ import annotations
 
@@ -14,10 +14,11 @@ from curvemole.core.registry import FunctionRegistry
 def reorder_component_names(
     model: Model, registry: FunctionRegistry, rules: Mapping[str, str]
 ) -> int:
-    """Number each function type by its parameter value, leaving custom names alone.
+    """Sort the list and number each type, returning the number of renamed functions.
 
-    Components keep their IDs and positions. A custom name also reserves its
-    spelling, so an automatic name will never overwrite it.
+    Components keep their IDs and custom names. Functions without a finite sort
+    parameter keep their list slots. Equal values retain their relative order.
+    A custom name reserves its spelling against automatic numbering.
     """
     groups = defaultdict(list)
     reserved = {component.name for component in model.components
@@ -43,4 +44,12 @@ def reorder_component_names(
             changed += component.name != name
             component.name = name
             number += 1
+    sortable = []
+    for index, component in enumerate(model.components):
+        parameter = component.parameters.get(rules.get(component.function_id, "center"))
+        if parameter is not None and math.isfinite(parameter.value):
+            sortable.append((index, component, parameter.value))
+    ordered = sorted(sortable, key=lambda item: item[2])
+    for (index, _, _), (_, component, _) in zip(sortable, ordered, strict=True):
+        model.components[index] = component
     return changed

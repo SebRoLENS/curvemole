@@ -2259,19 +2259,25 @@ class MainWindow(QMainWindow):
         curve_id = self.active_curve_id
         model = self.project.model_for(curve_id)
         before = model.to_dict()
-        count = reorder_component_names(model, self.registry, load_reorder_rules(self.settings))
-        if count == 0:
-            self._notify(self.tr("Function names are already in order."))
-            return
+        reorder_component_names(model, self.registry, load_reorder_rules(self.settings))
         after = model.to_dict()
+        if before == after:
+            self._notify(self.tr("Functions and names are already in order."))
+            return
+        enabled_before = [item["id"] for item in before["components"] if item["enabled"]]
+        enabled_after = [item.id for item in model.components if item.enabled]
+        composition_changed = enabled_before != enabled_after and any(
+            item.enabled and item.operator not in {"add", "subtract"}
+            for item in model.components
+        )
         self.project.models[curve_id] = Model.from_dict(before)
         self._push_change(
-            self.tr("Reorder function names"),
+            self.tr("Reorder functions"),
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
-            modified_curve_ids=set(),
+            modified_curve_ids={curve_id} if composition_changed else set(),
         )
-        self._notify(self.tr("Renamed {count} functions.").format(count=count))
+        self._notify(self.tr("Functions reordered and automatic names renumbered."))
 
     def _recover_missing_fit_records(self) -> None:
         """Recover successful spectra from an older, partially failed batch fit."""

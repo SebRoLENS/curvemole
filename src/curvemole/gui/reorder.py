@@ -28,7 +28,8 @@ class ReorderRulesDialog(QDialog):
         self.setMinimumWidth(380)
         layout = QVBoxLayout(self)
         description = QLabel(self.tr(
-            "Choose the parameter used to number each function type, from lowest to highest. "
+            "Choose the parameter used to sort the list and number each function type, "
+            "from lowest to highest. "
             "Custom function names are never changed."))
         description.setWordWrap(True)
         layout.addWidget(description)

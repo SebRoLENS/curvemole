@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.33.0
+# CurveMole User Manual - Preview 0.33.1
 
-**Current manual version: 0.33.0**
+**Current manual version: 0.33.1**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.33.0 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.33.1 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.33.0 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.33.1 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.33.0 describes CurveMole 0.33.0.
+version. For example, a manual marked 0.33.1 describes CurveMole 0.33.1.
 
 The release automation performs four checks:
 
@@ -185,14 +185,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.33.0-linux-x86_64.AppImage
-./CurveMole-0.33.0-linux-x86_64.AppImage
+chmod +x CurveMole-0.33.1-linux-x86_64.AppImage
+./CurveMole-0.33.1-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.33.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.33.1-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -224,13 +224,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.33.0-macos-arm64.dmg
+shasum -a 256 CurveMole-0.33.1-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.33.0-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.33.1-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -242,7 +242,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.33.0-py3-none-any.whl
+python -m pip install ./curvemole-0.33.1-py3-none-any.whl
 curvemole gui
 ```
 
@@ -251,7 +251,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.33.0-py3-none-any.whl
+python -m pip install .\curvemole-0.33.1-py3-none-any.whl
 curvemole gui
 ```
 
@@ -542,7 +542,7 @@ The controls below the list are:
 | Duplicate | Duplicate the selected component and its settings |
 | Up / Down | Change component order |
 | Delete | Delete the component after confirmation |
-| Reorder | Renumber automatically named functions using a parameter value |
+| Reorder | Sort the function list and renumber automatic names using a parameter value |
 | Advanced reorder rules | Choose the numbering parameter separately for each function type |
 | Copy fit | Copy selected model information to other curves |
 | Copy fit to next | Open the copy dialog with the next curve in the source series selected |
@@ -677,7 +677,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.33.0 optimizer.
+stored in the project but is not used by the version 0.33.1 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -1177,12 +1177,19 @@ Disable a component to compare models without losing its settings. Deletion and
 reordering are undoable. Reordering can materially change models that use operations
 other than addition or subtraction.
 
-The **Reorder** button has a separate purpose: it renumbers automatically named
-functions of each type in ascending parameter order (peak `center` by default),
-without changing component order, IDs, links or custom names. The adjacent
-**Advanced reorder rules…** button selects another numbering parameter for each
-function type and remembers those rules. Use the Up/Down controls to change the
-actual composition order.
+The **Reorder** button sorts the function list in ascending parameter order
+(peak `center`, or X position, by default), including peaks of different types.
+It also renumbers automatically named functions within each type to match that
+order. IDs, links and custom names are preserved; custom-named functions are
+sorted too. Functions without a finite value for their sorting parameter keep
+their list positions, and equal values retain their relative order.
+The adjacent **Advanced reorder rules…** button selects another sorting and
+numbering parameter for each function type and remembers those rules. Both the
+list order and automatic names are restored by Undo and reapplied by Redo.
+Additive/subtractive models retain their fitted state. When enabled functions
+change order in a model using multiplication, division or convolution, the fit
+is marked modified because the composition may change; review the new order
+and refit. Use the Up/Down controls to set a manual composition order.
 
 ### 8.10 Copying a fit to other curves
 
@@ -1518,7 +1525,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.33.0 does not yet provide a single comprehensive on-screen results table, so use the
+0.33.1 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -2603,9 +2610,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.0)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.1)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.0
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.1
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -2676,7 +2683,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.33.0 limitations
+## Appendix D. Preview 0.33.1 limitations
 
 The following boundaries are important when evaluating this release:
 

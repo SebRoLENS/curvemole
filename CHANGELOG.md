@@ -5,6 +5,21 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.33.1] - 2026-09-30
+
+### Fixed
+
+- Make **Reorder** sort the actual function list by ascending X position (or the
+  configured parameter), across function types, as well as renumber automatic names.
+  Sort custom-named functions without renaming them, keep unsortable functions in
+  place, preserve equal-value order, and support order-only changes with Undo/Redo.
+- Mark fits modified when changing enabled function order in a model with
+  multiplication, division or convolution; preserve fitted state for additive models.
+
+### Documentation
+
+- Update the manual, README and Reorder tooltips to describe list sorting.
+
 ## [0.33.0] - 2026-09-30
 
 ### Added

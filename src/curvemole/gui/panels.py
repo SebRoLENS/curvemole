@@ -106,7 +106,7 @@ class ModelPanel(QWidget):
         buttons.addStretch(1)
         self.reorder_button = QPushButton(self.tr("Reorder"))
         self.reorder_button.setToolTip(self.tr(
-            "Renumber automatically named functions by the selected parameter."))
+            "Sort the function list and renumber automatic names by the selected parameter."))
         self.reorder_button.clicked.connect(self.reorderRequested)
         buttons.addWidget(self.reorder_button)
         self.reorder_rules_button = QToolButton()
