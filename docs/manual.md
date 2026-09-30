@@ -743,8 +743,9 @@ duplicated for fit history. Undo/Redo are disabled while a worker is running.
 
 Quick Fit is available before opening Fit…: its first run uses the default
 independent-fit settings on the selected curves, falling back to the active
-curve. Later runs reuse the last configured fit settings. Open Fit… to adjust
-the solver or fitting mode.
+curve. Later runs retain the configured solver, loss and algorithm settings but
+always use **Single/Independent**, even after a sequential or global fit.
+Open Fit… to use another fitting mode.
 
 ### 7.5 Data Calculator
 
@@ -1220,6 +1221,7 @@ result becomes the source for the following spectrum. Selected spectra before th
 chosen source are excluded; target spectra do not need models in advance.
 
 Use **Functions excluded from copying** to select any source functions to leave out.
+Functions marked as background are excluded by default; uncheck one to copy it.
 Functions already present on each target retain their values, metadata, constraints,
 and order during copying; the fit still respects their fixed/free state. A function
 with the same internal identity is kept rather than duplicated. Distinct functions
@@ -1246,6 +1248,10 @@ pauses the sequence, the affected spectrum becomes active and a persistent **Con
 sequential fit** button appears in the status bar. Inspect or edit that spectrum, then
 continue; the accepted current model becomes the new propagation source. CurveMole
 does not silently skip a paused spectrum.
+The warning explains the affected spectrum, reason, measured change and threshold,
+and next action. **Last pause reason**, beside the sequential controls, reopens the
+latest warning even after continuing or terminating. It is saved with the project
+and is replaced when a later sequential fit pauses.
 
 #### Global simultaneous
 

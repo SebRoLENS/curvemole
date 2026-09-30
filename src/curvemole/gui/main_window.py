@@ -907,7 +907,8 @@ class MainWindow(QMainWindow):
         self.quick_fit_action = QAction(self.tr("Quick Fit"), self)
         self.quick_fit_action.setIcon(_resource_icon("quick-fit.svg"))
         self.quick_fit_action.setToolTip(
-            self.tr("Quick Fit\nFit the current selection with the last accepted settings, or defaults on first use.")
+            self.tr("Quick Fit\nAlways use Single/Independent fitting with the current "
+                    "solver, loss and algorithm settings, or defaults on first use.")
         )
         self.quick_fit_action.triggered.connect(self.quick_fit)
         self.resume_action = QAction(self.tr("Continue paused sequence"), self)
@@ -1979,18 +1980,17 @@ class MainWindow(QMainWindow):
         if not selected:
             self._notify(self.tr("Select or activate at least one curve first."), warning=True)
             return
+        settings = self.last_fit_plan.settings if self.last_fit_plan is not None else self.fit_settings
         if getattr(self, "_sequential_pause_result", None) is not None:
             # Quick Fit repairs the active spectrum without consuming the saved
             # sequential queue or accidentally running a one-curve sequence.
             selected = {self.active_curve_id} if self.active_curve_id else selected
-            plan = FitPlan([], settings=copy.deepcopy(self.fit_settings))
-        else:
-            plan = copy.deepcopy(self.last_fit_plan) if self.last_fit_plan is not None else FitPlan([])
-        plan.curve_ids = [curve.id for curve in self.project.curves if curve.id in selected]
-        plan.spectrum_weights = {
-            curve_id: plan.spectrum_weights.get(curve_id, 1.0)
-            for curve_id in plan.curve_ids
-        }
+            settings = self.fit_settings
+        plan = FitPlan(
+            [curve.id for curve in self.project.curves if curve.id in selected],
+            FitMode.INDEPENDENT,
+            settings=copy.deepcopy(settings),
+        )
         try:
             plan.validate()
         except Exception as exc:
@@ -2113,6 +2113,8 @@ class MainWindow(QMainWindow):
         successful_ids = self._successful_fit_curve_ids(result)
         self._apply_fit_result_to_project(result)
         self.project.results["last_attempt"] = result
+        if result.paused_curve_id:
+            self.project.results["last_sequential_pause_message"] = result.message
         if result.success:
             self.project.results["last_fit"] = result
         if successful_ids:
@@ -2179,15 +2181,16 @@ class MainWindow(QMainWindow):
         if result.success or result.curve_outputs:
             self.plot_workspace.auto_range()
         if result.paused_curve_id:
-            QMessageBox.warning(
-                self,
-                self.tr("Sequential fit paused"),
-                result.message + "\n\n" + self.tr("Edit the model manually, then choose Continue paused sequence."),
-            )
+            self.show_sequential_pause_reason()
         elif result.success:
             self._notify(self.tr("Fit completed."))
         else:
             self._notify(result.message, warning=True)
+
+    def show_sequential_pause_reason(self) -> None:
+        message = self.project.results.get("last_sequential_pause_message")
+        if message:
+            QMessageBox.warning(self, self.tr("Sequential fit — last pause reason"), str(message))
 
     def resume_sequence(self) -> None:
         result = self._paused_result

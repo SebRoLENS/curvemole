@@ -316,7 +316,15 @@ def _fit_sequential_propagating(
                     propagated, models.get(curve.id) or Model(), set(copied_ids), curve.id,
                 )
             except FitError as exc:
-                return _pause_result(results, plan, curve, str(exc), status=-2, failed=True)
+                return _pause_result(
+                    results, plan, curve,
+                    f"Sequential fit paused at '{curve.name}'.\n\n"
+                    "The selected source functions could not be combined with the target model. "
+                    "Review excluded functions and links between functions.\n\n"
+                    f"Details: {exc}\n\n"
+                    "Correct the model, then choose Continue sequential fit.",
+                    status=-2, failed=True,
+                )
         models[curve.id] = propagated
         seed_model = Model.from_dict(copy.deepcopy(propagated.to_dict()))
 
@@ -346,9 +354,12 @@ def _fit_sequential_propagating(
                 results,
                 plan,
                 curve,
-                f"Sequential fit paused at '{curve.name}': {exc}. "
-                "The propagated model is available for manual correction. "
-                "Finish this spectrum manually, then continue the sequence.",
+                f"Sequential fit paused at '{curve.name}'.\n\n"
+                "The copied model could not be fitted. Check parameter values, bounds, "
+                "links and usable data points.\n\n"
+                f"Details: {exc}\n\n"
+                "The copied model is retained. Correct and refit this spectrum manually, "
+                "then choose Continue sequential fit.",
                 status=-2,
                 failed=True,
             )
@@ -358,8 +369,11 @@ def _fit_sequential_propagating(
                 results,
                 plan,
                 curve,
-                f"Sequential fit paused at '{curve.name}' because the solver did not converge. "
-                "Finish this spectrum manually, then continue the sequence.",
+                f"Sequential fit paused at '{curve.name}'.\n\n"
+                "The fitting algorithm did not find a satisfactory solution. "
+                "Review starting values, bounds and fitting settings.\n\n"
+                f"Solver details: {current.message}\n\n"
+                "Correct and refit this spectrum manually, then choose Continue sequential fit.",
                 status=-2,
                 failed=True,
             )
@@ -384,9 +398,12 @@ def _fit_sequential_propagating(
             and current_nrmse - previous_nrmse >= residual_nrmse_delta
         ):
             reasons.append(
-                "normalized residual RMSE increased "
-                f"from {previous_nrmse:.4g} to {current_nrmse:.4g} "
-                f"({current_nrmse / max(previous_nrmse, np.finfo(float).eps):.2f}×)"
+                "The fit follows the data less closely than on the previous spectrum.\n"
+                f"Residual error relative to signal scale (normalized RMSE): "
+                f"{previous_nrmse:.4g} → {current_nrmse:.4g}.\n"
+                f"Increase: {current_nrmse / max(previous_nrmse, np.finfo(float).eps):.2f}× "
+                f"(limit: {residual_ratio_limit:g}×); absolute increase: "
+                f"{current_nrmse - previous_nrmse:.4g} (limit: {residual_nrmse_delta:g})."
             )
 
         if monitor_parameters:
@@ -398,8 +415,13 @@ def _fit_sequential_propagating(
             )
             if label is not None and jump >= parameter_change_limit:
                 reasons.append(
-                    f"parameter {label} changed strongly: {before:.6g} → {after:.6g} "
-                    f"(normalized change {jump * 100:.1f}%)"
+                    f"A fitted parameter moved more than allowed from its starting value.\n"
+                    f"Function and parameter: {label}\n"
+                    f"Starting value: {before:.6g}; fitted value: {after:.6g}.\n"
+                    f"Normalized change: {jump * 100:.1f}% "
+                    f"(limit: {parameter_change_limit * 100:.1f}%). "
+                    "This measure uses the larger value magnitude or a parameter-specific "
+                    "scale near zero; it is not simply the percent of the starting value."
                 )
 
         if reasons:
@@ -408,9 +430,11 @@ def _fit_sequential_propagating(
                 results,
                 plan,
                 curve,
-                f"Sequential fit paused for manual review at '{curve.name}' because "
-                + "; ".join(reasons)
-                + ". Adjust/refit this spectrum manually if needed, then choose Continue paused sequence.",
+                f"Sequential fit paused at '{curve.name}' for review.\n\n"
+                + "\n\n".join(reasons)
+                + "\n\nThis spectrum was fitted, but a safety check needs your review. "
+                "Inspect the fit and adjust/refit it if needed. Then choose Continue "
+                "sequential fit to use the corrected spectrum as the next source.",
                 status=-3,
                 failed=False,
             )

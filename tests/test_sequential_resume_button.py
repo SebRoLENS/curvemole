@@ -91,3 +91,47 @@ def test_terminate_button_clears_queue_and_preserves_models_and_results(monkeypa
     assert not started
     project.dirty = False
     window.close()
+
+
+def test_pause_reason_can_be_reopened_after_manual_fit_and_termination(monkeypatch, tmp_path):
+    import numpy as np
+    from PySide6.QtWidgets import QMessageBox
+
+    from curvemole import Component, Curve, Fitter
+    from curvemole.core.fitting import FitMode, FitPlan
+    from curvemole.core.serialization import load_project, save_project
+
+    _app()
+    project = Project()
+    curve = Curve("review", np.arange(5.0), np.full(5, 2.5))
+    project.add_curve(curve)
+    project.model_for(curve.id).add(Component.create("constant"))
+    window = MainWindow(project)
+    messages = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda parent, title, message: messages.append(message))
+    window.last_fit_plan = FitPlan([curve.id], FitMode.SEQUENTIAL)
+    result = Fitter().fit_single(curve, project.model_for(curve.id))
+    result.mode = FitMode.SEQUENTIAL
+    result.success = False
+    result.paused_curve_id = curve.id
+    result.message = "Paused for review: a parameter exceeded the allowed change."
+    window._fit_finished(result)
+    assert messages == [result.message]
+    assert not window.sequential_pause_reason_button.isHidden()
+    window.sequential_pause_reason_button.click()
+    assert messages == [result.message, result.message]
+    manual = Fitter().fit_single(curve, project.model_for(curve.id))
+    window._fit_finished(manual)
+    window.terminate_sequence()
+    assert not window.sequential_pause_reason_button.isHidden()
+    window.sequential_pause_reason_button.click()
+    assert messages[-1] == result.message
+    restored = load_project(save_project(project, tmp_path / "pause.fitproj"))
+    assert restored.results["last_sequential_pause_message"] == result.message
+    window.project = Project()
+    window.active_curve_id = None
+    window.selected_component_id = None
+    window.refresh_all()
+    assert window.sequential_pause_reason_button.isHidden()
+    project.dirty = False
+    window.close()

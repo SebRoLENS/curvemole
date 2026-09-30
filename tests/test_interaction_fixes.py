@@ -84,6 +84,29 @@ def window():
     app.processEvents()
 
 
+@pytest.mark.parametrize("previous_mode", list(FitMode))
+def test_quick_fit_always_uses_independent_mode_and_current_settings(window, monkeypatch, previous_mode):
+    from copy import deepcopy
+
+    from curvemole.core.fitting import FitSettings
+
+    ids = [curve.id for curve in window.project.curves]
+    window.last_fit_plan = SequentialFitPlan(ids, previous_mode)
+    window.fit_settings = FitSettings(loss="soft_l1", f_scale=2.5, max_nfev=125)
+    window.last_fit_plan.settings = deepcopy(window.fit_settings)
+    expected_settings = deepcopy(window.fit_settings)
+    window.curve_tree.select_all_curves()
+    plans = []
+    monkeypatch.setattr(window, "_run_fit", plans.append)
+    window.quick_fit()
+    assert len(plans) == 1
+    assert type(plans[0]) is FitPlan
+    assert plans[0].mode == FitMode.INDEPENDENT
+    assert plans[0].curve_ids == ids
+    assert plans[0].settings == expected_settings
+    assert plans[0].settings is not expected_settings
+
+
 @pytest.mark.parametrize("scope", ["Active spectrum only", "All visible spectra"])
 @pytest.mark.parametrize("mode", [1, 2])
 def test_mask_scope_and_mouse_buttons(window, monkeypatch, scope, mode):
