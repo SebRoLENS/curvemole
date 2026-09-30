@@ -3014,16 +3014,17 @@ class MainWindow(QMainWindow):
         self.plot_workspace._active_series_id = series_id
         ids = [curve.id for curve in series.curves]
         self.plot_workspace.cancel_placement()
-        self.active_curve_id = self.active_curve_id if self.active_curve_id in ids else (ids[0] if ids else None)
-        self.selected_component_id = None
+        curve_id = self.active_curve_id if self.active_curve_id in ids else (ids[0] if ids else None)
+        self.selected_component_id = self._component_for_curve_navigation(curve_id)
+        self.active_curve_id = curve_id
         # Keep the series header selected, including its multi-curve selection.
         self._selection_changed()
 
     def _activate_tree_curve(self, curve_id: str | None) -> None:
         if curve_id != self.active_curve_id:
             self.plot_workspace.cancel_placement()
+        self.selected_component_id = self._component_for_curve_navigation(curve_id)
         self.active_curve_id = curve_id
-        self.selected_component_id = None
         self._selection_changed()
         self.refresh_worksheet()
         self._refresh_diagnostics()
@@ -3031,9 +3032,29 @@ class MainWindow(QMainWindow):
     def _set_active_curve(self, curve_id: str | None) -> None:
         if curve_id != self.active_curve_id:
             self.plot_workspace.cancel_placement()
+        self.selected_component_id = self._component_for_curve_navigation(curve_id)
         self.active_curve_id = curve_id
-        self.selected_component_id = None
         self.refresh_all()
+
+    def _component_for_curve_navigation(self, curve_id: str | None) -> str | None:
+        panel = self.model_panel
+        if curve_id is None or panel.show_all_functions.isChecked():
+            return None
+        components = self.project.model_for(curve_id).components
+        if not components:
+            return None
+        source_id = panel.selected_component_curve_id()
+        component_id = panel.selected_component_id()
+        if source_id is None or component_id is None or panel.project is not self.project:
+            return None
+        source = self.project.models.get(source_id)
+        if source is None:
+            return None
+        position = next(
+            (index for index, component in enumerate(source.components) if component.id == component_id),
+            None,
+        )
+        return components[min(position, len(components) - 1)].id if position is not None else None
 
     def _selection_changed(self) -> None:
         selected = self.curve_tree.selected_curve_ids()
