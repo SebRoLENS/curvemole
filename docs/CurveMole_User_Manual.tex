@@ -1,28 +1,23 @@
 % Options for packages loaded elsewhere
 \PassOptionsToPackage{unicode}{hyperref}
 \PassOptionsToPackage{hyphens}{url}
-\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\PassOptionsToPackage{dvipsnames,svgnames*,x11names*}{xcolor}
+%
 \documentclass[
   10pt,
   a4paper,
   oneside]{scrreprt}
-\usepackage{xcolor}
-\usepackage[top=24mm,bottom=25mm,left=25mm,right=25mm]{geometry}
-\usepackage{amsmath,amssymb}
-\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
-\usepackage{iftex}
-\ifPDFTeX
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
   \usepackage[T1]{fontenc}
   \usepackage[utf8]{inputenc}
   \usepackage{textcomp} % provide euro and other symbols
 \else % if luatex or xetex
-  \usepackage{unicode-math} % this also loads fontspec
+  \usepackage{unicode-math}
   \defaultfontfeatures{Scale=MatchLowercase}
   \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
-\fi
-\usepackage{lmodern}
-\ifPDFTeX\else
-  % xetex/luatex font selection
   \setmainfont[]{DejaVu Serif}
   \setsansfont[]{DejaVu Sans}
   \setmonofont[]{DejaVu Sans Mono}
@@ -43,6 +38,20 @@
 }{% if KOMA class
   \KOMAoptions{parskip=half}}
 \makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={CurveMole User Manual},
+  pdfauthor={Sebastiano Romi},
+  colorlinks=true,
+  linkcolor=teal,
+  filecolor=Maroon,
+  citecolor=Blue,
+  urlcolor=teal,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\usepackage[top=24mm,bottom=25mm,left=25mm,right=25mm]{geometry}
 \usepackage{color}
 \usepackage{fancyvrb}
 \newcommand{\VerbBar}{|}
@@ -54,7 +63,7 @@
 \newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
 \newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
 \newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
-\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
 \newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
 \newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
 \newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
@@ -67,7 +76,7 @@
 \newcommand{\ExtensionTok}[1]{#1}
 \newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
 \newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
-\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
 \newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
 \newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
 \newcommand{\NormalTok}[1]{#1}
@@ -81,11 +90,7 @@
 \newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
 \newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
 \newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
-\usepackage{longtable,booktabs,array}
-\usepackage{caption}
-\captionsetup[table]{skip=6pt}
-\newcounter{none} % for unnumbered tables
-\usepackage{calc} % for calculating minipage widths
+\usepackage{longtable,booktabs}
 % Correct order of tables after \paragraph or \subparagraph
 \usepackage{etoolbox}
 \makeatletter
@@ -96,22 +101,21 @@
 \makesavenoteenv{longtable}
 \usepackage{graphicx}
 \makeatletter
-\newsavebox\pandoc@box
-\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
-  \sbox\pandoc@box{#1}%
-  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
-  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
-  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
-  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
-  \else\usebox{\pandoc@box}%
-  \fi%
-}
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
 % Set default figure placement to htbp
+\makeatletter
 \def\fps@figure{htbp}
 \makeatother
 \setlength{\emergencystretch}{3em} % prevent overfull lines
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
 % This file is expanded by scripts/build_manual.py.
 \usepackage{microtype}
 \usepackage{fvextra}
@@ -175,22 +179,6 @@
   \end{titlepage}
 }
 \makeatother
-\usepackage{bookmark}
-\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
-\urlstyle{same}
-% fallback for those not using the hyperref driver hyperxmp:
-\makeatletter
-\@ifundefined{xmpquote}{\newcommand{\xmpquote}[1]{#1}}{}
-\makeatother
-\hypersetup{
-  pdftitle={CurveMole User Manual},
-  pdfauthor={Sebastiano Romi},
-  colorlinks=true,
-  linkcolor={teal},
-  filecolor={Maroon},
-  citecolor={Blue},
-  urlcolor={teal},
-  pdfcreator={LaTeX via pandoc}}
 
 \title{CurveMole User Manual}
 \usepackage{etoolbox}
@@ -208,6 +196,7 @@
 
 \renewcommand*\contentsname{Contents}
 {
+\hypersetup{linkcolor=}
 \setcounter{tocdepth}{2}
 \tableofcontents
 }
@@ -243,9 +232,11 @@ Useful links:
   \href{quick-start.md}{Quick Start}
 \end{itemize}
 
-\chapter{1. About this manual}\label{about-this-manual}
+\hypertarget{about-this-manual}{%
+\chapter{1. About this manual}\label{about-this-manual}}
 
-\section{1.1 Intended audience}\label{intended-audience}
+\hypertarget{intended-audience}{%
+\section{1.1 Intended audience}\label{intended-audience}}
 
 This manual is for researchers and technical users who need to fit
 spectra or other x-y data while retaining control over data preparation,
@@ -273,8 +264,9 @@ No programming knowledge is required for the graphical workflow.
 Separate chapters cover the command-line interface, YAML workflows,
 Python API, formula builder, and plugins.
 
+\hypertarget{version-policy-for-the-manual}{%
 \section{1.2 Version policy for the
-manual}\label{version-policy-for-the-manual}
+manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
@@ -300,7 +292,8 @@ The release automation performs four checks:
 The release assets use versioned names so that a downloaded manual can
 always be associated with the correct executable.
 
-\section{1.3 Terminology and notation}\label{terminology-and-notation}
+\hypertarget{terminology-and-notation}{%
+\section{1.3 Terminology and notation}\label{terminology-and-notation}}
 
 Menu commands are written as \textbf{File \textgreater{} Import data}.
 Buttons and field names are shown in \textbf{bold}. Commands, filenames,
@@ -317,7 +310,9 @@ The optimizer minimizes the opposite sign, \(f(x_i)-y_i\), after
 applying uncertainty and spectrum scaling. The sign has no effect on a
 least-squares minimum but matters when reading exported residuals.
 
-\section{1.4 Scientific responsibility}\label{scientific-responsibility}
+\hypertarget{scientific-responsibility}{%
+\section{1.4 Scientific
+responsibility}\label{scientific-responsibility}}
 
 CurveMole can optimize a mathematically defined model, but it cannot
 decide whether that model is physically appropriate. A small residual or
@@ -339,19 +334,22 @@ chemical meaning, or predictive validity. In particular:
   uncertainty method used.
 \end{itemize}
 
-\chapter{2. Core concepts}\label{core-concepts}
+\hypertarget{core-concepts}{%
+\chapter{2. Core concepts}\label{core-concepts}}
 
 CurveMole keeps the scientific engine independent from the graphical
 interface. The desktop application, command-line interface, YAML
 workflows, and Python API all operate on the same domain objects.
 
-\section{2.1 Project}\label{project}
+\hypertarget{project}{%
+\section{2.1 Project}\label{project}}
 
 A project is the complete analysis workspace. It can contain data,
 models, masks, transformations, fit results, custom formulas, history,
 and interface state. Projects are saved as \texttt{.fitproj} files.
 
-\section{2.2 Series and curves}\label{series-and-curves}
+\hypertarget{series-and-curves}{%
+\section{2.2 Series and curves}\label{series-and-curves}}
 
 A \textbf{series} groups related curves. A \textbf{curve} contains one x
 array and one y array, with optional \texttt{sigma\_x},
@@ -362,8 +360,9 @@ Original numeric arrays are stored as immutable 64-bit floating-point
 values. Data Calculator operations create reversible transformations
 instead of overwriting the original arrays.
 
+\hypertarget{model-component-and-parameter}{%
 \section{2.3 Model, component, and
-parameter}\label{model-component-and-parameter}
+parameter}\label{model-component-and-parameter}}
 
 Each curve has its own model. A model is an ordered sequence of
 components such as a background and several peaks. Every component has:
@@ -389,8 +388,9 @@ fixed state, and an optional expression link. Standard errors and
 confidence limits are populated after a successful fit when they are
 available.
 
+\hypertarget{active-selected-and-visible-curves}{%
 \section{2.4 Active, selected, and visible
-curves}\label{active-selected-and-visible-curves}
+curves}\label{active-selected-and-visible-curves}}
 
 These states are deliberately distinct:
 
@@ -411,93 +411,109 @@ Activating a curve does not automatically select every visible curve.
 Before a fit, mask transfer, or multi-curve calculation, check the
 target shown in the relevant dialog.
 
-\section{2.5 Fit plan and result}\label{fit-plan-and-result}
+\hypertarget{fit-plan-and-result}{%
+\section{2.5 Fit plan and result}\label{fit-plan-and-result}}
 
 A fit plan specifies the curves, fit mode, solver settings, per-spectrum
 weights, and whether numerical contributions should be equalized. A fit
 result records the optimized parameters, statistics, residual arrays,
 covariance, correlation, warnings, timestamp, and solver status.
 
+\hypertarget{installation-and-first-launch}{%
 \chapter{3. Installation and first
-launch}\label{installation-and-first-launch}
+launch}\label{installation-and-first-launch}}
 
-\section{3.1 Reference requirements}\label{reference-requirements}
+\hypertarget{reference-requirements}{%
+\section{3.1 Reference requirements}\label{reference-requirements}}
 
 The current reference configuration is:
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Item
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Minimum or supported target
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Item & Minimum or supported target\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Processor & x86-64 or Apple Silicon on macOS; 4 CPU cores recommended \\
-Memory & 8 GB RAM \\
-Storage & SSD recommended \\
-Display & 1920 x 1080 recommended \\
-Windows & Windows 10 22H2 legacy compatibility or Windows 11, 64-bit \\
-macOS & macOS 13 Ventura or newer, Intel or Apple Silicon \\
+Processor & x86-64 or Apple Silicon on macOS; 4 CPU cores
+recommended\tabularnewline
+Memory & 8 GB RAM\tabularnewline
+Storage & SSD recommended\tabularnewline
+Display & 1920 x 1080 recommended\tabularnewline
+Windows & Windows 10 22H2 legacy compatibility or Windows 11,
+64-bit\tabularnewline
+macOS & macOS 13 Ventura or newer, Intel or Apple Silicon\tabularnewline
 Linux & Ubuntu 22.04 LTS, Debian 12, or a comparable newer
-distribution \\
-Python & Python 3.12 or newer for Python installations \\
+distribution\tabularnewline
+Python & Python 3.12 or newer for Python installations\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 A dedicated GPU is not required. Large multi-curve fits and resampling
 analyses may require more memory and time than the reference
 configuration.
 
-\section{3.2 Desktop packages}\label{desktop-packages}
+\hypertarget{desktop-packages}{%
+\section{3.2 Desktop packages}\label{desktop-packages}}
 
 Open the
 \href{https://github.com/SebRoLENS/curvemole/releases/latest}{latest
 release} and select the package for your system.
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Platform
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Release asset
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Normal launch method
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+\begin{minipage}[b]{0.30\columnwidth}\raggedright
+Platform\strut
+\end{minipage} & \begin{minipage}[b]{0.30\columnwidth}\raggedright
+Release asset\strut
+\end{minipage} & \begin{minipage}[b]{0.30\columnwidth}\raggedright
+Normal launch method\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Linux x86-64 & \texttt{CurveMole-VERSION-linux-x86\_64.AppImage} & Mark
-executable and run \\
-Windows x86-64 & \texttt{CurveMole-VERSION-windows-x86\_64-setup.exe} &
-Run the per-user installer \\
-Windows portable &
-\texttt{CurveMole-VERSION-windows-x86\_64-portable.zip} & Extract and
-run \texttt{CurveMole.exe} \\
-macOS Apple Silicon & \texttt{CurveMole-VERSION-macos-arm64.dmg} & Drag
-CurveMole to Applications \\
-macOS Intel & \texttt{CurveMole-VERSION-macos-x86\_64.dmg} & Drag
-CurveMole to Applications \\
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+Linux x86-64\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-linux-x86\_64.AppImage}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Mark executable and run\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+Windows x86-64\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-windows-x86\_64-setup.exe}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Run the per-user installer\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+Windows portable\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-windows-x86\_64-portable.zip}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Extract and run \texttt{CurveMole.exe}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+macOS Apple Silicon\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-macos-arm64.dmg}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Drag CurveMole to Applications\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+macOS Intel\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{CurveMole-VERSION-macos-x86\_64.dmg}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Drag CurveMole to Applications\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 Windows and macOS packages are currently unsigned. The operating system
 may show a warning on first launch. Download only from the official
 GitHub release page and verify the checksum if the application will be
 used for research.
 
-\section{3.3 Linux AppImage}\label{linux-appimage}
+\hypertarget{linux-appimage}{%
+\section{3.3 Linux AppImage}\label{linux-appimage}}
 
 In a terminal opened in the download directory:
 
@@ -512,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN}\OperatorTok{=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.33.1{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.33.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -540,14 +556,15 @@ application appears in Applications and Launchpad. On every platform, a
 registered project can be opened by double-clicking it or choosing
 \textbf{Open with CurveMole}.
 
+\hypertarget{verifying-sha-256-checksums}{%
 \section{3.4 Verifying SHA-256
-checksums}\label{verifying-sha-256-checksums}
+checksums}\label{verifying-sha-256-checksums}}
 
 Every release includes \texttt{SHA256SUMS.txt}. On Linux:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{sha256sum} \AttributeTok{{-}c}\NormalTok{ SHA256SUMS.txt }\AttributeTok{{-}{-}ignore{-}missing}
+\ExtensionTok{sha256sum}\NormalTok{ {-}c SHA256SUMS.txt {-}{-}ignore{-}missing}
 \end{Highlighting}
 \end{Shaded}
 
@@ -555,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum} \AttributeTok{{-}a}\NormalTok{ 256 CurveMole{-}0.33.1{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.33.1{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -563,23 +580,24 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash }\OperatorTok{.}\NormalTok{\textbackslash{}CurveMole{-}0}\OperatorTok{.}\DecValTok{33.1}\OperatorTok{{-}}\NormalTok{windows{-}x86\_64{-}setup}\OperatorTok{.}\FunctionTok{exe} \OperatorTok{{-}}\NormalTok{Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{33}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
 Compare the reported value with the corresponding line in
 \texttt{SHA256SUMS.txt}.
 
+\hypertarget{installing-the-python-package}{%
 \section{3.5 Installing the Python
-package}\label{installing-the-python-package}
+package}\label{installing-the-python-package}}
 
 Use an isolated environment. From a downloaded wheel:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{python3} \AttributeTok{{-}m}\NormalTok{ venv \textasciitilde{}/.venv/curvemole}
+\ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ pip install ./curvemole{-}0.33.1{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.33.1{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -588,15 +606,16 @@ On Windows PowerShell, activation is:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{py }\OperatorTok{{-}}\NormalTok{m venv }\VariableTok{$env}\OperatorTok{:}\VariableTok{USERPROFILE}\NormalTok{\textbackslash{}}\OperatorTok{.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
-\OperatorTok{\&} \VariableTok{$env}\OperatorTok{:}\VariableTok{USERPROFILE}\NormalTok{\textbackslash{}}\OperatorTok{.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate}\OperatorTok{.}\FunctionTok{ps1}
-\NormalTok{python }\OperatorTok{{-}}\NormalTok{m pip install }\OperatorTok{.}\NormalTok{\textbackslash{}curvemole{-}0}\OperatorTok{.}\DecValTok{33.1}\OperatorTok{{-}}\NormalTok{py3{-}none{-}any}\OperatorTok{.}\FunctionTok{whl}
+\NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
+\NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{33}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
 
+\hypertarget{running-from-a-source-checkout}{%
 \section{3.6 Running from a source
-checkout}\label{running-from-a-source-checkout}
+checkout}\label{running-from-a-source-checkout}}
 
 Clone the repository and install its locked development environment:
 
@@ -604,7 +623,7 @@ Clone the repository and install its locked development environment:
 \begin{Highlighting}[]
 \FunctionTok{git}\NormalTok{ clone https://github.com/SebRoLENS/curvemole.git}
 \BuiltInTok{cd}\NormalTok{ curvemole}
-\ExtensionTok{uv}\NormalTok{ sync }\AttributeTok{{-}{-}locked} \AttributeTok{{-}{-}group}\NormalTok{ dev}
+\ExtensionTok{uv}\NormalTok{ sync {-}{-}locked {-}{-}group dev}
 \ExtensionTok{uv}\NormalTok{ run curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -613,19 +632,20 @@ For an editable installation using \texttt{pip}:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{python3} \AttributeTok{{-}m}\NormalTok{ venv .venv}
+\ExtensionTok{python3}\NormalTok{ {-}m venv .venv}
 \BuiltInTok{source}\NormalTok{ .venv/bin/activate}
-\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ pip install }\AttributeTok{{-}e}\NormalTok{ .}
+\ExtensionTok{python}\NormalTok{ {-}m pip install {-}e .}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
 
+\hypertarget{confirming-the-installed-version}{%
 \section{3.7 Confirming the installed
-version}\label{confirming-the-installed-version}
+version}\label{confirming-the-installed-version}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole} \AttributeTok{{-}{-}version}
+\ExtensionTok{curvemole}\NormalTok{ {-}{-}version}
 \end{Highlighting}
 \end{Shaded}
 
@@ -633,7 +653,9 @@ The About dialog also displays the version. A project stores the
 application version that created it, and exports include the application
 version in machine-readable metadata.
 
-\section{3.8 Version badge and updates}\label{version-badge-and-updates}
+\hypertarget{version-badge-and-updates}{%
+\section{3.8 Version badge and
+updates}\label{version-badge-and-updates}}
 
 The status bar contains a clickable version badge. CurveMole checks the
 latest GitHub release at startup and once per hour while the application
@@ -669,12 +691,14 @@ their existing user directories. Python, source, macOS, unsupported
 architectures, and protected installations must be updated manually from
 the release page.
 
-\chapter{4. A complete first fit}\label{a-complete-first-fit}
+\hypertarget{a-complete-first-fit}{%
+\chapter{4. A complete first fit}\label{a-complete-first-fit}}
 
 This tutorial uses \texttt{examples/gaussian.csv} from the source
 archive. It contains x, y, and \texttt{sigma\_y} columns.
 
-\section{4.1 Import the example}\label{import-the-example}
+\hypertarget{import-the-example}{%
+\section{4.1 Import the example}\label{import-the-example}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -702,7 +726,8 @@ The curve appears in the left tree and becomes active. The central plot
 displays the data, and the model panel on the right identifies the
 active curve.
 
-\section{4.2 Add a background}\label{add-a-background}
+\hypertarget{add-a-background}{%
+\section{4.2 Add a background}\label{add-a-background}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -721,8 +746,9 @@ active curve.
   visual baseline.
 \end{enumerate}
 
+\hypertarget{add-a-gaussian-peak-graphically}{%
 \section{4.3 Add a Gaussian peak
-graphically}\label{add-a-gaussian-peak-graphically}
+graphically}\label{add-a-gaussian-peak-graphically}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -750,8 +776,9 @@ component as one undoable action.
 If placement is incorrect, press \textbf{Ctrl+Z} and repeat. Press
 \textbf{Esc} during placement to cancel without adding the component.
 
+\hypertarget{adjust-the-model-before-fitting}{%
 \section{4.4 Adjust the model before
-fitting}\label{adjust-the-model-before-fitting}
+fitting}\label{adjust-the-model-before-fitting}}
 
 Select the Gaussian in the component list. Three green handles appear:
 
@@ -769,8 +796,9 @@ For this example, a positive lower bound on \texttt{sigma} already
 exists intrinsically. You may enter a tighter scientifically motivated
 range, but it is not required.
 
+\hypertarget{mask-an-interval-if-needed}{%
 \section{4.5 Mask an interval if
-needed}\label{mask-an-interval-if-needed}
+needed}\label{mask-an-interval-if-needed}}
 
 Mask editing is active only while the graphical \textbf{Mask} toolbar
 button is enabled:
@@ -791,7 +819,8 @@ button is enabled:
 
 The example does not normally require masking.
 
-\section{4.6 Run the fit}\label{run-the-fit}
+\hypertarget{run-the-fit}{%
+\section{4.6 Run the fit}\label{run-the-fit}}
 
 \begin{enumerate}
 \def\labelenumi{\arabic{enumi}.}
@@ -816,7 +845,8 @@ appear in the \texttt{±1\ sigma} column when covariance is available.
 Open \textbf{View \textgreater{} Diagnostics} to inspect residual
 warnings.
 
-\section{4.7 Save and export}\label{save-and-export}
+\hypertarget{save-and-export}{%
+\section{4.7 Save and export}\label{save-and-export}}
 
 Save the complete workspace with \textbf{File \textgreater{} Save
 project as}. Use a \texttt{.fitproj} extension.
@@ -829,9 +859,11 @@ together with its fitted value and standard error. Data tables, plots,
 reports, JSON, reusable models, project copies, uncertainty matrices,
 and diagnostics are optional.
 
-\chapter{5. Main window and controls}\label{main-window-and-controls}
+\hypertarget{main-window-and-controls}{%
+\chapter{5. Main window and controls}\label{main-window-and-controls}}
 
-\section{5.1 Series and curves tree}\label{series-and-curves-tree}
+\hypertarget{series-and-curves-tree}{%
+\section{5.1 Series and curves tree}\label{series-and-curves-tree}}
 
 The left dock contains a search field and a tree with \textbf{Visible},
 \textbf{Series / Curve}, and \textbf{State} columns.
@@ -897,32 +929,24 @@ The left dock contains a search field and a tree with \textbf{Visible},
 
 Curve states are:
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-State
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Meaning
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+State & Meaning\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
 Not fitted & No successful fit is associated with the current curve
-state \\
-Ready & The curve is prepared for fitting \\
-Running & A fit involving the curve is in progress \\
-Fitted & The last fit completed successfully \\
+state\tabularnewline
+Ready & The curve is prepared for fitting\tabularnewline
+Running & A fit involving the curve is in progress\tabularnewline
+Fitted & The last fit completed successfully\tabularnewline
 Modified/outdated & Data or model changed after the last successful
-fit \\
-Failed & The latest fit attempt failed \\
+fit\tabularnewline
+Failed & The latest fit attempt failed\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
-\section{5.2 Plot workspace}\label{plot-workspace}
+\hypertarget{plot-workspace}{%
+\section{5.2 Plot workspace}\label{plot-workspace}}
 
 The central workspace contains the data/model plot and an optional
 residual plot. Controls above it provide:
@@ -995,7 +1019,8 @@ the current zoom. The \textbf{Model sum is always red}; imported spectra
 and selectable series palettes exclude red so a data curve can never be
 confused with the fitted sum.
 
-\section{5.3 Navigation and axes}\label{navigation-and-axes}
+\hypertarget{navigation-and-axes}{%
+\section{5.3 Navigation and axes}\label{navigation-and-axes}}
 
 Normal plot navigation is available when neither placement nor Mask mode
 is active. The mouse wheel remains available during Quick Add peak
@@ -1023,7 +1048,9 @@ Reversing an axis is only a view setting. Logarithmic axes do not
 transform the data used by the fit. Values incompatible with a log
 display may not be visible even though they remain stored.
 
-\section{5.4 Model and parameters dock}\label{model-and-parameters-dock}
+\hypertarget{model-and-parameters-dock}{%
+\section{5.4 Model and parameters
+dock}\label{model-and-parameters-dock}}
 
 The right dock normally lists components for the active curve. Enable
 \textbf{Show all functions} to list every model function in the project,
@@ -1045,35 +1072,65 @@ them from the data.
 
 The controls below the list are:
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Control
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Action
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Control\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Action\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{+} & Add a component \\
-Duplicate & Duplicate the selected component and its settings \\
-Up / Down & Change component order \\
-Delete & Delete the component after confirmation \\
-Reorder & Sort the function list and renumber automatic names using a
-parameter value \\
-Advanced reorder rules & Choose the numbering parameter separately for
-each function type \\
-Copy fit & Copy selected model information to other curves \\
-Copy fit to next & Open the copy dialog with the next curve in the
-source series selected \\
-Copy parameter & Copy one parameter from one source function to chosen
-project-wide targets \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{+}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Add a component\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Duplicate\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Duplicate the selected component and its settings\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Up / Down\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Change component order\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Delete\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Delete the component after confirmation\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Reorder\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Sort the function list and renumber automatic names using a parameter
+value\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Advanced reorder rules\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Choose the numbering parameter separately for each function type\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Copy fit\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Copy selected model information to other curves\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Copy fit to next\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Open the copy dialog with the next curve in the source series
+selected\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Copy parameter\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Copy one parameter from one source function to chosen project-wide
+targets\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 Bulk actions on selected functions can delete, duplicate, reorder,
 enable or disable, mark or unmark backgrounds, and fix or free their
@@ -1091,7 +1148,8 @@ link/relation. Targets without the parameter or whose retained bounds
 reject the source value are skipped and reported. The complete copy is
 undoable.
 
-\section{5.5 Quick actions}\label{quick-actions}
+\hypertarget{quick-actions}{%
+\section{5.5 Quick actions}\label{quick-actions}}
 
 The main toolbar includes \textbf{Quick Add Function} and an adjacent
 function selector. The selector contains the complete current registry:
@@ -1111,7 +1169,8 @@ The toolbar also provides the most common project, model, fitting,
 background, and calculator actions as icons. Hover over an icon to see
 its action name.
 
-\section{5.6 Dockable tools}\label{dockable-tools}
+\hypertarget{dockable-tools}{%
+\section{5.6 Dockable tools}\label{dockable-tools}}
 
 The \textbf{View} and \textbf{Tools} menus show or hide these docks:
 
@@ -1149,22 +1208,26 @@ CurveMole remembers window geometry, dock arrangement, and theme. Use
 \textbf{View \textgreater{} Reset layout} to restore the standard tabbed
 layout.
 
-\section{5.7 Themes}\label{themes}
+\hypertarget{themes}{%
+\section{5.7 Themes}\label{themes}}
 
 \textbf{View \textgreater{} Theme} provides System, Light, and Dark
 themes. Theme choice affects only presentation. It does not change plot
 data, exported numeric values, or fitting.
 
-\section{5.8 Drag and drop}\label{drag-and-drop}
+\hypertarget{drag-and-drop}{%
+\section{5.8 Drag and drop}\label{drag-and-drop}}
 
 Drop a \texttt{.fitproj} file onto the window to open it. Drop any other
 local file to begin content-aware data import, regardless of its
 extension. If a drop contains both a project and data files, the first
 project is opened.
 
-\chapter{6. Importing data}\label{importing-data}
+\hypertarget{importing-data}{%
+\chapter{6. Importing data}\label{importing-data}}
 
-\section{6.1 Supported text formats}\label{supported-text-formats}
+\hypertarget{supported-text-formats}{%
+\section{6.1 Supported text formats}\label{supported-text-formats}}
 
 The graphical importer shows \texttt{.txt}, \texttt{.dat},
 \texttt{.csv}, and \texttt{.tsv} as common choices but can open any
@@ -1195,8 +1258,9 @@ It also proposes decimal point or decimal comma and whether the first
 data row is a header. Always inspect the preview before accepting the
 mapping.
 
+\hypertarget{comments-blank-lines-and-encoding}{%
 \section{6.2 Comments, blank lines, and
-encoding}\label{comments-blank-lines-and-encoding}
+encoding}\label{comments-blank-lines-and-encoding}}
 
 Blank lines are ignored. Lines whose first non-space character is
 \texttt{\#}, \texttt{;}, \texttt{\%}, or \texttt{!} are treated as
@@ -1228,12 +1292,13 @@ unavailable, then configured in the mapping dialog.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Preview while selecting files, before opening the import mapping dialog.}]{screenshots/import-file-preview.png}}
+\includegraphics{screenshots/import-file-preview.png}
 \caption{Preview while selecting files, before opening the import
 mapping dialog.}
 \end{figure}
 
-\section{6.3 Column mapping}\label{column-mapping}
+\hypertarget{column-mapping}{%
+\section{6.3 Column mapping}\label{column-mapping}}
 
 Choose exactly one x column and one or more y columns. Each selected y
 column becomes a separate curve sharing the selected x column. Use
@@ -1272,7 +1337,8 @@ from full-resolution finite X/Y pairs. With no selected Y or an invalid
 mapping, the preview clears and explains the problem. For batch import,
 it previews the file named in the mapping dialog.
 
-\section{6.4 Batch import}\label{batch-import}
+\hypertarget{batch-import}{%
+\section{6.4 Batch import}\label{batch-import}}
 
 When importing multiple files, \textbf{Apply this mapping to all files
 in this batch} reuses the first file's parsing and column mapping.
@@ -1282,8 +1348,9 @@ silently guess a new mapping for an incompatible file in the same batch.
 Files are imported in natural filename order: \texttt{scan\_2} precedes
 \texttt{scan\_10}, regardless of the order returned by the file chooser.
 
+\hypertarget{calibrated-winspec-spe-files}{%
 \subsection{Calibrated WinSpec SPE
-files}\label{calibrated-winspec-spe-files}
+files}\label{calibrated-winspec-spe-files}}
 
 CurveMole also reads binary WinSpec SPE 2.x files containing calibrated
 one-dimensional acquisitions. The first column is wavelength in nm,
@@ -1292,7 +1359,8 @@ Y-column mapping. SPE 3.x, uncalibrated axes, images and multiple-ROI
 acquisitions are unsupported; export those acquisitions to calibrated
 x-y text before importing.
 
-\subsection{Automatic folder import}\label{automatic-folder-import}
+\hypertarget{automatic-folder-import}{%
+\subsection{Automatic folder import}\label{automatic-folder-import}}
 
 Choose \textbf{File \textgreater{} Automatic folder import\ldots{}} to
 add arriving files to the current project. Select an existing folder, an
@@ -1332,7 +1400,8 @@ panel leaves it running; choose \textbf{Stop} or \textbf{File
 the session, and reopening CurveMole does not start monitoring
 automatically.
 
-\section{6.5 Invalid numeric cells}\label{invalid-numeric-cells}
+\hypertarget{invalid-numeric-cells}{%
+\section{6.5 Invalid numeric cells}\label{invalid-numeric-cells}}
 
 Non-numeric cells are converted to missing numeric values. Rows are
 retained in the stored arrays but excluded from fitting when x or y is
@@ -1353,7 +1422,9 @@ not finite. A row is also excluded if:
 CurveMole does not reorder rows, average duplicate x values, or
 interpolate missing values during import.
 
-\section{6.6 Uncertainties and weights}\label{uncertainties-and-weights}
+\hypertarget{uncertainties-and-weights}{%
+\section{6.6 Uncertainties and
+weights}\label{uncertainties-and-weights}}
 
 If absolute \texttt{sigma\_y} values are supplied, point residuals are
 scaled as:
@@ -1371,18 +1442,21 @@ Zero generic weight is allowed and gives a point zero numerical
 influence. A zero or negative \texttt{sigma\_y} is invalid and excludes
 the row.
 
+\hypertarget{curves-masks-and-transformations}{%
 \chapter{7. Curves, masks, and
-transformations}\label{curves-masks-and-transformations}
+transformations}\label{curves-masks-and-transformations}}
 
-\section{7.1 Immutable originals}\label{immutable-originals}
+\hypertarget{immutable-originals}{%
+\section{7.1 Immutable originals}\label{immutable-originals}}
 
 CurveMole preserves imported x, y, uncertainty, and weight arrays.
 Displayed working arrays are reconstructed by applying a transformation
 history to the originals. This design makes data preparation reversible
 and auditable.
 
+\hypertarget{masking-points-and-intervals}{%
 \section{7.2 Masking points and
-intervals}\label{masking-points-and-intervals}
+intervals}\label{masking-points-and-intervals}}
 
 Masked points remain stored but are excluded from fitting. They are
 drawn as faded markers, and masked intervals are shaded.
@@ -1393,20 +1467,18 @@ operation on a point. The button becomes grey while active. Turn it off
 to navigate without changing exclusions. Changing display mode also
 exits masking.
 
-\section{7.3 Mask targets}\label{mask-targets}
+\hypertarget{mask-targets}{%
+\section{7.3 Mask targets}\label{mask-targets}}
 
-{\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Target & Effect \\
-\midrule\noalign{}
+\toprule
+Target & Effect\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Active & Changes only the active curve \\
-All visible & Changes every currently visible curve \\
+Active & Changes only the active curve\tabularnewline
+All visible & Changes every currently visible curve\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 Single view always uses the active spectrum. Overlay and Waterfall
 prompt for Active or All visible when entering Mask mode; cancelling
@@ -1421,7 +1493,8 @@ Set this tolerance through \textbf{Data \textgreater{} Mask transfer
 tolerance}. A value of zero requires an exact matching x value on
 transferred point masks.
 
-\section{7.4 Undo and mask history}\label{undo-and-mask-history}
+\hypertarget{undo-and-mask-history}{%
+\section{7.4 Undo and mask history}\label{undo-and-mask-history}}
 
 A graphical mask action is placed on the application Undo stack. Press
 \textbf{Ctrl+Z} to undo it or \textbf{Ctrl+Shift+Z} on platforms that
@@ -1444,7 +1517,8 @@ algorithm settings but always use \textbf{Single/Independent}, even
 after a sequential or global fit. Open Fit\ldots{} to use another
 fitting mode.
 
-\section{7.5 Data Calculator}\label{data-calculator}
+\hypertarget{data-calculator}{%
+\section{7.5 Data Calculator}\label{data-calculator}}
 
 Open \textbf{Tools \textgreater{} Data Calculator}. The following scalar
 operations are available:
@@ -1475,7 +1549,8 @@ restores the whole batch. Normalization also scales \texttt{sigma\_y}
 consistently. Dividing by zero and normalizing a zero or invalid signal
 are rejected.
 
-\subsection{Advanced column formulas}\label{advanced-column-formulas}
+\hypertarget{advanced-column-formulas}{%
+\subsection{Advanced column formulas}\label{advanced-column-formulas}}
 
 The green \textbf{Advanced - column formula} entry is first in the
 operation list, followed by the green \textbf{Custom formula} for a
@@ -1496,7 +1571,7 @@ receive the operation.
 
 \begin{figure}
 \centering
-\pandocbounded{\includegraphics[keepaspectratio,alt={Advanced calculator with column insertion and destination controls in dark mode.}]{screenshots/advanced-calculator-dark.png}}
+\includegraphics{screenshots/advanced-calculator-dark.png}
 \caption{Advanced calculator with column insertion and destination
 controls in dark mode.}
 \end{figure}
@@ -1545,8 +1620,9 @@ without the original source file. Projects created before this feature
 contain only their previously stored axes: re-import the source to
 recover additional columns.
 
+\hypertarget{curve-to-curve-calculations}{%
 \section{7.6 Curve-to-curve
-calculations}\label{curve-to-curve-calculations}
+calculations}\label{curve-to-curve-calculations}}
 
 The calculator can add, subtract, multiply, or divide by another curve.
 The operand is aligned to the target x grid by:
@@ -1570,21 +1646,24 @@ The aligned operand array is stored with the transformation so that
 reopening the project does not depend on a later change to the source
 curve.
 
-\section{7.7 Restoring original data}\label{restoring-original-data}
+\hypertarget{restoring-original-data}{%
+\section{7.7 Restoring original data}\label{restoring-original-data}}
 
 \textbf{Restore original data} removes all currently applied
 transformations from the selected target while retaining them on the
 redo stack. The imported arrays are not re-read from disk. The whole
 action is also integrated with application Undo.
 
-\section{7.8 Worksheet}\label{worksheet}
+\hypertarget{worksheet}{%
+\section{7.8 Worksheet}\label{worksheet}}
 
 The Worksheet is a read-only inspection view. It shows up to 100,000
 rows for the active curve with columns for x, y, \texttt{sigma\_y},
 weight, and mask state. It is not a spreadsheet editor and does not
 modify source arrays.
 
-\chapter{8. Building models}\label{building-models}
+\hypertarget{building-models}{%
+\chapter{8. Building models}\label{building-models}}
 
 All entries in the function library are fitting functions. Constant,
 linear, polynomial, cubic-spline, peak-shaped, and custom formulas are
@@ -1616,26 +1695,27 @@ plot coordinates, including outside the x/y extent of the measured data.
 Adding nodes does not auto-range the graph. Left-drag continues to pan
 and the mouse wheel continues to zoom while placement is active.
 
-\section{8.1 Component composition}\label{component-composition}
+\hypertarget{component-composition}{%
+\section{8.1 Component composition}\label{component-composition}}
 
 Components are evaluated in list order. Available operators are:
 
-{\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Operator & Operation \\
-\midrule\noalign{}
+\toprule
+Operator & Operation\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{add} & Add the component array to the accumulated model \\
-\texttt{subtract} & Subtract the component array \\
+\texttt{add} & Add the component array to the accumulated
+model\tabularnewline
+\texttt{subtract} & Subtract the component array\tabularnewline
 \texttt{multiply} & Multiply the accumulated model by the component
-array \\
-\texttt{divide} & Divide the accumulated model by the component array \\
-\texttt{convolve} & Convolve using FFT and scale by median x spacing \\
+array\tabularnewline
+\texttt{divide} & Divide the accumulated model by the component
+array\tabularnewline
+\texttt{convolve} & Convolve using FFT and scale by median x
+spacing\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 The first enabled component can use only \texttt{add} or
 \texttt{subtract}; multiplication, division, or convolution requires an
@@ -1645,15 +1725,17 @@ normally use \texttt{add} for every component.
 Division by a component that reaches zero and other non-finite model
 evaluations are rejected by the fitter.
 
+\hypertarget{built-in-peak-parameterization}{%
 \section{8.2 Built-in peak
-parameterization}\label{built-in-peak-parameterization}
+parameterization}\label{built-in-peak-parameterization}}
 
 Every built-in peak uses signed integrated \texttt{area}, not peak
 height, as its intensity parameter. Negative areas produce negative
 peaks. This common parameterization makes areas comparable between
 different line shapes.
 
-\subsection{Gaussian}\label{gaussian}
+\hypertarget{gaussian}{%
+\subsection{Gaussian}\label{gaussian}}
 
 Parameters: \texttt{area}, \texttt{center}, \texttt{sigma}.
 
@@ -1665,7 +1747,8 @@ G(x)=\frac{A}{\sigma\sqrt{2\pi}}
 The derived FWHM is \(2.354820045\,\sigma\). \texttt{sigma} is
 intrinsically positive.
 
-\subsection{Lorentzian}\label{lorentzian}
+\hypertarget{lorentzian}{%
+\subsection{Lorentzian}\label{lorentzian}}
 
 Parameters: \texttt{area}, \texttt{center}, \texttt{gamma}.
 
@@ -1676,7 +1759,8 @@ L(x)=\frac{A\gamma}{\pi[(x-x_0)^2+\gamma^2]}.
 \texttt{gamma} is the half width at half maximum, so FWHM is
 \(2\gamma\). \texttt{gamma} is intrinsically positive.
 
-\subsection{Voigt}\label{voigt}
+\hypertarget{voigt}{%
+\subsection{Voigt}\label{voigt}}
 
 Parameters: \texttt{area}, \texttt{center}, \texttt{sigma},
 \texttt{gamma}.
@@ -1693,7 +1777,8 @@ The displayed FWHM is the approximation:
 \sqrt{0.2166(2\gamma)^2+(2.354820045\,\sigma)^2}.
 \]
 
-\subsection{Pseudo-Voigt}\label{pseudo-voigt}
+\hypertarget{pseudo-voigt}{%
+\subsection{Pseudo-Voigt}\label{pseudo-voigt}}
 
 Parameters: \texttt{area}, \texttt{center}, \texttt{fwhm}, \texttt{eta}.
 
@@ -1707,15 +1792,17 @@ pV(x) = A[(1-\eta)G_{\mathrm{unit}}(x)+\eta L_{\mathrm{unit}}(x)].
 intrinsically bounded to \([0,1]\). \texttt{eta=0} is Gaussian and
 \texttt{eta=1} is Lorentzian.
 
+\hypertarget{built-in-functions-commonly-used-as-backgrounds}{%
 \section{8.3 Built-in functions commonly used as
-backgrounds}\label{built-in-functions-commonly-used-as-backgrounds}
+backgrounds}\label{built-in-functions-commonly-used-as-backgrounds}}
 
 The library names are \textbf{Constant}, \textbf{Linear},
 \textbf{Polynomial} and \textbf{Cubic spline}. They become background
 components only when \textbf{Add as background} in the Add dialog or
 \textbf{Mark as background} in the model panel is enabled.
 
-\subsection{Constant}\label{constant}
+\hypertarget{constant}{%
+\subsection{Constant}\label{constant}}
 
 Parameter: \texttt{offset}.
 
@@ -1723,7 +1810,8 @@ Parameter: \texttt{offset}.
 B(x)=c.
 \]
 
-\subsection{Linear}\label{linear}
+\hypertarget{linear}{%
+\subsection{Linear}\label{linear}}
 
 Parameters: \texttt{intercept}, \texttt{slope}.
 
@@ -1731,7 +1819,8 @@ Parameters: \texttt{intercept}, \texttt{slope}.
 B(x)=c_0+c_1x.
 \]
 
-\subsection{Polynomial}\label{polynomial}
+\hypertarget{polynomial}{%
+\subsection{Polynomial}\label{polynomial}}
 
 Choose an order from 0 to 50 when adding the component. Parameters are
 \texttt{c0}, \texttt{c1}, and so on through the chosen order:
@@ -1744,7 +1833,8 @@ High polynomial orders are numerically sensitive when x values are large
 or poorly scaled. Prefer a low order or rescale x with the Data
 Calculator when scientifically appropriate.
 
-\subsection{Cubic spline}\label{cubic-spline}
+\hypertarget{cubic-spline}{%
+\subsection{Cubic spline}\label{cubic-spline}}
 
 Spline x nodes are metadata, rather than optimizer parameters. Their y
 values (\texttt{y0}, \texttt{y1}, and so on) are normal parameters that
@@ -1760,7 +1850,8 @@ selected function. The spline remains continuous through masked
 intervals even though masked measurements do not contribute to the
 objective function.
 
-\section{8.4 Quick Add Function}\label{quick-add-function}
+\hypertarget{quick-add-function}{%
+\section{8.4 Quick Add Function}\label{quick-add-function}}
 
 Choose a registered function from the selector beside \textbf{Quick Add
 Function} in the main toolbar. The list includes built-in peaks and
@@ -1790,8 +1881,9 @@ also makes it the next Quick Add choice. The manual-point and background
 options chosen in Add component are also remembered for Quick Add
 separately for each function.
 
+\hypertarget{adding-a-peak-with-the-pointer}{%
 \section{8.5 Adding a peak with the
-pointer}\label{adding-a-peak-with-the-pointer}
+pointer}\label{adding-a-peak-with-the-pointer}}
 
 After choosing a peak and pressing \textbf{OK}:
 
@@ -1818,8 +1910,9 @@ metadata retain compatibility through conventional names such as
 \texttt{center}, \texttt{x0}, \texttt{fwhm}, \texttt{sigma},
 \texttt{gamma}, \texttt{area}, \texttt{amplitude}, or \texttt{height}.
 
+\hypertarget{initializing-any-function-from-manually-selected-points}{%
 \section{8.6 Initializing any function from manually selected
-points}\label{initializing-any-function-from-manually-selected-points}
+points}\label{initializing-any-function-from-manually-selected-points}}
 
 In Add component, enable \textbf{Initialize from manually selected
 points on the graph}. This is selected by default for Linear and Cubic
@@ -1842,8 +1935,9 @@ insertion. The resulting parameters are fixed by default. Use
 optimizing them. Points and the corresponding controls are stored with
 the component and project.
 
+\hypertarget{drawing-a-cubic-spline-background}{%
 \subsection{Drawing a cubic-spline
-background}\label{drawing-a-cubic-spline-background}
+background}\label{drawing-a-cubic-spline-background}}
 
 After choosing \textbf{Cubic spline}, enable \textbf{Add as background}
 and keep manual-point initialization enabled:
@@ -1868,8 +1962,9 @@ Nodes are sorted by x. Clicking again at effectively the same x updates
 that node instead of creating a duplicate. Exact duplicate x positions
 are not permitted.
 
+\hypertarget{graphical-editing-after-placement}{%
 \section{8.7 Graphical editing after
-placement}\label{graphical-editing-after-placement}
+placement}\label{graphical-editing-after-placement}}
 
 Select a peak component to display its handles. Drag the central target
 to change center and area-derived height. Drag a side line to change
@@ -1892,8 +1987,9 @@ stored value while leaving the parameter fixed. Manual-point handles
 instead require unlocking the relevant parameters. Linked values cannot
 be dragged independently because an expression controls them.
 
+\hypertarget{automatic-peak-suggestions}{%
 \section{8.8 Automatic peak
-suggestions}\label{automatic-peak-suggestions}
+suggestions}\label{automatic-peak-suggestions}}
 
 Choose \textbf{Model \textgreater{} Find positive peaks\ldots{}}.
 Despite the menu label, the first dialog can search positive, negative,
@@ -1922,8 +2018,9 @@ legacy functions, recognized parameter names. Suggestions are initial
 estimates, not a scientific decision about the number, identity, or line
 shape of peaks.
 
+\hypertarget{duplicating-disabling-deleting-and-reordering}{%
 \section{8.9 Duplicating, disabling, deleting, and
-reordering}\label{duplicating-disabling-deleting-and-reordering}
+reordering}\label{duplicating-disabling-deleting-and-reordering}}
 
 Duplicate a component to create an adjacent copy with a new internal
 identifier. Disable a component to compare models without losing its
@@ -1947,8 +2044,9 @@ multiplication, division or convolution, the fit is marked modified
 because the composition may change; review the new order and refit. Use
 the Up/Down controls to set a manual composition order.
 
+\hypertarget{copying-a-fit-to-other-curves}{%
 \section{8.10 Copying a fit to other
-curves}\label{copying-a-fit-to-other-curves}
+curves}\label{copying-a-fit-to-other-curves}}
 
 \textbf{Model \textgreater{} Copy fit} copies selected information from
 the active curve. Use \textbf{Select all} or \textbf{Deselect all} when
@@ -1984,39 +2082,68 @@ excluded regions may not correspond scientifically. When copying masks,
 point transfer uses the configured x tolerance. Review every target
 model after copying.
 
+\hypertarget{parameters-constraints-and-links}{%
 \chapter{9. Parameters, constraints, and
-links}\label{parameters-constraints-and-links}
+links}\label{parameters-constraints-and-links}}
 
-\section{9.1 Parameter table}\label{parameter-table}
+\hypertarget{parameter-table}{%
+\section{9.1 Parameter table}\label{parameter-table}}
 
 The table columns are:
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Column
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Meaning
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Column\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Meaning\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Parameter & Parameter name; linked parameters show a link indicator \\
-Value & Current value or successful fitted value \\
-±1 sigma & Covariance-based standard error when available \\
-Analysis - / + & Separate lower/upper distances from the saved
-uncertainty analysis selected for this spectrum \\
-Fixed & Exclude the parameter from optimization \\
-Lower & Lower bound; blank means negative infinity \\
-Upper & Upper bound; blank means positive infinity \\
-Link & Graphical \textbf{Set link\ldots{}} control; linked parameters
-show their source in readable form \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Parameter\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Parameter name; linked parameters show a link indicator\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Value\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Current value or successful fitted value\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+±1 sigma\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Covariance-based standard error when available\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Analysis - / +\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Separate lower/upper distances from the saved uncertainty analysis
+selected for this spectrum\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Fixed\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Exclude the parameter from optimization\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Lower\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Lower bound; blank means negative infinity\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Upper\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Upper bound; blank means positive infinity\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Link\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Graphical \textbf{Set link\ldots{}} control; linked parameters show
+their source in readable form\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 Press \textbf{Set link\ldots{}} to choose a source spectrum, component,
 and parameter. The default relationship is \textbf{Equal to source}.
@@ -2029,7 +2156,8 @@ bounds, a lower bound above an upper bound, an invalid expression, a
 missing referenced parameter, a link cycle, or a linked value that
 violates its own bounds.
 
-\section{9.2 Parameter states}\label{parameter-states}
+\hypertarget{parameter-states}{%
+\section{9.2 Parameter states}\label{parameter-states}}
 
 A parameter is exactly one of:
 
@@ -2053,31 +2181,26 @@ Intrinsic function bounds always remain active. For example, clearing
 the visible lower cell cannot make a Gaussian \texttt{sigma} negative
 because the function definition sets a positive intrinsic minimum.
 
-\section{9.3 Parameter paths}\label{parameter-paths}
+\hypertarget{parameter-paths}{%
+\section{9.3 Parameter paths}\label{parameter-paths}}
 
 The canonical path is:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{curve\_id.component\_id.parameter\_name}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+curve_id.component_id.parameter_name
+\end{verbatim}
 
 A link refers to a path inside \texttt{\$\{...\}}. For example:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{$\{curve\_ab12.component\_cd34.center\}}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+${curve_ab12.component_cd34.center}
+\end{verbatim}
 
 or a derived relation:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{$\{curve\_ab12.component\_cd34.center\} + 12.5}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+${curve_ab12.component_cd34.center} + 12.5
+\end{verbatim}
 
 The graphical \textbf{Set link\ldots{}} dialog creates these paths
 automatically, so normal GUI use does not require knowing curve or
@@ -2087,7 +2210,8 @@ machine-readable exports. For a link between different spectra, select
 both spectra and use \textbf{Global simultaneous} mode; CurveMole blocks
 incompatible fit modes with an explicit message.
 
-\section{9.4 Link evaluation}\label{link-evaluation}
+\hypertarget{link-evaluation}{%
+\section{9.4 Link evaluation}\label{link-evaluation}}
 
 Links form a directed dependency graph. CurveMole resolves the graph
 before fitting, detects cycles, and evaluates linked values at each
@@ -2095,7 +2219,8 @@ model evaluation. Linked parameters are not independent optimizer
 variables. If covariance is available, their standard errors are
 propagated numerically from free parameters.
 
-\section{9.5 Safe expression language}\label{safe-expression-language}
+\hypertarget{safe-expression-language}{%
+\section{9.5 Safe expression language}\label{safe-expression-language}}
 
 Formulas and links are parsed as a restricted expression tree. They are
 never passed to unrestricted Python \texttt{eval} or \texttt{exec}.
@@ -2107,23 +2232,23 @@ Constants are \texttt{pi}, \texttt{e}, and \texttt{inf}.
 
 Allowed functions are:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{abs, sqrt, exp, log, log10,}
-\NormalTok{sin, cos, tan, arcsin, arccos, arctan,}
-\NormalTok{sinh, cosh, tanh,}
-\NormalTok{erf, erfc,}
-\NormalTok{minimum, maximum, clip, where, heaviside}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+abs, sqrt, exp, log, log10,
+sin, cos, tan, arcsin, arccos, arctan,
+sinh, cosh, tanh,
+erf, erfc,
+minimum, maximum, clip, where, heaviside
+\end{verbatim}
 
 Attribute access, imports, indexing, comprehensions, arbitrary function
 calls, file access, and network access are not part of the expression
 language.
 
-\chapter{10. Fitting}\label{fitting}
+\hypertarget{fitting}{%
+\chapter{10. Fitting}\label{fitting}}
 
-\section{10.1 Pre-fit checklist}\label{pre-fit-checklist}
+\hypertarget{pre-fit-checklist}{%
+\section{10.1 Pre-fit checklist}\label{pre-fit-checklist}}
 
 Before pressing \textbf{F5}:
 
@@ -2147,16 +2272,19 @@ Before pressing \textbf{F5}:
   check that each selected model contains at least one free parameter.
 \end{enumerate}
 
-\section{10.2 Fit modes}\label{fit-modes}
+\hypertarget{fit-modes}{%
+\section{10.2 Fit modes}\label{fit-modes}}
 
-\subsection{Single / independent}\label{single-independent}
+\hypertarget{single-independent}{%
+\subsection{Single / independent}\label{single-independent}}
 
 Each selected curve is fitted as an independent problem. Results are
 then combined for reporting. Parameter links between different
 independently fitted curves cannot act as a simultaneous cross-curve
 constraint; use Global mode for that purpose.
 
-\subsection{Sequential}\label{sequential}
+\hypertarget{sequential}{%
+\subsection{Sequential}\label{sequential}}
 
 Sequential mode is a propagating refinement. Choose an \textbf{Initial
 source spectrum} whose model and parameters have already been inspected
@@ -2210,13 +2338,15 @@ controls, reopens the latest warning even after continuing or
 terminating. It is saved with the project and is replaced when a later
 sequential fit pauses.
 
-\subsection{Global simultaneous}\label{global-simultaneous}
+\hypertarget{global-simultaneous}{%
+\subsection{Global simultaneous}\label{global-simultaneous}}
 
 All selected residual arrays are concatenated into one optimization
 problem. Models may differ between curves. Parameter links can connect
 curves and express shared, offset, scaled, or otherwise related values.
 
-\section{10.3 Per-spectrum weights}\label{per-spectrum-weights}
+\hypertarget{per-spectrum-weights}{%
+\section{10.3 Per-spectrum weights}\label{per-spectrum-weights}}
 
 The Fit dialog uses the same \textbf{Active series / All series} scope
 for independent, sequential and global fits, with colored series
@@ -2235,7 +2365,8 @@ root of its number of usable points. This prevents a densely sampled
 curve from dominating only because it contains more rows. It does not
 normalize signal amplitude or uncertainty and is never enabled silently.
 
-\section{10.4 Local least squares}\label{local-least-squares}
+\hypertarget{local-least-squares}{%
+\section{10.4 Local least squares}\label{local-least-squares}}
 
 The default is local nonlinear least squares using SciPy. CurveMole
 automatically selects:
@@ -2264,42 +2395,56 @@ difficult models but may take more evaluations. LM needs unbounded
 parameters and \texttt{linear} loss. Hover over a solver to see its
 intended use.
 
+\hypertarget{advanced-algorithm-options-and-reset-default}{%
 \section{10.4.1 Advanced algorithm options and Reset
-default}\label{advanced-algorithm-options-and-reset-default}
+default}\label{advanced-algorithm-options-and-reset-default}}
 
 The default remains \textbf{Local least squares (automatic)} with
 \textbf{linear} loss. \textbf{Advanced algorithm options} shows only the
 controls relevant to the chosen solver. Numeric fields accept scientific
 notation such as \texttt{1e-8}; tooltips explain each option.
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Algorithm
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Configurable controls
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Algorithm\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Configurable controls\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Automatic, TRF, Dogbox, LM & \texttt{ftol}, \texttt{xtol},
-\texttt{gtol}, \texttt{x\_scale}; automatic mode also offers the local
-method \\
-Differential Evolution & Generations, population multiplier, mutation
-minimum/maximum, recombination, relative/absolute tolerance, seed and
-automatic search limits; least-squares controls apply to local
-refinement \\
-Nelder-Mead & Iteration limit, \texttt{xatol}, \texttt{fatol}, adaptive
-coefficients and optional initial simplex \\
-Powell & Iteration limit, \texttt{xtol}, \texttt{ftol} \\
-L-BFGS-B & Iteration limit, \texttt{ftol}, projected-gradient tolerance,
-line-search steps and correction history \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Automatic, TRF, Dogbox, LM\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{ftol}, \texttt{xtol}, \texttt{gtol}, \texttt{x\_scale};
+automatic mode also offers the local method\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Differential Evolution\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Generations, population multiplier, mutation minimum/maximum,
+recombination, relative/absolute tolerance, seed and automatic search
+limits; least-squares controls apply to local refinement\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Nelder-Mead\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Iteration limit, \texttt{xatol}, \texttt{fatol}, adaptive coefficients
+and optional initial simplex\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Powell\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Iteration limit, \texttt{xtol}, \texttt{ftol}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+L-BFGS-B\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Iteration limit, \texttt{ftol}, projected-gradient tolerance,
+line-search steps and correction history\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 Maximum evaluations remains configurable for all built-in solvers. For
 Differential Evolution it limits the local refinement;
@@ -2326,7 +2471,8 @@ tolerance 0 and seed 1729. Nelder-Mead and Powell tolerances default to
 \texttt{gtol=1e-5}, 20 line-search steps and 10 corrections. These are
 starting configurations, not guarantees for every dataset.
 
-\section{10.5 Robust losses}\label{robust-losses}
+\hypertarget{robust-losses}{%
+\section{10.5 Robust losses}\label{robust-losses}}
 
 Available losses are:
 
@@ -2364,8 +2510,9 @@ modified by spectrum weights and equal-contribution scaling. The default
 of 1 is not an automatic noise estimate; choose a scale appropriate to
 the data. Reset default restores it to 1.
 
+\hypertarget{differential-evolution-initial-search}{%
 \section{10.6 Differential Evolution initial
-search}\label{differential-evolution-initial-search}
+search}\label{differential-evolution-initial-search}}
 
 Choose \textbf{Differential Evolution + local refinement} when a local
 initial estimate is not sufficient. Differential Evolution searches
@@ -2382,8 +2529,9 @@ interpreting the result: a global search cannot discover a solution
 outside its search interval. It is usually much slower than a
 well-initialized local fit.
 
+\hypertarget{cancellation-and-failed-fits}{%
 \section{10.7 Cancellation and failed
-fits}\label{cancellation-and-failed-fits}
+fits}\label{cancellation-and-failed-fits}}
 
 Use \textbf{Fit \textgreater{} Cancel running task} to request
 cancellation. The request is checked during residual evaluation and
@@ -2396,7 +2544,8 @@ optimizer vector. The curve is marked Failed, the error is written to
 the Log, and the last successful result remains separate from the failed
 attempt.
 
-\section{10.8 Common causes of failure}\label{common-causes-of-failure}
+\hypertarget{common-causes-of-failure}{%
+\section{10.8 Common causes of failure}\label{common-causes-of-failure}}
 
 \begin{itemize}
 \tightlist
@@ -2422,10 +2571,12 @@ attempt.
   inadequate initial values or maximum evaluations.
 \end{itemize}
 
+\hypertarget{results-statistics-and-diagnostics}{%
 \chapter{11. Results, statistics, and
-diagnostics}\label{results-statistics-and-diagnostics}
+diagnostics}\label{results-statistics-and-diagnostics}}
 
-\section{11.1 Visual results}\label{visual-results}
+\hypertarget{visual-results}{%
+\section{11.1 Visual results}\label{visual-results}}
 
 The main plot shows data, total model, individual component curves, and
 residuals. The parameter table shows fitted values and standard errors.
@@ -2435,44 +2586,47 @@ The full numeric result is stored in the project and written to exports.
 Preview 0.33.1 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
+\hypertarget{reported-global-statistics}{%
 \section{11.2 Reported global
-statistics}\label{reported-global-statistics}
+statistics}\label{reported-global-statistics}}
 
 Let \(N\) be the number of usable observations and \(k\) the number of
 independent free parameters. CurveMole reports:
 
-{\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}ll@{}}
-\toprule\noalign{}
-Statistic & Definition or interpretation \\
-\midrule\noalign{}
+\toprule
+Statistic & Definition or interpretation\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Degrees of freedom & \(N-k\) \\
-RSS & \(\sum_i(y_i-f_i)^2\) without point weighting \\
-RMSE & \(\sqrt{\mathrm{RSS}/N}\) \\
-Chi-square & Sum of squared weighted residuals \\
-Reduced chi-square & Chi-square divided by \(N-k\) when positive \\
-Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\) \\
-AIC & Gaussian ordinary least-squares expression when applicable \\
-AICc & Small-sample correction when \(N>k+1\) \\
-BIC & Gaussian ordinary least-squares expression when applicable \\
+Degrees of freedom & \(N-k\)\tabularnewline
+RSS & \(\sum_i(y_i-f_i)^2\) without point weighting\tabularnewline
+RMSE & \(\sqrt{\mathrm{RSS}/N}\)\tabularnewline
+Chi-square & Sum of squared weighted residuals\tabularnewline
+Reduced chi-square & Chi-square divided by \(N-k\) when
+positive\tabularnewline
+Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\)\tabularnewline
+AIC & Gaussian ordinary least-squares expression when
+applicable\tabularnewline
+AICc & Small-sample correction when \(N>k+1\)\tabularnewline
+BIC & Gaussian ordinary least-squares expression when
+applicable\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 The descriptive \(R^2\) can be misleading for baselines, constrained
 fits, or models without an intercept. It is included as a familiar
 descriptor, not a universal model quality score.
 
-\section{11.3 Per-curve statistics}\label{per-curve-statistics}
+\hypertarget{per-curve-statistics}{%
+\section{11.3 Per-curve statistics}\label{per-curve-statistics}}
 
 Each curve output records the original usable indices, x, observed y,
 fitted y, residual, weighted residual, N, RSS, RMSE, and descriptive
 \(R^2\). The global result combines all curves in the plan.
 
+\hypertarget{covariance-and-correlation}{%
 \section{11.4 Covariance and
-correlation}\label{covariance-and-correlation}
+correlation}\label{covariance-and-correlation}}
 
 For ordinary least squares, covariance is derived from the fit Jacobian.
 If all curves provide \texttt{sigma\_y}, the uncertainty is treated as
@@ -2488,7 +2642,8 @@ Symmetric normal intervals are clipped to active bounds. A parameter at
 a bound is flagged because its true uncertainty is generally asymmetric
 and not adequately summarized by a symmetric covariance interval.
 
-\section{11.5 Residual diagnostics}\label{residual-diagnostics}
+\hypertarget{residual-diagnostics}{%
+\section{11.5 Residual diagnostics}\label{residual-diagnostics}}
 
 Open \textbf{View \textgreater{} Diagnostics} after a fit. The summary
 reports:
@@ -2510,8 +2665,9 @@ The analysis bundle exports the autocorrelation sequence for every
 fitted curve. A structured residual pattern usually indicates that the
 model, background, weighting, or data treatment deserves review.
 
+\hypertarget{explicit-uncertainty-analyses}{%
 \chapter{12. Explicit uncertainty
-analyses}\label{explicit-uncertainty-analyses}
+analyses}\label{explicit-uncertainty-analyses}}
 
 Open \textbf{Fit \textgreater{} Uncertainty Analysis} only after a
 successful fit. These calculations run in the background, can be
@@ -2571,30 +2727,40 @@ The confidence level is configurable for resampling/profile; covariance
 shows the recorded fit's confidence level. Changing the method recalls
 its most recent recorded analysis.
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Assessment
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Meaning
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Assessment\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Meaning\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-OK & No diagnostic issue is flagged by these checks; this does not
-establish practical adequacy \\
-Attention & Bound contact, strong correlation, failed replicates, an
-open profile scan, or another stated caveat \\
-Critical & No usable interval, too few successful replicas,
-rank-deficient covariance, or an interval spanning most of the allowed
-range \\
-Fixed & Parameter was fixed; its uncertainty was not estimated \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+OK\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+No diagnostic issue is flagged by these checks; this does not establish
+practical adequacy\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Attention\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Bound contact, strong correlation, failed replicates, an open profile
+scan, or another stated caveat\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Critical\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+No usable interval, too few successful replicas, rank-deficient
+covariance, or an interval spanning most of the allowed range\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Fixed\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Parameter was fixed; its uncertainty was not estimated\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
 These are deterministic diagnostic heuristics, not universal scientific
 thresholds: strong correlation means absolute r \textgreater=0.95;
@@ -2608,7 +2774,8 @@ the correctness of the physical model. Analyses describe their recorded
 baseline; editing data or models requires refitting before resampling.
 Reports remain inspectable but are marked outdated when appropriate.
 
-\section{12.1 Parametric Monte Carlo}\label{parametric-monte-carlo}
+\hypertarget{parametric-monte-carlo}{%
+\section{12.1 Parametric Monte Carlo}\label{parametric-monte-carlo}}
 
 This method generates synthetic y values from the fitted model plus
 independent normal noise using the imported absolute \texttt{sigma\_y}
@@ -2619,14 +2786,16 @@ Each synthetic data set is refitted using the local solver. The result
 records the requested, completed, and failed replicates, seed, free
 parameter paths, samples, empirical intervals, and failure messages.
 
-\section{12.2 Residual bootstrap}\label{residual-bootstrap}
+\hypertarget{residual-bootstrap}{%
+\section{12.2 Residual bootstrap}\label{residual-bootstrap}}
 
 Residuals are centered, sampled independently with replacement, added to
 the fitted model, and refitted. This assumes residual exchangeability
 and can be inappropriate when residuals are serially correlated or
 heteroscedastic.
 
-\section{12.3 Block bootstrap}\label{block-bootstrap}
+\hypertarget{block-bootstrap}{%
+\section{12.3 Block bootstrap}\label{block-bootstrap}}
 
 The block bootstrap resamples contiguous circular residual blocks. Enter
 a block length or choose Automatic. The automatic estimate uses the
@@ -2637,7 +2806,8 @@ Block resampling is often preferable for spectra or kinetic traces with
 local correlation, but the block length remains a scientific modeling
 decision.
 
-\section{12.4 Profile likelihood}\label{profile-likelihood}
+\hypertarget{profile-likelihood}{%
+\section{12.4 Profile likelihood}\label{profile-likelihood}}
 
 Choose one independent, non-linked parameter. CurveMole fixes it across
 a finite grid, refits all remaining free parameters, and compares
@@ -2655,8 +2825,9 @@ interval is more informative than a symmetric standard error near bounds
 or in nonlinear problems, but grid resolution should be considered when
 interpreting endpoints.
 
+\hypertarget{reproducibility-and-failed-replicates}{%
 \section{12.5 Reproducibility and failed
-replicates}\label{reproducibility-and-failed-replicates}
+replicates}\label{reproducibility-and-failed-replicates}}
 
 The default seed is 1729 unless changed through programmatic settings.
 Resampling outputs record configuration and up to the first 100 failure
@@ -2668,11 +2839,13 @@ analyses, including names, fitted values, interval endpoints, confidence
 level, targets and reasons. Covariance/correlation matrices remain
 available in the same export option.
 
+\hypertarget{projects-saving-and-recovery}{%
 \chapter{13. Projects, saving, and
-recovery}\label{projects-saving-and-recovery}
+recovery}\label{projects-saving-and-recovery}}
 
+\hypertarget{the-.fitproj-format}{%
 \section{\texorpdfstring{13.1 The \texttt{.fitproj}
-format}{13.1 The .fitproj format}}\label{the-.fitproj-format}
+format}{13.1 The .fitproj format}}\label{the-.fitproj-format}}
 
 A \texttt{.fitproj} is a ZIP container with:
 
@@ -2699,14 +2872,16 @@ NumPy arrays are loaded with \texttt{allow\_pickle=False}. CurveMole
 projects never require executing a Python pickle. The format is
 documented in \url{project-format.md}.
 
-\section{13.2 Atomic saves}\label{atomic-saves}
+\hypertarget{atomic-saves}{%
+\section{13.2 Atomic saves}\label{atomic-saves}}
 
 CurveMole writes a temporary sibling file, validates the archive, and
 then atomically replaces the destination. A failed save should therefore
 not partially overwrite a previous valid project.
 
+\hypertarget{project-locks-and-read-only-mode}{%
 \section{13.3 Project locks and read-only
-mode}\label{project-locks-and-read-only-mode}
+mode}\label{project-locks-and-read-only-mode}}
 
 Opening a project creates a sibling \texttt{.lock} file containing
 process and host information. If another instance already holds the
@@ -2715,8 +2890,9 @@ as} to create an editable copy. A stale lock left by an abnormal
 termination may need manual inspection and removal after confirming that
 no other instance is using the project.
 
+\hypertarget{normal-save-and-portable-copy}{%
 \section{13.4 Normal save and portable
-copy}\label{normal-save-and-portable-copy}
+copy}\label{normal-save-and-portable-copy}}
 
 \textbf{Save project} updates the current project path. \textbf{Save
 portable copy} writes a complete separate \texttt{.fitproj} without
@@ -2727,7 +2903,8 @@ snapshot.
 Projects are not encrypted. Use suitable filesystem permissions or
 encrypted storage for confidential data.
 
-\section{13.5 Autosave recovery}\label{autosave-recovery}
+\hypertarget{autosave-recovery}{%
+\section{13.5 Autosave recovery}\label{autosave-recovery}}
 
 Every ten minutes, a modified revision is written to the operating
 system's CurveMole user cache. An unchanged revision does not create
@@ -2753,16 +2930,19 @@ dialog or a failed save preserves them. Other projects' copies remain.
 successfully opened or saved projects; choose an entry to reopen it, or
 clear the list from that menu.
 
-\section{13.6 Unsaved changes}\label{unsaved-changes}
+\hypertarget{unsaved-changes}{%
+\section{13.6 Unsaved changes}\label{unsaved-changes}}
 
 An asterisk in the window title marks a dirty project. New Project, Open
 Project, and Quit ask whether to save, discard, or cancel when unsaved
 changes exist.
 
+\hypertarget{exporting-an-analysis-bundle}{%
 \chapter{14. Exporting an analysis
-bundle}\label{exporting-an-analysis-bundle}
+bundle}\label{exporting-an-analysis-bundle}}
 
-\section{14.1 Starting an export}\label{starting-an-export}
+\hypertarget{starting-an-export}{%
+\section{14.1 Starting an export}\label{starting-an-export}}
 
 Choose \textbf{File \textgreater{} Export analysis bundle} or press
 \textbf{Ctrl+E}. Export mode and export content are independent.
@@ -2785,7 +2965,8 @@ The existing save modes remain:
 Under \textbf{What to export?}, select the desired outputs. Only
 \textbf{Fit results} is checked by default.
 
-\section{14.2 Default fit-results file}\label{default-fit-results-file}
+\hypertarget{default-fit-results-file}{%
+\section{14.2 Default fit-results file}\label{default-fit-results-file}}
 
 The default export creates only \texttt{fit\_results.csv}. No additional
 visible file and no empty subdirectory is created.
@@ -2802,7 +2983,8 @@ This format makes the association between every data curve, the
 functions used to fit it, and the fitted parameters explicit in a single
 table.
 
-\section{14.3 Optional outputs}\label{optional-outputs}
+\hypertarget{optional-outputs}{%
+\section{14.3 Optional outputs}\label{optional-outputs}}
 
 The dialog can additionally export:
 
@@ -2843,7 +3025,8 @@ created only when a selected output actually writes a file there. An
 option whose required fit result is unavailable does not create an empty
 folder.
 
-\section{14.4 Safe overwrite policy}\label{safe-overwrite-policy}
+\hypertarget{safe-overwrite-policy}{%
+\section{14.4 Safe overwrite policy}\label{safe-overwrite-policy}}
 
 New exports store their ownership list in the project export
 configuration rather than creating a hidden sidecar file. This allows
@@ -2856,7 +3039,8 @@ overwrite a colliding file unless it can verify that the file belongs to
 the current project export. Unrelated files in the directory are
 preserved.
 
-\section{14.5 Wide data tables}\label{wide-data-tables}
+\hypertarget{wide-data-tables}{%
+\section{14.5 Wide data tables}\label{wide-data-tables}}
 
 Optional wide CSV files are intended for direct inspection and tools
 such as Origin or QtiPlot. Depending on data and model, columns include:
@@ -2882,8 +3066,9 @@ such as Origin or QtiPlot. Depending on data and model, columns include:
 Rows remain aligned with the complete curve, including masked and
 invalid entries.
 
+\hypertarget{exporting-optimizer-and-loss-settings}{%
 \section{14.5.1 Exporting optimizer and loss
-settings}\label{exporting-optimizer-and-loss-settings}
+settings}\label{exporting-optimizer-and-loss-settings}}
 
 \textbf{Last fit: all solver/loss settings (CSV)} writes
 \texttt{fit\_settings.csv}, containing all recorded \texttt{FitSettings}
@@ -2897,7 +3082,8 @@ values, bounds, links and available errors. The JSON result includes the
 same optimizer settings; the full reproducibility HTML report also shows
 them as a table.
 
-\section{14.6 Tidy data and JSON}\label{tidy-data-and-json}
+\hypertarget{tidy-data-and-json}{%
+\section{14.6 Tidy data and JSON}\label{tidy-data-and-json}}
 
 \texttt{python/data\_tidy.csv} stores one quantity per row with series,
 curve, component, x, value, mask, and validity fields.
@@ -2905,8 +3091,9 @@ curve, component, x, value, mask, and validity fields.
 version, result metadata, parameters, statistics, warnings, and settings
 without duplicating large numeric arrays.
 
+\hypertarget{reports-and-reusable-files}{%
 \section{14.7 Reports and reusable
-files}\label{reports-and-reusable-files}
+files}\label{reports-and-reusable-files}}
 
 \begin{itemize}
 \tightlist
@@ -2926,8 +3113,9 @@ files}\label{reports-and-reusable-files}
 The exported report PDF is an analysis summary, not the CurveMole
 software manual.
 
+\hypertarget{exporting-one-numeric-file-per-spectrum}{%
 \section{14.8 Exporting one numeric file per
-spectrum}\label{exporting-one-numeric-file-per-spectrum}
+spectrum}\label{exporting-one-numeric-file-per-spectrum}}
 
 Choose \textbf{File \textgreater{} Export spectra and fit
 curves\ldots{}} or press \textbf{Ctrl+Shift+E} when the result should be
@@ -2959,8 +3147,9 @@ describe axis labels, units, functions, background state, total fit, and
 residuals, and never contain whitespace so they remain safe for
 whitespace parsers. An unknown original extension is preserved.
 
+\hypertarget{exporting-function-parameters}{%
 \section{14.9 Exporting function
-parameters}\label{exporting-function-parameters}
+parameters}\label{exporting-function-parameters}}
 
 \textbf{File \textgreater{} Export functions parameters\ldots{}} writes
 a wide CSV table with one row per project spectrum and two header rows
@@ -2974,20 +3163,23 @@ analysis bundle for the full constraints and reproducibility record.
 \textbf{Also export covariance matrices} optionally writes the labelled
 sibling matrices described in Section 12.
 
-\chapter{15. Command-line interface}\label{command-line-interface}
+\hypertarget{command-line-interface}{%
+\chapter{15. Command-line interface}\label{command-line-interface}}
 
-\section{15.1 General form}\label{general-form}
+\hypertarget{general-form}{%
+\section{15.1 General form}\label{general-form}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole} \PreprocessorTok{[{-}{-}}\SpecialStringTok{version}\PreprocessorTok{]} \PreprocessorTok{[{-}{-}}\SpecialStringTok{json}\PreprocessorTok{]} \PreprocessorTok{[{-}{-}}\SpecialStringTok{verbose}\PreprocessorTok{]}\NormalTok{ COMMAND }\PreprocessorTok{[}\SpecialStringTok{OPTIONS}\PreprocessorTok{]}
+\ExtensionTok{curvemole}\NormalTok{ [{-}{-}version] [{-}{-}json] [{-}{-}verbose] COMMAND [OPTIONS]}
 \end{Highlighting}
 \end{Shaded}
 
 Use \texttt{-\/-json} for machine-readable output. Normal data go to
 standard output; logs and errors go to standard error.
 
-\section{15.2 Open the GUI}\label{open-the-gui}
+\hypertarget{open-the-gui}{%
+\section{15.2 Open the GUI}\label{open-the-gui}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -2998,25 +3190,27 @@ standard output; logs and errors go to standard error.
 The desktop executable can also receive a project or data path as its
 first argument.
 
-\section{15.3 List available functions}\label{list-available-functions}
+\hypertarget{list-available-functions}{%
+\section{15.3 List available functions}\label{list-available-functions}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
 \ExtensionTok{curvemole}\NormalTok{ functions list}
-\ExtensionTok{curvemole}\NormalTok{ functions list }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ functions list {-}{-}json}
 \end{Highlighting}
 \end{Shaded}
 
-\section{15.4 Fit one file}\label{fit-one-file}
+\hypertarget{fit-one-file}{%
+\section{15.4 Fit one file}\label{fit-one-file}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ fit spectrum.csv }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}x}\NormalTok{ wavenumber }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}y}\NormalTok{ absorbance }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}function}\NormalTok{ gaussian }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}background}\NormalTok{ linear }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}output}\NormalTok{ spectrum.fitproj}
+\ExtensionTok{curvemole}\NormalTok{ fit spectrum.csv }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}x}\NormalTok{ wavenumber }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}y}\NormalTok{ absorbance }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}function}\NormalTok{ gaussian }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}background}\NormalTok{ linear }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}output}\NormalTok{ spectrum.fitproj}
 \end{Highlighting}
 \end{Shaded}
 
@@ -3031,16 +3225,17 @@ If no initial peak override is supplied, the CLI uses the strongest
 automatic positive peak suggestion when available. Background choices
 are none, constant, or linear.
 
-\section{15.5 Fit a series}\label{fit-a-series}
+\hypertarget{fit-a-series}{%
+\section{15.5 Fit a series}\label{fit-a-series}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ fit{-}series scan\_01.csv scan\_02.csv scan\_03.csv }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}x}\NormalTok{ 0 }\AttributeTok{{-}{-}y}\NormalTok{ 1 }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}function}\NormalTok{ pseudo\_voigt }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}background}\NormalTok{ constant }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}mode}\NormalTok{ sequential }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}output}\NormalTok{ series.fitproj}
+\ExtensionTok{curvemole}\NormalTok{ fit{-}series scan\_01.csv scan\_02.csv scan\_03.csv }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}x}\NormalTok{ 0 {-}{-}y 1 }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}function}\NormalTok{ pseudo\_voigt }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}background}\NormalTok{ constant }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}mode}\NormalTok{ sequential }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}output}\NormalTok{ series.fitproj}
 \end{Highlighting}
 \end{Shaded}
 
@@ -3050,12 +3245,13 @@ Evolution. Missing finite bounds are generated from current parameter
 values; use a YAML workflow or the Python API to customize percentages
 or explicit parameter bounds.
 
-\section{15.6 Inspect and validate}\label{inspect-and-validate}
+\hypertarget{inspect-and-validate}{%
+\section{15.6 Inspect and validate}\label{inspect-and-validate}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ inspect analysis.fitproj }\AttributeTok{{-}{-}json}
-\ExtensionTok{curvemole}\NormalTok{ inspect raw\_data.dat }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ inspect analysis.fitproj {-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ inspect raw\_data.dat {-}{-}json}
 \ExtensionTok{curvemole}\NormalTok{ validate analysis.fitproj}
 \ExtensionTok{curvemole}\NormalTok{ validate workflow.yml}
 \end{Highlighting}
@@ -3066,8 +3262,9 @@ Validating a project checks archive structure and checksums. Validating
 YAML checks the supported workflow schema and required top-level
 structures.
 
+\hypertarget{export-an-existing-project}{%
 \section{15.7 Export an existing
-project}\label{export-an-existing-project}
+project}\label{export-an-existing-project}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3079,34 +3276,34 @@ Use \texttt{-\/-versioned} for a timestamped subdirectory. Use
 \texttt{-\/-force} only when updating a directory whose CurveMole
 ownership manifest permits the overwrite.
 
-\section{15.8 Exit codes}\label{exit-codes}
+\hypertarget{exit-codes}{%
+\section{15.8 Exit codes}\label{exit-codes}}
 
-{\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}rl@{}}
-\toprule\noalign{}
-Code & Meaning \\
-\midrule\noalign{}
+\toprule
+Code & Meaning\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-0 & Success \\
-2 & Command usage error \\
-3 & Data validation error \\
-4 & Fit error \\
-5 & Project format error \\
-6 & Plugin or other CurveMole domain error \\
-10 & Unexpected failure \\
+0 & Success\tabularnewline
+2 & Command usage error\tabularnewline
+3 & Data validation error\tabularnewline
+4 & Fit error\tabularnewline
+5 & Project format error\tabularnewline
+6 & Plugin or other CurveMole domain error\tabularnewline
+10 & Unexpected failure\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
+\hypertarget{reproducible-yaml-workflows}{%
 \chapter{16. Reproducible YAML
-workflows}\label{reproducible-yaml-workflows}
+workflows}\label{reproducible-yaml-workflows}}
 
-\section{16.1 Running a workflow}\label{running-a-workflow}
+\hypertarget{running-a-workflow}{%
+\section{16.1 Running a workflow}\label{running-a-workflow}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ run examples/gaussian\_workflow.yml }\AttributeTok{{-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ run examples/gaussian\_workflow.yml {-}{-}json}
 \end{Highlighting}
 \end{Shaded}
 
@@ -3115,8 +3312,9 @@ version 1 supports imports, custom functions, explicitly trusted
 plugins, models, constraints, fit settings, project output, and bundle
 export.
 
+\hypertarget{run-an-existing-automation-from-the-desktop}{%
 \section{Run an existing automation from the
-desktop}\label{run-an-existing-automation-from-the-desktop}
+desktop}\label{run-an-existing-automation-from-the-desktop}}
 
 The separate \textbf{Automations} toolbar at the bottom contains
 \textbf{Run automation}. On the first click, choose a \texttt{.yml} or
@@ -3142,7 +3340,8 @@ fingerprints are checked again at launch; a workflow does not implicitly
 approve executable plugins. This control runs existing workflows; it is
 not a visual workflow editor.
 
-\section{16.2 Complete example}\label{complete-example}
+\hypertarget{complete-example}{%
+\section{16.2 Complete example}\label{complete-example}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3196,7 +3395,8 @@ not a visual workflow editor.
 \end{Highlighting}
 \end{Shaded}
 
-\section{16.3 Custom formulas in YAML}\label{custom-formulas-in-yaml}
+\hypertarget{custom-formulas-in-yaml}{%
+\section{16.3 Custom formulas in YAML}\label{custom-formulas-in-yaml}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3219,7 +3419,8 @@ not a visual workflow editor.
 Use the custom identifier in a model component exactly like a built-in
 function.
 
-\section{16.4 Trusted plugins}\label{trusted-plugins}
+\hypertarget{trusted-plugins}{%
+\section{16.4 Trusted plugins}\label{trusted-plugins}}
 
 List local plugin manifest paths under \texttt{plugins}. Unattended
 execution also requires one \texttt{-\/-trust-plugin\ IDENTIFIER}
@@ -3227,17 +3428,19 @@ argument for each plugin whose Python source may run:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ run workflow.yml }\DataTypeTok{\textbackslash{}}
-  \AttributeTok{{-}{-}trust{-}plugin}\NormalTok{ org.example.lineshape}
+\ExtensionTok{curvemole}\NormalTok{ run workflow.yml }\KeywordTok{\textbackslash{}}
+  \ExtensionTok{{-}{-}trust{-}plugin}\NormalTok{ org.example.lineshape}
 \end{Highlighting}
 \end{Shaded}
 
 Trust is never inferred merely because a manifest is present.
 
-\chapter{17. Python API}\label{python-api}
+\hypertarget{python-api}{%
+\chapter{17. Python API}\label{python-api}}
 
+\hypertarget{stable-package-level-objects}{%
 \section{17.1 Stable package-level
-objects}\label{stable-package-level-objects}
+objects}\label{stable-package-level-objects}}
 
 The package root exports GUI-independent classes including
 \texttt{Curve}, \texttt{Series}, \texttt{Dataset}, \texttt{Component},
@@ -3246,7 +3449,8 @@ The package root exports GUI-independent classes including
 \texttt{Fitter}, \texttt{FunctionRegistry}, and
 \texttt{default\_registry}.
 
-\section{17.2 Minimal fit}\label{minimal-fit}
+\hypertarget{minimal-fit}{%
+\section{17.2 Minimal fit}\label{minimal-fit}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3278,7 +3482,8 @@ height-parameterized, while the CurveMole Gaussian component is
 area-parameterized. This is why the initial model \texttt{area} is not
 simply the synthetic height.
 
-\section{17.3 Bounds and fixed values}\label{bounds-and-fixed-values}
+\hypertarget{bounds-and-fixed-values}{%
+\section{17.3 Bounds and fixed values}\label{bounds-and-fixed-values}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3294,7 +3499,8 @@ simply the synthetic height.
 \end{Highlighting}
 \end{Shaded}
 
-\section{17.4 Cross-curve links}\label{cross-curve-links}
+\hypertarget{cross-curve-links}{%
+\section{17.4 Cross-curve links}\label{cross-curve-links}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3306,7 +3512,8 @@ simply the synthetic height.
 Construct a Global \texttt{FitPlan} containing both curve IDs. CurveMole
 validates the complete graph before optimization.
 
-\section{17.5 Global fit}\label{global-fit}
+\hypertarget{global-fit}{%
+\section{17.5 Global fit}\label{global-fit}}
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -3328,18 +3535,21 @@ validates the complete graph before optimization.
 \end{Highlighting}
 \end{Shaded}
 
+\hypertarget{api-compatibility-during-preview}{%
 \section{17.6 API compatibility during
-Preview}\label{api-compatibility-during-preview}
+Preview}\label{api-compatibility-during-preview}}
 
 The package root is intentionally smaller and more stable than internal
 modules, but version 0.x may still introduce incompatible changes. Pin
 the exact CurveMole version in automated research workflows and record
 it with results.
 
+\hypertarget{function-builder-and-plugins}{%
 \chapter{18. Function Builder and
-plugins}\label{function-builder-and-plugins}
+plugins}\label{function-builder-and-plugins}}
 
-\section{18.1 Formula Builder}\label{formula-builder}
+\hypertarget{formula-builder}{%
+\section{18.1 Formula Builder}\label{formula-builder}}
 
 Open \textbf{Tools \textgreater{} Function Builder}. Enter:
 
@@ -3372,11 +3582,9 @@ initial values and bounds in the normal parameter table.
 
 Example:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{offset + amplitude * exp({-}x / tau)}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+offset + amplitude * exp(-x / tau)
+\end{verbatim}
 
 Detected parameters are \texttt{amplitude}, \texttt{offset}, and
 \texttt{tau}.
@@ -3402,8 +3610,9 @@ entered. Leave genuinely unrelated parameters as \textbf{Not specified}.
 An explicitly unassigned role is respected; CurveMole does not guess a
 meaning from its name.
 
+\hypertarget{custom-function-persistence}{%
 \section{18.2 Custom function
-persistence}\label{custom-function-persistence}
+persistence}\label{custom-function-persistence}}
 
 The first time a formula is added, CurveMole asks the user to create a
 dedicated \texttt{my\_curvemole\_functions} folder at a chosen location
@@ -3427,7 +3636,8 @@ malformed user function or library file is skipped and recorded in the
 Log rather than executed. Formula files use the safe expression system
 and are distinct from executable Python plugins.
 
-\section{18.3 Local plugin structure}\label{local-plugin-structure}
+\hypertarget{local-plugin-structure}{%
+\section{18.3 Local plugin structure}\label{local-plugin-structure}}
 
 A local plugin consists of a manifest ending in
 \texttt{.curvemole-plugin.json} and a Python module in the same
@@ -3456,7 +3666,8 @@ Built-ins cannot be replaced through this API; contributed entries carry
 a plugin-specific symbol and identify the providing plugin in their
 tooltip.
 
-\section{18.4 Trust boundary}\label{trust-boundary}
+\hypertarget{trust-boundary}{%
+\section{18.4 Trust boundary}\label{trust-boundary}}
 
 Formula Builder expressions are interpreted safely. Plugins are
 different: a plugin is Python code and can perform any action allowed to
@@ -3467,7 +3678,8 @@ explicit trust decision. Review source, origin, license, and version
 before trusting. Do not trust a plugin merely because its identifier
 resembles a known package.
 
-\section{18.5 Plugin Manager}\label{plugin-manager}
+\hypertarget{plugin-manager}{%
+\section{18.5 Plugin Manager}\label{plugin-manager}}
 
 Open \textbf{File \textgreater{} Plugin Manager}, choose a permanent
 directory, and scan. Review a candidate, then explicitly trust and load
@@ -3497,8 +3709,9 @@ Python code.
 
 \newpage
 
+\hypertarget{creating-extensions-beyond-model-functions}{%
 \section{18.6 Creating extensions beyond model
-functions}\label{creating-extensions-beyond-model-functions}
+functions}\label{creating-extensions-beyond-model-functions}}
 
 Use
 \texttt{api.add("exporters",\ "csv",\ "Laboratory\ CSV",\ export\_csv)}
@@ -3550,8 +3763,9 @@ The integrated export commands stay available. The module uses NumPy,
 already included with CurveMole; no additional dependencies are
 required.
 
+\hypertarget{community-plugin-submissions-and-validation}{%
 \section{18.7 Community plugin submissions and
-validation}\label{community-plugin-submissions-and-validation}
+validation}\label{community-plugin-submissions-and-validation}}
 
 To share a plugin, open \textbf{File \textgreater{} Plugin manager
 \textgreater{} Share my plugin on GitHub\ldots{}}. This opens the
@@ -3585,8 +3799,9 @@ behavior, not complete safety; Python plugins still run with the user's
 privileges. See the submission guide for required branch protection
 settings and the limits of validation.
 
+\hypertarget{acquisition-processors-and-interactive-plugin-panels}{%
 \section{18.8 Acquisition processors and interactive plugin
-panels}\label{acquisition-processors-and-interactive-plugin-panels}
+panels}\label{acquisition-processors-and-interactive-plugin-panels}}
 
 Plugins can register \texttt{import\_processors} for Automatic folder
 import (Section 6.4). A processor receives only the detached new
@@ -3602,10 +3817,12 @@ is enabled; monitoring still requires an explicit start. Closing a
 monitor panel does not stop acquisition. Read each plugin's own README
 for its scientific assumptions, controls and dependencies.
 
-\chapter{19. Troubleshooting}\label{troubleshooting}
+\hypertarget{troubleshooting}{%
+\chapter{19. Troubleshooting}\label{troubleshooting}}
 
+\hypertarget{the-application-does-not-start-on-linux}{%
 \section{19.1 The application does not start on
-Linux}\label{the-application-does-not-start-on-linux}
+Linux}\label{the-application-does-not-start-on-linux}}
 
 Run the AppImage from a terminal to capture the exact error. If Qt
 reports missing EGL, OpenGL, XKB, or XCB libraries, install the
@@ -3615,8 +3832,9 @@ distribution packages listed in Section 3.3. If FUSE mounting fails, use
 The AppImage is built on Ubuntu 22.04 for broad glibc compatibility.
 Very old Linux distributions may still require a newer runtime.
 
+\hypertarget{quick-guide-manual-updates-or-issue-links-do-not-open}{%
 \section{19.2 Quick Guide, manual, updates, or issue links do not
-open}\label{quick-guide-manual-updates-or-issue-links-do-not-open}
+open}\label{quick-guide-manual-updates-or-issue-links-do-not-open}}
 
 CurveMole attempts to launch the host operating system's opener without
 exposing the AppImage's private Qt and C++ libraries to it. If the
@@ -3624,47 +3842,50 @@ opener still fails, the dialog shows the path or URL to copy manually.
 
 Use these direct addresses:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{https://github.com/SebRoLENS/curvemole}
-\NormalTok{https://github.com/SebRoLENS/curvemole/releases}
-\NormalTok{https://github.com/SebRoLENS/curvemole/issues}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+https://github.com/SebRoLENS/curvemole
+https://github.com/SebRoLENS/curvemole/releases
+https://github.com/SebRoLENS/curvemole/issues
+\end{verbatim}
 
+\hypertarget{windows-smartscreen-or-macos-gatekeeper-warns}{%
 \section{19.3 Windows SmartScreen or macOS Gatekeeper
-warns}\label{windows-smartscreen-or-macos-gatekeeper-warns}
+warns}\label{windows-smartscreen-or-macos-gatekeeper-warns}}
 
 The Preview executables are not yet commercially signed or notarized.
 Confirm that the file came from the official release, verify its SHA-256
 checksum, and use the operating system's documented override only if you
 accept the risk.
 
+\hypertarget{import-produces-one-column}{%
 \section{19.4 Import produces one
-column}\label{import-produces-one-column}
+column}\label{import-produces-one-column}}
 
 The selected delimiter is probably wrong. Reopen import and compare
 whitespace, comma, semicolon, tab, or pipe. A decimal comma file
 commonly uses semicolon as its delimiter. Confirm the header choice and
 preview before mapping.
 
+\hypertarget{imported-points-disappear-from-fitting}{%
 \section{19.5 Imported points disappear from
-fitting}\label{imported-points-disappear-from-fitting}
+fitting}\label{imported-points-disappear-from-fitting}}
 
 Inspect the Worksheet. A point is excluded when x or y is not finite,
 \texttt{sigma\_y} is invalid, a weight is invalid, or the point is
 masked. Faded markers indicate masks. Use Unmask or undo the
 transformation that generated missing values.
 
+\hypertarget{a-peak-appears-at-the-wrong-height-after-placement}{%
 \section{19.6 A peak appears at the wrong height after
-placement}\label{a-peak-appears-at-the-wrong-height-after-placement}
+placement}\label{a-peak-appears-at-the-wrong-height-after-placement}}
 
 Built-in peaks use integrated area, not height. The graphical
 initializer estimates height relative to the existing model and converts
 it to area. For overlapping peaks or a poor background, adjust the
 center target, width handle, and area value before fitting.
 
-\section{19.7 A spline looks unstable}\label{a-spline-looks-unstable}
+\hypertarget{a-spline-looks-unstable}{%
+\section{19.7 A spline looks unstable}\label{a-spline-looks-unstable}}
 
 Use fewer, well-spaced nodes. Place nodes where background information
 exists rather than at every data feature. Graphically placed node y
@@ -3672,30 +3893,34 @@ values are fixed by default; unlock only those that the data can
 independently determine. Nodes created through the API are ordinary free
 parameters unless explicitly fixed.
 
+\hypertarget{differential-evolution-searches-too-narrow-an-interval}{%
 \section{19.8 Differential Evolution searches too narrow an
-interval}\label{differential-evolution-searches-too-narrow-an-interval}
+interval}\label{differential-evolution-searches-too-narrow-an-interval}}
 
 Increase the automatic below/above percentages or set physically
 justified parameter bounds directly. Existing finite bounds override the
 automatic limits. A linked parameter's resulting value must still
 satisfy its own bounds.
 
+\hypertarget{the-fit-is-underdetermined-or-covariance-is-unavailable}{%
 \section{19.9 The fit is underdetermined or covariance is
-unavailable}\label{the-fit-is-underdetermined-or-covariance-is-unavailable}
+unavailable}\label{the-fit-is-underdetermined-or-covariance-is-unavailable}}
 
 Reduce the number of free parameters, fix known values, add justified
 links, widen the data range, or improve signal information. More
 optimizer evaluations cannot create information absent from the data.
 
+\hypertarget{a-parameter-remains-at-a-bound}{%
 \section{19.10 A parameter remains at a
-bound}\label{a-parameter-remains-at-a-bound}
+bound}\label{a-parameter-remains-at-a-bound}}
 
 First verify the initial value and physical bound. Then inspect
 correlations and profile likelihood. A bound-active estimate often has
 an asymmetric uncertainty and may indicate that the data do not locate
 the optimum within the allowed region.
 
-\section{19.11 A sequential fit pauses}\label{a-sequential-fit-pauses}
+\hypertarget{a-sequential-fit-pauses}{%
+\section{19.11 A sequential fit pauses}\label{a-sequential-fit-pauses}}
 
 The affected curve becomes active and the status bar displays
 \textbf{Continue sequential fit}. Inspect its propagated model,
@@ -3707,15 +3932,17 @@ with legitimate abrupt changes, adjust or disable the relevant
 safeguard, or exclude a known discontinuous function from only the
 parameter-change monitor.
 
+\hypertarget{a-project-opens-read-only}{%
 \section{19.12 A project opens
-read-only}\label{a-project-opens-read-only}
+read-only}\label{a-project-opens-read-only}}
 
 Another instance may hold the sibling \texttt{.lock} file. Close the
 other instance, or use Save As. Remove a lock manually only after
 confirming it is stale.
 
+\hypertarget{export-refuses-to-overwrite}{%
 \section{19.13 Export refuses to
-overwrite}\label{export-refuses-to-overwrite}
+overwrite}\label{export-refuses-to-overwrite}}
 
 Choose a new directory or a versioned export. If updating an existing
 bundle, keep the project that records ownership of its exported files
@@ -3723,16 +3950,18 @@ and explicitly enable update. Older bundles may instead have a
 \texttt{.curvemole-export.json} ownership manifest; retain it. CurveMole
 will not claim ownership of unrelated colliding files.
 
+\hypertarget{a-resampling-analysis-has-many-failed-replicates}{%
 \section{19.14 A resampling analysis has many failed
-replicates}\label{a-resampling-analysis-has-many-failed-replicates}
+replicates}\label{a-resampling-analysis-has-many-failed-replicates}}
 
 The baseline may be near bounds, poorly initialized, or structurally
 unstable under perturbation. Increase robustness of the model before
 increasing replicate count. Report completed and failed counts with any
 interval.
 
+\hypertarget{an-update-is-detected-but-cannot-be-installed-automatically}{%
 \section{19.15 An update is detected but cannot be installed
-automatically}\label{an-update-is-detected-but-cannot-be-installed-automatically}
+automatically}\label{an-update-is-detected-but-cannot-be-installed-automatically}}
 
 Automatic updating is supported by Linux x86-64 AppImages and Windows
 x86-64 desktop packages. AppImage and portable replacement requires a
@@ -3744,7 +3973,8 @@ failed staged update records a helper log in the system temporary
 directory; include that log when reporting a reproducible updater
 failure.
 
-\section{19.16 Reporting a problem}\label{reporting-a-problem}
+\hypertarget{reporting-a-problem}{%
+\section{19.16 Reporting a problem}\label{reporting-a-problem}}
 
 Use \href{https://github.com/SebRoLENS/curvemole/issues}{GitHub Issues}.
 Include:
@@ -3769,11 +3999,13 @@ Review every attachment. Diagnostic material must not contain
 unpublished spectra, personal information, credentials, or proprietary
 data unless you intentionally make them public.
 
+\hypertarget{reproducible-research-privacy-and-citation}{%
 \chapter{20. Reproducible research, privacy, and
-citation}\label{reproducible-research-privacy-and-citation}
+citation}\label{reproducible-research-privacy-and-citation}}
 
+\hypertarget{recommended-research-record}{%
 \section{20.1 Recommended research
-record}\label{recommended-research-record}
+record}\label{recommended-research-record}}
 
 Archive at least:
 
@@ -3803,7 +4035,8 @@ Archive at least:
   warnings, failed replicates, and residual diagnostics.
 \end{itemize}
 
-\section{20.1.1 Laboratory notebook}\label{laboratory-notebook}
+\hypertarget{laboratory-notebook}{%
+\section{20.1.1 Laboratory notebook}\label{laboratory-notebook}}
 
 The \textbf{Laboratory notebook} button at the end of the toolbar opens
 project notes and a searchable description browser as a workspace tab.
@@ -3834,8 +4067,9 @@ themes. A note icon beside a series, spectrum, or fit function opens its
 description directly. Clearing the description removes its icon and
 notebook entry.
 
+\hypertarget{local-processing-and-privacy}{%
 \section{20.2 Local processing and
-privacy}\label{local-processing-and-privacy}
+privacy}\label{local-processing-and-privacy}}
 
 CurveMole performs fitting locally. It has no telemetry and does not
 upload data, projects, models, results, or formulas. Its automatic
@@ -3849,7 +4083,8 @@ an explicit external action.
 Plugins run locally with the user's permissions and can violate these
 expectations; trust only reviewed plugin code.
 
-\section{20.3 Citation}\label{citation}
+\hypertarget{citation}{%
+\section{20.3 Citation}\label{citation}}
 
 If CurveMole contributes to published work, cite the exact version used.
 The release DOI is inserted into \texttt{CITATION.cff} and the
@@ -3865,123 +4100,231 @@ https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.1
 The repository provides \textbf{Cite this repository} from
 \texttt{CITATION.cff}.
 
-\section{20.4 Author and contact}\label{author-and-contact}
+\hypertarget{author-and-contact}{%
+\section{20.4 Author and contact}\label{author-and-contact}}
 
 Sebastiano Romi\\
 European Laboratory for Non-Linear Spectroscopy (LENS)\\
 University of Florence (UNIFI)\\
 \href{mailto:romi@lens.unifi.it}{\nolinkurl{romi@lens.unifi.it}}
 
-\section{20.5 License}\label{license}
+\hypertarget{license}{%
+\section{20.5 License}\label{license}}
 
 CurveMole is released under GPL-3.0-or-later. User data, private
 projects, results, and unpublished formulas remain under the user's
 control. Publicly distributed extensions must follow their applicable
 license obligations.
 
+\hypertarget{appendix-a.-keyboard-shortcuts}{%
 \chapter{Appendix A. Keyboard
-shortcuts}\label{appendix-a.-keyboard-shortcuts}
+shortcuts}\label{appendix-a.-keyboard-shortcuts}}
 
 Shortcuts use the platform's standard key sequence where applicable.
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Shortcut
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Action
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Shortcut\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Action\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-Ctrl+N & New project \\
-Ctrl+O & Open project \\
-Ctrl+I & Import data \\
-Ctrl+S & Save project \\
-Ctrl+Shift+S & Save project as on common desktop mappings \\
-Ctrl+E & Export analysis bundle \\
-Ctrl+Shift+E & Export one numeric file per selected spectrum \\
-Ctrl+Z & Undo \\
-Standard Redo shortcut & Redo \\
-Ctrl++ & Add component \\
-F5 & Open Fit dialog \\
-F1 or platform Help shortcut & Quick Start \\
-Esc & Cancel graphical peak or manual-point placement \\
-Ctrl while dragging a normal peak handle & Change a fixed graphical
-parameter without unfixing it \\
-Double-click during manual-point placement & Finish after the minimum
-number of points \\
-Right-click during manual-point placement & Remove the nearest point \\
-Right-drag / left-drag with Mask active & Mask / unmask an interval \\
-Up / Down with plot focus & Activate previous / next spectrum \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+N\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+New project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+O\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Open project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+I\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Import data\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+S\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Save project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+Shift+S\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Save project as on common desktop mappings\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+E\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Export analysis bundle\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+Shift+E\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Export one numeric file per selected spectrum\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl+Z\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Undo\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Standard Redo shortcut\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Redo\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl++\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Add component\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+F5\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Open Fit dialog\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+F1 or platform Help shortcut\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Quick Start\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Esc\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Cancel graphical peak or manual-point placement\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Ctrl while dragging a normal peak handle\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Change a fixed graphical parameter without unfixing it\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Double-click during manual-point placement\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Finish after the minimum number of points\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Right-click during manual-point placement\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Remove the nearest point\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Right-drag / left-drag with Mask active\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Mask / unmask an interval\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Up / Down with plot focus\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Activate previous / next spectrum\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
+\hypertarget{appendix-b.-built-in-identifiers}{%
 \chapter{Appendix B. Built-in
-identifiers}\label{appendix-b.-built-in-identifiers}
+identifiers}\label{appendix-b.-built-in-identifiers}}
 
-{\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}lll@{}}
-\toprule\noalign{}
-Identifier & Display name & Parameters \\
-\midrule\noalign{}
+\toprule
+Identifier & Display name & Parameters\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
 \texttt{gaussian} & Gaussian & \texttt{area}, \texttt{center},
-\texttt{sigma} \\
+\texttt{sigma}\tabularnewline
 \texttt{lorentzian} & Lorentzian & \texttt{area}, \texttt{center},
-\texttt{gamma} \\
+\texttt{gamma}\tabularnewline
 \texttt{voigt} & Voigt & \texttt{area}, \texttt{center}, \texttt{sigma},
-\texttt{gamma} \\
+\texttt{gamma}\tabularnewline
 \texttt{pseudo\_voigt} & Pseudo-Voigt & \texttt{area}, \texttt{center},
-\texttt{fwhm}, \texttt{eta} \\
-\texttt{constant} & Constant & \texttt{offset} \\
-\texttt{linear} & Linear & \texttt{intercept}, \texttt{slope} \\
-\texttt{polynomial} & Polynomial & \texttt{c0} through selected order \\
-\texttt{cubic\_spline} & Cubic spline & \texttt{y0} through last node \\
+\texttt{fwhm}, \texttt{eta}\tabularnewline
+\texttt{constant} & Constant & \texttt{offset}\tabularnewline
+\texttt{linear} & Linear & \texttt{intercept},
+\texttt{slope}\tabularnewline
+\texttt{polynomial} & Polynomial & \texttt{c0} through selected
+order\tabularnewline
+\texttt{cubic\_spline} & Cubic spline & \texttt{y0} through last
+node\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
-\chapter{Appendix C. File extensions}\label{appendix-c.-file-extensions}
+\hypertarget{appendix-c.-file-extensions}{%
+\chapter{Appendix C. File
+extensions}\label{appendix-c.-file-extensions}}
 
-{\def\LTcaptype{none} % do not increment counter
-\begin{longtable}[]{@{}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
-  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
-\toprule\noalign{}
-\begin{minipage}[b]{\linewidth}\raggedright
-Extension
-\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
-Purpose
-\end{minipage} \\
-\midrule\noalign{}
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Extension\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Purpose\strut
+\end{minipage}\tabularnewline
+\midrule
 \endhead
-\bottomrule\noalign{}
-\endlastfoot
-\texttt{.fitproj} & Complete CurveMole project \\
-\texttt{.fitmodel} & Reusable model and formula definitions \\
-\texttt{.curvemole-function.json} & Reusable safe formula in
-\texttt{my\_curvemole\_functions} \\
-\texttt{.curvemole-plugin.json} & Manifest for an executable Python
-plugin \\
-\texttt{.yml}, \texttt{.yaml} & Reproducible workflow \\
-Any text-file suffix & Imported data when the contents form a valid
-numeric table \\
-\texttt{.whl} & Installable Python package \\
-\texttt{.AppImage} & Linux desktop package \\
-\texttt{.exe} & Windows installer or portable executable \\
-\texttt{.zip} & Windows portable package or plugin download \\
-\texttt{.dmg} & macOS disk image \\
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.fitproj}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Complete CurveMole project\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.fitmodel}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Reusable model and formula definitions\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.curvemole-function.json}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Reusable safe formula in \texttt{my\_curvemole\_functions}\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.curvemole-plugin.json}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Manifest for an executable Python plugin\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.yml}, \texttt{.yaml}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Reproducible workflow\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Any text-file suffix\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Imported data when the contents form a valid numeric table\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.whl}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Installable Python package\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.AppImage}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Linux desktop package\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.exe}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Windows installer or portable executable\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.zip}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Windows portable package or plugin download\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{.dmg}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+macOS disk image\strut
+\end{minipage}\tabularnewline
+\bottomrule
 \end{longtable}
-}
 
+\hypertarget{appendix-d.-preview-0.33.1-limitations}{%
 \chapter{Appendix D. Preview 0.33.1
-limitations}\label{appendix-d.-preview-0.33.1-limitations}
+limitations}\label{appendix-d.-preview-0.33.1-limitations}}
 
 The following boundaries are important when evaluating this release:
 
@@ -4017,8 +4360,9 @@ These limitations are stated so that testing can focus on genuine
 behavior rather than inferred promises. Report unclear workflows and
 reproducible defects through the issue tracker.
 
+\hypertarget{appendix-e.-building-this-manual}{%
 \chapter{Appendix E. Building this
-manual}\label{appendix-e.-building-this-manual}
+manual}\label{appendix-e.-building-this-manual}}
 
 The Markdown file you are reading is the only hand-edited manual source.
 From a source checkout with Pandoc, XeLaTeX, and \texttt{latexmk}
@@ -4033,12 +4377,10 @@ installed, run:
 The command validates version declarations and local links, then
 creates:
 
-\begin{Shaded}
-\begin{Highlighting}[]
-\NormalTok{docs/CurveMole\_User\_Manual.tex}
-\NormalTok{docs/CurveMole\_User\_Manual.pdf}
-\end{Highlighting}
-\end{Shaded}
+\begin{verbatim}
+docs/CurveMole_User_Manual.tex
+docs/CurveMole_User_Manual.pdf
+\end{verbatim}
 
 GitHub Actions repeats this process for documentation changes and
 releases. Release assets use versioned filenames and include both LaTeX
