@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.32.1
+# CurveMole User Manual - Preview 0.33.0
 
-**Current manual version: 0.32.1**
+**Current manual version: 0.33.0**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.32.1 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.33.0 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.32.1 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.33.0 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -17,7 +17,7 @@ Useful links:
 - [CurveMole repository](https://github.com/SebRoLENS/curvemole)
 - [Latest release and desktop downloads](https://github.com/SebRoLENS/curvemole/releases/latest)
 - [Issue tracker](https://github.com/SebRoLENS/curvemole/issues)
-- [Zenodo record and DOI](https://doi.org/10.5281/zenodo.22114004)
+- [Version DOI and citation](https://github.com/SebRoLENS/curvemole#how-to-cite)
 - [Quick Start](quick-start.md)
 
 ## 1. About this manual
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.32.1 describes CurveMole 0.32.1.
+version. For example, a manual marked 0.33.0 describes CurveMole 0.33.0.
 
 The release automation performs four checks:
 
@@ -151,7 +151,7 @@ The current reference configuration is:
 
 | Item | Minimum or supported target |
 |---|---|
-| Processor | x86-64, 4 CPU cores recommended |
+| Processor | x86-64 or Apple Silicon on macOS; 4 CPU cores recommended |
 | Memory | 8 GB RAM |
 | Storage | SSD recommended |
 | Display | 1920 x 1080 recommended |
@@ -185,14 +185,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.32.1-linux-x86_64.AppImage
-./CurveMole-0.32.1-linux-x86_64.AppImage
+chmod +x CurveMole-0.33.0-linux-x86_64.AppImage
+./CurveMole-0.33.0-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.32.1-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.33.0-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -224,13 +224,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.32.1-macos-arm64.dmg
+shasum -a 256 CurveMole-0.33.0-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.32.1-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.33.0-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -242,7 +242,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.32.1-py3-none-any.whl
+python -m pip install ./curvemole-0.33.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -251,7 +251,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.32.1-py3-none-any.whl
+python -m pip install .\curvemole-0.33.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -330,14 +330,15 @@ data, and the model panel on the right identifies the active curve.
 ### 4.2 Add a background
 
 1. Press the **+** button in **Model and parameters**, or press **Ctrl++**.
-2. Select **Constant background**.
+2. Select **Constant** and enable **Add as background**.
 3. Keep composition set to `add`.
 4. Press **OK**.
 5. In the parameter table, enter an initial `offset` near the visual baseline.
 
 ### 4.3 Add a Gaussian peak graphically
 
-1. Add another component and select **Gaussian**.
+1. Add another component and select **Gaussian**. Leave **Add as background** and
+   **Initialize from manually selected points on the graph** unchecked.
 2. Press **OK**. The pointer changes to a crosshair.
 3. Click at the approximate peak center.
 4. Keep the mouse button pressed and drag horizontally from the center to either
@@ -423,8 +424,12 @@ and **State** columns.
   displays. Hover over the checkbox for an explanation. Hiding a spectrum retains
   its data and fit; hidden spectra are excluded from fit plans. Highlighting rows
   separately selects spectra for operations.
-- Double-click an editable name to rename a series or curve. Series names must remain unique.
-- Right-click a **curve** and choose **Choose spectrum colour…** to set its colour. Red is
+- Double-click an editable name, or right-click and choose **Rename data…** or
+  **Rename series…**. Series names must remain unique.
+- Right-click a series and choose **Delete series…** to remove it together with all
+  its curves, models and results. A populated series requires confirmation; Undo
+  restores the complete series. Original files on disk are retained.
+- Right-click a **curve** and choose **Choose data colour…** to set its colour. Red is
   reserved for the fitted Model sum and cannot be assigned to a spectrum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
   with one of the built-in non-red palettes. Palette and individual colours are saved in
@@ -452,7 +457,14 @@ Controls above it provide:
 - **X offset** and **Y offset:** display-only Waterfall spacing;
 - **Residuals:** show or hide the linked residual panel;
 - **Autoscale:** automatically frame the experimental data when the active spectrum changes;
-- **All points / Unmasked points:** choose whether automatic framing includes masked data.
+- **All points / Unmasked points:** choose whether automatic framing includes masked data;
+- **Plot style:** draw imported data as Lines, Points, or Lines + points;
+- **Visual only - background-subtracted:** preview subtraction of marked background
+  functions without changing data or fit inputs.
+
+Choose **View > Plot appearance…** for separate data, function and residual styles,
+line widths, symbols, colours and grid settings. These display settings are stored
+with the project.
 
 With Autoscale off, switching spectra preserves the view. **View all** and
 **View unmasked** explicitly frame the corresponding experimental points; model
@@ -508,10 +520,19 @@ though they remain stored.
 ### 5.4 Model and parameters dock
 
 The right dock normally lists components for the active curve. Enable **Show all
-functions** to list every model function in the project with its spectrum name. The
-list supports Ctrl-click and Shift-click multi-selection, including selections across
-spectra. Component order matters because composition operators are evaluated
-sequentially.
+functions** to list every model function in the project, grouped by series and
+spectrum. Group headings cannot be selected as functions. The list supports
+Ctrl-click and Shift-click multi-selection, including selections across spectra.
+Component order matters because composition operators are evaluated sequentially.
+
+**Select all** selects every displayed function. **Select all except backgrounds**
+selects only functions that are not marked as background and clears any previous
+background selection. In Show all functions mode these actions span the project.
+Selection is separate from enabling: a checked function contributes to the model
+and fit; an unchecked function remains stored but is excluded. Hover directly over
+its checkbox for an explanation. Changing a checkbox on a selected function applies
+the enabled state to the whole selection. **Mark as background** classifies the
+selected functions; it does not subtract them from the data.
 
 The controls below the list are:
 
@@ -521,7 +542,10 @@ The controls below the list are:
 | Duplicate | Duplicate the selected component and its settings |
 | Up / Down | Change component order |
 | Delete | Delete the component after confirmation |
+| Reorder | Renumber automatically named functions using a parameter value |
+| Advanced reorder rules | Choose the numbering parameter separately for each function type |
 | Copy fit | Copy selected model information to other curves |
+| Copy fit to next | Open the copy dialog with the next curve in the source series selected |
 | Copy parameter | Copy one parameter from one source function to chosen project-wide targets |
 
 Bulk actions on selected functions can delete, duplicate, reorder, enable or disable,
@@ -545,10 +569,11 @@ reusable user formulas, and loaded plugin functions. CurveMole remembers the las
 selection across sessions and also updates it when a function is added through the
 ordinary Add dialog.
 
-For peak functions, Quick Add starts click-drag graphical placement. For a cubic
-spline it starts node placement. Other functions are inserted immediately with their
-default parameter values. Quick Add remains available repeatedly until the user
-changes the selected function or tool.
+Quick Add uses the insertion choice last confirmed for that function in Add
+component. Linear and Cubic spline default to manual points; normal peaks use
+centre/FWHM click-drag placement. Functions whose point initialization is off are
+otherwise added immediately. Click Quick Add again to add another function.
+Section 8 describes point placement, initial locking and graphical controls.
 
 The toolbar also provides the most common project, model, fitting, background, and
 calculator actions as icons. Hover over an icon to see its action name.
@@ -652,7 +677,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.32.1 optimizer.
+stored in the project but is not used by the version 0.33.0 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -669,6 +694,43 @@ When importing multiple files, **Apply this mapping to all files in this batch**
 reuses the first file's parsing and column mapping. Enable it only if all files truly
 share a layout. CurveMole does not silently guess a new mapping for an incompatible
 file in the same batch.
+
+Files are imported in natural filename order: `scan_2` precedes `scan_10`, regardless
+of the order returned by the file chooser.
+
+#### Calibrated WinSpec SPE files
+
+CurveMole also reads binary WinSpec SPE 2.x files containing calibrated
+one-dimensional acquisitions. The first column is wavelength in nm, followed by
+one intensity column per frame. Select the frame through the Y-column mapping.
+SPE 3.x, uncalibrated axes, images and multiple-ROI acquisitions are unsupported;
+export those acquisitions to calibrated x-y text before importing.
+
+#### Automatic folder import
+
+Choose **File > Automatic folder import…** to add arriving files to the current
+project. Select an existing folder, an optional case-insensitive **Filename
+contains** filter, the one-based X/Y columns and a **Wait for stable file** delay
+(2 seconds by default). Monitoring starts only when you press **Start**.
+
+- **Also import matching files already in the folder** includes existing files;
+  otherwise the session starts with newly arriving files.
+- **Import changed files again as NEW spectra** retains the previous acquisition
+  and adds a new one when file contents change.
+- **Show newest imported spectrum** controls whether successful imports take focus;
+  it can be changed while monitoring runs.
+- **Automatic workflow** selects Import only or a loaded plugin's import processor.
+  Configure the plugin first; processing runs on the new acquisition in the
+  background before it is added to the live project.
+
+Only files directly in the folder are scanned. Symlinks, hidden/temporary files and
+projects are ignored, and automatic inputs are limited to 256 MiB. Identical content
+at the same path is not imported twice within a session. Each successful acquisition
+is one Undo operation. Failed files appear in the log; correct them or the settings
+and choose **Retry failed files**. Imports wait while fitting, a desktop automation
+or a modal dialog is active. Closing the monitor panel leaves it running; choose
+**Stop** or **File > Stop automatic import** to stop. Changing projects ends the
+session, and reopening CurveMole does not start monitoring automatically.
 
 ### 6.5 Invalid numeric cells
 
@@ -948,7 +1010,11 @@ $$
 `fwhm` is intrinsically positive and `eta` is intrinsically bounded to $[0,1]$.
 `eta=0` is Gaussian and `eta=1` is Lorentzian.
 
-### 8.3 Built-in backgrounds
+### 8.3 Built-in functions commonly used as backgrounds
+
+The library names are **Constant**, **Linear**, **Polynomial** and **Cubic spline**.
+They become background components only when **Add as background** in the Add dialog
+or **Mark as background** in the model panel is enabled.
 
 #### Constant
 
@@ -981,7 +1047,7 @@ appropriate.
 
 #### Cubic spline
 
-Spline x nodes are fixed metadata. Their y values (`y0`, `y1`, and so on) are normal
+Spline x nodes are metadata, rather than optimizer parameters. Their y values (`y0`, `y1`, and so on) are normal
 parameters that may be fitted, fixed, bounded, or linked. Two nodes produce linear
 interpolation. Three or more nodes produce a natural cubic spline, with extrapolation
 outside the node range.
@@ -999,14 +1065,18 @@ main toolbar. The list includes built-in peaks and backgrounds, generic function
 project-contained formulas, reusable formulas, and trusted plugin functions. The last
 choice is remembered.
 
-- a peak opens continuous graphical centre/FWHM placement: add several peaks,
-  then press Enter, Esc, or Finish to leave placement mode;
-- a cubic spline opens point-by-point node placement;
-- every other function is added immediately with its default parameters.
+- a peak with manual-point initialization off opens centre/FWHM placement and
+  finishes after one click-drag; click Quick Add again for another peak;
+- a cubic spline normally opens point-by-point node placement;
+- Linear normally opens manual-point placement; other functions can use it when
+  enabled in the Add dialog;
+- functions with point initialization off are added with their initial parameters;
+  a spline in this mode uses an initial node grid with free y parameters.
 
 Quick Add therefore uses the same registry and initialization logic as the normal Add
 dialog. Selecting a function in the normal Add dialog also makes it the next Quick Add
-choice.
+choice. The manual-point and background options chosen in Add component are also
+remembered for Quick Add separately for each function.
 
 ### 8.5 Adding a peak with the pointer
 
@@ -1026,14 +1096,35 @@ their position, intensity, and width parameters in Function Builder. Older custo
 functions without role metadata retain compatibility through conventional names such
 as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`, `amplitude`, or `height`.
 
-### 8.6 Adding a spline background with the pointer
+### 8.6 Initializing any function from manually selected points
 
-After choosing **Cubic-spline background**:
+In Add component, enable **Initialize from manually selected points on the graph**.
+This is selected by default for Linear and Cubic spline and can be used for other
+built-in, custom or plugin functions. For a custom formula, Function Builder can
+set **Use manual-point initialization by default**.
+
+Click explicit points representing the function you want to create. A live green
+function preview updates as points are added or removed; it is an initial estimate,
+not a fit to the measured spectrum. Linear requires at least two points. Other
+non-spline functions require at least two points and at least as many points as
+parameters. Cubic spline requires at least two distinct x positions.
+
+Use **Finish** or double-click to commit after the minimum number of points;
+**Undo point** removes the most recent point, right-click removes the nearest
+point, and **Esc** cancels insertion. The resulting parameters are fixed by default.
+Use **Unlock all** or individual **Fixed** checkboxes before optimizing them.
+Points and the corresponding controls are stored with the component and project.
+
+#### Drawing a cubic-spline background
+
+After choosing **Cubic spline**, enable **Add as background** and keep manual-point
+initialization enabled:
 
 1. left-click background nodes on the plot;
-2. inspect the dashed preview, which updates after each click;
+2. inspect the live green preview, which updates after each click;
 3. use **Undo point** if necessary;
-4. finish with **Finish** or a right-click after at least two nodes;
+4. finish with **Finish** or double-click after at least two nodes; right-click
+   removes the nearest node;
 5. press **Esc** to cancel the entire placement.
 
 Nodes are sorted by x. Clicking again at effectively the same x updates that node
@@ -1046,16 +1137,24 @@ center and area-derived height. Drag a side line to change FWHM. For a Voigt pea
 changing FWHM graphically scales `sigma` and `gamma` by the same ratio, preserving
 their current relative contribution.
 
-Select a cubic spline to drag its y nodes. Node x positions remain fixed. Exact
-numeric edits are available in the parameter table.
+For a function created from manual points, selecting it displays its original
+control points. Unlock the relevant parameters before dragging a point in x and y.
+For a spline, unlock that node's y parameter: dragging also updates its stored x
+position and keeps nodes sorted. For other functions, at least one parameter must
+be free; CurveMole refines those free values against the moved control points while
+retaining fixed and linked values. Each completed drag is undoable. Exact numeric
+parameter edits are available in the table.
 
-Fixed values cannot normally be changed by a drag. Hold **Ctrl** while dragging to
-change the stored value while leaving the parameter fixed. Linked values cannot be
-dragged because their value is controlled by an expression.
+For normal peak centre/width handles, fixed values cannot normally be changed by
+a drag. Hold **Ctrl** while dragging to change the stored value while leaving the
+parameter fixed. Manual-point handles instead require unlocking the relevant
+parameters. Linked values cannot be dragged independently because an expression
+controls them.
 
 ### 8.8 Automatic peak suggestions
 
-Choose **Model > Find Peaks**. The first dialog can search positive, negative, or both
+Choose **Model > Find positive peaks…**. Despite the menu label, the first dialog
+can search positive, negative, or both
 signs. The next dialog selects any registered function classified as a peak, initially
 preferring the current Quick Add peak. CurveMole then:
 
@@ -1077,6 +1176,13 @@ Duplicate a component to create an adjacent copy with a new internal identifier.
 Disable a component to compare models without losing its settings. Deletion and
 reordering are undoable. Reordering can materially change models that use operations
 other than addition or subtraction.
+
+The **Reorder** button has a separate purpose: it renumbers automatically named
+functions of each type in ascending parameter order (peak `center` by default),
+without changing component order, IDs, links or custom names. The adjacent
+**Advanced reorder rules…** button selects another numbering parameter for each
+function type and remembers those rules. Use the Up/Down controls to change the
+actual composition order.
 
 ### 8.10 Copying a fit to other curves
 
@@ -1112,6 +1218,7 @@ The table columns are:
 | Parameter | Parameter name; linked parameters show a link indicator |
 | Value | Current value or successful fitted value |
 | ±1 sigma | Covariance-based standard error when available |
+| Analysis - / + | Separate lower/upper distances from the saved uncertainty analysis selected for this spectrum |
 | Fixed | Exclude the parameter from optimization |
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
@@ -1270,19 +1377,8 @@ offset, scaled, or otherwise related values.
 The Fit dialog uses the same **Active series / All series** scope for independent,
 sequential and global fits, with colored series headings. Hidden spectra are excluded
 from the plan; the sequential source chooser follows the same scope. Weights and
-checkbox choices are retained while switching scope. In the Functions panel,
-**Show all functions** groups entries by series, then spectrum, then function;
-headings cannot be selected as functions, and multi-selection remains available.
-**Select all** selects every displayed function; **Select all except backgrounds**
-selects only functions that are not marked as background, clearing any previous
-background selection. In Show all functions mode these actions span the whole project.
-Selection does not change the function checkboxes: a checked function contributes
-to the model and fit, while an unchecked function is retained but excluded.
-Hover directly over a function checkbox for an explanation of enable/disable
-and how it differs from row selection.
-Changing a checkbox on a selected function applies the enabled state to the whole
-selection. **Mark as background** classifies the selected functions as background;
-it does not subtract them from the data.
+checkbox choices are retained while switching scope. Function selection and
+enabled/background checkboxes are described in Section 5.4.
 
 The Fit dialog accepts a positive numeric spectrum weight for every selected curve.
 If $s_j$ is the spectrum weight, all point residuals from spectrum $j$ are multiplied
@@ -1307,8 +1403,8 @@ successful early stop when parameter changes become numerically negligible. Duri
 local optimization, the status progress is updated and the plotted trial model is
 refreshed every 20 evaluations. These refreshes preserve the user's current zoom and
 do not replace the stored parameters unless the fit completes successfully.
-The Python API and YAML settings additionally expose tolerances, scaling, local
-method, random seed, and Differential Evolution controls.
+Advanced algorithm options, the Python API and YAML settings expose tolerances,
+scaling, local method, random seed and Differential Evolution controls.
 The solver menu also offers explicit TRF, Dogbox, and LM, plus Nelder-Mead,
 Powell, and L-BFGS-B. The latter three minimize the selected loss directly;
 they can be useful for difficult models but may take more evaluations. LM needs
@@ -1422,7 +1518,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.32.1 does not yet provide a single comprehensive on-screen results table, so use the
+0.33.0 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -1491,6 +1587,12 @@ the fit without running replicas. Monte Carlo, residual bootstrap and block boot
 default to **200 replicates** (not optimizer iterations), and remain configurable.
 The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
 quick estimate; use more and check stability when precise percentile endpoints matter.
+
+**CPU processes** sets the maximum number of independent spectra analyzed in
+parallel, with remaining spectra queued. The default is up to four processes,
+limited by the available CPU count. Profile scans can parallelize their grid points;
+analyses involving executable plugin functions use one process. Raising the process
+count can increase memory use, and it does not change the requested replicate count.
 
 **Run on** selects the active spectrum, spectra selected in the project tree, or all
 fitted spectra. Each independent spectrum uses its own last successful fit, even if
@@ -1704,6 +1806,8 @@ The dialog can additionally export:
 - the main plot as PNG and/or SVG;
 - compact HTML and PDF summaries;
 - a full reproducibility HTML report;
+- the laboratory notebook as UTF-8 text;
+- all recorded settings for the last fit as CSV;
 - covariance and correlation matrices when available;
 - residual autocorrelation diagnostics when available;
 - an export README.
@@ -1787,6 +1891,18 @@ The original delimiter is retained when practical, otherwise the output is
 tab-delimited. Headers describe axis labels, units, functions, background state, total
 fit, and residuals, and never contain whitespace so they remain safe for whitespace
 parsers. An unknown original extension is preserved.
+
+### 14.9 Exporting function parameters
+
+**File > Export functions parameters…** writes a wide CSV table with one row per
+project spectrum and two header rows identifying functions and parameters.
+Each parameter has value and fit-error columns; functions with the same displayed
+name align across spectra, with duplicate names disambiguated. Spectra that are
+not currently Fitted retain their row but have blank numeric cells. Saved
+selected-analysis errors are added as separate minus/plus columns, together with
+the method. This is a focused numeric export; use the analysis bundle for
+the full constraints and reproducibility record. **Also export covariance matrices**
+optionally writes the labelled sibling matrices described in Section 12.
 
 ## 15. Command-line interface
 
@@ -2097,10 +2213,14 @@ Open **Tools > Function Builder**. Enter:
 
 - an identifier using letters, numbers, and underscores;
 - a display name;
-- classification as peak, background, or generic;
+- classification as **Peak-shaped function** or **General function**;
 - a formula in `x`;
 - optional formulas for derived area and FWHM;
 - for peak functions, optional semantic roles for detected parameters.
+
+Background is assigned to components when adding or editing the model; it is not
+a separate Function Builder classification. **Use manual-point initialization by
+default** controls the preferred insertion mode for the new function.
 
 CurveMole detects every non-function symbol other than x as a parameter. Newly
 detected parameters default to 1.0 and are unbounded. After adding the function to
@@ -2170,7 +2290,8 @@ model functions or `api.add(kind, id, label, callback)` for exporters, importers
 fit algorithms, transformations, analyses, commands, workflows, panels, plot layers
 and lifecycle notifications. Full contracts and runnable examples are in
 [Creating and managing plugins](plugins.md). Built-ins cannot be replaced through
-this API; contributed entries carry a diamond symbol.
+this API; contributed entries carry a plugin-specific symbol and identify the
+providing plugin in their tooltip.
 
 ### 18.4 Trust boundary
 
@@ -2194,9 +2315,12 @@ failed registration rolls back additions. After a crash or forced termination,
 CurveMole disables persisted plugins before importing their code and explains recovery.
 Normal closure clears the session marker. The integrated validated-plugin browser
 can download selected plugins through **Install selected**. A **Plugins** status
-badge checks updates for loaded supported plugins, lets you select updates, and
-indicates when a restart is needed to activate staged code. Checking for an update
-does not install it automatically. Manual artifact download remains an alternative.
+badge checks at startup and hourly for updates to loaded supported plugins, lets you select updates, and
+indicates when a restart is needed to activate staged code. Open **Plugin updates…**
+in the manager or click the badge, then choose **Update selected**. **Help > Check
+for updates** checks both CurveMole and loaded plugins. Checking for an update does
+not install it automatically. Disabled plugins are not checked; local-only plugins
+without a catalog entry need manual updates. Manual ZIP download remains an alternative.
 Set `CURVEMOLE_DISABLE_PLUGINS=1` to skip
 automatic loading manually. This is failure recovery, not a sandbox for Python code.
 
@@ -2240,7 +2364,7 @@ def register(api):
     api.add("exporters", "csv", "Laboratory CSV", export_csv)
 ```
 
-After loading this plugin, choose **File > Exporters > Laboratory CSV** (marked with
+After loading this plugin, choose **File > Plugins: Exporters > Laboratory CSV** (marked with
 the plugin symbol). CurveMole asks for a destination and then runs the callback.
 The integrated export commands stay available. The module uses NumPy, already
 included with CurveMole; no additional dependencies are required.
@@ -2256,16 +2380,37 @@ loading a plugin does not publish its source. **Browse validated plugins** opens
 the downloads that have passed the checks.
 
 The repository's [custom_plugins folder](../custom_plugins/README.md) contains the
-submission guide and a tested TSV exporter example. Authors submit a folder with
+submission guide and downloadable plugins, including a TSV exporter, Fityk project
+importer, cosmic-ray removal, x-axis calibration and ruby fluorescence pressure
+monitor. These are separately installed extensions, not automatically enabled
+CurveMole features. Authors submit a folder with
 manifest, module, licence, README and functional tests through a pull request.
 GitHub checks manifests, actual registered capabilities, loading/removal and tests
-on Linux, Windows and macOS. Only a successful main run produces the
-`validated-community-plugins` artifact with its catalog and tested plugin files.
-Download it from the Community plugins Actions workflow, extract the chosen plugin
-and load it explicitly through File > Plugin manager. A source folder or an open PR
-alone does not indicate validation. Tests demonstrate tested behavior, not complete
+on Linux, Windows and macOS. Only a successful main run publishes the validated
+catalog and tested plugin ZIP files. **Browse validated plugins** and **Install
+selected** provide the normal installation route inside the manager, with an
+explicit trust decision. Alternatively, use the stable downloads in the
+[plugin guide](../custom_plugins/README.md) or the separate
+[rolling community plugin release](https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest),
+extract the chosen plugin and review/load its manifest in the manager. These direct
+downloads do not require a GitHub account and are separate from application releases.
+A source folder or an open PR alone does not indicate validation. Tests demonstrate tested behavior, not complete
 safety; Python plugins still run with the user's privileges. See the submission
 guide for required branch protection settings and the limits of validation.
+
+### 18.8 Acquisition processors and interactive plugin panels
+
+Plugins can register `import_processors` for Automatic folder import (Section 6.4).
+A processor receives only the detached new acquisition and its settings, runs in
+a background thread, and returns spectra/models/results to be added as one Undo
+operation. Enabling a plugin does not start acquisition monitoring.
+
+Plugin panels join the shared dock/tab workspace and can be reopened without
+losing their current widget state. Supported panel services offer project
+snapshots, persistent plugin settings and control over the owner's import monitor.
+A panel may open automatically when its plugin is enabled; monitoring still requires
+an explicit start. Closing a monitor panel does not stop acquisition. Read each
+plugin's own README for its scientific assumptions, controls and dependencies.
 
 ## 19. Troubleshooting
 
@@ -2360,8 +2505,9 @@ Save As. Remove a lock manually only after confirming it is stale.
 ### 19.13 Export refuses to overwrite
 
 Choose a new directory or a versioned export. If updating an existing bundle, keep
-its `.curvemole-export.json` manifest and explicitly enable update. CurveMole will not
-claim ownership of unrelated colliding files.
+the project that records ownership of its exported files and explicitly enable
+update. Older bundles may instead have a `.curvemole-export.json` ownership
+manifest; retain it. CurveMole will not claim ownership of unrelated colliding files.
 
 ### 19.14 A resampling analysis has many failed replicates
 
@@ -2371,8 +2517,9 @@ Report completed and failed counts with any interval.
 
 ### 19.15 An update is detected but cannot be installed automatically
 
-Automatic replacement is limited to a running Linux x86-64 AppImage or Windows x86-64
-standalone executable whose directory is writable. Finish or cancel active tasks.
+Automatic updating is supported by Linux x86-64 AppImages and Windows x86-64
+desktop packages. AppImage and portable replacement requires a writable directory;
+installed Windows applications use the verified installer. Finish or cancel active tasks.
 Python/source installations, macOS packages, unsupported architectures, and protected
 application directories must be updated from the GitHub release page. On Windows, a
 failed staged update records a helper log in the system temporary directory; include
@@ -2456,9 +2603,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.32.1)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.0)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.32.1
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.0
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -2493,8 +2640,10 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Ctrl++ | Add component |
 | F5 | Open Fit dialog |
 | F1 or platform Help shortcut | Quick Start |
-| Esc | Cancel graphical peak or spline placement |
-| Ctrl while dragging | Change a fixed graphical parameter without unfixing it |
+| Esc | Cancel graphical peak or manual-point placement |
+| Ctrl while dragging a normal peak handle | Change a fixed graphical parameter without unfixing it |
+| Double-click during manual-point placement | Finish after the minimum number of points |
+| Right-click during manual-point placement | Remove the nearest point |
 | Right-drag / left-drag with Mask active | Mask / unmask an interval |
 | Up / Down with plot focus | Activate previous / next spectrum |
 
@@ -2506,10 +2655,10 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `lorentzian` | Lorentzian | `area`, `center`, `gamma` |
 | `voigt` | Voigt | `area`, `center`, `sigma`, `gamma` |
 | `pseudo_voigt` | Pseudo-Voigt | `area`, `center`, `fwhm`, `eta` |
-| `constant` | Constant background | `offset` |
-| `linear` | Linear background | `intercept`, `slope` |
-| `polynomial` | Polynomial background | `c0` through selected order |
-| `cubic_spline` | Cubic-spline background | `y0` through last node |
+| `constant` | Constant | `offset` |
+| `linear` | Linear | `intercept`, `slope` |
+| `polynomial` | Polynomial | `c0` through selected order |
+| `cubic_spline` | Cubic spline | `y0` through last node |
 
 ## Appendix C. File extensions
 
@@ -2523,10 +2672,11 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Any text-file suffix | Imported data when the contents form a valid numeric table |
 | `.whl` | Installable Python package |
 | `.AppImage` | Linux desktop package |
-| `.exe` | Windows desktop executable |
+| `.exe` | Windows installer or portable executable |
+| `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.32.1 limitations
+## Appendix D. Preview 0.33.0 limitations
 
 The following boundaries are important when evaluating this release:
 
@@ -2534,7 +2684,8 @@ The following boundaries are important when evaluating this release:
 - local optimizers include nonlinear least squares, Nelder-Mead, Powell, and L-BFGS-B;
   none guarantees the global optimum for an arbitrary nonlinear model;
 - `sigma_x` is stored but not used in optimization;
-- the GUI does not yet provide a dedicated parameter-path picker for complex links;
+- graphical links support a source-parameter picker; complex multi-source relations
+  still require the advanced expression editor;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
 - Windows and macOS packages may be unsigned; Linux release provenance is available

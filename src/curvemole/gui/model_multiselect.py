@@ -191,13 +191,25 @@ def _install_model_panel() -> None:
                 continue
             index = panel.components.model().index(row, 0)
             selection.select(index, index)
-        panel.components.selectionModel().select(
-            selection, QItemSelectionModel.SelectionFlag.ClearAndSelect
-        )
-        if not selection.isEmpty():
-            panel.components.selectionModel().setCurrentIndex(
-                selection.indexes()[0], QItemSelectionModel.SelectionFlag.NoUpdate
+        previous_item = panel.components.currentItem()
+        was_updating = panel._updating
+        panel._updating = True
+        try:
+            panel.components.selectionModel().select(
+                selection, QItemSelectionModel.SelectionFlag.ClearAndSelect
             )
+            if not selection.isEmpty():
+                panel.components.selectionModel().setCurrentIndex(
+                    selection.indexes()[0], QItemSelectionModel.SelectionFlag.NoUpdate
+                )
+        finally:
+            panel._updating = was_updating
+        # Selection and current-item signals fire separately. Refresh only once
+        # both refer to the same spectrum, especially for a single remote function.
+        if selection.isEmpty():
+            panel._multi_selection_changed()
+        else:
+            panel._component_selected(panel.components.currentItem(), previous_item)
 
     def description_menu(panel: ModelPanel, position: Any) -> None:
         ref = _item_ref(panel.components.itemAt(position))

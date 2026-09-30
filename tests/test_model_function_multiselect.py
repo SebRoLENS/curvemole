@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -171,6 +173,105 @@ def test_spectrum_navigation_preserves_function_position(target_count, navigatio
         assert panel.components.count() == 0
         assert panel.parameters.rowCount() == 0
         assert window.selected_component_id is None
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+@pytest.mark.parametrize("show_all", [False, True])
+def test_bulk_selection_buttons_preserve_model_state_and_exclude_backgrounds(show_all):
+    app = QApplication.instance() or QApplication([])
+    project, first, second = _project_with_functions()
+    backgrounds = set()
+    for curve in (first, second):
+        components = project.model_for(curve.id).components
+        components[0].is_background = True
+        components[1].enabled = False
+        backgrounds.add((curve.id, components[0].id))
+    expected_curves = (first, second) if show_all else (first,)
+    expected = {
+        (curve.id, component.id)
+        for curve in expected_curves
+        for component in project.model_for(curve.id).components
+    }
+    window = MainWindow(project)
+    panel = window.model_panel
+    panel.show_all_functions.setChecked(show_all)
+    initial_models = {
+        curve.id: project.model_for(curve.id).to_dict()
+        for curve in (first, second)
+    }
+
+    panel.select_all_functions_button.click()
+    assert set(panel.selected_component_refs()) == expected
+    assert len(panel.components.selectedItems()) == len(expected)
+
+    panel.select_non_background_functions_button.click()
+    assert set(panel.selected_component_refs()) == expected - backgrounds
+    assert len(panel.components.selectedItems()) == len(expected - backgrounds)
+    for curve in (first, second):
+        assert project.model_for(curve.id).to_dict() == initial_models[curve.id]
+    assert window.undo_stack.count() == 0
+
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_excluding_backgrounds_selects_single_function_on_another_spectrum_without_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("background-selection")
+    first = Curve("Background only", [0.0, 1.0, 2.0], [1.0, 1.0, 1.0])
+    second = Curve("Peak only", [0.0, 1.0, 2.0], [0.0, 1.0, 0.0])
+    for curve in (first, second):
+        project.add_curve(curve)
+    background = Component.create("constant")
+    background.is_background = True
+    peak = Component.create("gaussian")
+    project.model_for(first.id).add(background)
+    project.model_for(second.id).add(peak)
+    window = MainWindow(project)
+    panel = window.model_panel
+    panel.show_all_functions.setChecked(True)
+    errors = []
+    monkeypatch.setattr(sys, "excepthook", lambda *error: errors.append(error))
+
+    panel.select_non_background_functions_button.click()
+    app.processEvents()
+
+    assert errors == []
+    assert panel.selected_component_refs() == [(second.id, peak.id)]
+    assert panel.selected_component_curve_id() == second.id
+    assert panel.selected_component_id() == peak.id
+    assert window.selected_component_id == peak.id
+    assert panel.parameters.rowCount() == len(peak.parameters)
+
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_local_bulk_selection_navigation_preserves_selected_non_background_position():
+    app = QApplication.instance() or QApplication([])
+    project, first, second = _project_with_functions()
+    for curve in (first, second):
+        project.model_for(curve.id).components[0].is_background = True
+    window = MainWindow(project)
+    panel = window.model_panel
+
+    panel.select_all_functions_button.click()
+    panel.select_non_background_functions_button.click()
+    assert panel.selected_component_refs() == [
+        (first.id, project.model_for(first.id).components[1].id)
+    ]
+    window._set_active_curve(second.id)
+    assert panel.selected_component_refs() == [
+        (second.id, project.model_for(second.id).components[1].id)
+    ]
+    assert panel.components.currentRow() == 1
+
     project.dirty = False
     window.close()
     app.processEvents()

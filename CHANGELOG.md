@@ -5,6 +5,31 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.33.0] - 2026-09-30
+
+### Added
+
+- Add **Select all** and **Select all except backgrounds** to Model & Parameters,
+  including project-wide selection in **Show all functions**. Selecting rows
+  preserves each function's enabled state.
+- Explain function enable/disable and spectrum visibility checkboxes on hover.
+
+### Fixed
+
+- Keep the selected function's ordinal position when switching spectra through
+  the tree, plot or series navigation. Select the last available function when
+  the target model is shorter and clear the parameter table for an empty model.
+- Update function selection and its current row together to avoid a transient
+  parameter lookup error when selecting a single function from another spectrum.
+
+### Documentation
+
+- Align the user manual and README with current model controls, data import,
+  fit workflows, extensions, exports and desktop update behavior.
+- Regenerate the versioned LaTeX/PDF manual and application screenshots.
+
+## Earlier development notes (through 0.32.1)
+
 ### Named functions and uncertainty assessments
 
 - Add undoable arbitrary function names, retained across reopen, labels and exports.

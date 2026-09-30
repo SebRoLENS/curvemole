@@ -33,15 +33,20 @@ same layout.
 Rows are never reordered or merged. Invalid numeric cells remain stored and are
 visibly excluded from calculations.
 
+When switching spectra, **Model & Parameters** keeps the selected function at the
+same position in the new model. If that model is shorter, its last function is
+selected; an empty model clears the parameter table. **Show all functions** keeps
+its project-wide selection instead.
+
 ## 2. Add one or more backgrounds
 
 Activate the curve in the left panel. For a graphical spline background:
 
-1. choose **Cubic-spline background** in the toolbar selector;
+1. choose **Cubic spline** in the toolbar selector;
 2. press **Quick Add Function**;
 3. left-click successive points that follow the experimental background;
-4. inspect the live dashed preview, then right-click or press **Finish** after at
-   least two points;
+4. inspect the live preview, then double-click or press **Finish** after at least
+   two points; right-click removes the nearest point;
 5. select the new spline in **Model and parameters** and enable **Mark as
    background**.
 
@@ -76,9 +81,10 @@ background...** later. The imported original data remain retained.
 ## 4. Add the peaks
 
 Choose a peak shape in the toolbar selector and press **Quick Add Function** once.
-The placement mode stays active for several peaks; press Enter, Esc, or Finish to exit. Click its centre and drag horizontally to either half-height edge;
-the highlighted width is the complete initial FWHM. Repeat to add as many peaks as
-needed. The selected Quick Add function is remembered.
+With manual-point initialization off, click its centre and drag horizontally to
+either half-height edge; the highlighted width is the complete initial FWHM.
+Placement finishes after that peak. Press Quick Add again for another peak.
+The selected function and its Add dialog initialization options are remembered.
 
 Built-in peaks use signed integrated area:
 
@@ -91,6 +97,13 @@ Edit values directly in the parameter table. Empty lower/upper cells mean unboun
 Check **Fixed** to hold a parameter. A link such as
 `${curve_id.component_id.center}` can connect parameters in the same or another
 spectrum.
+
+Use **Select all** or **Select all except backgrounds** in **Model & Parameters**
+to select displayed functions for batch editing. Enable **Show all functions** to
+span the project. Row selection does not change which functions contribute to
+the fit: their checkboxes control this, and changing a selected checkbox applies
+to the whole selection. Hover over a function or spectrum checkbox for its
+explanation.
 
 For automatic starting values, choose **Model → Find Peaks**, select the peak sign,
 then select any registered peak shape. Detected peaks are suggestions that should be

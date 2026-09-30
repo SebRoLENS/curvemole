@@ -105,8 +105,10 @@ software version.
 
 ## Zenodo
 
-The repository is connected to Zenodo. Future releases wait for the version DOI and
-update the README, `CITATION.cff`, and GitHub release notes automatically. Commits
+The repository is connected to Zenodo. Releases start DOI synchronization after
+creating the GitHub release, without blocking desktop builds on archival. When the
+version DOI is available, the README, `CITATION.cff`, and GitHub release notes are
+updated automatically. Commits
 containing `[skip release]` can update release infrastructure or citation metadata
 without creating a new software version.
 

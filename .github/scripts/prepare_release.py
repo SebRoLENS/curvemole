@@ -169,8 +169,9 @@ def update_readme(version: str) -> None:
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-Version **{version}** will be archived on Zenodo after its GitHub integration is enabled.
-The release DOI will then be inserted here automatically.
+Zenodo archival for version **{version}** is pending. The release DOI will be
+inserted here automatically when the record is available. Until then, use the
+versioned GitHub release below.
 
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
 > [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v{version}

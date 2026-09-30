@@ -9,7 +9,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.23040427"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23040427.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -22,7 +22,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.32.1 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.33.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 
@@ -37,22 +37,18 @@ Available packages are built automatically for:
 - Windows x86_64: installer (recommended) or portable `.zip`
 - macOS Apple Silicon: `.dmg`
 - macOS Intel x86_64: `.dmg`
+- Python 3.12+: wheel and source distribution
 
 The installed desktop applications register CurveMole projects (`.fitproj`) with
 the operating system, so they can be opened by double-clicking or with **Open with
 CurveMole**. Linux AppImage users can choose **Tools > Integrate CurveMole with the
 desktop**; an existing manual launcher is adopted and backed up instead of duplicated.
-- Python 3.12+: wheel and source distribution
 
 > **Windows and macOS security notice**
 >
-> Windows SmartScreen or macOS Gatekeeper will probably show a warning on first
-> launch because these packages are not currently code-signed or notarized with
-> certificates recognised by those platforms. Obtaining and maintaining those
-> certificates requires paid developer programmes. CurveMole is free, open-source,
-> non-profit software, and the project currently chooses not to fund commercial,
-> platform-specific signing programmes or pass those costs on to users. A warning
-> caused by a missing signature is not, by itself, evidence that malware was detected.
+> Windows and macOS packages may be unsigned. Windows SmartScreen or macOS Gatekeeper
+> can show a warning when a package lacks a recognised signature or notarization.
+> A warning caused by a missing signature is not, by itself, evidence that malware was detected.
 > Download CurveMole only from the official release page and verify `SHA256SUMS.txt`.
 
 The Linux AppImage is cryptographically signed using the free, open-source Sigstore
@@ -64,13 +60,24 @@ gh attestation verify CurveMole-VERSION-linux-x86_64.AppImage \
   --repo SebRoLENS/curvemole
 ```
 
+The clickable status-bar version badge checks for application updates at startup
+and hourly. **Help > Check for updates** checks again. Linux AppImage and Windows
+installed/portable packages support **Update now**, with SHA-256 verification of the
+matching download; save your project before restarting. macOS, Python and source
+installations are updated manually from the release page or their source checkout.
+
 ## Custom plugins: install or share yours
+
+Open **File > Plugin Manager > Browse validated plugins…** to view the online catalog,
+choose a permanent storage folder, and install selected plugins after reviewing and
+trusting them. The catalog includes plugins maintained by the main developer and
+community contributions, validated on Linux, Windows and macOS.
 
 **[Download latest Community Plugins](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
 
-Extract the ZIP, then select the plugin folder in **File > Plugin manager > Choose
-plugin folder…**. Downloads open directly; no GitHub account or pull-request navigation
-is needed. The link always serves the latest published, validated plugin bundle.
+For a manual download, extract the ZIP, choose an individual plugin folder in
+**File > Plugin Manager > Choose plugin folder…**, then review and trust it.
+No GitHub account is needed. The link serves the latest published, validated bundle.
 
 **[Share a plugin you created](custom_plugins/README.md#submit-a-plugin)** ·
 [Browse the community folder](custom_plugins) ·
@@ -84,17 +91,14 @@ is needed. The link always serves the latest published, validated plugin bundle.
 
 The Plugin Manager also includes **Share my plugin on GitHub…**, which opens these
 submission instructions. Loading a plugin locally does not upload it publicly.
-## Why CurveMole?
 
-Keep experimental notes in the **Laboratory notebook**: project notes plus
-descriptions of series, individual spectra, and fit functions. Descriptions survive
-deletion with a clear status, are saved in the project, and can be exported as TXT.
-Overlay and Waterfall also offer one-click **All series / Active series / Selected** controls. Use Shift-click for ranges
-and Ctrl-click for individual selections. Note icons open attached descriptions
-directly; empty descriptions disappear. Series headers adapt their color to the
-theme. **File > Recent projects** reopens recent work, and recovery is offered
-automatically only after an abnormal exit. Three recovery copies are retained
-per project and cleared after Save or explicit Discard.
+Loaded community plugins are checked for updates at startup and hourly. Use the
+**Plugins** status badge or **Plugin updates…** to update selected plugins, then restart
+CurveMole to activate them. Plugins execute Python code; validation and source review
+help you decide which plugins to trust. See the [plugin guide](docs/plugins.md) for
+local installations, dependencies, API compatibility, and removal.
+
+## Why CurveMole?
 
 CurveMole is designed for experimental scientists who want the convenience of an
 interactive desktop GUI without giving up reproducibility or scriptability. A fit can
@@ -124,31 +128,62 @@ to releases.
 - Gaussian, Lorentzian, Voigt, and pseudo-Voigt peaks parameterised by signed area
 - constant, linear, arbitrary-order polynomial, and cubic-spline backgrounds
 - content-aware import of valid numeric text files regardless of extension, with
-  automatic/manual leading-row skipping and reusable batch mappings
+  automatic/manual leading-row skipping, reusable batch mappings, and live previews
+- calibrated, one-dimensional, single-ROI WinSpec SPE 2.x import with a wavelength axis
+- opt-in automatic folder import of new acquisition files, with filename filtering,
+  stable-file checks, and optional processing by a trusted plugin
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
-- independent, propagating sequential, copy, and global simultaneous least-squares
+- independent, propagating sequential, and global simultaneous least-squares
   fitting, with configurable safeguards and durable pause/resume
+- local least-squares methods, differential evolution with local refinement,
+  Nelder-Mead, Powell, L-BFGS-B, and explicit solver-specific controls
 - reversible transformations and graphical masks with immutable original data
 - function-aware Quick Add, selectable automatic peak shapes, click-drag peak
   placement, live spline backgrounds, and direct right-drag interval masking
-- project-wide function selection and explicit, undoable parameter copying between
-  compatible functions, including optional bounds, fixed state, and links
+- project-wide function editing with **Select all** / **Select all except backgrounds**
+  controls and separate enable/disable checkboxes
+- function selection stays at the same list position when switching spectra in the
+  active-spectrum Functions view; shorter models select their last function
+- explicit, undoable parameter copying between compatible functions, including
+  optional bounds, fixed state, and links
 - reusable user-defined function libraries with explicit peak parameter roles for
   reliable graphical and automatic initialisation
 - live fit refresh, adaptive rendering for dense spectra, background-subtracted
   inspection, and non-destructive viewport navigation during fitting
+- Overlay and Waterfall comparison with **All series / Active series / Selected**
+  display controls, Ctrl/Shift selection, themes, and a colourblind-safe palette
+- a **Data Calculator** with advanced formulas across all imported columns,
+  including unplotted columns, and single-spectrum or grouped selection scopes
 - covariance statistics, confidence intervals, profile likelihood, Monte Carlo,
   residual bootstrap, and block bootstrap
-- portable, versioned `.fitproj` projects without pickle
+- portable, versioned `.fitproj` projects without pickle, recent-project access,
+  Undo/Redo for fits and model edits, and recovery after an abnormal exit
+- a **Laboratory notebook** for project notes and descriptions of series, spectra,
+  and functions, saved in the project and exportable as TXT
 - human-friendly Wide exports, Python-friendly Tidy exports, and one-file-per-spectrum
   numeric export of data, components, total fit, background, and residuals
-- startup and hourly release checks with an in-app version badge and self-update for
-  supported Linux AppImage and Windows installed/portable applications
-- Live spectrum preview while browsing files and choosing import columns, with adaptive rendering
-- Separate Run automation button with a remembered YAML workflow
+- a separate **Run automation** button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins
-- File > Plugin Manager: persistent loading, removal and crash-recovery startup;
-  [write exporters, fit algorithms and other extensions](docs/plugins.md)
+- **File > Plugin Manager** for catalog browsing, persistent loading, selected updates,
+  removal, and crash recovery; [write exporters, fit algorithms and other extensions](docs/plugins.md)
+
+**Quick Fit** always uses **Single/Independent** fitting for the selected spectra,
+or the active spectrum when nothing is selected. Its first use takes the default
+solver settings; later runs reuse the current settings. While a sequential fit is
+paused, Quick Fit fits only the active spectrum and keeps the saved sequence suspended.
+
+**Sequential** fitting starts from a prepared source spectrum without refitting it.
+The fitted model propagates to later selected spectra while preserving functions
+already on each target. Background functions are excluded from copying by default;
+the dialog lets you choose copy exclusions and which constraints and function states
+to propagate. Residual or parameter-change safeguards can pause the sequence for
+inspection. **Continue sequential fit**, **Terminate sequential fit**, and
+**Last pause reason** remain available for managing the pause. For shared parameters
+across spectra in one optimization, choose **Global simultaneous** fitting.
+
+In the Functions panel, highlighted rows select functions for editing; checked boxes
+include them in the model and fit. Selecting rows does not enable or disable functions.
+Changing a checkbox on a selected row applies that state to every selected function.
 
 ## Interface and real usage examples
 
@@ -190,6 +225,8 @@ automatically whenever the graphical interface changes.
 Python 3.12 or newer is required.
 
 ```bash
+git clone https://github.com/SebRoLENS/curvemole.git
+cd curvemole
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\activate
 python -m pip install -e .
@@ -205,7 +242,7 @@ curvemole run examples/gaussian_workflow.yml
 Run tests:
 
 ```bash
-uv sync --group dev
+uv sync --locked --group dev
 uv run pytest
 ```
 
@@ -219,6 +256,11 @@ pseudo-Voigt mixing is bounded to `[0, 1]`. Original data are never overwritten.
 Masks and transformations remain visible, reversible, and serialised. CurveMole never
 silently changes the solver, excludes points, or normalises global contributions.
 
+The preview supports `sigma_y` weighting; imported `sigma_x` is stored but is not
+used in optimization. No solver guarantees a global optimum for an arbitrary nonlinear
+model. Inspect residuals, parameter correlations, constraints, and uncertainty results;
+see the [manual](docs/manual.md) for scientific conventions and current limitations.
+
 ## Author and contact
 
 Sebastiano Romi  
@@ -228,31 +270,22 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.32.1**
+Current public version: **0.33.0**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.32.1)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23040427
+Zenodo archival for version **0.33.0** is pending. The release DOI will be
+inserted here automatically when the record is available. Until then, use the
+versioned GitHub release below.
 
-DOI: [**10.5281/zenodo.23040427**](https://doi.org/10.5281/zenodo.23040427)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.0)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.0
 
 ## License
 
 CurveMole is free software released under **GPL-3.0-or-later**. User data, projects,
 results, private formulas, and unpublished private extensions remain under the user's
 control. Citation metadata are provided in `CITATION.cff`.
-
-### Advanced calculator and community plugins
-
-The green Advanced calculator supports formulas between all imported columns,
-including unplotted ones, with column insertion dropdowns and a destination selector.
-All calculator operations can target one spectrum or a grouped multiple-spectrum
-selection. See the [quick start](docs/quick-start.md#calculator-operations-between-columns).
-
-Contribute plugins through [custom_plugins](custom_plugins/README.md). GitHub validates
-manifests, registration and functional tests on three platforms before producing a
-validated catalog bundle. Plugins remain explicit, additive installations.
