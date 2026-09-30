@@ -133,3 +133,44 @@ def test_cross_spectrum_batch_delete_is_single_undoable_operation(
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("target_count", [0, 1, 3, 5])
+@pytest.mark.parametrize("navigation", ["plot", "tree"])
+def test_spectrum_navigation_preserves_function_position(target_count, navigation):
+    app = QApplication.instance() or QApplication([])
+    project = Project("function-position")
+    curves = [Curve(name, np.arange(5.0), np.ones(5)) for name in ("first", "second")]
+    for curve, count in zip(curves, (4, target_count), strict=True):
+        project.add_curve(curve)
+        for index in range(count):
+            component = Component.create("constant", initial={"offset": float(index + 10)})
+            component.name = f"Function {count - index}"
+            project.model_for(curve.id).add(component)
+    window = MainWindow(project)
+    panel = window.model_panel
+    panel.components.setCurrentRow(3)
+    assert panel.selected_component_id() == project.model_for(curves[0].id).components[3].id
+
+    if navigation == "plot":
+        window._set_active_curve(curves[1].id)
+    else:
+        window.curve_tree.setCurrentItem(window.curve_tree.topLevelItem(0).child(1))
+    expected = min(3, target_count - 1)
+    if target_count:
+        component = project.model_for(curves[1].id).components[expected]
+        assert panel.components.currentRow() == expected
+        assert panel.selected_component_id() == component.id
+        assert window.selected_component_id == component.id
+        assert float(panel.parameters.item(0, 1).text()) == component.parameters["offset"].value
+        window.refresh_all()
+        assert panel.selected_component_id() == component.id
+        window._set_active_curve(curves[0].id)
+        assert panel.components.currentRow() == expected
+    else:
+        assert panel.components.count() == 0
+        assert panel.parameters.rowCount() == 0
+        assert window.selected_component_id is None
+    project.dirty = False
+    window.close()
+    app.processEvents()

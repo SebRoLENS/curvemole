@@ -408,6 +408,10 @@ The left dock contains a search field and a tree with **Visible**, **Series / Cu
 and **State** columns.
 
 - Click a curve to activate it.
+- When switching spectra, the function selected in Model & Parameters stays at
+  the same position in the function list, regardless of its name or type. If the
+  new spectrum has fewer functions, its last function is selected; an empty model
+  clears the parameter table. Show all functions retains its project-wide selection.
 - Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use **New series** to create an empty named series. Empty series are retained when the project is saved.
