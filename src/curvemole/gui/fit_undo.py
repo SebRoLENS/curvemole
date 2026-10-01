@@ -35,6 +35,7 @@ def _restore(window, state):
     window.project.models.clear()
     for curve_id, (model, saved, refs) in state["models"].items():
         model.name, model.id = saved.name, saved.id
+        model.display_order = list(saved.display_order)
         components = []
         for snapshot in saved.components:
             component, parameters = refs[snapshot.id]

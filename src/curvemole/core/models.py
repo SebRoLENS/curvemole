@@ -91,6 +91,13 @@ class Model:
     name: str = "Model"
     components: list[Component] = field(default_factory=list)
     id: str = field(default_factory=lambda: _identifier("model"))
+    display_order: list[str] = field(default_factory=list)
+
+    @property
+    def display_components(self) -> list[Component]:
+        """Functions in presentation order, independent of mathematical composition."""
+        positions = {component_id: index for index, component_id in enumerate(self.display_order)}
+        return sorted(self.components, key=lambda item: positions.get(item.id, len(positions)))
 
     def add(self, component: Component, index: int | None = None) -> None:
         if any(item.id == component.id for item in self.components):
@@ -103,6 +110,7 @@ class Model:
     def remove(self, component_id: str) -> Component:
         for index, component in enumerate(self.components):
             if component.id == component_id:
+                self.display_order = [item for item in self.display_order if item != component_id]
                 return self.components.pop(index)
         raise KeyError(component_id)
 
@@ -112,11 +120,16 @@ class Model:
         duplicate.id = _identifier("component")
         duplicate.name = f"{source.name} copy"
         self.components.insert(self.components.index(source) + 1, duplicate)
+        if self.display_order:
+            order = [item.id for item in self.display_components if item.id != duplicate.id]
+            order.insert(order.index(component_id) + 1, duplicate.id)
+            self.display_order = order
         return duplicate
 
     def move(self, component_id: str, index: int) -> None:
         component = self.remove(component_id)
         self.components.insert(max(0, min(index, len(self.components))), component)
+        self.display_order = []
 
     def component(self, component_id: str) -> Component:
         for component in self.components:
@@ -265,7 +278,8 @@ class Model:
         return Model.from_dict(copy.deepcopy(self.to_dict()))
 
     def to_dict(self) -> dict[str, Any]:
-        return {"id": self.id, "name": self.name, "components": [item.to_dict() for item in self.components]}
+        return {"id": self.id, "name": self.name, "components": [item.to_dict() for item in self.components],
+                "display_order": list(self.display_order)}
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> Model:
@@ -273,6 +287,7 @@ class Model:
             id=str(value["id"]),
             name=str(value.get("name", "Model")),
             components=[Component.from_dict(item) for item in value.get("components", [])],
+            display_order=[str(item) for item in value.get("display_order", [])],
         )
 
 

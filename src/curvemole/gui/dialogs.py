@@ -455,6 +455,8 @@ class ParameterLinkDialog(QDialog):
         target_parameter: str,
         current_link: str | None = None,
         parent: QWidget | None = None,
+        *,
+        current_scope: str = "relative",
     ) -> None:
         super().__init__(parent)
         self.project = project
@@ -462,6 +464,7 @@ class ParameterLinkDialog(QDialog):
         self.target_component_id = target_component_id
         self.target_parameter = target_parameter
         self._result_link = current_link
+        self._current_scope = current_scope
         target_curve = project.dataset.curve(target_curve_id)
         target_component = project.model_for(target_curve_id).component(target_component_id)
 
@@ -498,18 +501,31 @@ class ParameterLinkDialog(QDialog):
         )
         self.advanced_help.setWordWrap(True)
         form.addRow(self.tr("Source spectrum"), self.source_curve)
-        form.addRow(self.tr("Source component"), self.source_component)
+        form.addRow(self.tr("Source function"), self.source_component)
         form.addRow(self.tr("Source parameter"), self.source_parameter)
         form.addRow(self.tr("Relationship"), self.mode)
         form.addRow(self.tr("Expression"), self.advanced)
+        self.advanced_label = form.labelForField(self.advanced)
         form.addRow("", self.advanced_help)
         layout.addLayout(form)
 
+        self.copy_help = QLabel()
+        self.copy_help.setTextFormat(Qt.TextFormat.PlainText)
+        self.copy_help.setWordWrap(True)
+        layout.addWidget(self.copy_help)
+        self.preview = QLabel()
+        self.preview.setTextFormat(Qt.TextFormat.PlainText)
+        self.preview.setWordWrap(True)
+        layout.addWidget(self.preview)
+        self.source_curve.addItem(self.tr("This spectrum (follows copies)"), "self")
+        self.source_curve.insertSeparator(1)
         for curve in project.curves:
-            self.source_curve.addItem(curve.name, curve.id)
+            self.source_curve.addItem(self.tr("Specific spectrum: ") + curve.name, curve.id)
         self.source_curve.currentIndexChanged.connect(self._populate_components)
         self.source_component.currentIndexChanged.connect(self._populate_parameters)
+        self.source_parameter.currentIndexChanged.connect(self._update_preview)
         self.mode.currentIndexChanged.connect(self._update_mode)
+        self.advanced.textChanged.connect(self._update_preview)
         self._populate_components()
         self._load_current(current_link)
         self._update_mode()
@@ -528,8 +544,9 @@ class ParameterLinkDialog(QDialog):
         layout.addLayout(action_row)
 
     def _populate_components(self) -> None:
-        curve_id = self.source_curve.currentData()
+        curve_id = self._source_curve_id()
         previous = self.source_component.currentData()
+        blocked = self.source_component.blockSignals(True)
         self.source_component.clear()
         if curve_id:
             for component in self.project.model_for(str(curve_id)).components:
@@ -537,10 +554,11 @@ class ParameterLinkDialog(QDialog):
         index = self.source_component.findData(previous)
         if index >= 0:
             self.source_component.setCurrentIndex(index)
+        self.source_component.blockSignals(blocked)
         self._populate_parameters()
 
     def _populate_parameters(self) -> None:
-        curve_id = self.source_curve.currentData()
+        curve_id = self._source_curve_id()
         component_id = self.source_component.currentData()
         previous = self.source_parameter.currentData()
         self.source_parameter.clear()
@@ -558,9 +576,35 @@ class ParameterLinkDialog(QDialog):
         index = self.source_parameter.findData(previous)
         if index >= 0:
             self.source_parameter.setCurrentIndex(index)
+        self._update_preview()
+
+    def _source_curve_id(self) -> str | None:
+        value = self.source_curve.currentData()
+        return self.target_curve_id if value == "self" else value
+
+    def selected_link_scope(self) -> str:
+        return "relative" if self.source_curve.currentData() == "self" else "absolute"
+
+    def _update_preview(self) -> None:
+        curve_id = self._source_curve_id()
+        if self.selected_link_scope() == "relative":
+            self.copy_help.setText(self.tr(
+                "When you copy these functions, the link uses the corresponding function "
+                "in the destination spectrum. It follows each copy."))
+        else:
+            curve_name = self.project.dataset.curve(str(curve_id)).name if curve_id else ""
+            self.copy_help.setText(self.tr(
+                "When you copy these functions, the link keeps pointing to {spectrum}. "
+                "It stays attached to this specific spectrum.").format(spectrum=curve_name))
+        if not self._source_path():
+            self.preview.setText(self.tr("Choose a source function and parameter."))
+            return
+        curve = self.project.dataset.curve(str(curve_id))
+        self.preview.setText(self.tr("Source: ") + " / ".join(
+            (curve.name, self.source_component.currentText(), self.source_parameter.currentText())))
 
     def _source_path(self) -> str | None:
-        curve_id = self.source_curve.currentData()
+        curve_id = self._source_curve_id()
         component_id = self.source_component.currentData()
         parameter = self.source_parameter.currentData()
         if not curve_id or not component_id or not parameter:
@@ -572,7 +616,8 @@ class ParameterLinkDialog(QDialog):
         if len(parts) != 3:
             return False
         curve_id, component_id, parameter = parts
-        curve_index = self.source_curve.findData(curve_id)
+        curve_index = (0 if curve_id == self.target_curve_id and self._current_scope == "relative"
+                       else self.source_curve.findData(curve_id))
         if curve_index < 0:
             return False
         self.source_curve.setCurrentIndex(curve_index)
@@ -611,7 +656,9 @@ class ParameterLinkDialog(QDialog):
     def _update_mode(self) -> None:
         advanced = self.mode.currentData() == "advanced"
         self.advanced.setVisible(advanced)
+        self.advanced_label.setVisible(advanced)
         self.advanced_help.setVisible(advanced)
+        self._update_preview()
 
     def link_expression(self) -> str | None:
         source = self._source_path()

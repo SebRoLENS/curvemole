@@ -5,6 +5,31 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.34.0] - 2026-10-01
+
+### Added
+
+- Choose **This spectrum (follows copies)** (default) or **Specific spectrum**
+  in Set link, with a readable source preview and an explanation of copy behavior.
+  Save the choice with each parameter, edit it with Undo/Redo, and respect it when
+  copying models or parameters and propagating sequential models.
+
+### Fixed
+
+- Fix the v0.33.1 **Reorder** regression: store the sorted function list as display
+  order, leaving mathematical evaluation order, parameters, links and fitted state
+  unchanged. Multiplication, division and convolution retain their fitted curves.
+  Save and copy display order and restore it with Undo/Redo.
+- Map local links to destination component IDs when copying without replacing
+  model structure, and preserve the source parameter when switching spectrum choices.
+- Hide **Last pause reason** after a sequential fit completes or is terminated,
+  while retaining it during manual corrections of a paused sequence.
+
+### Documentation
+
+- Explain local and fixed spectrum sources with the two-Gaussian copy example
+  in the manual and Quick Start; update README feature descriptions.
+
 ## [0.33.1] - 2026-09-30
 
 ### Fixed

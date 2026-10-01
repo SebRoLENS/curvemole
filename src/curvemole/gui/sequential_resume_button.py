@@ -67,7 +67,7 @@ def install_sequential_resume_button() -> None:
             stop.setEnabled(enabled)
         reason = getattr(window, "sequential_pause_reason_button", None)
         if reason is not None:
-            has_reason = bool(window.project.results.get("last_sequential_pause_message"))
+            has_reason = available and bool(window.project.results.get("last_sequential_pause_message"))
             reason.setVisible(has_reason)
             reason.setEnabled(has_reason)
 
@@ -112,8 +112,8 @@ def install_sequential_resume_button() -> None:
         reason = QPushButton(window.tr("Last pause reason"), window)
         reason.setMinimumHeight(38)
         reason.setToolTip(window.tr(
-            "Reopen the last sequential-fit interruption message, including after "
-            "closing the warning, resuming, or terminating the sequence."
+            "Reopen the interruption message while the sequential fit is paused. "
+            "This button disappears when the sequence finishes or is terminated."
         ))
         reason.clicked.connect(window.show_sequential_pause_reason)
         window.sequential_pause_reason_button = reason

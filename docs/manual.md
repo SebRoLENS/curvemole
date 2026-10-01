@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.33.1
+# CurveMole User Manual - Preview 0.34.0
 
-**Current manual version: 0.33.1**
+**Current manual version: 0.34.0**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.33.1 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.34.0 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.33.1 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.34.0 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.33.1 describes CurveMole 0.33.1.
+version. For example, a manual marked 0.34.0 describes CurveMole 0.34.0.
 
 The release automation performs four checks:
 
@@ -185,14 +185,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.33.1-linux-x86_64.AppImage
-./CurveMole-0.33.1-linux-x86_64.AppImage
+chmod +x CurveMole-0.34.0-linux-x86_64.AppImage
+./CurveMole-0.34.0-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.33.1-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.34.0-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -224,13 +224,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.33.1-macos-arm64.dmg
+shasum -a 256 CurveMole-0.34.0-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.33.1-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.34.0-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -242,7 +242,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.33.1-py3-none-any.whl
+python -m pip install ./curvemole-0.34.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -251,7 +251,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.33.1-py3-none-any.whl
+python -m pip install .\curvemole-0.34.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -523,7 +523,9 @@ The right dock normally lists components for the active curve. Enable **Show all
 functions** to list every model function in the project, grouped by series and
 spectrum. Group headings cannot be selected as functions. The list supports
 Ctrl-click and Shift-click multi-selection, including selections across spectra.
-Component order matters because composition operators are evaluated sequentially.
+Mathematical composition order matters because operators are evaluated sequentially.
+**Reorder** sorts only this displayed list and automatic names; it preserves the
+composition order and fit. The Up/Down controls explicitly change composition order.
 
 **Select all** selects every displayed function. **Select all except backgrounds**
 selects only functions that are not marked as background and clears any previous
@@ -677,7 +679,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.33.1 optimizer.
+stored in the project but is not used by the version 0.34.0 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -1186,10 +1188,11 @@ their list positions, and equal values retain their relative order.
 The adjacent **Advanced reorder rules…** button selects another sorting and
 numbering parameter for each function type and remembers those rules. Both the
 list order and automatic names are restored by Undo and reapplied by Redo.
-Additive/subtractive models retain their fitted state. When enabled functions
-change order in a model using multiplication, division or convolution, the fit
-is marked modified because the composition may change; review the new order
-and refit. Use the Up/Down controls to set a manual composition order.
+**Reorder changes presentation only:** parameter values, links, fit results and
+the mathematical composition order remain unchanged, including multiplication,
+division and convolution. The display order is saved with the project and copied
+with the model. Use the Up/Down controls to change the mathematical composition
+order explicitly; those controls restore the list to composition order.
 
 ### 8.10 Copying a fit to other curves
 
@@ -1234,6 +1237,21 @@ The table columns are:
 Press **Set link…** to choose a source spectrum, component, and parameter. The default
 relationship is **Equal to source**. Choose **Advanced expression** for relationships such
 as `2 * ${source} + 1`. Use **Remove link** to make the parameter independent again.
+
+**Source spectrum** also determines what happens when you copy the functions:
+
+| Source spectrum choice | After copying to another spectrum |
+| --- | --- |
+| **This spectrum (follows copies)** (default) | Use the corresponding source function in the destination spectrum |
+| **Specific spectrum: spectrum name** | Keep referring to that exact spectrum, even if it is the current spectrum |
+
+For example, link Gaussian2's `center` to Gaussian1's `center` in Spectrum 1.
+After copying the functions to Spectrum 2, **This spectrum** links Gaussian2 to
+Gaussian1 in Spectrum 2. **Specific spectrum: Spectrum 1** links Gaussian2 in
+Spectrum 2 back to Gaussian1 in Spectrum 1. The dialog shows the source and
+explains the copy behavior as you change the selection. This choice is saved with
+the parameter and retained by Undo/Redo, parameter copying and sequential model
+propagation. Removing the link resets the choice to **This spectrum**.
 
 An edit is validated immediately. CurveMole rejects a value outside its bounds, a
 lower bound above an upper bound, an invalid expression, a missing referenced
@@ -1351,8 +1369,10 @@ This is independent of ignoring functions in the parameter-change pause monitor.
 
 For newly copied functions, parameter values and structure are propagated. The dialog
 separately controls whether to preserve bounds, fixed/free state, internal links,
-background tags, enabled/disabled state, and composition/grouping. Internal links are
-remapped to corresponding target parameters. Structural metadata required by the
+background tags, enabled/disabled state, and composition/grouping. **This spectrum**
+links are remapped to corresponding target parameters; **Specific spectrum** links
+keep their original references. Cross-spectrum links require Global simultaneous
+fitting rather than independent or sequential fitting. Structural metadata required by the
 function, such as spline nodes and custom-formula metadata, is always retained.
 
 Two optional safeguards can pause a sequence:
@@ -1370,8 +1390,10 @@ continue; the accepted current model becomes the new propagation source. CurveMo
 does not silently skip a paused spectrum.
 The warning explains the affected spectrum, reason, measured change and threshold,
 and next action. **Last pause reason**, beside the sequential controls, reopens the
-latest warning even after continuing or terminating. It is saved with the project
-and is replaced when a later sequential fit pauses.
+latest warning while the sequence is paused, including after a manual fit used to
+correct the paused spectrum. The button disappears when the sequence completes
+or is terminated. The message is saved with the project and is replaced when a
+later sequential fit pauses.
 
 #### Global simultaneous
 
@@ -1525,7 +1547,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.33.1 does not yet provide a single comprehensive on-screen results table, so use the
+0.34.0 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -2610,9 +2632,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.1)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.34.0)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.33.1
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.34.0
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -2683,7 +2705,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.33.1 limitations
+## Appendix D. Preview 0.34.0 limitations
 
 The following boundaries are important when evaluating this release:
 

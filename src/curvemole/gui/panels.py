@@ -106,7 +106,7 @@ class ModelPanel(QWidget):
         buttons.addStretch(1)
         self.reorder_button = QPushButton(self.tr("Reorder"))
         self.reorder_button.setToolTip(self.tr(
-            "Sort the function list and renumber automatic names by the selected parameter."))
+            "Sort the function list and renumber automatic names without changing the fit or calculation order."))
         self.reorder_button.clicked.connect(self.reorderRequested)
         buttons.addWidget(self.reorder_button)
         self.reorder_rules_button = QToolButton()
@@ -197,7 +197,7 @@ class ModelPanel(QWidget):
             model = self.project.model_for(self.curve_id)
             self.title.setText(f"<b>{curve.name}</b><br>{model.name}")
             selected_row = 0
-            for row, component in enumerate(model.components):
+            for row, component in enumerate(model.display_components):
                 label = component.name
                 tooltip = ""
                 if component.is_background:

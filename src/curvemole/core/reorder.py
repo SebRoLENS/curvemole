@@ -14,9 +14,9 @@ from curvemole.core.registry import FunctionRegistry
 def reorder_component_names(
     model: Model, registry: FunctionRegistry, rules: Mapping[str, str]
 ) -> int:
-    """Sort the list and number each type, returning the number of renamed functions.
+    """Sort display order and number each type, without altering model composition.
 
-    Components keep their IDs and custom names. Functions without a finite sort
+    Components keep their IDs, mathematical order and custom names. Functions without a finite sort
     parameter keep their list slots. Equal values retain their relative order.
     A custom name reserves its spelling against automatic numbering.
     """
@@ -45,11 +45,15 @@ def reorder_component_names(
             component.name = name
             number += 1
     sortable = []
-    for index, component in enumerate(model.components):
+    displayed = model.display_components
+    for index, component in enumerate(displayed):
         parameter = component.parameters.get(rules.get(component.function_id, "center"))
         if parameter is not None and math.isfinite(parameter.value):
             sortable.append((index, component, parameter.value))
     ordered = sorted(sortable, key=lambda item: item[2])
     for (index, _, _), (_, component, _) in zip(sortable, ordered, strict=True):
-        model.components[index] = component
+        displayed[index] = component
+    order = [component.id for component in displayed]
+    if order != [component.id for component in model.display_components]:
+        model.display_order = order
     return changed

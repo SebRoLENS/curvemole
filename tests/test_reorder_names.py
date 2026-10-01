@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from curvemole.core.models import Component, Model
 from curvemole.core.registry import default_registry
 from curvemole.core.reorder import reorder_component_names
@@ -19,13 +21,14 @@ def test_reorder_sorts_custom_names_stably_and_keeps_unsortable_slots():
     model = Model(components=list(original))
 
     assert reorder_component_names(model, registry, {}) == 0
-    assert [item.id for item in model.components] == [
+    assert [item.id for item in model.display_components] == [
         low.id, background.id, tied.id, high.id, invalid.id]
     assert {item.id: item.name for item in model.components} == names
     assert Model.from_dict(model.to_dict()).to_dict() == model.to_dict()
 
 
-def test_reorder_button_sorts_when_names_already_match_and_invalidates_nonadditive_fit(tmp_path):
+@pytest.mark.parametrize("operator", ["multiply", "divide", "convolve"])
+def test_reorder_only_changes_display_and_preserves_nonadditive_fit(tmp_path, operator):
     import numpy as np
     from PySide6.QtCore import QSettings
     from PySide6.QtWidgets import QApplication
@@ -39,22 +42,31 @@ def test_reorder_button_sorts_when_names_already_match_and_invalidates_nonadditi
     curve = Curve("example", np.arange(4.0), np.ones(4))
     project.add_curve(curve)
     model = project.model_for(curve.id)
-    background = Component.create("constant")
     high = Component.create("gaussian", name="Gaussian2", initial={"center": 2})
-    low = Component.create("gaussian", name="Gaussian1", initial={"center": 1}, operator="multiply")
-    model.components = [background, high, low]
+    low = Component.create("gaussian", name="Gaussian1", initial={"center": 1}, operator=operator)
+    model.components = [high, low]
+    expected_y = model.evaluate(curve.x)
+    original_parameters = {item.id: item.to_dict()["parameters"] for item in model.components}
     curve.state = CurveState.FITTED
     window = MainWindow(project)
     window.settings = QSettings(str(tmp_path / "reorder.ini"), QSettings.Format.IniFormat)
 
     window.model_panel.reorder_button.click()
-    assert [item.id for item in project.model_for(curve.id).components] == [background.id, low.id, high.id]
-    assert curve.state == CurveState.MODIFIED
+    assert [item.id for item in project.model_for(curve.id).display_components] == [low.id, high.id]
+    assert [item.id for item in project.model_for(curve.id).components] == [high.id, low.id]
+    np.testing.assert_array_equal(project.model_for(curve.id).evaluate(curve.x), expected_y)
+    assert {item.id: item.to_dict()["parameters"] for item in project.model_for(curve.id).components} == original_parameters
+    assert curve.state == CurveState.FITTED
     assert window.undo_stack.count() == 1
     window.model_panel.reorder_button.click()
     assert window.undo_stack.count() == 1
     window.undo_stack.undo()
-    assert [item.id for item in project.model_for(curve.id).components] == [background.id, high.id, low.id]
+    assert [item.id for item in project.model_for(curve.id).display_components] == [high.id, low.id]
+    np.testing.assert_array_equal(project.model_for(curve.id).evaluate(curve.x), expected_y)
+    window.undo_stack.redo()
+    assert [item.id for item in project.model_for(curve.id).display_components] == [low.id, high.id]
+    np.testing.assert_array_equal(project.model_for(curve.id).evaluate(curve.x), expected_y)
+    assert curve.state == CurveState.FITTED
     project.dirty = False
     window.close()
     app.processEvents()
@@ -80,13 +92,13 @@ def test_reorder_uses_selected_parameter_separately_for_each_function_type():
     assert reorder_component_names(model, registry, {"gaussian": "center", "voigt": "center"}) == 5
     assert [component.name for component in components] == [
         "Gaussian3", "Gaussian1", "Gaussian2", "Voigt2", "Voigt1"]
-    assert [component.id for component in model.components] == [identities[i] for i in (4, 1, 2, 0, 3)]
-    assert [component.parameters["center"].value for component in model.components] == [-1, 1, 2, 3, 4]
+    assert [component.id for component in model.display_components] == [identities[i] for i in (4, 1, 2, 0, 3)]
+    assert [component.parameters["center"].value for component in model.display_components] == [-1, 1, 2, 3, 4]
 
     reorder_component_names(model, registry, {"gaussian": "area", "voigt": "center"})
     assert [component.name for component in components[:3]] == [
         "Gaussian1", "Gaussian3", "Gaussian2"]
-    assert [component.id for component in model.components] == [identities[i] for i in (4, 3, 0, 2, 1)]
+    assert [component.id for component in model.display_components] == [identities[i] for i in (4, 3, 0, 2, 1)]
 
 
 def test_reorder_leaves_custom_names_untouched_and_reserves_their_numbers():
@@ -100,8 +112,8 @@ def test_reorder_leaves_custom_names_untouched_and_reserves_their_numbers():
     model = Model(components=[custom, high, low])
 
     assert reorder_component_names(model, registry, {"gaussian": "center"}) == 2
-    assert [item.name for item in model.components] == ["Gaussian1", "Gaussian2", "Gaussian3"]
-    assert [item.id for item in model.components] == [custom.id, low.id, high.id]
+    assert [item.name for item in model.display_components] == ["Gaussian1", "Gaussian2", "Gaussian3"]
+    assert [item.id for item in model.display_components] == [custom.id, low.id, high.id]
     assert reorder_component_names(model, registry, {"gaussian": "center"}) == 0
 
 
@@ -137,18 +149,87 @@ def test_reorder_button_renames_without_invalidating_fit_and_can_undo(tmp_path):
     rules_dialog.close()
     assert load_reorder_rules(window.settings) == {}
     window.model_panel.reorder_button.click()
-    assert [item.name for item in project.model_for(curve.id).components] == ["Gaussian1", "Gaussian2"]
-    assert [item.id for item in project.model_for(curve.id).components] == identities[::-1]
+    assert [item.name for item in project.model_for(curve.id).display_components] == ["Gaussian1", "Gaussian2"]
+    assert [item.id for item in project.model_for(curve.id).display_components] == identities[::-1]
+    assert [item.id for item in project.model_for(curve.id).components] == identities
     assert [window.model_panel.components.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(2)] == identities[::-1]
-    np.testing.assert_allclose(project.model_for(curve.id).evaluate(curve.x), expected_y)
+    np.testing.assert_array_equal(project.model_for(curve.id).evaluate(curve.x), expected_y)
     assert curve.state == CurveState.FITTED
     window.undo_stack.undo()
-    assert [item.name for item in project.model_for(curve.id).components] == ["Gaussian1", "Gaussian2"]
+    assert [item.name for item in project.model_for(curve.id).display_components] == ["Gaussian1", "Gaussian2"]
     assert [item.id for item in project.model_for(curve.id).components] == identities
     window.undo_stack.redo()
-    assert [item.id for item in project.model_for(curve.id).components] == identities[::-1]
+    assert [item.id for item in project.model_for(curve.id).display_components] == identities[::-1]
+    assert [item.id for item in project.model_for(curve.id).components] == identities
     assert curve.state == CurveState.FITTED
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_reorder_retains_real_multiplicative_fit_plot_results_and_parameter_objects(tmp_path):
+    import numpy as np
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole import Curve, Fitter, Project
+    from curvemole.core.data import CurveState
+    from curvemole.core.fitting import FitMode, FitPlan
+    from curvemole.core.serialization import load_project, save_project
+    from curvemole.gui.main_window import MainWindow
+
+    app = QApplication.instance() or QApplication([])
+    high = Component.create("gaussian", name="Gaussian2", initial={"center": 2, "sigma": .6, "area": 3})
+    factor = Component.create("gaussian", name="Gaussian1", initial={"center": 1, "sigma": .8, "area": 1.5},
+                              operator="multiply")
+    model = Model(components=[high, factor])
+    x = np.linspace(-4, 5, 301)
+    curve = Curve("product", x, model.evaluate(x))
+    project = Project()
+    project.add_curve(curve)
+    project.models[curve.id] = model
+    window = MainWindow(project)
+    window.settings = QSettings(str(tmp_path / "reorder.ini"), QSettings.Format.IniFormat)
+    window.last_fit_plan = FitPlan([curve.id], FitMode.INDEPENDENT)
+    fitted = Fitter().fit_single(curve, model)
+    assert fitted.success
+    window._fit_finished(fitted)
+    before = model.evaluate(x)
+    parameter_objects = {path: parameter for path, parameter in project.parameter_map().items()}
+    parameter_states = {path: parameter.to_dict() for path, parameter in parameter_objects.items()}
+    baseline = window._last_fit_result()
+
+    window.model_panel.reorder_button.click()
+    app.processEvents()
+    assert project.model_for(curve.id) is model
+    assert [item.id for item in model.components] == [high.id, factor.id]
+    assert [item.id for item in model.display_components] == [factor.id, high.id]
+    np.testing.assert_array_equal(model.evaluate(x), before)
+    assert window._last_fit_result() is baseline
+    assert curve.state == CurveState.FITTED
+    for path, parameter in project.parameter_map().items():
+        assert parameter is parameter_objects[path]
+        assert parameter.to_dict() == parameter_states[path]
+    plotted_sum = [item for item in window.plot_workspace.plot.listDataItems()
+                   if item.opts.get("name") == "product Model sum"]
+    assert len(plotted_sum) == 1
+    np.testing.assert_array_equal(plotted_sum[0].getData()[1], before)
+
+    restored = load_project(save_project(project, tmp_path / "product.fitproj"))
+    saved_model = restored.model_for(curve.id)
+    assert [item.id for item in saved_model.display_components] == [factor.id, high.id]
+    np.testing.assert_array_equal(saved_model.evaluate(x), before)
+    copied_curve = Curve("copy", x, before)
+    project.add_curve(copied_curve)
+    project.copy_fit(curve.id, [copied_curve.id])
+    copied_model = project.model_for(copied_curve.id)
+    assert [item.id for item in copied_model.display_components] == [factor.id, high.id]
+    np.testing.assert_array_equal(copied_model.evaluate(x), before)
+    window.undo_stack.undo()
+    assert [item.id for item in model.display_components] == [high.id, factor.id]
+    window.undo_stack.redo()
+    np.testing.assert_array_equal(model.evaluate(x), before)
     project.dirty = False
     window.close()
     app.processEvents()

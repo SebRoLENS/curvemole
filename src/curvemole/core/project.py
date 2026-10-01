@@ -148,16 +148,20 @@ class Project:
                             parameter.fixed = target_parameter.fixed
                         if not links:
                             parameter.link = target_parameter.link if target_parameter else None
+                            parameter.link_scope = target_parameter.link_scope if target_parameter else "relative"
                         elif parameter.link:
-                            parameter.link = parameter.link.replace(
-                                "${" + source_curve_id + ".", "${" + target_id + "."
-                            )
+                            parameter.link = source_parameter.copied_link(source_curve_id, target_id)
                         parameter.value = min(max(parameter.value, parameter.minimum), parameter.maximum)
                     selected.append(clone)
-                target_model = Model(name=f"Model for {target_curve.name}", components=selected)
+                target_model = Model(name=f"Model for {target_curve.name}", components=selected,
+                                     display_order=list(source_model.display_order))
                 self.models[target_id] = target_model
             else:
                 target_model = self.model_for(target_id)
+                component_ids = {
+                    source.id: target.id
+                    for source, target in zip(source_model.components, target_model.components, strict=False)
+                }
                 for source_component, target_component in zip(
                     source_model.components, target_model.components, strict=False
                 ):
@@ -176,13 +180,8 @@ class Project:
                             target.maximum = source_parameter.maximum
                             target.fixed = source_parameter.fixed
                         if links:
-                            target.link = (
-                                source_parameter.link.replace(
-                                    "${" + source_curve_id + ".", "${" + target_id + "."
-                                )
-                                if source_parameter.link
-                                else None
-                            )
+                            target.link = source_parameter.copied_link(source_curve_id, target_id, component_ids)
+                            target.link_scope = source_parameter.link_scope
                         target.value = min(max(target.value, target.minimum), target.maximum)
             if masks:
                 tolerance = float(self.ui_state.get("mask_transfer_tolerance", 0.0))

@@ -264,7 +264,7 @@ def _install_model_panel() -> None:
             if show_all:
                 for curve in project.curves:
                     model = project.model_for(curve.id)
-                    entries.extend((curve, component) for component in model.components)
+                    entries.extend((curve, component) for component in model.display_components)
                 panel.title.setText(
                     panel.tr("<b>All functions</b><br>")
                     + panel.tr("Every spectrum in the project")
@@ -272,7 +272,7 @@ def _install_model_panel() -> None:
             elif panel.curve_id is not None:
                 curve = project.dataset.curve(panel.curve_id)
                 model = project.model_for(panel.curve_id)
-                entries = [(curve, component) for component in model.components]
+                entries = [(curve, component) for component in model.display_components]
                 panel.title.setText(f"<b>{curve.name}</b><br>{model.name}")
             else:
                 panel.title.setText(panel.tr("No active curve"))
@@ -637,7 +637,9 @@ def _install_main_window() -> None:
 
         def operation() -> None:
             for curve_id, selected_ids in grouped.items():
-                components = window.project.model_for(curve_id).components
+                model = window.project.model_for(curve_id)
+                components = model.components
+                model.display_order = []
                 if delta < 0:
                     for index in range(1, len(components)):
                         if (
@@ -782,10 +784,12 @@ def _install_main_window() -> None:
             name,
             parameter.link,
             window,
+            current_scope=parameter.link_scope,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
-        window.change_parameter(component_id, name, "link", dialog.selected_link())
+        window.apply_parameter_link(curve_id, component_id, name,
+                                    dialog.selected_link(), dialog.selected_link_scope())
 
     MainWindow._set_component = set_component
     MainWindow.duplicate_component = duplicate_component

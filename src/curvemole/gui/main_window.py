@@ -1759,10 +1759,37 @@ class MainWindow(QMainWindow):
             name,
             parameter.link,
             self,
+            current_scope=parameter.link_scope,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
-        self.change_parameter(component_id, name, "link", dialog.selected_link())
+        self.apply_parameter_link(self.active_curve_id, component_id, name,
+                                  dialog.selected_link(), dialog.selected_link_scope())
+
+    def apply_parameter_link(self, curve_id: str, component_id: str, name: str,
+                             link: str | None, scope: str) -> None:
+        """Apply the expression and its copy behavior as one validated undoable edit."""
+        parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
+        before = (parameter.link, parameter.link_scope)
+        after = (link, scope if link else "relative")
+        if before == after:
+            return
+
+        def assign(value):
+            target = self.project.model_for(curve_id).component(component_id).parameters[name]
+            target.link, target.link_scope = value
+
+        try:
+            assign(after)
+            parameter.validate()
+            self._validate_all_links()
+        except Exception as exc:
+            assign(before)
+            self._show_error(self.tr("Parameter constraint"), exc)
+            return
+        assign(before)
+        self._push_change(self.tr("Set parameter link"), lambda: assign(after), lambda: assign(before),
+                          modified_curve_ids={curve_id})
 
     def copy_fit(self, *, next_only: bool = False) -> None:
         if not self._ensure_editable():
@@ -1785,7 +1812,14 @@ class MainWindow(QMainWindow):
         if not targets:
             return
         before = {curve_id: self.project.model_for(curve_id).to_dict() for curve_id in targets}
-        self.project.copy_fit(self.active_curve_id, targets, **choices)
+        try:
+            self.project.copy_fit(self.active_curve_id, targets, **choices)
+            self._validate_all_links()
+        except Exception as exc:
+            for curve_id, model in before.items():
+                self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model))
+            self._show_error(self.tr("Copy fit"), exc)
+            return
         after = {curve_id: self.project.model_for(curve_id).to_dict() for curve_id in targets}
         for curve_id, model in before.items():
             self.project.models[curve_id] = Model.from_dict(model)
@@ -2258,24 +2292,30 @@ class MainWindow(QMainWindow):
 
         curve_id = self.active_curve_id
         model = self.project.model_for(curve_id)
-        before = model.to_dict()
+
+        def snapshot():
+            current = self.project.model_for(curve_id)
+            return ({item.id: item.name for item in current.components}, list(current.display_order))
+
+        def restore(state):
+            names, order = state
+            current = self.project.model_for(curve_id)
+            for component in current.components:
+                component.name = names[component.id]
+            current.display_order = list(order)
+
+        before = snapshot()
         reorder_component_names(model, self.registry, load_reorder_rules(self.settings))
-        after = model.to_dict()
+        after = snapshot()
         if before == after:
             self._notify(self.tr("Functions and names are already in order."))
             return
-        enabled_before = [item["id"] for item in before["components"] if item["enabled"]]
-        enabled_after = [item.id for item in model.components if item.enabled]
-        composition_changed = enabled_before != enabled_after and any(
-            item.enabled and item.operator not in {"add", "subtract"}
-            for item in model.components
-        )
-        self.project.models[curve_id] = Model.from_dict(before)
+        restore(before)
         self._push_change(
             self.tr("Reorder functions"),
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
-            modified_curve_ids={curve_id} if composition_changed else set(),
+            lambda: restore(after),
+            lambda: restore(before),
+            modified_curve_ids=set(),
         )
         self._notify(self.tr("Functions reordered and automatic names renumbered."))
 
@@ -3046,7 +3086,7 @@ class MainWindow(QMainWindow):
         panel = self.model_panel
         if curve_id is None or panel.show_all_functions.isChecked():
             return None
-        components = self.project.model_for(curve_id).components
+        components = self.project.model_for(curve_id).display_components
         if not components:
             return None
         source_id = panel.selected_component_curve_id()
@@ -3057,7 +3097,7 @@ class MainWindow(QMainWindow):
         if source is None:
             return None
         position = next(
-            (index for index, component in enumerate(source.components) if component.id == component_id),
+            (index for index, component in enumerate(source.display_components) if component.id == component_id),
             None,
         )
         return components[min(position, len(components) - 1)].id if position is not None else None

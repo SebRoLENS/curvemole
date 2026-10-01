@@ -22,6 +22,7 @@ class Parameter:
     standard_error: float | None = None
     ci_low: float | None = None
     ci_high: float | None = None
+    link_scope: str = "relative"
 
     def __post_init__(self) -> None:
         self.value = float(self.value)
@@ -30,6 +31,8 @@ class Parameter:
         self.validate()
 
     def validate(self) -> None:
+        if self.link_scope not in {"relative", "absolute"}:
+            raise ConstraintError(f"Unknown parameter link scope: {self.link_scope}")
         if math.isnan(self.value):
             raise ConstraintError(f"Parameter '{self.name}' has a NaN value.")
         if self.minimum > self.maximum:
@@ -75,6 +78,7 @@ class Parameter:
             "maximum": self.maximum,
             "fixed": self.fixed,
             "link": self.link,
+            "link_scope": self.link_scope,
             "unit": self.unit,
             "standard_error": self.standard_error,
             "ci_low": self.ci_low,
@@ -90,6 +94,7 @@ class Parameter:
             maximum=float(value.get("maximum", math.inf)),
             fixed=bool(value.get("fixed", False)),
             link=str(value["link"]) if value.get("link") else None,
+            link_scope=str(value.get("link_scope", "relative")),
             unit=str(value.get("unit", "")),
             standard_error=(
                 float(value["standard_error"]) if value.get("standard_error") is not None else None
@@ -97,6 +102,30 @@ class Parameter:
             ci_low=float(value["ci_low"]) if value.get("ci_low") is not None else None,
             ci_high=float(value["ci_high"]) if value.get("ci_high") is not None else None,
         )
+
+    def copied_link(
+        self, source_curve_id: str, target_curve_id: str,
+        component_ids: Mapping[str, str] | None = None,
+    ) -> str | None:
+        """Retarget local references for This spectrum links; retain fixed references."""
+        if not self.link or self.link_scope == "absolute" or source_curve_id == target_curve_id:
+            return self.link
+        expression = self.link
+        for reference in SafeExpression.compile(self.link).references:
+            parts = reference.split(".", 2)
+            if len(parts) != 3 or parts[0] != source_curve_id:
+                continue
+            component_id = parts[1]
+            if component_ids is not None:
+                if component_id not in component_ids:
+                    raise ConstraintError(
+                        "Cannot copy a This spectrum link: its source function is missing "
+                        "from the destination spectrum. Copy the required functions too."
+                    )
+                component_id = component_ids[component_id]
+            target = f"{target_curve_id}.{component_id}.{parts[2]}"
+            expression = expression.replace(f"${{{reference}}}", f"${{{target}}}")
+        return expression
 
 
 def resolve_parameter_values(parameters: Mapping[str, Parameter]) -> dict[str, float]:

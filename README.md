@@ -9,7 +9,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.23065835"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23065835.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -22,7 +22,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.33.1 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.34.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 
@@ -133,6 +133,8 @@ to releases.
 - opt-in automatic folder import of new acquisition files, with filename filtering,
   stable-file checks, and optional processing by a trusted plugin
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
+- intuitive link sources: **This spectrum** follows copied functions by default;
+  **Specific spectrum** keeps its original source, with a preview in **Set link…**
 - independent, propagating sequential, and global simultaneous least-squares
   fitting, with configurable safeguards and durable pause/resume
 - local least-squares methods, differential evolution with local refinement,
@@ -143,7 +145,8 @@ to releases.
 - project-wide function editing with **Select all** / **Select all except backgrounds**
   controls and separate enable/disable checkboxes
 - undoable **Reorder** sorts the function list by X position and renumbers automatic
-  names; custom names are retained and advanced rules choose another sorting parameter
+  names without changing the fit or mathematical composition; custom names are
+  retained and advanced rules choose another sorting parameter
 - function selection stays at the same list position when switching spectra in the
   active-spectrum Functions view; shorter models select their last function
 - explicit, undoable parameter copying between compatible functions, including
@@ -180,7 +183,8 @@ already on each target. Background functions are excluded from copying by defaul
 the dialog lets you choose copy exclusions and which constraints and function states
 to propagate. Residual or parameter-change safeguards can pause the sequence for
 inspection. **Continue sequential fit**, **Terminate sequential fit**, and
-**Last pause reason** remain available for managing the pause. For shared parameters
+**Last pause reason** remain available for managing the pause. The pause-reason
+button disappears when the sequence finishes or is terminated. For shared parameters
 across spectra in one optimization, choose **Global simultaneous** fitting.
 
 In the Functions panel, highlighted rows select functions for editing; checked boxes
@@ -272,17 +276,19 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.33.1**
+Current public version: **0.34.0**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.33.1)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23065835
+Zenodo archival for version **0.34.0** is pending. The release DOI will be
+inserted here automatically when the record is available. Until then, use the
+versioned GitHub release below.
 
-DOI: [**10.5281/zenodo.23065835**](https://doi.org/10.5281/zenodo.23065835)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.34.0)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.34.0
 
 ## License
 

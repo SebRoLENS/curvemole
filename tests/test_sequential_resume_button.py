@@ -93,7 +93,7 @@ def test_terminate_button_clears_queue_and_preserves_models_and_results(monkeypa
     window.close()
 
 
-def test_pause_reason_can_be_reopened_after_manual_fit_and_termination(monkeypatch, tmp_path):
+def test_pause_reason_survives_manual_fit_but_hides_after_termination(monkeypatch, tmp_path):
     import numpy as np
     from PySide6.QtWidgets import QMessageBox
 
@@ -122,16 +122,53 @@ def test_pause_reason_can_be_reopened_after_manual_fit_and_termination(monkeypat
     assert messages == [result.message, result.message]
     manual = Fitter().fit_single(curve, project.model_for(curve.id))
     window._fit_finished(manual)
-    window.terminate_sequence()
     assert not window.sequential_pause_reason_button.isHidden()
     window.sequential_pause_reason_button.click()
     assert messages[-1] == result.message
+    window.terminate_sequence()
+    assert window.sequential_pause_reason_button.isHidden()
+    assert not window.sequential_pause_reason_button.isEnabled()
     restored = load_project(save_project(project, tmp_path / "pause.fitproj"))
     assert restored.results["last_sequential_pause_message"] == result.message
-    window.project = Project()
+    window.project = restored
     window.active_curve_id = None
     window.selected_component_id = None
     window.refresh_all()
     assert window.sequential_pause_reason_button.isHidden()
+    project.dirty = False
+    window.close()
+
+
+def test_pause_reason_hides_after_sequential_completion(monkeypatch):
+    import numpy as np
+    from PySide6.QtWidgets import QMessageBox
+
+    from curvemole import Component, Curve, Fitter
+    from curvemole.core.fitting import FitMode, FitPlan
+
+    _app()
+    project = Project()
+    curve = Curve("review", np.arange(5.0), np.full(5, 2.5))
+    project.add_curve(curve)
+    project.model_for(curve.id).add(Component.create("constant"))
+    window = MainWindow(project)
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: None)
+    window.last_fit_plan = FitPlan([curve.id], FitMode.SEQUENTIAL)
+    paused = Fitter().fit_single(curve, project.model_for(curve.id))
+    paused.mode = FitMode.SEQUENTIAL
+    paused.success = False
+    paused.paused_curve_id = curve.id
+    paused.message = "Paused for review"
+    window._fit_finished(paused)
+    assert not window.sequential_pause_reason_button.isHidden()
+
+    completed = Fitter().fit_single(curve, project.model_for(curve.id))
+    completed.mode = FitMode.SEQUENTIAL
+    window._fit_finished(completed)
+    window.refresh_all()
+    assert window.sequential_pause_reason_button.isHidden()
+    assert not window.sequential_pause_reason_button.isEnabled()
+    assert window.sequential_resume_button.isHidden()
+    assert project.results["last_sequential_pause_message"] == paused.message
     project.dirty = False
     window.close()

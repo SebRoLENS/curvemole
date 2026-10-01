@@ -104,6 +104,7 @@ def test_copy_can_include_fixed_bounds_and_relation_across_spectra() -> None:
     source_parameter.maximum = 2.0
     source_parameter.fixed = True
     source_parameter.link = f"${{{first.id}.{anchor.id}.center}}"
+    source_parameter.link_scope = "absolute"
     source_parameter.validate()
 
     target_parameter.value = -1.0

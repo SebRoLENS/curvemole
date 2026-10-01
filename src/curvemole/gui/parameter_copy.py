@@ -112,7 +112,22 @@ def copy_parameter_to_refs(
             if copy_fixed:
                 target.fixed = source.fixed
             if copy_link:
-                target.link = source.link
+                source_model = window.project.model_for(source_curve_id)
+                target_model = window.project.model_for(curve_id)
+                component_ids = {}
+                for index, item in enumerate(source_model.components):
+                    matches = [candidate for candidate in target_model.components if candidate.id == item.id]
+                    if not matches:
+                        matches = [candidate for candidate in target_model.components
+                                   if candidate.name == item.name and candidate.function_id == item.function_id]
+                    if len(matches) != 1 and index < len(target_model.components):
+                        candidate = target_model.components[index]
+                        matches = [candidate] if candidate.function_id == item.function_id else []
+                    if len(matches) == 1:
+                        component_ids[item.id] = matches[0].id
+                component_ids[source_component_id] = component_id
+                target.link = source.copied_link(source_curve_id, curve_id, component_ids)
+                target.link_scope = source.link_scope
             target.standard_error = None
             target.ci_low = None
             target.ci_high = None

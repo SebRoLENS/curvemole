@@ -129,6 +129,7 @@ def run_workflow(
                     parameter.maximum = float(rules["maximum"])
                 parameter.fixed = bool(rules.get("fixed", False))
                 parameter.link = rules.get("link")
+                parameter.link_scope = rules.get("link_scope", "relative")
                 parameter.validate()
             model.add(component)
 

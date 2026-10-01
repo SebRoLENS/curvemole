@@ -98,6 +98,12 @@ Check **Fixed** to hold a parameter. A link such as
 `${curve_id.component_id.center}` can connect parameters in the same or another
 spectrum.
 
+In **Set link…**, keep **This spectrum (follows copies)** to make a link local:
+copying Gaussian2's link to Gaussian1 into another spectrum uses Gaussian1 in
+that destination. Choose **Specific spectrum: spectrum name** to keep pointing
+to the chosen spectrum after copying. Cross-spectrum links require **Global
+simultaneous** fitting. The dialog previews the source and explains this choice.
+
 Use **Select all** or **Select all except backgrounds** in **Model & Parameters**
 to select displayed functions for batch editing. Enable **Show all functions** to
 span the project. Row selection does not change which functions contribute to

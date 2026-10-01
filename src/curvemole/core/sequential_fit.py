@@ -91,12 +91,10 @@ def _clone_model_for_target(
             component.group = None
         for parameter in component.parameters.values():
             if propagate_links and parameter.link:
-                parameter.link = parameter.link.replace(
-                    "${" + source_curve_id + ".",
-                    "${" + target.id + ".",
-                )
+                parameter.link = parameter.copied_link(source_curve_id, target.id)
             elif not propagate_links:
                 parameter.link = None
+                parameter.link_scope = "relative"
             if not propagate_bounds:
                 parameter.minimum = -math.inf
                 parameter.maximum = math.inf

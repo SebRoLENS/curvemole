@@ -30,7 +30,7 @@ class ReorderRulesDialog(QDialog):
         description = QLabel(self.tr(
             "Choose the parameter used to sort the list and number each function type, "
             "from lowest to highest. "
-            "Custom function names are never changed."))
+            "Custom function names, fit values and calculation order are never changed."))
         description.setWordWrap(True)
         layout.addWidget(description)
         form = QFormLayout()
