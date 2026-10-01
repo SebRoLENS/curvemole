@@ -1859,6 +1859,8 @@ class MainWindow(QMainWindow):
             modified_curve_ids=set(targets),
             preserve_curve_ids={self.active_curve_id},
         )
+        if next_id in targets:
+            self._set_active_curve(next_id)
 
     def subtract_background(self) -> None:
         if not self._ensure_editable():

@@ -114,6 +114,20 @@ class Model:
                 return self.components.pop(index)
         raise KeyError(component_id)
 
+    def delete_components(self, component_ids: set[str]) -> None:
+        """Delete functions and let the first surviving function start the model."""
+        existing = {component.id for component in self.components}
+        missing = component_ids - existing
+        if missing:
+            raise KeyError(next(iter(missing)))
+        first = next((component for component in self.components if component.enabled), None)
+        self.components = [component for component in self.components if component.id not in component_ids]
+        self.display_order = [component_id for component_id in self.display_order if component_id not in component_ids]
+        if first is not None and first.id in component_ids:
+            successor = next((component for component in self.components if component.enabled), None)
+            if successor is not None and successor.operator in {"multiply", "divide", "convolve"}:
+                successor.operator = "add"
+
     def duplicate(self, component_id: str) -> Component:
         source = self.component(component_id)
         duplicate = Component.from_dict(source.to_dict())

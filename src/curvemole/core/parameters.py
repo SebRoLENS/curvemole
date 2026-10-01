@@ -206,7 +206,9 @@ class Parameter:
         return _LINK_REFERENCE.sub(replace, self.link)
 
 
-def resolve_parameter_values(parameters: Mapping[str, Parameter]) -> dict[str, float]:
+def resolve_parameter_values(
+    parameters: Mapping[str, Parameter], *, paths: Iterable[str] | None = None,
+) -> dict[str, float]:
     """Resolve fixed/free values and linked expressions with cycle detection."""
 
     resolved: dict[str, float] = {}
@@ -254,7 +256,7 @@ def resolve_parameter_values(parameters: Mapping[str, Parameter]) -> dict[str, f
         resolved[path] = value
         return value
 
-    for parameter_path in parameters:
+    for parameter_path in parameters if paths is None else paths:
         resolve(parameter_path)
     return resolved
 

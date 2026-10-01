@@ -547,13 +547,21 @@ The controls below the list are:
 | Reorder | Sort the function list and renumber automatic names using a parameter value |
 | Advanced reorder rules | Choose the numbering parameter separately for each function type |
 | Copy fit | Copy selected model information to other curves |
-| Copy fit to next | Open the copy dialog with the next curve in the source series selected |
+| Copy fit to next | Copy to the next curve in the source series, then open it |
 | Copy parameter | Copy one parameter from one source function to chosen project-wide targets |
 
 Bulk actions on selected functions can delete, duplicate, reorder, enable or disable,
 mark or unmark backgrounds, and fix or free their parameters as applicable. Each bulk
 edit is one Undo/Redo operation. Uncheck a component in the list to disable it without
 deleting it. Disabled components are not evaluated or fitted.
+
+Deleting the first enabled function can leave a multiplication, division or
+convolution without a preceding term. In that case, the confirmation identifies
+the first surviving function and explains that it will start the remaining model
+with **Add**. Other operators and parameter values are preserved. Undo restores the
+original functions and composition. If remaining parameters link to a function
+being deleted, deletion is cancelled and the affected links are listed; remove
+those links or constraints before deleting the function.
 
 **Copy parameter** is enabled only when exactly one source function is selected. Select
 a row in the parameter table to make that parameter the default, open the copy window,
@@ -1202,7 +1210,9 @@ or **Deselect all** when choosing many target curves. The dialog initially shows
 series headings. Only targets in the displayed scope are copied.
 
 **Copy fit to next**, beside Copy fit, opens the same options with the next spectrum
-in the source series already checked. It is unavailable at the end of that series.
+in the source series already checked. After a successful copy, that spectrum opens
+automatically in the plot and parameter panel. Cancelling the dialog leaves the
+active spectrum unchanged. The action is unavailable at the end of the series.
 Copying remains undoable. Options include:
 
 - component structure;

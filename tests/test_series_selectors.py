@@ -45,7 +45,7 @@ def test_scopes_exclude_hidden_targets_and_keep_weights():
     app.processEvents()
 
 
-def test_copy_next_button_preselects_successor_and_preserves_undo():
+def test_copy_next_button_opens_successor_and_preserves_undo():
     app = QApplication.instance() or QApplication([])
     project = example()
     window = CurveMoleMainWindow(project)
@@ -63,6 +63,9 @@ def test_copy_next_button_preselects_successor_and_preserves_undo():
     window.model_panel.copy_fit_next_button.click()
     assert seen == [target.id]
     assert project.model_for(target.id).components[0].function_id == "gaussian"
+    assert window.active_curve_id == target.id
+    assert window.model_panel.curve_id == target.id
+    assert window.curve_tree.selected_curve_ids() == {target.id}
     window.undo_stack.undo()
     assert project.model_for(target.id).to_dict() == before
     window._set_active_curve(project.curves[2].id)

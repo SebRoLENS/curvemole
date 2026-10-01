@@ -3,6 +3,25 @@
 
 All notable changes follow Keep a Changelog and Semantic Versioning.
 
+## [Unreleased]
+
+## [0.35.1] - 2026-10-01
+
+### Fixed
+
+- When deleting the first enabled model function, let its surviving successor
+  start the model with Add if it previously used multiplication, division or
+  convolution. Explain the adjustment before deletion and restore the original
+  composition with Undo.
+- Roll back function deletion if it would leave dangling parameter links. Keep
+  measured data and independent model curves visible when another model has an
+  invalid parameter link.
+
+### Changed
+
+- After **Copy fit to next** successfully copies to the next spectrum in the series,
+  open that spectrum automatically in the plot and parameter panel.
+
 ## [0.35.0] - 2026-10-01
 
 ### Added

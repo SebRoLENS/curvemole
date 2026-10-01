@@ -28,6 +28,7 @@ def test_copy_fit_does_not_mark_source_spectrum_outdated():
     QTimer.singleShot(0, accept_dialog)
     window.copy_fit()
     assert source.state == CurveState.FITTED
+    assert window.active_curve_id == source.id
     project.dirty = False
     window.close()
     app.processEvents()

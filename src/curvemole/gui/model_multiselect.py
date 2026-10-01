@@ -18,6 +18,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.errors import ConstraintError
+from curvemole.core.expressions import SafeExpression
 from curvemole.core.models import Model
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
@@ -94,25 +96,32 @@ def _push_multi_model_change(
     text: str,
     refs: list[tuple[str, str]],
     operation: Any,
-) -> None:
+) -> bool:
     curve_ids = list(dict.fromkeys(curve_id for curve_id, _ in refs))
     before = {
         curve_id: window.project.model_for(curve_id).to_dict()
         for curve_id in curve_ids
     }
-    operation()
-    after = {
-        curve_id: window.project.model_for(curve_id).to_dict()
-        for curve_id in curve_ids
-    }
+    try:
+        operation()
+        after = {
+            curve_id: window.project.model_for(curve_id).to_dict()
+            for curve_id in curve_ids
+        }
+    except Exception as exc:
+        _restore_models(window, before)
+        window._show_error(text, exc)
+        return False
     _restore_models(window, before)
     if before == after:
-        return
+        return False
     window._push_change(
         text,
         lambda: _restore_models(window, after),
         lambda: _restore_models(window, before),
+        modified_curve_ids=set(curve_ids),
     )
+    return True
 
 
 def _install_model_panel() -> None:
@@ -238,7 +247,7 @@ def _install_model_panel() -> None:
             ids = [curve.id for curve in project.dataset.series_for(curve_id).curves]
             can_copy_next = ids.index(curve_id) + 1 < len(ids)
         panel.copy_fit_next_button.setEnabled(can_copy_next)
-        panel.copy_fit_next_button.setToolTip(panel.tr("Copy to the next spectrum in this series") if can_copy_next
+        panel.copy_fit_next_button.setToolTip(panel.tr("Copy to the next spectrum in this series, then open it") if can_copy_next
                                               else panel.tr("No next spectrum in this series"))
         # Curve selection and function selection are independent. Keep the model
         # editor available even when several spectra are selected in the curve tree.
@@ -589,8 +598,8 @@ def _install_main_window() -> None:
             if len(refs) > 1
             else window.tr("Duplicate component")
         )
-        _push_multi_model_change(window, text, refs, operation)
-        if created:
+        changed = _push_multi_model_change(window, text, refs, operation)
+        if changed and created:
             window.selected_component_id = created[-1]
 
     def delete_component(window: MainWindow, component_id: str) -> None:
@@ -605,6 +614,23 @@ def _install_main_window() -> None:
             if count == 1
             else window.tr("Delete the selected components? This action can be undone.")
         )
+        grouped: dict[str, set[str]] = defaultdict(set)
+        for curve_id, selected_id in refs:
+            grouped[curve_id].add(selected_id)
+        promoted = []
+        for curve_id, component_ids in grouped.items():
+            model = window.project.model_for(curve_id)
+            enabled = [component for component in model.components if component.enabled]
+            remaining = [component for component in enabled if component.id not in component_ids]
+            if (enabled and enabled[0].id in component_ids and remaining
+                    and remaining[0].operator in {"multiply", "divide", "convolve"}):
+                curve = window.project.dataset.curve(curve_id)
+                promoted.append(f"{curve.name} / {remaining[0].name}")
+        if promoted:
+            question += "\n\n" + window.tr(
+                "These functions will start the remaining model, using Add because "
+                "there is no preceding function to combine with:"
+            ) + "\n" + "\n".join(promoted)
         if (
             QMessageBox.question(window, window.tr("Delete component"), question)
             != QMessageBox.StandardButton.Yes
@@ -612,18 +638,37 @@ def _install_main_window() -> None:
             return
 
         def operation() -> None:
-            for curve_id, selected_id in refs:
+            removed_paths = {
+                path for curve_id, component_ids in grouped.items()
+                for path in window.project.model_for(curve_id).parameter_map(curve_id)
+                if path.split(".", 2)[1] in component_ids
+            }
+            dependents = []
+            for path, parameter in window.project.parameter_map().items():
+                if (path not in removed_paths and parameter.link
+                        and removed_paths.intersection(SafeExpression.compile(parameter.link).references)):
+                    curve_id, selected_id, name = path.split(".", 2)
+                    curve = window.project.dataset.curve(curve_id)
+                    component = window.project.model_for(curve_id).component(selected_id)
+                    dependents.append(f"{curve.name} / {component.name}.{name}")
+            if dependents:
+                raise ConstraintError(window.tr(
+                    "Cannot delete these functions because remaining parameters reference them. "
+                    "Remove the following links or constraints first:"
+                ) + "\n" + "\n".join(dependents))
+            for curve_id, component_ids in grouped.items():
                 model = window.project.model_for(curve_id)
-                if any(component.id == selected_id for component in model.components):
-                    model.remove(selected_id)
+                model.delete_components(component_ids)
+            window._validate_all_links()
 
-        _push_multi_model_change(
+        changed = _push_multi_model_change(
             window,
             window.tr("Delete components") if count > 1 else window.tr("Delete component"),
             refs,
             operation,
         )
-        window.selected_component_id = None
+        if changed:
+            window.selected_component_id = None
 
     def move_component(window: MainWindow, component_id: str, delta: int) -> None:
         if not window._ensure_editable() or delta not in {-1, 1}:

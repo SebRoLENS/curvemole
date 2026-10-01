@@ -30,6 +30,7 @@ from shiboken6 import isValid
 
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.models import component_height
+from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.gui.plot_appearance import (
@@ -494,6 +495,7 @@ class PlotWorkspace(QWidget):
     def refresh(self, *_: Any) -> None:
         initial_view = not self._data_items
         self.plot.clear()
+        self.plot.setToolTip("")
         self.residual_plot.clear()
         self._data_items.clear()
         self._component_items.clear()
@@ -510,7 +512,12 @@ class PlotWorkspace(QWidget):
         curves = self.displayed_curves()
         x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
         y_step = self.y_offset.value() if mode == self.tr("Waterfall") else 0.0
-        global_values = project.resolved_parameter_values()
+        try:
+            global_values = project.resolved_parameter_values()
+        except CurveMoleError:
+            # An invalid link in one model must not erase measured data or
+            # prevent independent models from being displayed.
+            global_values = None
         for index, curve in enumerate(curves):
             x = curve.x + index * x_step
             y = curve.y + index * y_step
@@ -550,16 +557,22 @@ class PlotWorkspace(QWidget):
             model = project.models.get(curve.id)
             if model and model.components:
                 try:
+                    values = global_values
+                    if values is None:
+                        values = resolve_parameter_values(
+                            project.parameter_map(), paths=model.parameter_map(curve.id),
+                        )
                     total, component_arrays = model.evaluate(
                         curve.x,
                         curve_id=curve.id,
-                        values=global_values,
+                        values=values,
                         registry=self.registry,
                         components=True,
                     )
                 except CurveMoleError as exc:
                     self.plot.setToolTip(
-                        f"Model unavailable: {exc}. Review File → Plugin Manager."
+                        f"Model unavailable: {exc}. Review function operators, parameter links, "
+                        "or File → Plugin Manager."
                     )
                     continue
                 total = total + index * y_step

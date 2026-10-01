@@ -125,6 +125,10 @@ to releases.
 
 ## Highlights
 
+- **Copy fit to next** opens the next spectrum automatically after copying. Function
+  deletion preserves a valid starting operator and reports dependent parameter links;
+  Undo restores the original composition.
+
 - Gaussian, Lorentzian, Voigt, and pseudo-Voigt peaks parameterised by signed area
 - constant, linear, arbitrary-order polynomial, and cubic-spline backgrounds
 - content-aware import of valid numeric text files regardless of extension, with
