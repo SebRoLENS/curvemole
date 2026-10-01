@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import math
+from collections.abc import Mapping
 from contextlib import suppress
 from typing import Any
 
@@ -12,9 +13,11 @@ import pyqtgraph as pg
 from PySide6.QtCore import QPointF
 from scipy.optimize import least_squares
 
+from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
+from curvemole.core.errors import ConstraintError
 from curvemole.core.initialization import PeakSuggestion, initialise_peak_component
 from curvemole.core.models import Component
-from curvemole.core.parameters import Parameter
+from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.gui import manual_points
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.plot import PlotWorkspace
@@ -52,16 +55,35 @@ def _set_stored_points(component: Component, points: list[tuple[float, float]]) 
     ]
 
 
+def _fitting_parameter_context(
+    component: Component, parameter_context: Mapping[str, Parameter], curve_id: str,
+) -> dict[str, Parameter]:
+    """Clone the graph and hold other components at their current values."""
+    prefix = f"{curve_id}.{component.id}."
+    parameters = {
+        path: Parameter.from_dict(parameter.to_dict())
+        for path, parameter in parameter_context.items() if not path.startswith(prefix)
+    }
+    for parameter in parameters.values():
+        parameter.fixed = True
+    parameters.update({f"{prefix}{name}": parameter for name, parameter in component.parameters.items()})
+    return parameters
+
+
 def _generic_fit_component(
     component: Component,
     points: list[tuple[float, float]],
     *,
     registry: Any,
     free_only: bool,
+    parameter_context: Mapping[str, Parameter] | None = None,
+    curve_id: str | None = None,
 ) -> Component:
     fitted = Component.from_dict(copy.deepcopy(component.to_dict()))
     if not points:
         return fitted
+    if free_only and any(parameter.link for parameter in fitted.parameters.values()) and parameter_context is None:
+        raise ConstraintError("Linked manual control points require the spectrum parameter context.")
 
     x_values = np.asarray([point[0] for point in points], dtype=float)
     y_values = np.asarray([point[1] for point in points], dtype=float)
@@ -107,20 +129,36 @@ def _generic_fit_component(
     if not names:
         return fitted
 
-    initial = np.asarray([fitted.parameters[name].value for name in names], dtype=float)
-    lower = np.asarray([fitted.parameters[name].minimum for name in names], dtype=float)
-    upper = np.asarray([fitted.parameters[name].maximum for name in names], dtype=float)
-    initial = np.minimum(np.maximum(initial, lower), upper)
+    context = None
+    coordinates = None
+    if parameter_context is not None:
+        if not curve_id:
+            raise ConstraintError("A spectrum is required to resolve manual control point links.")
+        context = _fitting_parameter_context(fitted, parameter_context, curve_id)
+        paths = [f"{curve_id}.{fitted.id}.{name}" for name in names]
+        coordinates = DynamicParameterCoordinates(context, paths)
+        initial = coordinates.initial()
+        lower, upper = coordinates.bounds
+    else:
+        initial = np.asarray([fitted.parameters[name].value for name in names], dtype=float)
+        lower = np.asarray([fitted.parameters[name].minimum for name in names], dtype=float)
+        upper = np.asarray([fitted.parameters[name].maximum for name in names], dtype=float)
+        initial = np.minimum(np.maximum(initial, lower), upper)
     scale = max(float(np.ptp(y_values)), float(np.max(np.abs(y_values))), 1.0)
 
+    def physical_values(values: np.ndarray) -> dict[str, float]:
+        if coordinates is not None:
+            for path, value in coordinates.decode(values).items():
+                context[path].value = float(value)
+            resolved = resolve_parameter_values(context)
+            return {name: resolved[f"{curve_id}.{fitted.id}.{name}"] for name in fitted.parameters}
+        mapping = {name: parameter.value for name, parameter in fitted.parameters.items()}
+        mapping.update({name: float(value) for name, value in zip(names, values, strict=True)})
+        return mapping
+
     def residual(values: np.ndarray) -> np.ndarray:
-        mapping = {
-            name: parameter.value for name, parameter in fitted.parameters.items()
-        }
-        mapping.update(
-            {name: float(value) for name, value in zip(names, values, strict=True)}
-        )
         try:
+            mapping = physical_values(values)
             calculated = definition.evaluate(x_values, mapping, fitted.metadata)
         except Exception:
             return np.full(len(x_values), 1e12, dtype=float)
@@ -137,9 +175,10 @@ def _generic_fit_component(
             max_nfev=1500,
         )
     except Exception:
-        return fitted
+        return Component.from_dict(copy.deepcopy(component.to_dict())) if context is not None else fitted
     if result.success and np.all(np.isfinite(result.x)):
-        for name, value in zip(names, result.x, strict=True):
+        final_values = physical_values(result.x)
+        for name, value in final_values.items():
             parameter = fitted.parameters[name]
             parameter.value = float(np.clip(value, parameter.minimum, parameter.maximum))
             parameter.standard_error = None
@@ -277,12 +316,16 @@ def _fit_after_generic_point_drag(
     points: list[tuple[float, float]],
     *,
     registry: Any,
+    parameter_context: Mapping[str, Parameter] | None = None,
+    curve_id: str | None = None,
 ) -> Component:
     fitted = _generic_fit_component(
         component,
         points,
         registry=registry,
         free_only=True,
+        parameter_context=parameter_context,
+        curve_id=curve_id,
     )
     _set_stored_points(fitted, points)
     return fitted
@@ -295,6 +338,8 @@ def _fit_after_spline_point_drag(
     new_point: tuple[float, float],
     *,
     registry: Any,
+    parameter_context: Mapping[str, Parameter] | None = None,
+    curve_id: str | None = None,
 ) -> tuple[Component, list[tuple[float, float]]]:
     old_points = _stored_points(component)
     records: list[tuple[float, float, Parameter | None]] = []
@@ -315,7 +360,6 @@ def _fit_after_spline_point_drag(
     fitted = Component.from_dict(copy.deepcopy(component.to_dict()))
     ordered = [(x_point, y_point) for x_point, y_point, _ in records]
     fitted.metadata["x_nodes"] = [point[0] for point in ordered]
-    _set_stored_points(fitted, ordered)
     new_parameters: dict[str, Parameter] = {}
     for index, (_, y_point, old_parameter) in enumerate(records):
         if old_parameter is None:
@@ -335,6 +379,30 @@ def _fit_after_spline_point_drag(
     for name, parameter in expected.items():
         new_parameters.setdefault(name, parameter)
     fitted.parameters = new_parameters
+    if parameter_context is not None:
+        if not curve_id:
+            raise ConstraintError("A spectrum is required to resolve manual control point links.")
+        moved_index = next(index for index, (_, _, parameter) in enumerate(records)
+                           if parameter is moved_parameter)
+        moved_name = f"y{moved_index}"
+        context = _fitting_parameter_context(fitted, parameter_context, curve_id)
+        prefix = f"{curve_id}.{fitted.id}."
+        for name in fitted.parameters:
+            context[f"{prefix}{name}"] = Parameter.from_dict(fitted.parameters[name].to_dict())
+            if name != moved_name:
+                context[f"{prefix}{name}"].fixed = True
+        path = f"{prefix}{moved_name}"
+        free_paths = [path] if context[path].is_free else []
+        coordinates = DynamicParameterCoordinates(context, free_paths)
+        for parameter_path, value in coordinates.decode(coordinates.initial()).items():
+            context[parameter_path].value = value
+        resolved = resolve_parameter_values(context)
+        for name, parameter in fitted.parameters.items():
+            parameter.value = resolved[f"{prefix}{name}"]
+        ordered = [(x, fitted.parameters[f"y{index}"].value) for index, (x, _) in enumerate(ordered)]
+    elif any(parameter.link and parameter.link_relation != "equal" for parameter in fitted.parameters.values()):
+        raise ConstraintError("Linked manual control points require the spectrum parameter context.")
+    _set_stored_points(fitted, ordered)
     return fitted, ordered
 
 
@@ -357,23 +425,37 @@ def _apply_manual_point_drag(
         return
 
     new_point = (float(x_value), float(y_value))
-    if component.function_id == "cubic_spline":
-        fitted, _ = _fit_after_spline_point_drag(
-            component,
-            points,
-            point_index,
-            new_point,
-            registry=window.registry,
-        )
-    else:
-        updated_points = list(points)
-        updated_points[point_index] = new_point
-        updated_points.sort()
-        fitted = _fit_after_generic_point_drag(
-            component,
-            updated_points,
-            registry=window.registry,
-        )
+    parameter_context = window.project.parameter_map()
+    try:
+        if component.function_id == "cubic_spline":
+            fitted, _ = _fit_after_spline_point_drag(
+                component,
+                points,
+                point_index,
+                new_point,
+                registry=window.registry,
+                parameter_context=parameter_context,
+                curve_id=window.active_curve_id,
+            )
+        else:
+            updated_points = list(points)
+            updated_points[point_index] = new_point
+            updated_points.sort()
+            fitted = _fit_after_generic_point_drag(
+                component,
+                updated_points,
+                registry=window.registry,
+                parameter_context=parameter_context,
+                curve_id=window.active_curve_id,
+            )
+        prefix = f"{window.active_curve_id}.{component.id}."
+        staged = {path: parameter for path, parameter in parameter_context.items() if not path.startswith(prefix)}
+        staged.update({f"{prefix}{name}": parameter for name, parameter in fitted.parameters.items()})
+        resolve_parameter_values(staged)
+    except Exception as exc:
+        window._show_error(window.tr("Manual control point"), exc)
+        window.refresh_all()
+        return
 
     before = component.to_dict()
     after = fitted.to_dict()

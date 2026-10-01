@@ -1,13 +1,13 @@
-# CurveMole User Manual - Preview 0.34.0
+# CurveMole User Manual - Preview 0.35.0
 
-**Current manual version: 0.34.0**
+**Current manual version: 0.35.0**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.34.0 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.35.0 Preview.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-> **Preview status.** CurveMole 0.34.0 is suitable for evaluation and controlled
+> **Preview status.** CurveMole 0.35.0 is suitable for evaluation and controlled
 > testing. It has not yet completed the scientific validation planned for version
 > 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
 > results before using a fit in research.
@@ -44,7 +44,7 @@ plugins.
 
 The version in the title and in the line at the top of this file identifies the
 CurveMole release whose behavior is documented. It is not an independent document
-version. For example, a manual marked 0.34.0 describes CurveMole 0.34.0.
+version. For example, a manual marked 0.35.0 describes CurveMole 0.35.0.
 
 The release automation performs four checks:
 
@@ -185,14 +185,14 @@ verify the checksum if the application will be used for research.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-0.34.0-linux-x86_64.AppImage
-./CurveMole-0.34.0-linux-x86_64.AppImage
+chmod +x CurveMole-0.35.0-linux-x86_64.AppImage
+./CurveMole-0.35.0-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.34.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-0.35.0-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -224,13 +224,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-0.34.0-macos-arm64.dmg
+shasum -a 256 CurveMole-0.35.0-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-0.34.0-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-0.35.0-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -242,7 +242,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-0.34.0-py3-none-any.whl
+python -m pip install ./curvemole-0.35.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -251,7 +251,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-0.34.0-py3-none-any.whl
+python -m pip install .\curvemole-0.35.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -679,7 +679,7 @@ Optional columns are:
 
 Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 0.34.0 optimizer.
+stored in the project but is not used by the version 0.35.0 optimizer.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -1225,48 +1225,109 @@ The table columns are:
 
 | Column | Meaning |
 |---|---|
-| Parameter | Parameter name; linked parameters show a link indicator |
+| Parameter | Parameter name; parameters with a relation show its indicator |
 | Value | Current value or successful fitted value |
 | ±1 sigma | Covariance-based standard error when available |
 | Analysis - / + | Separate lower/upper distances from the saved uncertainty analysis selected for this spectrum |
 | Fixed | Exclude the parameter from optimization |
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
-| Link | Graphical **Set link…** control; linked parameters show their source in readable form |
+| Link | Graphical **Set link…** control; the relation and its source are shown in readable form |
 
-Press **Set link…** to choose a source spectrum, component, and parameter. The default
-relationship is **Equal to source**. Choose **Advanced expression** for relationships such
-as `2 * ${source} + 1`. Use **Remove link** to make the parameter independent again.
+Press **Set link…** for the target parameter. Its name appears beside the expression:
+for a centre link, the dialog shows `center =` followed by the expression field.
+**Equal to source** is the default. The field shows the selected source explicitly
+and is read-only for quick relationships; **Advanced expression** makes it editable.
+Use **Remove link** to remove the relation and make the parameter independent again.
 
-**Source spectrum** also determines what happens when you copy the functions:
+#### Choose a source spectrum
+
+The **Source spectrum** menu starts with **Same spectrum as this parameter**.
+Below it, **Specific spectrum (fixed when copied)** groups spectra under the same
+series headings and in the same order as the project's spectrum list. Each choice
+explains what happens when the functions are copied:
 
 | Source spectrum choice | After copying to another spectrum |
 | --- | --- |
-| **This spectrum (follows copies)** (default) | Use the corresponding source function in the destination spectrum |
-| **Specific spectrum: spectrum name** | Keep referring to that exact spectrum, even if it is the current spectrum |
+| **Same spectrum as this parameter** (default) | Use the corresponding source function in the destination spectrum |
+| A spectrum under **Specific spectrum (fixed when copied)** | Keep referring to that exact spectrum, even if it is the current spectrum |
 
 For example, link Gaussian2's `center` to Gaussian1's `center` in Spectrum 1.
-After copying the functions to Spectrum 2, **This spectrum** links Gaussian2 to
-Gaussian1 in Spectrum 2. **Specific spectrum: Spectrum 1** links Gaussian2 in
-Spectrum 2 back to Gaussian1 in Spectrum 1. The dialog shows the source and
-explains the copy behavior as you change the selection. This choice is saved with
-the parameter and retained by Undo/Redo, parameter copying and sequential model
-propagation. Removing the link resets the choice to **This spectrum**.
+After copying the functions to Spectrum 2, **Same spectrum as this parameter**
+uses Gaussian1 in Spectrum 2. Selecting Spectrum 1 explicitly under the fixed
+spectra instead keeps Gaussian2 in Spectrum 2 linked to Gaussian1 in Spectrum 1.
+Copy behavior is saved for each inserted reference, so one advanced expression can
+combine relative and fixed references without losing their meaning. Undo/Redo,
+parameter copying and sequential model propagation preserve those choices.
 
-An edit is validated immediately. CurveMole rejects a value outside its bounds, a
-lower bound above an upper bound, an invalid expression, a missing referenced
-parameter, a link cycle, or a linked value that violates its own bounds.
+#### Build an expression from several parameters
+
+In **Advanced expression**, **Source function** and **Source parameter** select a
+parameter to insert. Click **Add** to insert its readable reference at the expression
+cursor, then type arithmetic operators, numbers and parentheses as needed. You can
+insert any number of references and use the same parameter more than once. Selecting
+another spectrum, function or parameter does not change references already inserted;
+click **Add** to insert the new selection.
+
+To set Gaussian1's `center` to the mean of Gaussian2's and Gaussian3's centres:
+
+1. open **Set link…** for Gaussian1's `center` and choose **Advanced expression**;
+2. keep **Same spectrum as this parameter** and type `(` in the expression;
+3. select Gaussian2, select `center`, and click **Add**;
+4. type ` + `, select Gaussian3 and `center`, and click **Add** again;
+5. type `) / 2` and check the displayed `center =` relation before accepting.
+
+The resulting relation reads `(Gaussian2.center + Gaussian3.center) / 2`, with each
+parameter shown as an inserted reference. CurveMole retains its stable identity even
+if the function is later renamed or the list is reordered. References to other
+spectra also show their spectrum context, so equal names in different spectra remain
+distinguishable. Existing expressions using `${source}` remain supported, but **Add**
+lets you build a multi-parameter expression without typing internal identifiers.
+
+#### Choose a quick relationship
+
+Quick relationships use the selected source parameter and show the resulting
+relation explicitly:
+
+| Relationship | Meaning for the target parameter |
+| --- | --- |
+| **Equal to source** | `target = source`; the target is derived from the source |
+| **At least source** | `target >= source`; the target remains a free fitted parameter |
+| **At most source** | `target <= source`; the target remains a free fitted parameter |
+| **Similar to source** | `source - tolerance <= target <= source + tolerance`; the target remains free within this interval |
+| **Advanced expression** | `target = expression`; the target is derived from all references in the expression |
+
+For **Similar to source**, enter a positive tolerance in parameter units or as a
+percentage. An absolute tolerance of `2` means an interval from `source - 2` to
+`source + 2`. A percentage tolerance of `5` uses `0.05 * abs(source)`, including
+when the source value is negative. Percentage tolerances must be positive and less
+than 100.
+
+The source-dependent bounds in **At least**, **At most**, and **Similar** are hard
+constraints, recalculated throughout fitting as the source changes. They are
+combined with the target's ordinary Lower/Upper cells and intrinsic function bounds;
+they do not replace these static limits or impose a soft penalty. The target remains
+an independent optimizer variable within the allowed interval, while **Equal to
+source** and **Advanced expression** remove it from the free parameter count.
+If the allowed interval collapses to a single value, mark the parameter **Fixed**
+or use **Equal to source**. This also applies to a percentage tolerance around a
+source fixed at zero, whose allowed interval is `[0, 0]`.
+
+Relations between different spectra require **Global simultaneous** fitting with
+all referenced spectra included. CurveMole rejects dependency cycles, including
+cycles involving source-dependent bounds. An edit is validated immediately: invalid
+expressions, missing parameters, inconsistent bounds and infeasible constraints are
+reported explicitly. If a constraint becomes infeasible during fitting, the fit
+reports an error rather than silently ignoring the relation.
 
 ### 9.2 Parameter states
 
-A parameter is exactly one of:
-
-- free;
-- fixed;
-- lower-bounded;
-- upper-bounded;
-- interval-bounded;
-- linked.
+A parameter can be free to fit, fixed, or derived by an equality/expression link.
+Free parameters can also have lower, upper or interval bounds. Source-dependent
+**At least**, **At most**, and **Similar** relations add dynamic bounds while keeping
+the target free; an equality or advanced expression instead derives its value and
+removes it from the independent optimizer variables. Bounds can be combined with
+these relationships, and all active limits must be satisfied.
 
 Intrinsic function bounds always remain active. For example, clearing the visible
 lower cell cannot make a Gaussian `sigma` negative because the function definition
@@ -1301,10 +1362,13 @@ message.
 
 ### 9.4 Link evaluation
 
-Links form a directed dependency graph. CurveMole resolves the graph before fitting,
-detects cycles, and evaluates linked values at each model evaluation. Linked
-parameters are not independent optimizer variables. If covariance is available,
-their standard errors are propagated numerically from free parameters.
+Expression links and source-dependent bounds form a directed dependency graph.
+CurveMole resolves the graph before fitting, detects cycles, and reevaluates the
+relations at each model evaluation. Equality and advanced-expression targets are
+derived values rather than independent optimizer variables. If covariance is
+available, their standard errors are propagated numerically from free parameters.
+Targets with **At least**, **At most**, or **Similar** relations remain independent
+optimizer variables constrained by their current allowed intervals.
 
 ### 9.5 Safe expression language
 
@@ -1369,9 +1433,10 @@ This is independent of ignoring functions in the parameter-change pause monitor.
 
 For newly copied functions, parameter values and structure are propagated. The dialog
 separately controls whether to preserve bounds, fixed/free state, internal links,
-background tags, enabled/disabled state, and composition/grouping. **This spectrum**
-links are remapped to corresponding target parameters; **Specific spectrum** links
-keep their original references. Cross-spectrum links require Global simultaneous
+background tags, enabled/disabled state, and composition/grouping. References inserted
+with **Same spectrum as this parameter** are remapped to corresponding target
+parameters; explicitly selected fixed spectra keep their original references.
+Cross-spectrum links and source-dependent bounds require Global simultaneous
 fitting rather than independent or sequential fitting. Structural metadata required by the
 function, such as spline nodes and custom-formula metadata, is always retained.
 
@@ -1399,7 +1464,9 @@ later sequential fit pauses.
 
 All selected residual arrays are concatenated into one optimization problem. Models
 may differ between curves. Parameter links can connect curves and express shared,
-offset, scaled, or otherwise related values.
+offset, scaled, or otherwise related values. Source-dependent **At least**, **At
+most**, and **Similar** bounds can also connect spectra; include every referenced
+spectrum in the global fit.
 
 ### 10.3 Per-spectrum weights
 
@@ -1534,6 +1601,7 @@ separate from the failed attempt.
 - division by zero in a composed model;
 - a missing or cyclic link;
 - a linked value outside its bounds;
+- incompatible static and source-dependent bounds, or an infeasible dynamic relation;
 - an invalid or overly narrow Differential Evolution search interval;
 - an underdetermined model;
 - inadequate initial values or maximum evaluations.
@@ -1547,7 +1615,7 @@ The parameter table shows fitted values and standard errors. A curve state chang
 Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports. Preview
-0.34.0 does not yet provide a single comprehensive on-screen results table, so use the
+0.35.0 does not yet provide a single comprehensive on-screen results table, so use the
 analysis bundle for archival inspection.
 
 ### 11.2 Reported global statistics
@@ -1589,9 +1657,15 @@ warning. Covariance is unavailable when degrees of freedom are not positive. A
 warning is also generated when at least one free-parameter correlation has absolute
 value 0.95 or greater.
 
-Symmetric normal intervals are clipped to active bounds. A parameter at a bound is
-flagged because its true uncertainty is generally asymmetric and not adequately
-summarized by a symmetric covariance interval.
+Symmetric normal intervals respect static bounds and any global limits implied by
+the relations. For **At least**, **At most**, or **Similar** with a free source,
+the source and target can move together: the target's marginal confidence interval
+is not clipped to a neighborhood that freezes the source at its fitted value.
+Reported effective lower/upper limits describe the allowed range at the optimum;
+confidence intervals use the applicable static/global limits instead of these
+conditional limits. A parameter at a bound is flagged because its true uncertainty
+is generally asymmetric and not adequately summarized by a symmetric covariance
+interval.
 
 ### 11.5 Residual diagnostics
 
@@ -2632,9 +2706,9 @@ If CurveMole contributes to published work, cite the exact version used. The rel
 DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
 Until archival completes, the versioned GitHub release is the authoritative record:
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.34.0)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.35.0)
 > [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v0.34.0
+> https://github.com/SebRoLENS/curvemole/releases/tag/v0.35.0
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 
@@ -2705,7 +2779,7 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.34.0 limitations
+## Appendix D. Preview 0.35.0 limitations
 
 The following boundaries are important when evaluating this release:
 
@@ -2713,8 +2787,8 @@ The following boundaries are important when evaluating this release:
 - local optimizers include nonlinear least squares, Nelder-Mead, Powell, and L-BFGS-B;
   none guarantees the global optimum for an arbitrary nonlinear model;
 - `sigma_x` is stored but not used in optimization;
-- graphical links support a source-parameter picker; complex multi-source relations
-  still require the advanced expression editor;
+- multi-source relations use the advanced expression editor, with readable parameter
+  references inserted through the source picker and **Add**;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
 - Windows and macOS packages may be unsigned; Linux release provenance is available

@@ -1,7 +1,7 @@
 """Shared, theme-aware hierarchy and scope controls for spectrum selectors."""
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QColor, QPalette
-from PySide6.QtWidgets import QButtonGroup, QHBoxLayout, QLabel, QRadioButton
+from PySide6.QtWidgets import QButtonGroup, QComboBox, QHBoxLayout, QLabel, QListView, QRadioButton
 
 
 def style_heading(item, widget, *, series=True):
@@ -14,6 +14,37 @@ def style_heading(item, widget, *, series=True):
         item.setForeground(QColor("#66B5FF" if dark else "#075B9A"))
     item.setSizeHint(QSize(0, widget.fontMetrics().height() + (14 if series else 8)))
     item.setBackground(widget.palette().color(QPalette.ColorRole.AlternateBase))
+
+
+class SourceSpectrumComboBox(QComboBox):
+    """Choose a relative spectrum or a fixed spectrum within the series hierarchy."""
+
+    def __init__(self, project, target_curve_id, parent=None):
+        super().__init__(parent)
+        view = QListView(self)
+        view.setAlternatingRowColors(True)
+        view.setSpacing(3)
+        self.setView(view)
+
+        target = project.dataset.curve(target_curve_id)
+        self.addItem(self.tr("Same spectrum as this parameter"), "self")
+        self.setItemData(0, self.tr(
+            "Uses the same spectrum as this parameter ({spectrum}). When copied, this "
+            "reference uses the destination spectrum."
+        ).format(spectrum=target.name), Qt.ItemDataRole.ToolTipRole)
+        self.insertSeparator(1)
+        self.addItem(self.tr("Specific spectrum (fixed when copied)"))
+        style_heading(self.model().item(self.count() - 1), view, series=False)
+
+        for series in project.dataset.series:
+            self.addItem(series.name)
+            style_heading(self.model().item(self.count() - 1), view)
+            for curve in series.curves:
+                self.addItem("    " + curve.name, curve.id)
+                self.setItemData(self.count() - 1, self.tr(
+                    "{series} / {spectrum}; keeps this spectrum when copied."
+                ).format(series=series.name, spectrum=curve.name), Qt.ItemDataRole.ToolTipRole)
+        self.setCurrentIndex(0)
 
 
 def add_scope(dialog, layout, project, source_id, callback):

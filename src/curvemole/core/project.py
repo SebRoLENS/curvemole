@@ -149,6 +149,14 @@ class Project:
                         if not links:
                             parameter.link = target_parameter.link if target_parameter else None
                             parameter.link_scope = target_parameter.link_scope if target_parameter else "relative"
+                            parameter.link_reference_scopes = (
+                                list(target_parameter.link_reference_scopes) if target_parameter else []
+                            )
+                            parameter.link_relation = target_parameter.link_relation if target_parameter else "equal"
+                            parameter.link_tolerance = target_parameter.link_tolerance if target_parameter else 0.0
+                            parameter.link_tolerance_mode = (
+                                target_parameter.link_tolerance_mode if target_parameter else "absolute"
+                            )
                         elif parameter.link:
                             parameter.link = source_parameter.copied_link(source_curve_id, target_id)
                         parameter.value = min(max(parameter.value, parameter.minimum), parameter.maximum)
@@ -182,6 +190,10 @@ class Project:
                         if links:
                             target.link = source_parameter.copied_link(source_curve_id, target_id, component_ids)
                             target.link_scope = source_parameter.link_scope
+                            target.link_reference_scopes = list(source_parameter.link_reference_scopes)
+                            target.link_relation = source_parameter.link_relation
+                            target.link_tolerance = source_parameter.link_tolerance
+                            target.link_tolerance_mode = source_parameter.link_tolerance_mode
                         target.value = min(max(target.value, target.minimum), target.maximum)
             if masks:
                 tolerance = float(self.ui_state.get("mask_transfer_tolerance", 0.0))

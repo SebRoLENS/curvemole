@@ -3,7 +3,37 @@
 
 All notable changes follow Keep a Changelog and Semantic Versioning.
 
-## [Unreleased]
+## [0.35.0] - 2026-10-01
+
+### Added
+
+- Build advanced parameter links by selecting a source function and parameter and
+  clicking **Add** to insert readable references at the expression cursor. Combine
+  several references with typed arithmetic; selecting another source preserves
+  references already inserted and their individual copy behavior.
+- Add **At least source**, **At most source**, and **Similar to source** quick
+  relationships. Their source-dependent hard bounds update throughout fitting,
+  combine with static bounds, and keep the target parameter free. Similarity accepts
+  a positive absolute tolerance or a percentage between 0 and 100, exclusive, of
+  the source's absolute value. Reject cyclic or infeasible constraints explicitly;
+  cross-spectrum relations require all referenced spectra in a global fit.
+
+### Changed
+
+- Rename the default spectrum source to **Same spectrum as this parameter**, and
+  group fixed spectrum choices under series headings in project order, using the
+  shared spectrum selector style.
+- Show the target parameter and the full relation explicitly in **Set link…**;
+  advanced expressions are editable and quick relationship expressions are read-only.
+- Report physical parameter covariance and marginal confidence intervals for dynamic
+  constraints, including uncertainty from a moving source. Export current effective
+  bounds separately from global limits and use global limits in uncertainty diagnostics.
+
+### Documentation
+
+- Explain the expression builder, relative and fixed reference copying, quick
+  source-dependent bounds, tolerance units, and fitting requirements in the manual,
+  Quick Start, and README.
 
 ## [0.34.0] - 2026-10-01
 

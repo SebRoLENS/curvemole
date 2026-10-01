@@ -98,11 +98,28 @@ Check **Fixed** to hold a parameter. A link such as
 `${curve_id.component_id.center}` can connect parameters in the same or another
 spectrum.
 
-In **Set link…**, keep **This spectrum (follows copies)** to make a link local:
-copying Gaussian2's link to Gaussian1 into another spectrum uses Gaussian1 in
-that destination. Choose **Specific spectrum: spectrum name** to keep pointing
-to the chosen spectrum after copying. Cross-spectrum links require **Global
-simultaneous** fitting. The dialog previews the source and explains this choice.
+In **Set link…**, keep **Same spectrum as this parameter** to make a reference
+local: copying Gaussian2's link to Gaussian1 into another spectrum uses Gaussian1
+in that destination. The **Source spectrum** menu groups fixed spectrum choices
+by series, in project order. Selecting one under **Specific spectrum (fixed when
+copied)** keeps pointing to that spectrum after copying.
+
+For a multi-parameter relation, select **Advanced expression**, then select a
+**Source function** and **Source parameter** and click **Add**. Type operators and
+parentheses between references. To link Gaussian1's centre to the mean of Gaussian2
+and Gaussian3, type `(`, add Gaussian2's `center`, type ` + `, add Gaussian3's
+`center`, then type `) / 2`. The editable field shows `center =` and the readable
+references. Changing the source selection does not alter references already added;
+each retains its own local or fixed copy behavior.
+
+Quick relationships also offer **At least source**, **At most source**, and **Similar
+to source**. These keep the target free within source-dependent hard bounds, updated
+throughout fitting and combined with its ordinary Lower/Upper bounds. **Similar**
+uses a positive absolute tolerance or a positive percentage below 100 of
+`abs(source)`. **Equal to source** and advanced expressions instead derive the target
+value; their displayed relations make the dependency explicit. Cross-spectrum
+relations require **Global simultaneous** fitting with every referenced spectrum
+included. Dependency cycles and infeasible bounds are rejected with explicit errors.
 
 Use **Select all** or **Select all except backgrounds** in **Model & Parameters**
 to select displayed functions for batch editing. Enable **Show all functions** to

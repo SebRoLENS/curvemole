@@ -130,6 +130,10 @@ def run_workflow(
                 parameter.fixed = bool(rules.get("fixed", False))
                 parameter.link = rules.get("link")
                 parameter.link_scope = rules.get("link_scope", "relative")
+                parameter.link_reference_scopes = list(rules.get("link_reference_scopes", []))
+                parameter.link_relation = rules.get("link_relation", "equal")
+                parameter.link_tolerance = float(rules.get("link_tolerance", 0.0))
+                parameter.link_tolerance_mode = rules.get("link_tolerance_mode", "absolute")
                 parameter.validate()
             model.add(component)
 
@@ -209,6 +213,11 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
                                     "maximum": parameter.maximum,
                                     "fixed": parameter.fixed,
                                     "link": parameter.link,
+                                    "link_scope": parameter.link_scope,
+                                    "link_reference_scopes": list(parameter.link_reference_scopes),
+                                    "link_relation": parameter.link_relation,
+                                    "link_tolerance": parameter.link_tolerance,
+                                    "link_tolerance_mode": parameter.link_tolerance_mode,
                                 }
                                 for name, parameter in component.parameters.items()
                             },

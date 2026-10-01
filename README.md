@@ -9,7 +9,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.23077685"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23077685.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -22,7 +22,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.34.0 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.35.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 
@@ -133,8 +133,14 @@ to releases.
 - opt-in automatic folder import of new acquisition files, with filename filtering,
   stable-file checks, and optional processing by a trusted plugin
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
-- intuitive link sources: **This spectrum** follows copied functions by default;
-  **Specific spectrum** keeps its original source, with a preview in **Set link…**
+- readable multi-parameter links: choose functions and parameters, click **Add**, and
+  combine their references in an editable expression with an explicit target value
+- series-grouped source choices: **Same spectrum as this parameter** follows copied
+  functions by default; specific spectra stay fixed, with copy behavior retained
+  separately for each inserted reference
+- quick equality, **At least**, **At most**, and **Similar** relationships; the latter
+  three keep the target free within hard source-dependent bounds, combined with its
+  static bounds and updated throughout fitting
 - independent, propagating sequential, and global simultaneous least-squares
   fitting, with configurable safeguards and durable pause/resume
 - local least-squares methods, differential evolution with local refinement,
@@ -276,17 +282,19 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.34.0**
+Current public version: **0.35.0**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.34.0)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23077685
+Zenodo archival for version **0.35.0** is pending. The release DOI will be
+inserted here automatically when the record is available. Until then, use the
+versioned GitHub release below.
 
-DOI: [**10.5281/zenodo.23077685**](https://doi.org/10.5281/zenodo.23077685)
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.35.0)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.35.0
 
 ## License
 

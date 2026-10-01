@@ -47,7 +47,8 @@ def test_bound_coverage_and_missing_results_never_green(gaussian_curve):
     p, b = setup(gaussian_curve)
     record = b.to_dict()
     path = next(iter(record["parameters"]))
-    record["parameters"][path].update(value=.5, minimum=0, maximum=1)
+    record["parameters"][path].update(value=.5, minimum=0, maximum=1,
+                                      global_minimum=0, global_maximum=1)
     a = dict(parameter_paths=[path], intervals={path:[0., 1.]}, completed=200, failed=0)
     r = summarize(p, record, a, "block_bootstrap")[0]
     assert r["status"] == "Critical" and "80%" in r["reasons"]

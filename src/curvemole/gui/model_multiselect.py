@@ -785,11 +785,18 @@ def _install_main_window() -> None:
             parameter.link,
             window,
             current_scope=parameter.link_scope,
+            current_reference_scopes=parameter.link_reference_scopes,
+            current_relation=parameter.link_relation,
+            current_tolerance=parameter.link_tolerance,
+            current_tolerance_mode=parameter.link_tolerance_mode,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         window.apply_parameter_link(curve_id, component_id, name,
-                                    dialog.selected_link(), dialog.selected_link_scope())
+                                    dialog.selected_link(), dialog.selected_link_scope(),
+                                    reference_scopes=dialog.selected_reference_scopes(),
+                                    relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
+                                    tolerance_mode=dialog.selected_tolerance_mode())
 
     MainWindow._set_component = set_component
     MainWindow.duplicate_component = duplicate_component

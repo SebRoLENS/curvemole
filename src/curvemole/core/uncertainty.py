@@ -15,15 +15,18 @@ import numpy as np
 
 from curvemole.core.data import Curve
 from curvemole.core.diagnostics import estimate_block_length
-from curvemole.core.errors import FitError
+from curvemole.core.errors import ConstraintError, FitError
+from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import (
     CancellationToken,
+    FitMode,
     FitPlan,
     FitResult,
     Fitter,
     _ProcessCancellationToken,
 )
 from curvemole.core.models import Model
+from curvemole.core.parameters import resolve_parameter_values
 
 
 @dataclass(slots=True)
@@ -146,13 +149,21 @@ def _resample_trial(
     cancellation.raise_if_cancelled()
     rng = np.random.default_rng(seed)
     trial_models = {key: model.clone() for key, model in models.items()}
+    try:
+        resolved = resolve_parameter_values({
+            path: parameter
+            for curve_id, model in trial_models.items()
+            for path, parameter in model.parameter_map(curve_id).items()
+        })
+    except ConstraintError as exc:
+        return None, str(exc)
     trial_curves: dict[str, Curve] = {}
     for curve_id in plan.curve_ids:
         curve = curves[curve_id]
         trial = copy.deepcopy(curve)
         output = baseline.curve_outputs[curve_id]
-        full_fit = np.asarray(models[curve_id].evaluate(
-            curve.x, curve_id=curve_id, registry=fitter.registry))
+        full_fit = np.asarray(trial_models[curve_id].evaluate(
+            curve.x, curve_id=curve_id, values=resolved, registry=fitter.registry))
         if method == "parametric_monte_carlo":
             sigma = curve.current_sigma_y
             assert sigma is not None
@@ -184,7 +195,7 @@ def _resample_trial(
         if result.success:
             return [result.parameters[path].value for path in baseline.free_parameter_paths], None
         return None, result.message
-    except FitError as exc:
+    except (FitError, ConstraintError) as exc:
         return None, str(exc)
 
 
@@ -245,7 +256,7 @@ def _profile_trial(
                 residual /= math.sqrt(len(residual))
             chi = float(np.dot(residual, residual))
         return max(0.0, chi - baseline_chi)
-    except FitError:
+    except (FitError, ConstraintError):
         return None
 
 
@@ -419,11 +430,21 @@ class UncertaintyAnalyzer:
         cancellation: CancellationToken | None = None,
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ProfileResult:
+        if baseline.mode == FitMode.GLOBAL and len(baseline.curve_outputs) > 1:
+            for path, estimate in baseline.parameters.items():
+                if estimate.link and any(
+                    reference.split(".", 1)[0] != path.split(".", 1)[0]
+                    for reference in SafeExpression.compile(estimate.link).references
+                ):
+                    raise FitError(
+                        "Profile likelihood for linked spectra requires a joint profile. "
+                        "Use Monte Carlo or bootstrap for this global fit."
+                    )
         if parameter_path not in model.parameter_map(curve.id):
             raise FitError(f"Unknown profile parameter: {parameter_path}")
         parameter = model.parameter_map(curve.id)[parameter_path]
-        if parameter.link:
-            raise FitError("Profile likelihood requires an independent, non-linked parameter.")
+        if parameter.link and parameter.link_relation == "equal":
+            raise FitError("Profile likelihood requires a free parameter, not an equality-linked parameter.")
         estimate = baseline.parameters.get(parameter_path)
         error = estimate.standard_error if estimate else None
         span = 3 * error if error and error > 0 else max(abs(parameter.value) * 0.25, 1.0)

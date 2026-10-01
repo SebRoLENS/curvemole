@@ -1760,28 +1760,52 @@ class MainWindow(QMainWindow):
             parameter.link,
             self,
             current_scope=parameter.link_scope,
+            current_reference_scopes=parameter.link_reference_scopes,
+            current_relation=parameter.link_relation,
+            current_tolerance=parameter.link_tolerance,
+            current_tolerance_mode=parameter.link_tolerance_mode,
         )
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         self.apply_parameter_link(self.active_curve_id, component_id, name,
-                                  dialog.selected_link(), dialog.selected_link_scope())
+                                  dialog.selected_link(), dialog.selected_link_scope(),
+                                  reference_scopes=dialog.selected_reference_scopes(),
+                                  relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
+                                  tolerance_mode=dialog.selected_tolerance_mode())
 
     def apply_parameter_link(self, curve_id: str, component_id: str, name: str,
-                             link: str | None, scope: str) -> None:
+                             link: str | None, scope: str, *,
+                             reference_scopes: list[str] | None = None,
+                             relation: str = "equal", tolerance: float = 0.0,
+                             tolerance_mode: str = "absolute") -> None:
         """Apply the expression and its copy behavior as one validated undoable edit."""
         parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
-        before = (parameter.link, parameter.link_scope)
-        after = (link, scope if link else "relative")
+        before = (parameter.link, parameter.link_scope, list(parameter.link_reference_scopes),
+                  parameter.link_relation, parameter.link_tolerance, parameter.link_tolerance_mode,
+                  parameter.value)
+        after = (link, scope if link else "relative", list(reference_scopes or []) if link else [],
+                 relation if link else "equal", tolerance if link else 0.0,
+                 tolerance_mode if link else "absolute", parameter.value)
         if before == after:
             return
 
         def assign(value):
             target = self.project.model_for(curve_id).component(component_id).parameters[name]
-            target.link, target.link_scope = value
+            (target.link, target.link_scope, scopes, target.link_relation,
+             target.link_tolerance, target.link_tolerance_mode, target.value) = value
+            target.link_reference_scopes = list(scopes)
 
         try:
+            source_values = self.project.resolved_parameter_values() if link and relation != "equal" else {}
             assign(after)
             parameter.validate()
+            if link and relation != "equal":
+                from curvemole.core.expressions import SafeExpression
+
+                source_path = SafeExpression.compile(link).references[0]
+                lower, upper = parameter.link_bounds(source_values[source_path])
+                after = (*after[:-1], min(max(parameter.value, lower), upper))
+                assign(after)
             self._validate_all_links()
         except Exception as exc:
             assign(before)
@@ -2635,10 +2659,10 @@ class MainWindow(QMainWindow):
         component = self.project.model_for(self.active_curve_id).component(component_id)
         centre_parameter = component.parameters.get("center")
         area_parameter = component.parameters.get("area")
-        if centre_parameter and centre_parameter.link:
+        if centre_parameter and centre_parameter.link and centre_parameter.link_relation == "equal":
             self._linked_notice(centre_parameter.link)
             return
-        if area_parameter and area_parameter.link:
+        if area_parameter and area_parameter.link and area_parameter.link_relation == "equal":
             self._linked_notice(area_parameter.link)
             return
         changes: list[tuple[Any, float, float]] = []
@@ -2646,7 +2670,8 @@ class MainWindow(QMainWindow):
             if centre_parameter.fixed and not control:
                 self._fixed_notice()
             else:
-                new_centre = min(max(centre, centre_parameter.minimum), centre_parameter.maximum)
+                lower, upper = self._parameter_edit_bounds(centre_parameter)
+                new_centre = min(max(centre, lower), upper)
                 changes.append((centre_parameter, centre_parameter.value, new_centre))
         if area_parameter:
             if area_parameter.fixed and not control:
@@ -2654,7 +2679,8 @@ class MainWindow(QMainWindow):
             else:
                 try:
                     new_area = area_for_height(component, height, registry=self.registry)
-                    new_area = min(max(new_area, area_parameter.minimum), area_parameter.maximum)
+                    lower, upper = self._parameter_edit_bounds(area_parameter)
+                    new_area = min(max(new_area, lower), upper)
                     changes.append((area_parameter, area_parameter.value, new_area))
                 except Exception as exc:
                     self._show_error(self.tr("Peak drag"), exc)
@@ -2662,17 +2688,7 @@ class MainWindow(QMainWindow):
         if not changes:
             self.refresh_all()
             return
-        self.undo_stack.beginMacro(self.tr("Drag peak"))
-        for parameter, old, new in changes:
-            self.undo_stack.push(
-                CallbackCommand(
-                    self.tr("Drag peak parameter"),
-                    lambda parameter=parameter, new=new: setattr(parameter, "value", new),
-                    lambda parameter=parameter, old=old: setattr(parameter, "value", old),
-                )
-            )
-        self.undo_stack.endMacro()
-        self._after_edit()
+        self._apply_parameter_drag_changes(changes, self.tr("Drag peak"))
 
     def drag_width(self, component_id: str, fwhm: float, control: bool) -> None:
         if not self.active_curve_id or fwhm <= 0:
@@ -2696,24 +2712,15 @@ class MainWindow(QMainWindow):
         changes = []
         for name, value in names_and_values:
             parameter = component.parameters[name]
-            if parameter.link:
+            if parameter.link and parameter.link_relation == "equal":
                 self._linked_notice(parameter.link)
                 return
             if parameter.fixed and not control:
                 self._fixed_notice()
                 return
-            changes.append((parameter, parameter.value, min(max(value, parameter.minimum), parameter.maximum)))
-        self.undo_stack.beginMacro(self.tr("Drag peak width"))
-        for parameter, old, new in changes:
-            self.undo_stack.push(
-                CallbackCommand(
-                    self.tr("Change width"),
-                    lambda parameter=parameter, new=new: setattr(parameter, "value", new),
-                    lambda parameter=parameter, old=old: setattr(parameter, "value", old),
-                )
-            )
-        self.undo_stack.endMacro()
-        self._after_edit()
+            lower, upper = self._parameter_edit_bounds(parameter)
+            changes.append((parameter, parameter.value, min(max(value, lower), upper)))
+        self._apply_parameter_drag_changes(changes, self.tr("Drag peak width"))
 
     def drag_spline_node(
         self, component_id: str, node: int, value: float, control: bool
@@ -2724,20 +2731,42 @@ class MainWindow(QMainWindow):
         parameter = component.parameters.get(f"y{node}")
         if parameter is None:
             return
-        if parameter.link:
+        if parameter.link and parameter.link_relation == "equal":
             self._linked_notice(parameter.link)
             return
         if parameter.fixed and not control:
             self._fixed_notice()
             self.refresh_all()
             return
-        value = min(max(value, parameter.minimum), parameter.maximum)
+        lower, upper = self._parameter_edit_bounds(parameter)
+        value = min(max(value, lower), upper)
         old = parameter.value
-        self._push_change(
-            self.tr("Drag spline node"),
-            lambda: setattr(parameter, "value", value),
-            lambda: setattr(parameter, "value", old),
-        )
+        self._apply_parameter_drag_changes([(parameter, old, value)], self.tr("Drag spline node"))
+
+    def _parameter_edit_bounds(self, parameter) -> tuple[float, float]:
+        if parameter.link and parameter.link_relation != "equal":
+            from curvemole.core.expressions import SafeExpression
+
+            source = SafeExpression.compile(parameter.link).references[0]
+            return parameter.link_bounds(self.project.resolved_parameter_values()[source])
+        return parameter.minimum, parameter.maximum
+
+    def _apply_parameter_drag_changes(self, changes, text: str) -> None:
+        """Validate the entire dependency graph before committing a graphical edit."""
+        def assign(position):
+            for parameter, old, new in changes:
+                parameter.value = (old, new)[position]
+
+        try:
+            assign(1)
+            self._validate_all_links()
+        except Exception as exc:
+            assign(0)
+            self._show_error(self.tr("Parameter constraint"), exc)
+            self.refresh_all()
+            return
+        assign(0)
+        self._push_change(text, lambda: assign(1), lambda: assign(0))
 
     def apply_calculator(self, request: dict[str, Any]) -> None:
         if not self._ensure_editable():

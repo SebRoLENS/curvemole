@@ -95,6 +95,10 @@ def _clone_model_for_target(
             elif not propagate_links:
                 parameter.link = None
                 parameter.link_scope = "relative"
+                parameter.link_reference_scopes = []
+                parameter.link_relation = "equal"
+                parameter.link_tolerance = 0.0
+                parameter.link_tolerance_mode = "absolute"
             if not propagate_bounds:
                 parameter.minimum = -math.inf
                 parameter.maximum = math.inf

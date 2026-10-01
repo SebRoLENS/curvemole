@@ -20,6 +20,7 @@ from scipy import optimize, stats
 from scipy.optimize._numdiff import approx_derivative
 
 from curvemole.core.data import Curve, CurveState
+from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
 from curvemole.core.models import Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
@@ -174,6 +175,12 @@ class ParameterEstimate:
     status: str
     link: str | None
     at_bound: bool = False
+    fixed: bool = False
+    link_relation: str = "equal"
+    link_tolerance: float = 0.0
+    link_tolerance_mode: str = "absolute"
+    global_minimum: float | None = None
+    global_maximum: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -412,29 +419,70 @@ class _Problem:
                         active.add(dependency)
                         pending.append(dependency)
         self.parameters = {path: value for path, value in self.parameters.items() if path in active}
-        resolve_parameter_values(self.parameters)
         self.free_paths = [path for path, parameter in self.parameters.items() if parameter.is_free]
         if not self.free_paths:
             raise FitError("The selected models contain no free parameters.")
+        self.coordinates = (
+            DynamicParameterCoordinates(self.parameters, self.free_paths)
+            if any(parameter.link and parameter.link_relation != "equal"
+                   for parameter in self.parameters.values()) else None
+        )
+        if self.coordinates is None:
+            resolve_parameter_values(self.parameters)
+        else:
+            # A newly added bound may exclude the previous starting value.
+            # Build a feasible starting point before validating the graph.
+            self.values(self.initial)
 
     @property
     def initial(self) -> np.ndarray:
+        if self.coordinates is not None:
+            return self.coordinates.initial()
         return np.asarray([self.parameters[path].value for path in self.free_paths], dtype=float)
 
     @property
     def bounds(self) -> tuple[np.ndarray, np.ndarray]:
+        if self.coordinates is not None:
+            return self.coordinates.bounds
         lower = np.asarray([self.parameters[path].minimum for path in self.free_paths], dtype=float)
         upper = np.asarray([self.parameters[path].maximum for path in self.free_paths], dtype=float)
         return lower, upper
 
     def values(self, vector: np.ndarray, *, commit: bool = False) -> dict[str, float]:
-        for path, value in zip(self.free_paths, vector, strict=True):
-            self.parameters[path].value = float(value)
+        if self.coordinates is None:
+            for path, value in zip(self.free_paths, vector, strict=True):
+                self.parameters[path].value = float(value)
+        else:
+            for path, value in self.coordinates.decode(vector).items():
+                self.parameters[path].value = float(value)
         values = resolve_parameter_values(self.parameters)
         if commit:
             for path, value in values.items():
                 self.parameters[path].value = float(value)
         return values
+
+    def physical_bounds(self, path: str, values: Mapping[str, float]) -> tuple[float, float]:
+        if self.coordinates is not None:
+            return self.coordinates.physical_bounds(path, values)
+        parameter = self.parameters[path]
+        return parameter.minimum, parameter.maximum
+
+    def physical_free_jacobian(self, vector: np.ndarray) -> np.ndarray:
+        """Differentiate physical free parameters with respect to solver coordinates."""
+        if self.coordinates is None:
+            return np.eye(len(self.free_paths))
+
+        def physical(point: np.ndarray) -> np.ndarray:
+            values = self.values(point)
+            return np.asarray([values[path] for path in self.free_paths])
+
+        try:
+            return np.atleast_2d(approx_derivative(
+                physical,
+                vector, method="2-point", bounds=self.bounds,
+            ))
+        finally:
+            self.values(vector, commit=True)
 
     def residual(self, vector: np.ndarray, *, report: bool = True) -> np.ndarray:
         self.cancellation.raise_if_cancelled()
@@ -809,6 +857,9 @@ class Fitter:
                     simplex = np.asarray(settings.nm_initial_simplex, dtype=float)
                     if simplex.shape != (len(initial) + 1, len(initial)):
                         raise FitError("Initial simplex dimension does not match the free parameters.")
+                    if problem.coordinates is not None:
+                        simplex = np.asarray([problem.coordinates.encode(vertex) for vertex in simplex])
+                        options["initial_simplex"] = simplex
                     if np.any(simplex < lower) or np.any(simplex > upper):
                         raise FitError("Initial simplex vertices must satisfy parameter bounds.")
                 minimised = optimize.minimize(
@@ -887,10 +938,20 @@ class Fitter:
             settings,
             warnings,
         )
+        if covariance is not None and problem.coordinates is not None:
+            # Saved/exported covariance is labelled with physical parameter
+            # paths, so it must not contain latent gaps or fractions.
+            transform = problem.physical_free_jacobian(least_squares.x)
+            covariance = transform @ covariance @ transform.T
+            errors = np.sqrt(np.clip(np.diag(covariance), 0, math.inf))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                correlation = covariance / np.outer(errors, errors)
+            np.fill_diagonal(correlation, 1.0)
         statistics = _global_statistics(outputs, len(problem.free_paths), settings.loss)
         if correlation is not None and correlation.size:
             upper_triangle = np.abs(correlation[np.triu_indices_from(correlation, 1)])
-            if upper_triangle.size and np.nanmax(upper_triangle) >= 0.95:
+            finite_correlations = upper_triangle[np.isfinite(upper_triangle)]
+            if finite_correlations.size and np.max(finite_correlations) >= 0.95:
                 warnings.append("At least one free-parameter correlation has |r| >= 0.95.")
         if least_squares.jac.shape[0] <= least_squares.jac.shape[1]:
             warnings.append("The fit is underdetermined or has no positive degrees of freedom.")
@@ -1093,21 +1154,31 @@ def _parameter_estimates(
 
     for path, parameter in problem.parameters.items():
         error: float | None = None
-        if path in free_index and free_errors is not None:
+        if (path in free_index and free_errors is not None
+                and not (problem.coordinates is not None and path in problem.coordinates.dynamic)):
             error = float(free_errors[free_index[path]])
-        elif parameter.link and covariance is not None:
+        elif (parameter.link and covariance is not None
+              and not (parameter.fixed and parameter.link_relation != "equal")):
             gradient = linked_gradients[path]
             variance = float(gradient @ covariance @ gradient)
             error = math.sqrt(max(variance, 0))
         value = float(values[path])
         tolerance = 1e-8 * max(1.0, abs(value))
+        minimum, maximum = problem.physical_bounds(path, values)
+        global_minimum, global_maximum = (
+            problem.coordinates.domains[path] if problem.coordinates is not None
+            else (parameter.minimum, parameter.maximum)
+        )
         at_bound = (
-            math.isfinite(parameter.minimum) and abs(value - parameter.minimum) <= tolerance
-        ) or (math.isfinite(parameter.maximum) and abs(value - parameter.maximum) <= tolerance)
+            math.isfinite(minimum) and abs(value - minimum) <= tolerance
+        ) or (math.isfinite(maximum) and abs(value - maximum) <= tolerance)
         if at_bound:
             warnings.append(f"Parameter '{path}' is at an active bound; its interval is asymmetric.")
-        ci_low = max(parameter.minimum, value - z_value * error) if error is not None else None
-        ci_high = min(parameter.maximum, value + z_value * error) if error is not None else None
+        # A confidence interval is marginal over the source's uncertainty.
+        # Its source can move together with this parameter, so current-source
+        # bounds describe the optimum, not the allowed marginal interval.
+        ci_low = max(global_minimum, value - z_value * error) if error is not None else None
+        ci_high = min(global_maximum, value + z_value * error) if error is not None else None
         parameter.standard_error = error
         parameter.ci_low = ci_low
         parameter.ci_high = ci_high
@@ -1117,11 +1188,17 @@ def _parameter_estimates(
             standard_error=error,
             ci_low=ci_low,
             ci_high=ci_high,
-            minimum=parameter.minimum,
-            maximum=parameter.maximum,
+            minimum=minimum,
+            maximum=maximum,
             status=parameter.status,
             link=parameter.link,
             at_bound=at_bound,
+            fixed=parameter.fixed and not (parameter.link and parameter.link_relation == "equal"),
+            link_relation=parameter.link_relation,
+            link_tolerance=parameter.link_tolerance,
+            link_tolerance_mode=parameter.link_tolerance_mode,
+            global_minimum=global_minimum,
+            global_maximum=global_maximum,
         )
     return estimates
 

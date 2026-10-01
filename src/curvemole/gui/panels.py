@@ -317,8 +317,10 @@ class ModelPanel(QWidget):
                 upper = QTableWidgetItem("" if math.isinf(parameter.maximum) else f"{parameter.maximum:.12g}")
                 upper.setData(Qt.ItemDataRole.UserRole, (component.id, name, "maximum"))
                 self.parameters.setItem(row, 6, upper)
-                link_button = QPushButton(self._link_button_text(parameter.link))
-                link_button.setToolTip(parameter.link or self.tr("Choose a source parameter"))
+                link_button = QPushButton(self._link_button_text(
+                    parameter.link, parameter.link_relation,
+                    parameter.link_tolerance, parameter.link_tolerance_mode))
+                link_button.setToolTip(self._link_tooltip(parameter))
                 link_button.clicked.connect(
                     lambda checked=False, component_id=component.id, parameter_name=name: (
                         self.parameterLinkRequested.emit(component_id, parameter_name)
@@ -340,7 +342,8 @@ class ModelPanel(QWidget):
         finally:
             self._updating = False
 
-    def _link_button_text(self, link: str | None) -> str:
+    def _link_button_text(self, link: str | None, relation: str = "equal",
+                          tolerance: float = 0.0, tolerance_mode: str = "absolute") -> str:
         if not link:
             return self.tr("Set link…")
         if self.project is None:
@@ -354,10 +357,33 @@ class ModelPanel(QWidget):
             curve = self.project.dataset.curve(curve_id)
             component = self.project.model_for(curve_id).component(component_id)
             exact = link.strip() == f"${{{references[0]}}}"
+            if relation != "equal":
+                symbol = {"lower": "≥", "upper": "≤", "similar": "≈"}[relation]
+                suffix = f" (± {tolerance:g}{'%' if tolerance_mode == 'percent' else ''})" if relation == "similar" else ""
+                return f"{symbol} {curve.name} / {component.name} / {parameter_name}{suffix}"
             prefix = self.tr("Linked → ") if exact else self.tr("Linked (advanced) → ")
             return prefix + f"{curve.name} / {component.name} / {parameter_name}"
         except Exception:
             return self.tr("Linked (advanced)…")
+
+    def _link_tooltip(self, parameter) -> str:
+        if not parameter.link or self.project is None:
+            return self.tr("Choose a source parameter or a parameter-dependent bound")
+        expression = parameter.link
+        try:
+            for path in SafeExpression.compile(expression).references:
+                curve_id, component_id, name = path.split(".", 2)
+                curve = self.project.dataset.curve(curve_id)
+                component = self.project.model_for(curve_id).component(component_id)
+                expression = expression.replace(f"${{{path}}}", f"{curve.name} / {component.name}.{name}")
+            symbol = {"equal": "=", "lower": "≥", "upper": "≤", "similar": "≈"}[parameter.link_relation]
+            text = f"{parameter.name} {symbol} {expression}"
+            if parameter.link_relation == "similar":
+                unit = "% of the source's absolute value" if parameter.link_tolerance_mode == "percent" else parameter.unit
+                text += f" (± {parameter.link_tolerance:g} {unit})"
+            return text
+        except Exception:
+            return expression
 
     def _component_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
         if self._updating or current is None:

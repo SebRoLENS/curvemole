@@ -89,7 +89,7 @@ def summarize(project, baseline, analysis, method):
                 flag(1, "Recorded result: data/model have changed since this fit; refit and rerun analysis.")
         except (KeyError, ValueError):
             flag(2, "The original spectrum/function no longer exists.")
-        fixed = estimate.get("status") == "fixed"
+        fixed = bool(estimate.get("fixed", False)) or estimate.get("status") == "fixed"
         finite = all(v is not None and math.isfinite(v) for v in (value, low, high))
         if fixed:
             reasons.append("Fixed parameter; uncertainty was not estimated.")
@@ -112,8 +112,10 @@ def summarize(project, baseline, analysis, method):
             if failed:
                 flag(1, f"{failed} replicates failed; the interval may be biased.")
         if finite and not fixed:
-            lower = float(estimate.get("minimum", -math.inf))
-            upper = float(estimate.get("maximum", math.inf))
+            global_lower = estimate.get("global_minimum")
+            global_upper = estimate.get("global_maximum")
+            lower = float(global_lower if global_lower is not None else estimate.get("minimum", -math.inf))
+            upper = float(global_upper if global_upper is not None else estimate.get("maximum", math.inf))
             span = high - low
             tol = max(1e-12, span * 1e-6)
             if estimate.get("at_bound") or (math.isfinite(lower) and low <= lower + tol) or (math.isfinite(upper) and high >= upper - tol):

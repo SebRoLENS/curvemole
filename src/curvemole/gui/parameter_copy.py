@@ -128,6 +128,10 @@ def copy_parameter_to_refs(
                 component_ids[source_component_id] = component_id
                 target.link = source.copied_link(source_curve_id, curve_id, component_ids)
                 target.link_scope = source.link_scope
+                target.link_reference_scopes = list(source.link_reference_scopes)
+                target.link_relation = source.link_relation
+                target.link_tolerance = source.link_tolerance
+                target.link_tolerance_mode = source.link_tolerance_mode
             target.standard_error = None
             target.ci_low = None
             target.ci_high = None

@@ -234,6 +234,14 @@ def parameter_dataframe(
                     error = getattr(estimate, "standard_error", parameter.standard_error)
                     ci_low = getattr(estimate, "ci_low", parameter.ci_low)
                     ci_high = getattr(estimate, "ci_high", parameter.ci_high)
+                    effective_minimum, effective_maximum = parameter.minimum, parameter.maximum
+                    if parameter.link and parameter.link_relation != "equal":
+                        from curvemole.core.expressions import SafeExpression
+
+                        source = SafeExpression.compile(parameter.link).references[0]
+                        effective_minimum, effective_maximum = parameter.link_bounds(parameter_values[source])
+                    effective_minimum = getattr(estimate, "minimum", effective_minimum)
+                    effective_maximum = getattr(estimate, "maximum", effective_maximum)
                     rows.append(
                         {
                             "series": series.name,
@@ -255,8 +263,24 @@ def parameter_dataframe(
                             "confidence_interval_high": ci_high,
                             "minimum": parameter.minimum,
                             "maximum": parameter.maximum,
+                            "effective_minimum": effective_minimum,
+                            "effective_maximum": effective_maximum,
+                            "global_minimum": (
+                                getattr(estimate, "global_minimum", None)
+                                if getattr(estimate, "global_minimum", None) is not None else parameter.minimum
+                            ),
+                            "global_maximum": (
+                                getattr(estimate, "global_maximum", None)
+                                if getattr(estimate, "global_maximum", None) is not None else parameter.maximum
+                            ),
+                            "fixed": parameter.fixed and not (parameter.link and parameter.link_relation == "equal"),
                             "status": parameter.status,
                             "link": parameter.link or "",
+                            "link_relation": parameter.link_relation,
+                            "link_tolerance": parameter.link_tolerance,
+                            "link_tolerance_mode": parameter.link_tolerance_mode,
+                            "link_scope": parameter.link_scope,
+                            "link_reference_scopes": json.dumps(parameter.link_reference_scopes),
                             "unit": parameter.unit,
                             "human_readable": value_with_error(value, error),
                             "derived_area": component_derived.get("area"),
