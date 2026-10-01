@@ -1274,7 +1274,7 @@ To set Gaussian1's `center` to the mean of Gaussian2's and Gaussian3's centres:
 1. open **Set link…** for Gaussian1's `center` and choose **Advanced expression**;
 2. keep **Same spectrum as this parameter** and type `(` in the expression;
 3. select Gaussian2, select `center`, and click **Add**;
-4. type ` + `, select Gaussian3 and `center`, and click **Add** again;
+4. type `+`, select Gaussian3 and `center`, and click **Add** again;
 5. type `) / 2` and check the displayed `center =` relation before accepting.
 
 The resulting relation reads `(Gaussian2.center + Gaussian3.center) / 2`, with each
