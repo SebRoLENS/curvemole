@@ -1060,7 +1060,10 @@ including selections across spectra. Mathematical composition order
 matters because operators are evaluated sequentially. \textbf{Reorder}
 sorts only this displayed list and automatic names; it preserves the
 composition order and fit. The Up/Down controls explicitly change
-composition order.
+composition order. Exported parameter rows and component trace columns
+follow this displayed order and use the current function names. Their
+values and uncertainties remain associated with the same functions,
+including models with multiplication, division or convolution.
 
 \textbf{Select all} selects every displayed function. \textbf{Select all
 except backgrounds} selects only functions that are not marked as
@@ -2222,6 +2225,18 @@ can insert any number of references and use the same parameter more than
 once. Selecting another spectrum, function or parameter does not change
 references already inserted; click \textbf{Add} to insert the new
 selection.
+
+You can also type \texttt{(Gaussian2.center\ +\ Gaussian3.center)\ /\ 2}
+directly, with or without \texttt{\$\{...\}} around individual
+references. New names use the selected \textbf{Source spectrum}; once
+recognized, each reference keeps that spectrum and copy behavior when
+the selectors change. Use \texttt{\$\{Left\ peak.center\}} for function
+names with spaces, or
+\texttt{\$\{Series\ /\ Spectrum\ /\ Function.parameter\}} for a fixed
+spectrum reference. Unknown names and duplicate matching names are
+rejected with a readable message; use \textbf{Add} to choose the exact
+source when names are ambiguous. Typed references are saved with stable
+identities, just like references inserted with Add.
 
 To set Gaussian1's \texttt{center} to the mean of Gaussian2's and
 Gaussian3's centres:
