@@ -148,6 +148,7 @@ class PlotWorkspace(QWidget):
         self._selected_curve_ids: set[str] = set()
         self._selected_component_id: str | None = None
         self._data_items: dict[str, pg.PlotDataItem] = {}
+        self._error_items: dict[str, pg.PlotDataItem] = {}
         self._component_items: dict[str, pg.PlotDataItem] = {}
         self._component_labels: list[pg.TextItem] = []
         self._component_label_specs: list[tuple[pg.TextItem, float, float]] = []
@@ -268,6 +269,13 @@ class PlotWorkspace(QWidget):
         self.residual_toggle = QCheckBox(self.tr("Residuals"))
         self.residual_toggle.setChecked(True)
         offset_controls.addWidget(self.residual_toggle)
+        self.error_bars_toggle = QCheckBox(self.tr("Error bars"))
+        self.error_bars_toggle.setChecked(True)
+        self.error_bars_toggle.setToolTip(self.tr(
+            "Show imported Y confidence intervals or 1-sigma uncertainties. "
+            "Changing visibility does not change fit weighting."))
+        self.error_bars_toggle.toggled.connect(self._error_bars_changed)
+        offset_controls.addWidget(self.error_bars_toggle)
         offset_controls.addStretch(1)
         self.coordinate_label = QLabel("x: —   y: —")
         self.coordinate_label.setMinimumWidth(210)
@@ -423,6 +431,9 @@ class PlotWorkspace(QWidget):
         self._active_curve_id = active_curve_id
         if project is not None:
             if project_changed:
+                self.error_bars_toggle.blockSignals(True)
+                self.error_bars_toggle.setChecked(bool(project.ui_state.get("show_error_bars", True)))
+                self.error_bars_toggle.blockSignals(False)
                 self.autoscale_toggle.blockSignals(True)
                 self.autoscale_mode.blockSignals(True)
                 self.autoscale_toggle.setChecked(bool(project.ui_state.get("autoscale_enabled", False)))
@@ -498,6 +509,7 @@ class PlotWorkspace(QWidget):
         self.plot.setToolTip("")
         self.residual_plot.clear()
         self._data_items.clear()
+        self._error_items.clear()
         self._component_items.clear()
         self._component_labels.clear()
         self._component_label_specs.clear()
@@ -542,6 +554,17 @@ class PlotWorkspace(QWidget):
             )
             item.curve_id = curve.id
             self._data_items[curve.id] = item
+            if self.error_bars_toggle.isChecked():
+                from curvemole.gui.background_navigation import _background_array
+                from curvemole.gui.data_errors import error_bar_item
+                bar_y = y
+                if getattr(self, "_background_subtracted_view", False):
+                    bar_y = y - _background_array(self, curve)
+                errors = error_bar_item(curve, x, bar_y, unmasked,
+                    colour_with_opacity(curve.colour, int(appearance["data_opacity"])))
+                if errors is not None:
+                    self.plot.addItem(errors)
+                    self._error_items[curve.id] = errors
             for mask in curve.masks.values():
                 for lower, upper in mask.ranges:
                     if math.isclose(lower, upper):
@@ -1180,6 +1203,13 @@ class PlotWorkspace(QWidget):
     def auto_range(self) -> None:
         self._fit_experimental_data(active_only=False)
 
+    def _error_bars_changed(self, *_: Any) -> None:
+        if self._project is not None:
+            self._project.ui_state["show_error_bars"] = self.error_bars_toggle.isChecked()
+        self.refresh()
+        if self.autoscale_toggle.isChecked():
+            self._apply_autoscale()
+
     def view_active(self) -> None:
         self._fit_experimental_data(active_only=True)
 
@@ -1206,11 +1236,24 @@ class PlotWorkspace(QWidget):
                 valid &= y > 0
             if not np.any(valid):
                 continue
-            x, y = x[valid], y[valid]
+            # Include displayed CI endpoints in the experimental-data range.
+            range_x, range_y = [x[valid]], [y[valid]]
+            if self.error_bars_toggle.isChecked():
+                from curvemole.gui.data_errors import y_error_widths
+                widths = y_error_widths(curve)
+                if widths is not None:
+                    minus, plus = widths
+                    keep = valid & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
+                    range_y.extend((y[keep]-minus[keep], y[keep]+plus[keep]))
+                if curve.current_sigma_x is not None:
+                    sx = curve.current_sigma_x
+                    keep = valid & np.isfinite(sx) & (sx > 0)
+                    range_x.extend((x[keep]-sx[keep], x[keep]+sx[keep]))
+            x, y = np.concatenate(range_x), np.concatenate(range_y)
             if log_x:
-                x = np.log10(x)
+                x = np.log10(x[x > 0])
             if log_y:
-                y = np.log10(y)
+                y = np.log10(y[y > 0])
             bounds.append((float(x.min()), float(x.max()), float(y.min()), float(y.max())))
         # Empty/all-masked data must not fall back to model bounds.
         if not bounds:

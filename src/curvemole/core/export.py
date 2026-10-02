@@ -153,6 +153,10 @@ def wide_dataframe(
                     ]
     if selection.sigma_y and curve.current_sigma_y is not None:
         columns["sigma_y"] = curve.current_sigma_y
+    if selection.sigma_y and curve.current_error_y_minus is not None:
+        columns["error_y_minus"] = curve.current_error_y_minus
+        columns["error_y_plus"] = curve.current_error_y_plus
+        columns["error_confidence_percent"] = curve.error_confidence_level * 100
     if selection.weights and curve.weights is not None:
         columns["weight"] = curve.weights
     if selection.mask_flag:
@@ -486,6 +490,7 @@ def export_figure(
     transparent: bool = False,
     include_components: bool = True,
     include_residuals: bool = True,
+    include_error_bars: bool = True,
 ) -> Path:
     registry = registry or default_registry()
     destination = Path(path)
@@ -503,6 +508,18 @@ def export_figure(
     for curve in curves:
         valid = np.isfinite(curve.x) & np.isfinite(curve.y)
         line = axis.plot(curve.x[valid], curve.y[valid], color=curve.colour, linewidth=1.0, label=curve.name)[0]
+        if include_error_bars:
+            if curve.has_y_errors:
+                minus, plus = (curve.current_error_y_minus, curve.current_error_y_plus) if (
+                    curve.current_error_y_minus is not None) else (curve.current_sigma_y, curve.current_sigma_y)
+                keep = valid & ~curve.effective_mask & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
+                axis.errorbar(curve.x[keep], curve.y[keep], yerr=np.array([minus[keep], plus[keep]]),
+                              fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
+            if curve.current_sigma_x is not None:
+                sx = curve.current_sigma_x
+                keep = valid & ~curve.effective_mask & np.isfinite(sx) & (sx > 0)
+                axis.errorbar(curve.x[keep], curve.y[keep], xerr=sx[keep],
+                              fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
         masked = curve.effective_mask & valid
         if np.any(masked):
             axis.scatter(curve.x[masked], curve.y[masked], color=line.get_color(), alpha=0.25, s=8)

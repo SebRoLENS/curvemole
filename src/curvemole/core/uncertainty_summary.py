@@ -130,7 +130,8 @@ def summarize(project, baseline, analysis, method):
             if method == "profile_likelihood":
                 if baseline.get("settings", {}).get("loss", "linear") != "linear":
                     flag(1, "Chi-square profile thresholds are not calibrated for a robust-loss optimum.")
-                if curve is not None and curve.current_sigma_y is None:
+                if curve is not None and (not curve.has_y_errors or
+                        not baseline.get("settings", {}).get("use_data_errors", True)):
                     flag(1, "Profile confidence assumes calibrated noise; no absolute sigma_y was supplied.")
                 grid = analysis.get("values", [])
                 if grid and (low <= min(grid) + tol or high >= max(grid) - tol):

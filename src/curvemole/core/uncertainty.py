@@ -194,27 +194,42 @@ def _resample_trial(
         full_fit = np.asarray(trial_models[curve_id].evaluate(
             curve.x, curve_id=curve_id, values=resolved, registry=fitter.registry))
         if method == "parametric_monte_carlo":
-            sigma = curve.current_sigma_y
-            assert sigma is not None
-            synthetic = full_fit + rng.normal(0.0, sigma)
-        elif method == "residual_bootstrap":
-            residual = np.asarray(output.residual)
-            synthetic = full_fit + rng.choice(residual - np.mean(residual), size=len(curve), replace=True)
+            minus, plus = curve.y_error_scales()
+            normal = rng.normal(size=len(curve))
+            synthetic = full_fit + normal * np.where(normal >= 0, plus, minus)
         else:
-            residual = np.asarray(output.residual) - np.mean(output.residual)
-            length = max(1, min(lengths[curve_id], len(residual)))
-            blocks = []
-            count = 0
-            while count < len(residual):
-                start = int(rng.integers(0, len(residual)))
-                blocks.append(residual[(start + np.arange(length)) % len(residual)])
-                count += length
+            residual = np.asarray(output.residual)
+            # Sample standardized residuals only from fitted, unmasked rows.
+            # Reconstruct noise using each destination row's own uncertainty.
+            scales = curve.y_error_scales()
+            if scales is not None:
+                minus, plus = scales
+                residual = residual / np.where(residual >= 0,
+                    plus[output.indices], minus[output.indices])
+            residual = residual - np.mean(residual)
+            if method == "residual_bootstrap":
+                sampled = rng.choice(residual, size=len(output.indices), replace=True)
+            else:
+                length = max(1, min(lengths[curve_id], len(residual)))
+                blocks = []
+                count = 0
+                while count < len(residual):
+                    start = int(rng.integers(0, len(residual)))
+                    blocks.append(residual[(start + np.arange(length)) % len(residual)])
+                    count += length
+                sampled = np.concatenate(blocks)[:len(residual)]
+            if scales is not None:
+                sampled = sampled * np.where(sampled >= 0,
+                    plus[output.indices], minus[output.indices])
             synthetic = full_fit.copy()
-            synthetic[output.indices] += np.concatenate(blocks)[:len(residual)]
+            synthetic[output.indices] += sampled
         trial.original_x = np.asarray(curve.x).copy()
         trial.original_y = np.asarray(synthetic).copy()
+        trial.sigma_x = curve.current_sigma_x
         trial.sigma_y = (None if curve.current_sigma_y is None
                          else np.asarray(curve.current_sigma_y).copy())
+        trial.error_y_minus = curve.current_error_y_minus
+        trial.error_y_plus = curve.current_error_y_plus
         trial.transformations = []
         trial.redo_transformations = []
         trial.__post_init__()
@@ -275,9 +290,11 @@ def _profile_trial(
                 raise FitError(result.message)
             chi = float(result.statistics["chi_square"])
         else:
-            x, observed, scale, _ = curve.fit_arrays()
-            residual = observed - trial_model.evaluate(
+            x, observed, _, indices = curve.fit_arrays(use_data_errors=settings.use_data_errors)
+            fitted = trial_model.evaluate(
                 x, curve_id=curve.id, registry=fitter.registry)
+            residual = observed - fitted
+            scale = curve.residual_scale(fitted, indices, use_data_errors=settings.use_data_errors)
             if scale is not None:
                 residual = residual * scale
             residual *= math.sqrt(spectrum_weight)
@@ -375,10 +392,15 @@ class UncertaintyAnalyzer:
     ) -> ResamplingResult:
         curve_map = _curve_map(curves)
         for curve_id in plan.curve_ids:
-            if curve_map[curve_id].current_sigma_y is None:
+            curve = curve_map[curve_id]
+            if not curve.has_y_errors:
                 raise FitError(
-                    f"Parametric Monte Carlo requires absolute sigma_y for '{curve_map[curve_id].name}'."
+                    f"Parametric Monte Carlo requires sigma_y or confidence-interval Y errors for '{curve.name}'."
                 )
+            indices = baseline.curve_outputs[curve_id].indices
+            if any(np.any(~np.isfinite(scale[indices]) | (scale[indices] <= 0))
+                   for scale in curve.y_error_scales()):
+                raise FitError(f"Monte Carlo requires finite positive Y errors on fitted rows of '{curve.name}'.")
 
         return self._resample(
             "parametric_monte_carlo",
@@ -442,10 +464,15 @@ class UncertaintyAnalyzer:
         progress: Callable[[float | None, str], None] | None = None,
     ) -> ResamplingResult:
         curve_map = _curve_map(curves)
-        lengths = {
-            curve_id: block_length or estimate_block_length(baseline.curve_outputs[curve_id].residual)
-            for curve_id in plan.curve_ids
-        }
+        lengths = {}
+        for curve_id in plan.curve_ids:
+            output = baseline.curve_outputs[curve_id]
+            residual = output.residual
+            scales = curve_map[curve_id].y_error_scales()
+            if scales is not None:
+                minus, plus = scales
+                residual = residual / np.where(residual >= 0, plus[output.indices], minus[output.indices])
+            lengths[curve_id] = block_length or estimate_block_length(residual)
 
         return self._resample(
             "block_bootstrap",
@@ -563,6 +590,26 @@ class UncertaintyAnalyzer:
         extra_configuration: dict[str, Any],
         adaptive: AdaptiveReplicateSettings | None = None,
     ) -> ResamplingResult:
+        for curve_id in plan.curve_ids:
+            curve = curves[curve_id]
+            scales = curve.y_error_scales()
+            if scales is not None and any(np.any(~np.isfinite(side[baseline.curve_outputs[curve_id].indices]) |
+                                                  (side[baseline.curve_outputs[curve_id].indices] <= 0))
+                                          for side in scales):
+                raise FitError(f"Resampling requires finite positive Y errors on fitted rows for '{curve.name}'.")
+        extra_configuration = {
+            **extra_configuration,
+            "fit_uses_data_errors": plan.settings.use_data_errors,
+            "data_errors": {curve_id: {
+                "model": ("equal-tail two-sided Gaussian approximation"
+                          if curves[curve_id].current_error_y_minus is not None else
+                          "Gaussian sigma_y" if curves[curve_id].has_y_errors else "empirical residuals"),
+                "input_confidence_level": (curves[curve_id].error_confidence_level
+                    if curves[curve_id].current_error_y_minus is not None else None),
+            } for curve_id in plan.curve_ids},
+            "residual_standardization": method != "parametric_monte_carlo" and any(
+                curves[curve_id].has_y_errors for curve_id in plan.curve_ids),
+        }
         if adaptive is not None:
             adaptive.validate()
         elif replicates <= 0:

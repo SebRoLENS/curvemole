@@ -84,9 +84,12 @@ class FitSettings:
     lbfgsb_gtol: float = 1e-5
     lbfgsb_maxls: int = 20
     lbfgsb_maxcor: int = 10
+    use_data_errors: bool = True
 
     def validate(self) -> None:
         from curvemole.core.extensions import extensions
+        if not isinstance(self.use_data_errors, bool):
+            raise FitError("Use data errors must be a boolean.")
         if self.solver not in {"local", "differential_evolution", "trf", "dogbox", "lm",
                                "nelder_mead", "powell", "lbfgsb"} and not any(
                 entry.identifier == self.solver for entry in extensions.values("fit_solvers")):
@@ -402,7 +405,7 @@ class _Problem:
                 if path in self.parameters:
                     raise FitError(f"Duplicate parameter path: {path}")
                 self.parameters[path] = parameter
-            self._data[curve.id] = curve.fit_arrays()
+            self._data[curve.id] = curve.fit_arrays(use_data_errors=plan.settings.use_data_errors)
         # Only enabled model parameters and their transitive link dependencies
         # affect the objective. Disabled independent components must not add DOF.
         from curvemole.core.expressions import SafeExpression
@@ -494,7 +497,7 @@ class _Problem:
         values = self.values(vector)
         residuals: list[np.ndarray] = []
         for curve in self.curves:
-            x, observed, point_scale, _ = self._data[curve.id]
+            x, observed, point_scale, indices = self._data[curve.id]
             fitted = np.asarray(
                 self.models[curve.id].evaluate(
                     x, curve_id=curve.id, values=values, registry=self.registry
@@ -503,6 +506,9 @@ class _Problem:
             if not np.all(np.isfinite(fitted)):
                 raise FitError(f"Model for curve '{curve.name}' returned non-finite values.")
             residual = fitted - observed
+            if curve.current_error_y_minus is not None:
+                point_scale = curve.residual_scale(
+                    fitted, indices, use_data_errors=self.plan.settings.use_data_errors)
             if point_scale is not None:
                 residual = residual * point_scale
             spectrum_weight = self.plan.spectrum_weights.get(curve.id, 1.0)
@@ -544,6 +550,9 @@ class _Problem:
             )
             residual = observed - fitted
             weighted = residual.copy()
+            if curve.current_error_y_minus is not None:
+                point_scale = curve.residual_scale(
+                    fitted, indices, use_data_errors=self.plan.settings.use_data_errors)
             if point_scale is not None:
                 weighted *= point_scale
             weighted *= math.sqrt(self.plan.spectrum_weights.get(curve.id, 1.0))
@@ -1096,8 +1105,10 @@ def _covariance(
             )
         else:
             absolute = settings.absolute_sigma
+            if not settings.use_data_errors:
+                absolute = False
             if absolute is None:
-                absolute = all(curve.current_sigma_y is not None for curve in curves)
+                absolute = all(curve.has_y_errors for curve in curves)
             covariance = bread
             if not absolute:
                 covariance = covariance * float(np.dot(weighted_residual, weighted_residual)) / (

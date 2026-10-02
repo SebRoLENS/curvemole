@@ -147,9 +147,9 @@ def _robust_span(values: np.ndarray) -> float:
     return scale if math.isfinite(scale) and scale > 0 else 1.0
 
 
-def _model_nrmse(curve: Curve, model: Model, registry: Any) -> float | None:
+def _model_nrmse(curve: Curve, model: Model, registry: Any, *, use_data_errors: bool = True) -> float | None:
     try:
-        x, observed, _point_scale, _indices = curve.fit_arrays()
+        x, observed, _point_scale, _indices = curve.fit_arrays(use_data_errors=use_data_errors)
         parameters = model.parameter_map(curve.id)
         values = resolve_parameter_values(parameters)
         fitted = np.asarray(
@@ -285,7 +285,8 @@ def _fit_sequential_propagating(
         str(value) for value in getattr(plan, "ignored_component_ids", ())
     )
 
-    previous_nrmse = _model_nrmse(source_curve, source_model, fitter.registry)
+    previous_nrmse = _model_nrmse(source_curve, source_model, fitter.registry,
+                                 use_data_errors=plan.settings.use_data_errors)
     excluded = set(getattr(plan, "excluded_copy_component_ids", ()))
     copied_ids = getattr(plan, "copied_component_ids", None)
     if copied_ids is None:

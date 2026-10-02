@@ -686,13 +686,23 @@ Optional columns are:
 
 - `sigma_x`;
 - `sigma_y`;
+- Y error (confidence interval), or a pair of asymmetric Y error columns;
 - generic weight;
 - variance;
 - inverse variance.
 
-Only one of `sigma_y`, generic weight, variance, or inverse variance can be selected
+Only one of `sigma_y`, confidence-interval errors, generic weight, variance, or inverse variance can be selected
 for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
 stored in the project but is not used by the version 0.35.4 optimizer.
+
+For confidence intervals, choose **Y error (confidence interval)** and one symmetric
+half-width column, or check **Asymmetric error** and select **Y error +** and
+**Y error -** separately. Both columns contain positive magnitudes, not signed
+errors or interval endpoints: the interval is `[y - error -, y + error +]`.
+**Data error confidence** declares its central coverage (default 95%). This is
+independent of the confidence selected for fitted parameter intervals. Existing
+`sigma_y` imports continue to mean one standard deviation, regardless of this field.
+The import preview shows the supplied errors at their original confidence.
 
 The spectrum preview below the numeric table updates as you change X/Y columns,
 uncertainty mappings, delimiter, decimal separator, header or skipped rows. It plots
@@ -775,6 +785,33 @@ This distinction is intentional and is recorded in the curve metadata.
 
 Zero generic weight is allowed and gives a point zero numerical influence. A zero or
 negative `sigma_y` is invalid and excludes the row.
+
+For a confidence level $C$, interval half-widths are converted to approximate
+Gaussian scales by dividing each side by $z=\Phi^{-1}((1+C)/2)$.
+At every evaluation, a prediction above the measured value uses the upper scale;
+a prediction below uses the lower scale. Equal half-widths reproduce symmetric
+Gaussian weighting. The error arrays and confidence are saved and exported;
+plotted bars keep the supplied half-widths, rather than these converted scales.
+
+**Fit > Advanced algorithm options > Use data errors / weights in the fit** is on
+by default. Turn it off to fit without imported Y errors or point weights. Masks,
+fit ranges and spectrum-level weights remain in effect. Rows invalid only because
+of their error or point weight can then participate. The display of bars and the
+noise model of Monte Carlo remain independent of this choice.
+
+This is an approximation: two interval half-widths and a confidence level do not
+specify the full measurement distribution. The scales describe a Gaussian side
+on each side of the reported value; Monte Carlo assigns equal probability to
+the two sides, reproducing the supplied central interval. Covariance is a local
+Jacobian approximation, and asymmetrical parameter intervals should be assessed
+using resampling or a suitably calibrated profile. Correlation between measured
+points and X uncertainty are not incorporated into this Y-residual fit.
+
+Use **Error bars** above the main graph to show or hide the bars. Autoscaling
+includes their endpoints, and bars follow logarithmic, waterfall and background
+views. Scalar and curve scaling propagate widths and exchange upper/lower sides
+for negative factors. Custom and column formulas use local derivative propagation;
+for strongly nonlinear transformations this is only a local approximation.
 
 ## 7. Curves, masks, and transformations
 
@@ -1541,6 +1578,8 @@ unbounded parameters and `linear` loss. Hover over a solver to see its intended 
 
 The default remains **Local least squares (automatic)** with **linear** loss.
 **Advanced algorithm options** shows only the controls relevant to the chosen solver.
+It also contains **Use data errors / weights in the fit**, enabled by default;
+this choice applies to independent, sequential and global fitting and replica refits.
 Numeric fields accept scientific notation such as `1e-8`; tooltips explain each option.
 
 | Algorithm | Configurable controls |
@@ -1679,7 +1718,8 @@ combines all curves in the plan.
 ### 11.4 Covariance and correlation
 
 For ordinary least squares, covariance is derived from the fit Jacobian. If all
-curves provide `sigma_y`, the uncertainty is treated as absolute by default and the
+curves provide `sigma_y` or declared confidence-interval Y errors and weighting is
+enabled, the uncertainty is treated as absolute by default and the
 covariance is not rescaled by residual variance. Otherwise residual variance scales
 the covariance.
 
@@ -1820,8 +1860,13 @@ before resampling. Reports remain inspectable but are marked outdated when appro
 ### 12.1 Parametric Monte Carlo
 
 This method generates synthetic y values from the fitted model plus independent
-normal noise using the imported absolute `sigma_y` array. Every selected curve must
-therefore provide valid `sigma_y`.
+normal noise using imported absolute `sigma_y`, or a two-sided Gaussian approximation
+using the lower/upper Y error half-widths and their declared confidence. The latter
+transforms negative/positive standard-normal draws with the respective scale; it
+preserves the declared central interval and has its median at the fitted prediction.
+Every selected curve must provide valid Y errors on the fitted rows. Noise is still
+generated from these errors when weighting is turned off in the Fit dialog.
+The chosen approximation and input confidence are recorded in the analysis settings.
 
 Each synthetic data set is refitted using the local solver. The result records the
 requested, completed, and failed replicates, seed, free parameter paths, samples,
@@ -1829,14 +1874,19 @@ empirical intervals, and failure messages.
 
 ### 12.2 Residual bootstrap
 
-Residuals are centered, sampled independently with replacement, added to the fitted
-model, and refitted. This assumes residual exchangeability and can be inappropriate
-when residuals are serially correlated or heteroscedastic.
+Residuals from fitted rows are centered, sampled independently with replacement,
+added to the fitted model, and refitted. With Y errors, residuals are first
+standardized using each observation's lower/upper scale, then reconstructed with
+each destination row's appropriate scale. This accommodates the supplied relative
+noise levels without adding measurement noise a second time. Masked rows do not
+supply residuals. This assumes exchangeability of the standardized residuals and
+can be inappropriate when residuals remain serially correlated or heteroscedastic.
 
 ### 12.3 Block bootstrap
 
-The block bootstrap resamples contiguous circular residual blocks. Enter a block
-length or choose Automatic. The automatic estimate uses the first lag at which the
+The block bootstrap resamples contiguous circular residual blocks. With Y errors it
+resamples standardized residuals and restores the destination row's noise scale,
+as in residual bootstrap. Enter a block length or choose Automatic. The automatic estimate uses the first lag at which the
 absolute residual autocorrelation falls below $e^{-1}$, subject to practical limits.
 
 Block resampling is often preferable for spectra or kinetic traces with local

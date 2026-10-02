@@ -38,8 +38,11 @@ class SpectrumImportPreview(QWidget):
         self.timer.timeout.connect(self.refresh)
         dialog.x_column.currentIndexChanged.connect(self.schedule)
         dialog.y_columns.itemChanged.connect(self.schedule)
-        for combo in (dialog.sigma_x, dialog.uncertainty_column, dialog.uncertainty_kind):
+        for combo in (dialog.sigma_x, dialog.uncertainty_column, dialog.uncertainty_kind,
+                      dialog.error_plus_column, dialog.error_minus_column):
             combo.currentIndexChanged.connect(self.schedule)
+        dialog.asymmetric_error.toggled.connect(self.schedule)
+        dialog.error_confidence.valueChanged.connect(self.schedule)
         self.schedule()
 
     def schedule(self, *_):
@@ -72,8 +75,25 @@ class SpectrumImportPreview(QWidget):
                     continue
                 item = self.graph.plot(x, y, name=curve.name, pen=pg.mkPen(colours[index % len(colours)]))
                 _optimise_plot_data_item(item, adaptive=True)
+                from curvemole.gui.data_errors import error_bar_item, y_error_widths
+                errors = error_bar_item(curve, curve.x, curve.y, valid, colours[index % len(colours)])
+                if errors is not None:
+                    self.graph.addItem(errors)
                 all_x.extend((float(x.min()), float(x.max())))
+                sx = curve.current_sigma_x
+                if sx is not None:
+                    keep = valid & np.isfinite(sx) & (sx > 0)
+                    if np.any(keep):
+                        all_x.extend((float(np.min(curve.x[keep]-sx[keep])),
+                                      float(np.max(curve.x[keep]+sx[keep]))))
                 all_y.extend((float(y.min()), float(y.max())))
+                widths = y_error_widths(curve)
+                if widths is not None:
+                    minus, plus = widths
+                    keep = valid & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
+                    if np.any(keep):
+                        all_y.extend((float(np.min(curve.y[keep]-minus[keep])),
+                                      float(np.max(curve.y[keep]+plus[keep]))))
             if all_x:
                 # Range comes from full arrays, never the clipped/downsampled line.
                 self.graph.setRange(xRange=(min(all_x), max(all_x)),

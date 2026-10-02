@@ -5,6 +5,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Experimental error bars in import previews and the graph, with a display toggle.
+- Symmetric/asymmetric Y confidence-interval imports with configurable coverage
+  (95% default), reversible propagation, project storage and table exports.
+- An Advanced fit option to use or ignore imported errors/point weights; two-sided
+  Gaussian weighting and Monte Carlo, plus standardized residual/block bootstrap.
+
 ### Fixed
 
 - Coordinate GitHub workflows through one change plan; validate the prepared release

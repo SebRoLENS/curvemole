@@ -40,6 +40,9 @@ class ColumnMapping:
     weights: str | int | None = None
     variance: str | int | None = None
     inverse_variance: str | int | None = None
+    error_y_plus: str | int | None = None
+    error_y_minus: str | int | None = None
+    error_confidence_level: float = 0.95
 
     def validate(self) -> None:
         if not self.pairs and (self.x is None or not self.y):
@@ -51,10 +54,15 @@ class ColumnMapping:
             self.weights is not None,
             self.variance is not None,
             self.inverse_variance is not None,
+            self.error_y_plus is not None or self.error_y_minus is not None,
         ]
+        if (self.error_y_plus is None) != (self.error_y_minus is None):
+            raise DataValidationError("Select both error + and error − columns.")
+        if not np.isfinite(self.error_confidence_level) or not 0 < self.error_confidence_level < 1:
+            raise DataValidationError("Data error confidence must be between zero and one.")
         if sum(uncertainty_fields) > 1:
             raise DataValidationError(
-                "Choose only one of sigma_y, weights, variance, or inverse variance."
+                "Choose one uncertainty type: sigma_y, asymmetric errors, weights, variance, or inverse variance."
             )
 
 
@@ -219,6 +227,9 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             column_axes={"x": column_keys[x_name], "y": column_keys[y_name]},
             sigma_x=sigma_x,
             sigma_y=sigma_y,
+            error_y_plus=_optional_numeric(frame, mapping.error_y_plus, selected.decimal),
+            error_y_minus=_optional_numeric(frame, mapping.error_y_minus, selected.decimal),
+            error_confidence_level=mapping.error_confidence_level,
             weights=weights,
             weights_are_inverse_variance=mapping.weights is None,
             x_label=str(x_name),
@@ -233,6 +244,9 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                     "skip_rows": selected.skip_rows,
                     "x_column": str(x_name),
                     "y_column": str(y_name),
+                    "error_y_plus_column": mapping.error_y_plus,
+                    "error_y_minus_column": mapping.error_y_minus,
+                    "error_confidence_level": mapping.error_confidence_level,
                     "warnings": warnings,
                 }
             },

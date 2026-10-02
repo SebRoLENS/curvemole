@@ -2517,7 +2517,7 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Profile likelihood requires an independent single-spectrum fit."), warning=True)
                 return
             if method == "monte_carlo" and any(
-                self.project.dataset.curve(cid).current_sigma_y is None
+                not self.project.dataset.curve(cid).has_y_errors
                 for cid in plan.curve_ids
             ):
                 missing.append(curve_id)

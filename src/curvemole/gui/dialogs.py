@@ -138,12 +138,41 @@ class ImportMappingDialog(QDialog):
         uncertainty_row = QHBoxLayout()
         self.uncertainty_kind = QComboBox()
         self.uncertainty_kind.addItems(
-            [self.tr("None"), "sigma_y", self.tr("Weight"), self.tr("Variance"), self.tr("Inverse variance")]
+            [self.tr("None"), "sigma_y", self.tr("Y error (confidence interval)"),
+             self.tr("Weight"), self.tr("Variance"), self.tr("Inverse variance")]
         )
         self.uncertainty_column = QComboBox()
         uncertainty_row.addWidget(self.uncertainty_kind)
         uncertainty_row.addWidget(self.uncertainty_column)
         mapping.addLayout(uncertainty_row, 2, 1, 1, 2)
+        self.asymmetric_error = QCheckBox(self.tr("Asymmetric error"))
+        self.asymmetric_error.setToolTip(self.tr(
+            "Import positive Y error magnitudes: y − error − to y + error +, "
+            "at the confidence level declared below."))
+        mapping.addWidget(self.asymmetric_error, 3, 0, 1, 2)
+        self.error_plus_column = QComboBox()
+        self.error_minus_column = QComboBox()
+        self.error_confidence = QDoubleSpinBox()
+        self.error_confidence.setRange(0.001, 99.999)
+        self.error_confidence.setDecimals(3)
+        self.error_confidence.setValue(95)
+        self.error_confidence.setSuffix(" %")
+        self.error_plus_label = QLabel(self.tr("Y error +"))
+        self.error_minus_label = QLabel(self.tr("Y error −"))
+        self.error_confidence_label = QLabel(self.tr("Data error confidence"))
+        mapping.addWidget(self.error_plus_label, 4, 0)
+        mapping.addWidget(self.error_plus_column, 4, 1)
+        mapping.addWidget(self.error_minus_label, 4, 2)
+        mapping.addWidget(self.error_minus_column, 4, 3)
+        mapping.addWidget(self.error_confidence_label, 5, 0)
+        mapping.addWidget(self.error_confidence, 5, 1)
+        self.error_confidence.setToolTip(self.tr(
+            "Central confidence interval of the imported data errors. "
+            "This is separate from the confidence of fitted parameter intervals. "
+            "Fit and Monte Carlo use a Gaussian approximation on each side."))
+        self.asymmetric_error.toggled.connect(self._update_error_mapping)
+        self.uncertainty_kind.currentIndexChanged.connect(self._update_error_mapping)
+        self._update_error_mapping()
         layout.addWidget(mapping_box)
         y_buttons = QHBoxLayout()
         self.select_all_y_button = QPushButton(self.tr("Select all Y columns"))
@@ -191,7 +220,18 @@ class ImportMappingDialog(QDialog):
         )
         kind = self.uncertainty_kind.currentText()
         column = self.uncertainty_column.currentData()
-        if kind == "sigma_y":
+        if self.asymmetric_error.isChecked():
+            mapping.error_y_plus = self.error_plus_column.currentData()
+            mapping.error_y_minus = self.error_minus_column.currentData()
+            if mapping.error_y_plus is None or mapping.error_y_minus is None:
+                raise ValueError(self.tr("Select both Y error + and Y error − columns."))
+            mapping.error_confidence_level = self.error_confidence.value() / 100
+        elif kind == self.tr("Y error (confidence interval)"):
+            if column is None:
+                raise ValueError(self.tr("Select the Y error column."))
+            mapping.error_y_plus = mapping.error_y_minus = column
+            mapping.error_confidence_level = self.error_confidence.value() / 100
+        elif kind == "sigma_y":
             mapping.sigma_y = column
         elif kind == self.tr("Weight"):
             mapping.weights = column
@@ -200,6 +240,17 @@ class ImportMappingDialog(QDialog):
         elif kind == self.tr("Inverse variance"):
             mapping.inverse_variance = column
         return mapping
+
+    def _update_error_mapping(self, *_: Any) -> None:
+        asymmetric = self.asymmetric_error.isChecked()
+        self.uncertainty_kind.setEnabled(not asymmetric)
+        self.uncertainty_column.setEnabled(not asymmetric)
+        for widget in (self.error_plus_column, self.error_minus_column,
+                       self.error_plus_label, self.error_minus_label):
+            widget.setVisible(asymmetric)
+        confidence = asymmetric or self.uncertainty_kind.currentText() == self.tr("Y error (confidence interval)")
+        self.error_confidence.setVisible(confidence)
+        self.error_confidence_label.setVisible(confidence)
 
     def _reload(self) -> None:
         try:
@@ -241,7 +292,7 @@ class ImportMappingDialog(QDialog):
                 Qt.CheckState.Checked if column in previous_y or (not previous_y and index == 1) else Qt.CheckState.Unchecked
             )
             self.y_columns.addItem(item)
-        for combo in (self.sigma_x, self.uncertainty_column):
+        for combo in (self.sigma_x, self.uncertainty_column, self.error_plus_column, self.error_minus_column):
             old = combo.currentData()
             combo.clear()
             combo.addItem(self.tr("None"), None)
@@ -602,8 +653,16 @@ class FitPlanDialog(QDialog):
             "functions or solvers use the single-process path."))
         advanced.addRow(self.tr("CPU processes (independent fits)"), self.workers)
         advanced.addRow(self.tr("Confidence level (%)"), self.confidence)
+        self.use_data_errors = QCheckBox(self.tr("Use data errors / weights in the fit"))
+        self.use_data_errors.setChecked(settings.use_data_errors)
+        self.use_data_errors.setToolTip(self.tr(
+            "Use imported Y uncertainties or point weights. Asymmetric confidence intervals "
+            "use the upper/lower error according to the prediction at each iteration. "
+            "Uncheck for an unweighted fit; plotted errors and Monte Carlo noise are retained. "
+            "X errors are displayed but are not included in this Y-residual fit."))
         from curvemole.gui.solver_options import SolverOptions
         self.solver_options = SolverOptions(settings)
+        self.solver_options.form.insertRow(0, self.use_data_errors)
         self.advanced_scroll = QScrollArea()
         self.advanced_scroll.setWidgetResizable(True)
         self.advanced_scroll.setWidget(self.solver_options)
@@ -648,6 +707,7 @@ class FitPlanDialog(QDialog):
         self.f_scale.setText(str(defaults.f_scale))
         self.max_nfev.setValue(defaults.max_nfev)
         self.workers.setValue(defaults.workers)
+        self.use_data_errors.setChecked(defaults.use_data_errors)
         self.confidence.setValue(defaults.confidence_level * 100)
         self.de_lower_percent.setValue(defaults.de_lower_percent)
         self.de_upper_percent.setValue(defaults.de_upper_percent)
@@ -679,6 +739,7 @@ class FitPlanDialog(QDialog):
         settings.max_nfev = self.max_nfev.value()
         settings.workers = self.workers.value()
         settings.confidence_level = self.confidence.value() / 100
+        settings.use_data_errors = self.use_data_errors.isChecked()
         return FitPlan(
             curve_ids,
             self.mode.currentData(),

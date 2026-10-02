@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 from scipy import integrate
+from scipy.special import ndtri
 
 from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression
@@ -194,6 +195,13 @@ class Curve:
     _x: np.ndarray = field(init=False, repr=False)
     _y: np.ndarray = field(init=False, repr=False)
     _sigma_y_current: np.ndarray | None = field(init=False, repr=False)
+    # Half-widths of a central confidence interval, not standard deviations.
+    error_y_minus: np.ndarray | None = None
+    error_y_plus: np.ndarray | None = None
+    error_confidence_level: float = 0.95
+    _error_y_minus_current: np.ndarray | None = field(init=False, repr=False)
+    _error_y_plus_current: np.ndarray | None = field(init=False, repr=False)
+    _sigma_x_current: np.ndarray | None = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self.original_x = _array(self.original_x)  # type: ignore[assignment]
@@ -202,6 +210,14 @@ class Curve:
             raise DataValidationError("A curve requires at least two rows.")
         self.sigma_x = _array(self.sigma_x, length=len(self.original_x))
         self.sigma_y = _array(self.sigma_y, length=len(self.original_x))
+        self.error_y_minus = _array(self.error_y_minus, length=len(self.original_x))
+        self.error_y_plus = _array(self.error_y_plus, length=len(self.original_x))
+        if (self.error_y_minus is None) != (self.error_y_plus is None):
+            raise DataValidationError("Both lower and upper Y errors are required.")
+        if self.error_y_minus is not None and self.sigma_y is not None:
+            raise DataValidationError("Choose sigma_y or confidence-interval Y errors, not both.")
+        if not np.isfinite(self.error_confidence_level) or not 0 < self.error_confidence_level < 1:
+            raise DataValidationError("Data error confidence must be between zero and one.")
         self.weights = _array(self.weights, length=len(self.original_x))
         self.original_columns = {key: _array(value, length=len(self.original_x))
                                  for key, value in self.original_columns.items()}
@@ -215,6 +231,9 @@ class Curve:
             self.sigma_x.setflags(write=False)
         if self.sigma_y is not None:
             self.sigma_y.setflags(write=False)
+        for error in (self.error_y_minus, self.error_y_plus):
+            if error is not None:
+                error.setflags(write=False)
         if self.weights is not None:
             self.weights.setflags(write=False)
         if not self.masks:
@@ -255,13 +274,61 @@ class Curve:
         return view
 
     @property
+    def current_sigma_x(self) -> np.ndarray | None:
+        return self._readonly_error(self._sigma_x_current)
+
+    @property
     def invalid(self) -> np.ndarray:
         invalid = ~np.isfinite(self._x) | ~np.isfinite(self._y)
-        if self._sigma_y_current is not None:
-            invalid |= ~np.isfinite(self._sigma_y_current) | (self._sigma_y_current <= 0)
+        for error in (self._sigma_y_current, self._error_y_minus_current, self._error_y_plus_current):
+            if error is not None:
+                invalid |= ~np.isfinite(error) | (error <= 0)
         if self.weights is not None:
             invalid |= ~np.isfinite(self.weights) | (self.weights < 0)
         return invalid
+
+    @property
+    def has_y_errors(self) -> bool:
+        return self._sigma_y_current is not None or self._error_y_minus_current is not None
+
+    @property
+    def current_error_y_minus(self) -> np.ndarray | None:
+        return self._readonly_error(self._error_y_minus_current)
+
+    @property
+    def current_error_y_plus(self) -> np.ndarray | None:
+        return self._readonly_error(self._error_y_plus_current)
+
+    @staticmethod
+    def _readonly_error(array: np.ndarray | None) -> np.ndarray | None:
+        if array is None:
+            return None
+        view = array.view()
+        view.setflags(write=False)
+        return view
+
+    def y_error_scales(self) -> tuple[np.ndarray, np.ndarray] | None:
+        """Gaussian tail scales; asymmetric intervals use their declared confidence."""
+        if self._error_y_minus_current is not None:
+            z = ndtri((1 + self.error_confidence_level) / 2)
+            return self._error_y_minus_current / z, self._error_y_plus_current / z
+        if self._sigma_y_current is not None:
+            return self._sigma_y_current, self._sigma_y_current
+        return None
+
+    def residual_scale(self, fitted: np.ndarray, indices: np.ndarray,
+                       *, use_data_errors: bool = True) -> np.ndarray | None:
+        """Weight predictions above/below each observation with its upper/lower error."""
+        if not use_data_errors:
+            return None
+        scales = self.y_error_scales()
+        if scales is not None:
+            minus, plus = scales
+            return 1 / np.where(fitted >= self._y[indices], plus[indices], minus[indices])
+        if self.weights is not None:
+            values = self.weights[indices]
+            return np.sqrt(values) if self.weights_are_inverse_variance else values
+        return None
 
     @property
     def effective_mask(self) -> np.ndarray:
@@ -279,18 +346,32 @@ class Curve:
     @property
     def content_hash(self) -> str:
         digest = hashlib.sha256()
-        for array in (self._x, self._y, self.effective_mask):
-            digest.update(np.ascontiguousarray(array).tobytes())
+        for array in (self._x, self._y, self.effective_mask, self._sigma_y_current,
+                      self._error_y_minus_current, self._error_y_plus_current, self.weights):
+            digest.update(b"none" if array is None else np.ascontiguousarray(array).tobytes())
+        digest.update(repr((self.error_confidence_level, self.weights_are_inverse_variance)).encode())
         return digest.hexdigest()
 
-    def fit_arrays(self) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
-        keep = ~self.effective_mask
+    def fit_arrays(self, *, use_data_errors: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
+        if use_data_errors:
+            keep = ~self.effective_mask
+        else:
+            # Ignoring imported errors also keeps rows with invalid error/weight values.
+            excluded = ~np.isfinite(self._x) | ~np.isfinite(self._y)
+            for mask in self.masks.values():
+                excluded |= mask.excluded
+            if self.fit_ranges:
+                included = np.zeros(len(self), dtype=bool)
+                for lo, hi in self.fit_ranges:
+                    included |= (self._x >= min(lo, hi)) & (self._x <= max(lo, hi))
+                excluded |= ~included
+            keep = ~excluded
         if np.count_nonzero(keep) < 2:
             raise DataValidationError(f"Curve '{self.name}' has fewer than two usable points.")
         weight_scale: np.ndarray | None = None
-        if self._sigma_y_current is not None:
+        if use_data_errors and self._sigma_y_current is not None:
             weight_scale = 1.0 / self._sigma_y_current[keep]
-        elif self.weights is not None:
+        elif use_data_errors and self.weights is not None:
             values = self.weights[keep]
             weight_scale = np.sqrt(values) if self.weights_are_inverse_variance else values
         return self._x[keep], self._y[keep], weight_scale, np.flatnonzero(keep)
@@ -412,21 +493,82 @@ class Curve:
         x = np.asarray(self.original_x).copy()
         y = np.asarray(self.original_y).copy()
         sigma = None if self.sigma_y is None else np.asarray(self.sigma_y).copy()
+        sigma_x = None if self.sigma_x is None else self.sigma_x.copy()
+        minus = None if self.error_y_minus is None else self.error_y_minus.copy()
+        plus = None if self.error_y_plus is None else self.error_y_plus.copy()
         from curvemole.core.columns import evaluate_columns
 
         columns = {key: value.copy() for key, value in self.original_columns.items()}
         for transformation in self.transformations:
+            op, p = transformation.operation, transformation.parameters
+            derivative = None
+            target = p.get("axis") if op == "custom_formula" else p.get("target")
+            if op in {"custom_formula", "column_formula"}:
+                target = next((axis for axis in ("x", "y")
+                               if target == axis or target == self.column_axes.get(axis)), target)
+                errors = sigma_x if target == "x" else (sigma if sigma is not None else minus)
+                if target in {"x", "y"} and errors is not None:
+                    # Local propagation for arbitrary formulas; affine operations are exact.
+                    values = x if target == "x" else y
+                    step = np.cbrt(np.finfo(float).eps) * np.maximum(1, np.abs(values))
+                    endpoints = []
+                    for sign in (-1, 1):
+                        xx, yy = x.copy(), y.copy()
+                        if target == "x":
+                            xx += sign * step
+                        else:
+                            yy += sign * step
+                        if op == "column_formula":
+                            shifted_columns = {key: val.copy() for key, val in columns.items()}
+                            if target in self.column_axes:
+                                shifted_columns[self.column_axes[target]] = xx if target == "x" else yy
+                            xx, yy = evaluate_columns(p["formula"], p["target"], xx, yy,
+                                                      shifted_columns, self.column_labels, self.column_axes)
+                        else:
+                            xx, yy, _ = transformation.apply(xx, yy, None)
+                        endpoints.append(xx if target == "x" else yy)
+                    derivative = (endpoints[1] - endpoints[0]) / (2 * step)
+                    if target == "x":
+                        sigma_x *= np.abs(derivative)
+                    else:
+                        if sigma is not None:
+                            sigma *= np.abs(derivative)
+                        if minus is not None:
+                            minus, plus = (np.where(derivative < 0, plus, minus) * np.abs(derivative),
+                                           np.where(derivative < 0, minus, plus) * np.abs(derivative))
+            if op == "x_multiply" and sigma_x is not None:
+                sigma_x *= abs(float(p["value"]))
             if transformation.operation == "column_formula":
                 p = transformation.parameters
                 x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
                                         self.column_labels, self.column_axes)
             else:
+                if minus is not None and derivative is None:
+                    # Apply identical reversible scaling to both interval sides.
+                    _, _, next_minus = transformation.apply(x, y, minus)
+                    _, _, next_plus = transformation.apply(x, y, plus)
+                    factor = np.ones(len(y))
+                    op, p = transformation.operation, transformation.parameters
+                    if op == "y_multiply":
+                        factor[:] = float(p["value"])
+                    elif op == "y_divide":
+                        factor[:] = 1 / float(p["value"])
+                    elif op == "normalize_area":
+                        finite = np.isfinite(x) & np.isfinite(y)
+                        factor[:] = float(integrate.trapezoid(y[finite], x[finite]))
+                    elif op in {"curve_multiply", "curve_divide"}:
+                        factor = transformation.operand
+                    negative = factor < 0
+                    minus = np.where(negative, next_plus, next_minus)
+                    plus = np.where(negative, next_minus, next_plus)
                 x, y, sigma = transformation.apply(x, y, sigma)
             for axis, values in (("x", x), ("y", y)):
                 if axis in self.column_axes:
                     columns[self.column_axes[axis]] = values.copy()
         self._columns = columns
         self._x, self._y, self._sigma_y_current = x, y, sigma
+        self._error_y_minus_current, self._error_y_plus_current = minus, plus
+        self._sigma_x_current = sigma_x
 
     def _mask(self, name: str | None) -> Mask:
         key = name or self.active_mask
@@ -451,6 +593,7 @@ class Curve:
             "colour": self.colour,
             "state": self.state.value,
             "weights_are_inverse_variance": self.weights_are_inverse_variance,
+            "error_confidence_level": self.error_confidence_level,
             "column_keys": list(self.original_columns),
             "column_labels": self.column_labels,
             "column_axes": self.column_axes,

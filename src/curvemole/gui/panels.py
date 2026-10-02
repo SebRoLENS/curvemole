@@ -782,16 +782,23 @@ class WorksheetPanel(QWidget):
             f"{curve.name} — {rows}/{len(curve)} " + self.tr("rows shown")
         )
         self.table.setRowCount(rows)
-        self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["x", "y", "sigma_y", "weight", self.tr("masked")])
+        asymmetric = curve.current_error_y_minus is not None
+        headings = (["x", "y", "error −", "error +", "data confidence (%)", "weight", self.tr("masked")]
+                    if asymmetric else ["x", "y", "sigma_y", "weight", self.tr("masked")])
+        self.table.setColumnCount(len(headings))
+        self.table.setHorizontalHeaderLabels(headings)
         sigma = curve.current_sigma_y
+        x, y, excluded = curve.x, curve.y, curve.effective_mask
+        minus, plus = curve.current_error_y_minus, curve.current_error_y_plus
         for row in range(rows):
             values = [
-                curve.x[row],
-                curve.y[row],
-                sigma[row] if sigma is not None else None,
+                x[row],
+                y[row],
+                *([minus[row], plus[row],
+                   curve.error_confidence_level * 100] if asymmetric else
+                  [sigma[row] if sigma is not None else None]),
                 curve.weights[row] if curve.weights is not None else None,
-                bool(curve.effective_mask[row]),
+                bool(excluded[row]),
             ]
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem("" if value is None else str(value)))

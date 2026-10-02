@@ -75,6 +75,14 @@ def spectrum_export_dataframe(
         _axis_label(curve.x_label, curve.x_unit): x,
         _data_label(curve, options.subtract_background): exported_data,
     }
+    if curve.current_sigma_y is not None:
+        columns["sigma_y"] = curve.current_sigma_y
+    if curve.current_error_y_minus is not None:
+        columns["error_y_minus"] = curve.current_error_y_minus
+        columns["error_y_plus"] = curve.current_error_y_plus
+        columns["error_confidence_percent"] = np.full(len(curve), curve.error_confidence_level * 100)
+    if curve.current_sigma_x is not None:
+        columns["sigma_x"] = curve.current_sigma_x
 
     if options.include_background and model is not None and model.components:
         columns["Background"] = background

@@ -282,8 +282,15 @@ pseudo-Voigt mixing is bounded to `[0, 1]`. Original data are never overwritten.
 Masks and transformations remain visible, reversible, and serialised. CurveMole never
 silently changes the solver, excludes points, or normalises global contributions.
 
-The preview supports `sigma_y` weighting; imported `sigma_x` is stored but is not
-used in optimization. No solver guarantees a global optimum for an arbitrary nonlinear
+Experimental errors appear as bars in the import preview and main plot. Import either
+one confidence-interval error column or select **Asymmetric error** and map positive
+upper/lower half-widths. Declare their confidence (95% by default); `sigma_y` retains
+its existing one-standard-deviation meaning. **Fit > Advanced algorithm options >
+Use data errors / weights in the fit** controls weighting independently of the bars.
+Asymmetric fitting and Monte Carlo use a Gaussian approximation on each side;
+bootstrap resamples standardized residuals when data errors are supplied.
+Imported `sigma_x` is displayed but is not used in optimization.
+No solver guarantees a global optimum for an arbitrary nonlinear
 model. Inspect residuals, parameter correlations, constraints, and uncertainty results;
 see the [manual](docs/manual.md) for scientific conventions and current limitations.
 

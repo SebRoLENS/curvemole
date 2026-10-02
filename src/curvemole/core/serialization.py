@@ -69,6 +69,8 @@ def save_project(
                 for name, array in (
                     ("sigma_x.npy", curve.sigma_x),
                     ("sigma_y.npy", curve.sigma_y),
+                    ("error_y_minus.npy", curve.error_y_minus),
+                    ("error_y_plus.npy", curve.error_y_plus),
                     ("weights.npy", curve.weights),
                 ):
                     if array is not None:
@@ -143,7 +145,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                     raise ProjectFormatError(f"Cannot recover data for curve '{curve_id}': {exc}") from exc
                 optional = {
                     name: _try_array(archive, f"{prefix}/{name}.npy")
-                    for name in ("sigma_x", "sigma_y", "weights")
+                    for name in ("sigma_x", "sigma_y", "weights", "error_y_minus", "error_y_plus")
                 }
                 masks: dict[str, Mask] = {}
                 for mask_meta in curve_meta.get("masks", []):
@@ -177,6 +179,9 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                     column_axes=dict(curve_meta.get("column_axes", {})),
                     sigma_x=optional["sigma_x"],
                     sigma_y=optional["sigma_y"],
+                    error_y_minus=optional["error_y_minus"],
+                    error_y_plus=optional["error_y_plus"],
+                    error_confidence_level=curve_meta.get("error_confidence_level", 0.95),
                     weights=optional["weights"],
                     weights_are_inverse_variance=bool(
                         curve_meta.get("weights_are_inverse_variance", True)
