@@ -1,6 +1,11 @@
 name: Build desktop packages
 
 on:
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       source_ref:
@@ -10,15 +15,44 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: desktop-${{ inputs.source_ref || github.sha }}
+  cancel-in-progress: false
+  queue: max
 
 env:
   PYTHON_VERSION: "3.12"
-  PYINSTALLER_VERSION: "6.21.0"
 
 jobs:
+  preflight:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          if [[ "$SOURCE_REF" == v* ]]; then
+            python .github/scripts/release_assets.py preflight --tag "$SOURCE_REF"
+          else
+            echo 'build=true' >> "$GITHUB_OUTPUT"
+          fi
+
   prepare-icons:
+    needs: preflight
+    if: needs.preflight.outputs.build == 'true'
     name: Prepare application icons
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -26,12 +60,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: uv sync --locked --group dev
 
       - name: Generate PNG, ICO, and ICNS icons
         run: |
           mkdir -p generated-icons
-          uv run python - <<'PY'
+          uv run --no-project --with pillow==12.3.0 python - <<'PY'
           from pathlib import Path
           from PIL import Image
 
@@ -65,10 +98,15 @@ jobs:
           name: build-icons
           path: generated-icons/curvemole.*
           if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   python-packages:
+    needs: preflight
+    if: needs.preflight.outputs.build == 'true'
     name: Python wheel and source package
     runs-on: ubuntu-22.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
         with:
@@ -76,7 +114,6 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: uv sync --locked --group dev
       - run: uv build
       - uses: actions/upload-artifact@v7
         with:
@@ -85,11 +122,14 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
           if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   linux:
     name: Linux AppImage x86_64
     needs: prepare-icons
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     permissions:
       contents: write
       id-token: write
@@ -110,19 +150,20 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
-          uv sync --locked --group dev
+          uv sync --locked --no-default-groups --group packaging
 
       - name: Read version
         run: |
-          VERSION="$(uv run python -c 'from curvemole.version import __version__; print(__version__)')"
+          VERSION="$(uv run --no-sync python -c 'from curvemole.version import __version__; print(__version__)')"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build and smoke-test application
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_PACKAGING_SMOKE: "1"
           CURVEMOLE_ICON: ${{ github.workspace }}/generated-icons/curvemole.png
-        run: uv run python scripts/build_desktop.py
+        run: uv run --no-sync python scripts/build_desktop.py
 
       - name: Build AppImage
         id: appimage
@@ -179,6 +220,7 @@ jobs:
     name: Windows installer and portable x86_64
     needs: prepare-icons
     runs-on: windows-2025
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
@@ -190,7 +232,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --no-default-groups --group packaging
 
       - name: Install Inno Setup
         shell: pwsh
@@ -199,7 +241,7 @@ jobs:
       - name: Read version
         shell: pwsh
         run: |
-          $version = uv run python -c "from curvemole.version import __version__; print(__version__)"
+          $version = uv run --no-sync python -c "from curvemole.version import __version__; print(__version__)"
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build standalone executable
@@ -220,14 +262,21 @@ jobs:
             "--hidden-import", "matplotlib.backends.backend_agg",
             "src/curvemole/gui/app.py"
           )
-          uv run pyinstaller @pyinstallerArgs
+          uv run --no-sync pyinstaller @pyinstallerArgs
 
       - name: Smoke-test frozen GUI
+        timeout-minutes: 3
         shell: pwsh
         run: |
           $env:CURVEMOLE_SMOKE_TEST = "1"
+          $env:CURVEMOLE_PACKAGING_SMOKE = "1"
           $env:QT_QPA_PLATFORM = "offscreen"
-          $process = Start-Process -FilePath ".\dist\CurveMole.exe" -Wait -PassThru
+          $process = Start-Process -FilePath ".\dist\CurveMole.exe" -PassThru
+          if (-not $process.WaitForExit(120000)) {
+            Stop-Process -Id $process.Id -Force
+            throw "Frozen GUI smoke test timed out"
+          }
+          $process.Refresh()
           if ($process.ExitCode -ne 0) { throw "Frozen GUI exited with $($process.ExitCode)" }
           Move-Item ".\dist\CurveMole.exe" ".\CurveMole-$env:VERSION-windows-x86_64.exe"
 
@@ -259,6 +308,8 @@ jobs:
             CurveMole-${{ env.VERSION }}-windows-x86_64-setup.exe
             CurveMole-${{ env.VERSION }}-windows-x86_64-portable.zip
           if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   macos:
     name: macOS DMG ${{ matrix.arch }}
@@ -272,6 +323,7 @@ jobs:
           - runner: macos-15-intel
             arch: x86_64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
         with:
@@ -283,21 +335,23 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --no-default-groups --group packaging
 
       - name: Read version
         run: |
-          VERSION="$(uv run python -c 'from curvemole.version import __version__; print(__version__)')"
+          VERSION="$(uv run --no-sync python -c 'from curvemole.version import __version__; print(__version__)')"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
 
       - name: Build and smoke-test application
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_PACKAGING_SMOKE: "1"
           CURVEMOLE_ICON: ${{ github.workspace }}/generated-icons/curvemole.icns
-        run: uv run python scripts/build_desktop.py
+        run: uv run --no-sync python scripts/build_desktop.py
 
       - name: Package, sign, and notarize macOS application
+        id: signing
         env:
           MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -308,18 +362,29 @@ jobs:
           bash packaging/macos/package_and_notarize.sh \
             "dist/CurveMole.app" \
             "CurveMole-${VERSION}-macos-${{ matrix.arch }}.dmg"
+          python - <<'STATUS'
+          import json, os
+          from pathlib import Path
+          keys = ('MACOS_CERTIFICATE', 'MACOS_CERTIFICATE_PASSWORD', 'APPLE_ID', 'APPLE_APP_SPECIFIC_PASSWORD', 'APPLE_TEAM_ID')
+          Path('macos-signing-${{ matrix.arch }}.json').write_text(json.dumps({'signed': all(os.environ.get(key) for key in keys)}))
+          STATUS
 
       - uses: actions/upload-artifact@v7
         with:
           name: release-macos-${{ matrix.arch }}
-          path: CurveMole-${{ env.VERSION }}-macos-${{ matrix.arch }}.dmg
+          path: |
+            CurveMole-${{ env.VERSION }}-macos-${{ matrix.arch }}.dmg
+            macos-signing-${{ matrix.arch }}.json
           if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
 
   publish-release-assets:
     name: Attach packages to tagged release
     if: startsWith(inputs.source_ref, 'v')
     needs: [python-packages, linux, windows, macos]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:
@@ -345,27 +410,8 @@ jobs:
           test -n "$(find release-assets -maxdepth 1 -name '*.AppImage' -print -quit)"
           test -n "$(find release-assets -maxdepth 1 -name '*.AppImage.sigstore.json' -print -quit)"
 
-      - name: Add versioned manuals
-        shell: bash
-        run: |
-          VERSION="${{ inputs.source_ref }}"
-          VERSION="${VERSION#v}"
-          cp docs/CurveMole_User_Manual.pdf \
-            "release-assets/CurveMole-${VERSION}-User-Manual.pdf"
-          cp docs/CurveMole_User_Manual.tex \
-            "release-assets/CurveMole-${VERSION}-User-Manual.tex"
-
-      - name: Generate SHA-256 checksums
-        run: |
-          cd release-assets
-          sha256sum * > SHA256SUMS.txt
-          # Linux files are already attached. Keep only the other packages and
-          # checksums in the final upload to avoid replacing signed assets.
-          rm -- *-linux-x86_64.AppImage *-linux-x86_64.AppImage.sigstore.json
-
-      - name: Upload packages to GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ inputs.source_ref }}
-          files: release-assets/*
-          fail_on_unmatched_files: true
+      - name: Verify all assets and publish the completed draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.source_ref }}
+        run: python .github/scripts/release_assets.py finalize --tag "$RELEASE_TAG"

@@ -15,6 +15,7 @@ PYPROJECT = ROOT / "pyproject.toml"
 README = ROOT / "README.md"
 MANUAL = ROOT / "docs" / "manual.md"
 CITATION = ROOT / "CITATION.cff"
+CHANGELOG = ROOT / "CHANGELOG.md"
 
 SEMVER_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 VERSION_RE = re.compile(r'^__version__\s*=\s*"(\d+\.\d+\.\d+)"', re.M)
@@ -247,6 +248,12 @@ def apply_version(version: str) -> None:
     update_readme(version)
     update_manual(version)
     update_citation(version)
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+    if f"## [{version}]" not in changelog:
+        changelog = changelog.replace(
+            "## [Unreleased]", f"## [Unreleased]\n\n## [{version}] - {dt.date.today().isoformat()}", 1
+        )
+        CHANGELOG.write_text(changelog, encoding="utf-8")
 
 
 def main() -> None:

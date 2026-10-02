@@ -1,0 +1,34 @@
+name: Restore original release manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published vMAJOR.MINOR.PATCH tag whose original manual must be restored
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-${{ inputs.tag }}
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  restore:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - name: Keep the current restoration tool before selecting historical source
+        run: cp .github/scripts/release_assets.py "$RUNNER_TEMP/release_assets.py"
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Restore only original tagged manuals and their checksum entries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: python "$RUNNER_TEMP/release_assets.py" repair-manual --tag "$RELEASE_TAG"

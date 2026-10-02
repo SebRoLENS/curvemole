@@ -9,52 +9,64 @@ permissions:
   contents: read
 
 jobs:
-  core:
-    name: Python ${{ matrix.python }} / ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, windows-2022, macos-14]
-        python: ["3.12"]
-        include:
-          - os: ubuntu-22.04
-            python: "3.13"
-          - os: ubuntu-22.04
-            python: "3.14"
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install Linux GUI libraries
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ matrix.python }}
-          enable-cache: true
-      - name: Install
-        run: uv sync --locked --group dev
-      - name: Lint
-        run: uv run ruff check .
-      - name: Tests
-        timeout-minutes: 4
-        env:
-          QT_QPA_PLATFORM: offscreen
-          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run pytest -vv -o faulthandler_timeout=60 --cov=curvemole --cov-report=term-missing
-
-  minimum-linux:
-    name: Ubuntu 22.04 GUI smoke test
+  plan:
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      release: ${{ steps.plan.outputs.release }}
+      documentation: ${{ steps.plan.outputs.documentation }}
+      screenshots: ${{ steps.plan.outputs.screenshots }}
+      plugins: ${{ steps.plan.outputs.plugins }}
+      candidate: ${{ steps.plan.outputs.candidate }}
     steps:
       - uses: actions/checkout@v6
-      - name: Install Linux GUI libraries
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
-      - uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-      - run: uv sync --locked --group dev
-      - name: Qt smoke test
-        env:
-          QT_QPA_PLATFORM: offscreen
-          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run pytest tests/test_gui_smoke.py
+          fetch-depth: 1
+      - id: plan
+        run: python .github/scripts/workflow_plan.py
+
+  validate:
+    needs: plan
+    if: needs.plan.outputs.release != 'true'
+    uses: ./.github/workflows/validate.yml
+    with:
+      source_ref: ${{ github.sha }}
+
+  release:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    permissions:
+      contents: write
+      actions: write
+      id-token: write
+      attestations: write
+    uses: ./.github/workflows/automatic-release.yml
+    with:
+      source_ref: ${{ github.sha }}
+    secrets: inherit
+
+  documentation:
+    needs: plan
+    if: needs.plan.outputs.documentation == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/documentation.yml
+    with:
+      source_ref: ${{ github.sha }}
+      refresh_screenshots: ${{ needs.plan.outputs.screenshots == 'true' }}
+
+  plugins:
+    needs: plan
+    if: needs.plan.outputs.plugins == 'true'
+    permissions:
+      contents: write
+    uses: ./.github/workflows/community-plugins.yml
+    with:
+      source_ref: ${{ github.sha }}
+
+  candidate:
+    needs: plan
+    if: needs.plan.outputs.candidate == 'true'
+    uses: ./.github/workflows/test-linux-candidate.yml
+    with:
+      source_ref: ${{ github.sha }}

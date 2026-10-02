@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -239,7 +239,24 @@ dev = [
     { name = "pyinstaller" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "pyyaml" },
     { name = "ruff" },
+]
+lint = [
+    { name = "pyyaml" },
+    { name = "ruff" },
+]
+packaging = [
+    { name = "pillow" },
+    { name = "pyinstaller" },
+]
+screenshots = [
+    { name = "pillow" },
+]
+test = [
+    { name = "pillow" },
+    { name = "pytest" },
+    { name = "pytest-cov" },
 ]
 
 [package.metadata]
@@ -262,7 +279,22 @@ dev = [
     { name = "pyinstaller", specifier = ">=6.10" },
     { name = "pytest", specifier = ">=8.2" },
     { name = "pytest-cov", specifier = ">=5.0" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "ruff", specifier = ">=0.6" },
+]
+lint = [
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "ruff", specifier = ">=0.6" },
+]
+packaging = [
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "pyinstaller", specifier = ">=6.10" },
+]
+screenshots = [{ name = "pillow", specifier = ">=10.4" }]
+test = [
+    { name = "pillow", specifier = ">=10.4" },
+    { name = "pytest", specifier = ">=8.2" },
+    { name = "pytest-cov", specifier = ">=5.0" },
 ]
 
 [[package]]

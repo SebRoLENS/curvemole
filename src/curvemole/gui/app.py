@@ -522,6 +522,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         missing_icons = _missing_toolbar_icons(window)
         if missing_icons:
             raise RuntimeError(f"Missing bundled toolbar icons: {', '.join(missing_icons)}")
+        if os.environ.get("CURVEMOLE_PACKAGING_SMOKE") == "1":
+            from curvemole.core.packaging_smoke import run_packaging_smoke
+
+            run_packaging_smoke()
         QTimer.singleShot(0, app.quit)
     if len(arguments) > 1:
         _open_paths(window, arguments[1:])

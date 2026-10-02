@@ -1,9 +1,11 @@
 name: Community plugins
 
 on:
-  pull_request:
-  push:
-    branches: [main]
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
   workflow_dispatch:
 
 # Community code never receives secrets or a writable repository token.
@@ -24,6 +26,7 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
       - name: Linux Qt libraries
         if: runner.os == 'Linux'
@@ -32,12 +35,12 @@ jobs:
         with:
           python-version: '3.12'
           enable-cache: false
-      - run: uv sync --locked --group dev
+      - run: uv sync --locked --no-default-groups --group test
       - name: Manifest, registration, removal and functional tests
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run python scripts/validate_community_plugins.py
+        run: uv run --no-sync python scripts/validate_community_plugins.py
       - uses: actions/upload-artifact@v4
         with:
           name: plugin-check-${{ matrix.os }}
@@ -56,6 +59,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
@@ -93,7 +97,8 @@ jobs:
           name: validated-community-plugins
           path: build/validated-community-plugins
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 14
+          compression-level: 0
 
       - name: Create direct-download ZIP files
         shell: python
@@ -117,7 +122,8 @@ jobs:
           name: community-plugin-downloads
           path: build/plugin-downloads
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 14
+          compression-level: 0
 
   publish-downloads:
     name: Publish stable plugin downloads
@@ -130,6 +136,7 @@ jobs:
     concurrency:
       group: community-plugin-downloads
       cancel-in-progress: false
+      queue: max
     steps:
       # This privileged job never checks out, imports or executes plugin code.
       - uses: actions/download-artifact@v4
@@ -140,14 +147,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TESTED_SHA: ${{ github.sha }}
+          TESTED_SHA: ${{ inputs.source_ref || github.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
           if [ "$current_main" != "$TESTED_SHA" ]; then
             relevant_changes=$(gh api "repos/$GH_REPO/compare/$TESTED_SHA...$current_main" \
-              --jq '[.files[].filename | select(startswith("custom_plugins/") or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
+              --jq '[.files[].filename | select(startswith("custom_plugins/") or startswith("src/curvemole/core/") or . == "src/curvemole/__init__.py" or . == "pyproject.toml" or . == "uv.lock" or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
             if [ "$relevant_changes" != "0" ]; then
               echo "Plugin sources or their validation pipeline changed; leave publication to a newer run."
               exit 0
@@ -155,6 +162,14 @@ jobs:
             echo "Main advanced only in unrelated files; publishing the validated plugin sources."
           fi
           tag=community-plugins-latest
+          if gh release view "$tag" >/dev/null 2>&1; then
+            mkdir -p previous
+            gh release download "$tag" --pattern catalog.json --dir previous
+            if cmp -s downloads/catalog.json previous/catalog.json; then
+              echo 'Validated plugin fingerprints are unchanged; retaining existing downloads and tag.'
+              exit 0
+            fi
+          fi
           cat > /tmp/plugin-release-notes.md <<EOF
           Download the complete bundle or an individual plugin ZIP below. No GitHub login is required.
 

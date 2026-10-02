@@ -5,6 +5,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Coordinate GitHub workflows through one change plan; validate the prepared release
+  on all supported systems before publishing complete, checksum-verified downloads.
+- Keep development documentation separate from tagged release manuals, preserve
+  release identity across retries, and serialize repository writes without cancelling
+  queued releases. Reuse generated files and avoid duplicate CI and plugin publication.
+- Check custom-formula multicore fitting and bootstrap from frozen desktop builds;
+  bound packaging smoke tests and make DOI discovery incremental.
+
 ## [0.35.4] - 2026-10-02
 
 ### Added

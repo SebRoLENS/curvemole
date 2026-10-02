@@ -1,10 +1,11 @@
 name: Test Linux candidate
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "custom_plugins/**"
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,12 +16,13 @@ concurrency:
 
 jobs:
   appimage:
-    if: ${{ contains(github.event.head_commit.message, '[skip release]') && github.actor != 'github-actions[bot]' }}
     name: Linux AppImage test artifact
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.12"
@@ -30,14 +32,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
-          uv sync --locked --group dev
+          uv sync --locked --no-default-groups --group packaging
 
       - name: Build and smoke-test frozen application
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          CURVEMOLE_PACKAGING_SMOKE: "1"
           CURVEMOLE_ICON: ${{ github.workspace }}/src/curvemole/resources/curvemole.png
-        run: uv run python scripts/build_desktop.py
+        run: uv run --no-sync python scripts/build_desktop.py
 
       - name: Package diagnostic bundle and AppImage
         run: |
@@ -81,3 +84,4 @@ jobs:
             SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 7
+          compression-level: 0

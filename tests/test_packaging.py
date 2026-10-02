@@ -49,4 +49,6 @@ def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:
     assert "gh release upload" in direct_upload["run"]
     publish_steps = desktop["jobs"]["publish-release-assets"]["steps"]
     assert any("gh release download" in step.get("run", "") for step in publish_steps)
-    assert "[skip release]" in candidate["jobs"]["appimage"]["if"]
+    policy = (ROOT / ".github/scripts/workflow_plan.py").read_text(encoding="utf-8")
+    assert '"[skip release]" in message' in policy
+    assert "source_ref" in candidate["jobs"]["appimage"]["steps"][0]["with"]["ref"]

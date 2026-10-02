@@ -1,0 +1,82 @@
+name: Validate source
+
+on:
+  workflow_call:
+    inputs:
+      source_ref:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync --locked --only-group lint
+      - run: uv run --no-sync ruff check .
+      - name: Validate GitHub Actions syntax and expressions
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/actionlint.tar.gz" \
+            https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
+          uv run --no-sync python .github/scripts/lint_workflows.py "$RUNNER_TEMP/actionlint"
+
+  core:
+    name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14]
+        python: ["3.12"]
+        include:
+          - os: ubuntu-22.04
+            python: "3.13"
+          - os: ubuntu-22.04
+            python: "3.14"
+    concurrency:
+      group: source-tests-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || '' }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+      queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+      - name: Install Linux GUI libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked --no-default-groups --group test
+      - name: Tests
+        timeout-minutes: 4
+        shell: bash
+        env:
+          QT_QPA_PLATFORM: offscreen
+          MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+        run: |
+          coverage=()
+          if [[ "$RUNNER_OS" == Linux && "${{ matrix.python }}" == 3.12 ]]; then
+            coverage+=(--cov=curvemole --cov-report=term-missing --cov-report=xml:coverage.xml)
+          fi
+          uv run --no-sync pytest -q -o faulthandler_timeout=60 "${coverage[@]}"
+      - uses: actions/upload-artifact@v7
+        if: runner.os == 'Linux' && matrix.python == '3.12'
+        with:
+          name: source-coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
