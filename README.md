@@ -9,7 +9,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
+  <a href="https://doi.org/10.5281/zenodo.23100445"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23100445.svg" alt="DOI"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
@@ -303,12 +303,10 @@ Current public version: **0.35.4**
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-Zenodo archival for version **0.35.4** is pending. The release DOI will be
-inserted here automatically when the record is available. Until then, use the
-versioned GitHub release below.
-
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.35.4)
-> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.35.4
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23100445
+
+DOI: [**10.5281/zenodo.23100445**](https://doi.org/10.5281/zenodo.23100445)
 
 ## License
 
