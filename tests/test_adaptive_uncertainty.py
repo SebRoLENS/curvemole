@@ -12,7 +12,11 @@ from curvemole.core.fitting import CancellationToken, FitCancelled, FitPlan
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
 
 
-def _analysis(gaussian_curve):
+def _analysis(gaussian_curve, monkeypatch=None):
+    if monkeypatch is not None:
+        # These tests replace trials with local deterministic callbacks. Keep
+        # them inline; process tests below exercise real isolated replicas.
+        monkeypatch.setattr(uncertainty, "_parallel_safe", lambda *args: False)
     model = Model(components=[Component.create(
         "gaussian", initial={"area": 3, "center": .7, "sigma": .8})])
     plan = FitPlan([gaussian_curve.id])
@@ -23,7 +27,7 @@ def _analysis(gaussian_curve):
 
 
 def test_adaptive_defaults_require_three_checks_after_500_successes(gaussian_curve, monkeypatch):
-    analyzer, baseline, plan, models = _analysis(gaussian_curve)
+    analyzer, baseline, plan, models = _analysis(gaussian_curve, monkeypatch)
     monkeypatch.setattr(uncertainty, "_resample_trial", lambda *args: ([1., 2., 3.], None))
     result = analyzer.residual_bootstrap(baseline, plan, [gaussian_curve], models,
                                          adaptive=AdaptiveReplicateSettings())
@@ -38,7 +42,7 @@ def test_adaptive_defaults_require_three_checks_after_500_successes(gaussian_cur
 
 
 def test_failed_and_nonfinite_fits_do_not_count_toward_checkpoints(gaussian_curve, monkeypatch):
-    analyzer, baseline, plan, models = _analysis(gaussian_curve)
+    analyzer, baseline, plan, models = _analysis(gaussian_curve, monkeypatch)
     outcomes = iter([(None, "failed"), ([np.nan, 2., 3.], None), ([1., 2., 3.], None)] * 20)
     monkeypatch.setattr(uncertainty, "_resample_trial", lambda *args: next(outcomes))
     settings = AdaptiveReplicateSettings(5, 2, .05, 2, 40)
@@ -50,7 +54,7 @@ def test_failed_and_nonfinite_fits_do_not_count_toward_checkpoints(gaussian_curv
 
 
 def test_unstable_check_resets_consecutive_counter(gaussian_curve, monkeypatch):
-    analyzer, baseline, plan, models = _analysis(gaussian_curve)
+    analyzer, baseline, plan, models = _analysis(gaussian_curve, monkeypatch)
     monkeypatch.setattr(uncertainty, "_resample_trial", lambda *args: ([1., 2., 3.], None))
     changes = iter([.01, .10, .01, .01, .01])
     monkeypatch.setattr(uncertainty, "_endpoint_change", lambda *args: next(changes))
@@ -64,7 +68,7 @@ def test_unstable_check_resets_consecutive_counter(gaussian_curve, monkeypatch):
 
 @pytest.mark.parametrize("failed", [False, True])
 def test_maximum_attempts_is_a_hard_cap_even_without_stability(gaussian_curve, monkeypatch, failed):
-    analyzer, baseline, plan, models = _analysis(gaussian_curve)
+    analyzer, baseline, plan, models = _analysis(gaussian_curve, monkeypatch)
     monkeypatch.setattr(uncertainty, "_resample_trial",
                         lambda *args: (None, "failed") if failed else ([1., 2., 3.], None))
     monkeypatch.setattr(uncertainty, "_endpoint_change", lambda *args: .5)
@@ -104,7 +108,7 @@ def test_adaptive_settings_reject_invalid_values(changes):
 
 
 def test_adaptive_analysis_can_be_cancelled(gaussian_curve, monkeypatch):
-    analyzer, baseline, plan, models = _analysis(gaussian_curve)
+    analyzer, baseline, plan, models = _analysis(gaussian_curve, monkeypatch)
     token = CancellationToken()
     monkeypatch.setattr(uncertainty, "_resample_trial", lambda *args: ([1., 2., 3.], None))
     with pytest.raises(FitCancelled):

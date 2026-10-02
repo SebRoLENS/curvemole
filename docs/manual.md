@@ -1762,6 +1762,20 @@ default to **200 replicates** (not optimizer iterations), and remain configurabl
 The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
 quick estimate; use more and check stability when precise percentile endpoints matter.
 
+**Replica timeout (seconds)** limits each Monte Carlo or bootstrap replica to
+**60 seconds** by default and can be changed before running an analysis. The timer
+starts when that replica begins calculating, excluding time waiting in the queue,
+and resets for every replica. It applies in fixed and adaptive modes, with one or
+multiple CPU processes. Built-in functions and custom formulas run in isolated
+workers, allowing CurveMole to stop even an unresponsive replica. Executable
+plugin functions and custom fitter subclasses use cooperative cancellation.
+
+If a replica exceeds the limit, the entire active analysis stops and is marked
+**Uncertainty analysis failed** for the selected method. The existing fit and
+previous completed analyses remain available; spectra already completed in the
+batch keep their results. A later successful analysis clears the failure tag.
+The timeout is recorded under **Technical details** and saved with results.
+
 For Monte Carlo and both bootstrap methods, **Replicate mode** offers **Fixed count**
 or **Adaptive - stop when intervals stabilize**. Adaptive mode defaults to:
 

@@ -179,6 +179,8 @@ to releases.
 - optional adaptive resampling checks interval stability after blocks of successful
   replicas, with configurable tolerance and a hard attempt limit; custom formulas
   support parallel uncertainty analysis across selected or all fitted spectra
+- configurable timeout for each Monte Carlo/bootstrap replica (60 seconds by
+  default), stopping stalled analyses while preserving the fit and completed results
 - spectrum analysis tags follow the currently selected uncertainty method, with
   saved results retained separately for each method
 - portable, versioned `.fitproj` projects without pickle, recent-project access,

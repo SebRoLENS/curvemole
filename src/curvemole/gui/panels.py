@@ -823,7 +823,7 @@ class DiagnosticsPanel(QWidget):
 
 
 class UncertaintyPanel(QWidget):
-    runRequested = Signal(str, int, object, str, int, object)
+    runRequested = Signal(str, int, object, str, int, object, int)
     displayMethodChanged = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -849,6 +849,12 @@ class UncertaintyPanel(QWidget):
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
         self.replicates.setValue(200)
+        self.replica_timeout = QSpinBox()
+        self.replica_timeout.setRange(1, 86_400)
+        self.replica_timeout.setValue(60)
+        self.replica_timeout.setToolTip(self.tr(
+            "Maximum duration of one replica, starting when its calculation begins. "
+            "If any replica exceeds this limit, the entire analysis stops and is marked as failed."))
         self.replica_mode = QComboBox()
         self.replica_mode.addItem(self.tr("Fixed count"), "fixed")
         self.replica_mode.addItem(self.tr("Adaptive - stop when intervals stabilize"), "adaptive")
@@ -911,6 +917,7 @@ class UncertaintyPanel(QWidget):
         layout.labelForField(self.display_method).setToolTip(self.display_method.toolTip())
         layout.addRow(self.tr("Replicate mode"), self.replica_mode)
         layout.addRow(self.tr("Replicates"), self.replicates)
+        layout.addRow(self.tr("Replica timeout (seconds)"), self.replica_timeout)
         layout.addRow(self.tr("Initial successful replicates"), self.adaptive_initial)
         layout.addRow(self.tr("Successful replicates per batch"), self.adaptive_batch)
         layout.addRow(self.tr("Endpoint change tolerance"), self.adaptive_tolerance)
@@ -985,6 +992,7 @@ class UncertaintyPanel(QWidget):
         for widget, visible in (
             (self.replica_mode, resampling),
             (self.replicates, resampling and not adaptive),
+            (self.replica_timeout, resampling),
             (self.workers, method != "covariance"),
             (self.block_length, method == "block_bootstrap"),
             (self.parameter, method == "profile_likelihood"),
@@ -1019,4 +1027,4 @@ class UncertaintyPanel(QWidget):
         )
         self.runRequested.emit(method, self.replicates.value(), option,
                                self.scope.currentData(), self.workers.value(),
-                               self.adaptive_settings())
+                               self.adaptive_settings(), self.replica_timeout.value())

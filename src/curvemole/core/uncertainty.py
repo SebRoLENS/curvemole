@@ -6,10 +6,12 @@ import copy
 import math
 import multiprocessing
 import os
+import time
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
+from queue import Empty
 from typing import Any
 
 import numpy as np
@@ -106,12 +108,72 @@ class ProfileResult:
 
 _WORKER_CONTEXT: tuple[Any, ...] | None = None
 _WORKER_FITTER: Fitter | None = None
+_WORKER_REPLICA_ACTIVITY: Any = None
+REPLICA_TIMEOUT_SECONDS = 60.0
 
 
-def _init_uncertainty_worker(stop: Any, formulas: Mapping[str, Any], *context: Any) -> None:
-    global _WORKER_CONTEXT, _WORKER_FITTER
+class ReplicaTimeout(FitError):
+    """A single replica exceeded its wall-clock deadline; abort the analysis."""
+
+
+class _ReplicaCancellation:
+    def __init__(self, parent: Any, deadline: float, timeout: float) -> None:
+        self.parent = parent
+        self.deadline = deadline
+        self.timeout = timeout
+
+    @property
+    def cancelled(self) -> bool:
+        return self.parent.cancelled
+
+    def raise_if_cancelled(self) -> None:
+        self.parent.raise_if_cancelled()
+        if time.monotonic() >= self.deadline:
+            raise ReplicaTimeout(_timeout_message(self.timeout))
+
+
+def _timeout_message(timeout: float = REPLICA_TIMEOUT_SECONDS) -> str:
+    return (f"Uncertainty replica timeout: a replica exceeded {timeout:g} "
+            "seconds. The analysis was stopped and marked as failed.")
+
+
+def _terminate_pool(pool: ProcessPoolExecutor) -> None:
+    # Python 3.12/3.13 have no public terminate_workers API. Stop the owned
+    # processes before shutdown so an unresponsive solver cannot hold the GUI.
+    processes = list((getattr(pool, "_processes", None) or {}).values())
+    for process in processes:
+        if process.is_alive():
+            process.terminate()
+    for process in processes:
+        process.join(timeout=1)
+        if process.is_alive():
+            process.kill()
+            process.join(timeout=1)
+    pool.shutdown(wait=True, cancel_futures=True)
+
+
+def _check_replica_activity(activity: Any, running: dict[int, float], timeout: float) -> None:
+    while True:
+        try:
+            pid, started = activity.get_nowait()
+        except Empty:
+            break
+        if started is None:
+            running.pop(pid, None)
+        else:
+            running[pid] = started
+    if any(time.monotonic() - started >= timeout
+           for started in running.values()):
+        raise ReplicaTimeout(_timeout_message(timeout))
+
+
+def _init_uncertainty_worker(stop: Any, formulas: Mapping[str, Any], activity: Any,
+                             timeout: float, *context: Any) -> None:
+    global _WORKER_CONTEXT, _WORKER_FITTER, _WORKER_REPLICA_ACTIVITY, REPLICA_TIMEOUT_SECONDS
     _WORKER_CONTEXT = (stop, *context)
     _WORKER_FITTER = Fitter(registry_from_worker_formulas(formulas))
+    _WORKER_REPLICA_ACTIVITY = activity
+    REPLICA_TIMEOUT_SECONDS = timeout
 
 
 def _parallel_map(
@@ -119,26 +181,33 @@ def _parallel_map(
     context: tuple[Any, ...], cancellation: CancellationToken,
     progress: Callable[[int], None] | None,
     on_result: Callable[[int, Any], None] | None = None,
-    *, pool: ProcessPoolExecutor | None = None, stop: Any = None,
+    *, pool: ProcessPoolExecutor | None = None, stop: Any = None, activity: Any = None,
     formulas: Mapping[str, Any] | None = None,
+    replica_timeout_seconds: float | None = None,
 ) -> list[Any]:
     """Keep only a few spawned-process jobs queued and return results in input order."""
     results: list[Any] = [None] * len(inputs)
+    timeout = REPLICA_TIMEOUT_SECONDS if replica_timeout_seconds is None else replica_timeout_seconds
     with ExitStack() as stack:
         if pool is None:
             mp_context = multiprocessing.get_context("spawn")
             stop = mp_context.Event()
+            activity = mp_context.Queue()
+            stack.callback(activity.close)
             pool = stack.enter_context(ProcessPoolExecutor(
                 max_workers=min(workers, len(inputs), os.cpu_count() or 1),
                 mp_context=mp_context, initializer=_init_uncertainty_worker,
-                initargs=(stop, formulas or {}, *context),
+                initargs=(stop, formulas or {}, activity, timeout, *context),
             ))
         pending = {}
         next_index = 0
         completed = 0
+        running: dict[int, float] = {}
         try:
             while completed < len(inputs):
                 cancellation.raise_if_cancelled()
+                if activity is not None:
+                    _check_replica_activity(activity, running, timeout)
                 while next_index < len(inputs) and len(pending) < 2 * workers:
                     future = pool.submit(function, inputs[next_index])
                     pending[future] = next_index
@@ -152,10 +221,12 @@ def _parallel_map(
                     completed += 1
                     if progress:
                         progress(completed)
-        except BaseException:
+        except BaseException as exc:
             stop.set()
             for future in pending:
                 future.cancel()
+            if isinstance(exc, ReplicaTimeout):
+                _terminate_pool(pool)
             raise
     return results
 
@@ -167,13 +238,36 @@ def _worker_formulas(
 
 
 def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str]) -> bool:
-    return _worker_formulas(fitter, models, curve_ids) is not None
+    # A spawned worker reconstructs the standard fitter. Preserve overridden
+    # fitting behaviour rather than silently replacing a caller's subclass.
+    return type(fitter) is Fitter and _worker_formulas(fitter, models, curve_ids) is not None
 
 
 def _resample_trial(
     seed: int, method: str, baseline: FitResult, plan: FitPlan,
     curves: Mapping[str, Curve], models: Mapping[str, Model],
     lengths: Mapping[str, int], fitter: Fitter, cancellation: CancellationToken,
+    replica_timeout_seconds: float | None = None,
+) -> tuple[list[float] | None, str | None]:
+    timeout = REPLICA_TIMEOUT_SECONDS if replica_timeout_seconds is None else replica_timeout_seconds
+    started = time.monotonic()
+    if _WORKER_REPLICA_ACTIVITY is not None:
+        _WORKER_REPLICA_ACTIVITY.put((os.getpid(), started))
+    token = _ReplicaCancellation(cancellation, started + timeout, timeout)
+    try:
+        result = _resample_trial_body(seed, method, baseline, plan, curves, models,
+                                      lengths, fitter, token)
+        token.raise_if_cancelled()
+        return result
+    finally:
+        if _WORKER_REPLICA_ACTIVITY is not None:
+            _WORKER_REPLICA_ACTIVITY.put((os.getpid(), None))
+
+
+def _resample_trial_body(
+    seed: int, method: str, baseline: FitResult, plan: FitPlan,
+    curves: Mapping[str, Curve], models: Mapping[str, Model],
+    lengths: Mapping[str, int], fitter: Fitter, cancellation: Any,
 ) -> tuple[list[float] | None, str | None]:
     cancellation.raise_if_cancelled()
     rng = np.random.default_rng(seed)
@@ -239,6 +333,8 @@ def _resample_trial(
         if result.success:
             return [result.parameters[path].value for path in baseline.free_parameter_paths], None
         return None, result.message
+    except ReplicaTimeout:
+        raise
     except (FitError, ConstraintError) as exc:
         return None, str(exc)
 
@@ -314,8 +410,13 @@ def _profile_in_process(value: float) -> float | None:
 
 
 class UncertaintyAnalyzer:
-    def __init__(self, fitter: Fitter | None = None) -> None:
+    def __init__(self, fitter: Fitter | None = None, *,
+                 replica_timeout_seconds: float | None = None) -> None:
         self.fitter = fitter or Fitter()
+        timeout = REPLICA_TIMEOUT_SECONDS if replica_timeout_seconds is None else replica_timeout_seconds
+        if not math.isfinite(timeout) or timeout <= 0:
+            raise FitError("Replica timeout must be a positive, finite number of seconds.")
+        self.replica_timeout_seconds = float(timeout)
 
     def resampling_batch(
         self, method: str, jobs: Sequence[tuple[FitResult, FitPlan,
@@ -356,7 +457,8 @@ class UncertaintyAnalyzer:
                     on_result(index, result)
 
             return _parallel_map(_batch_resample_in_process, payloads, workers,
-                                 (), token, progress, publish, formulas=formulas)
+                                 (), token, progress, publish, formulas=formulas,
+                                 replica_timeout_seconds=self.replica_timeout_seconds)
         results = []
         for baseline, plan, curves, models in jobs:
             token.raise_if_cancelled()
@@ -636,23 +738,26 @@ class UncertaintyAnalyzer:
             )
         seeds = rng.integers(0, np.iinfo(np.int64).max, size=replicates).tolist()
         parallel = workers > 1 and replicates > 1 and _parallel_safe(self.fitter, base_models, plan.curve_ids)
+        isolated = (_WORKER_REPLICA_ACTIVITY is None
+                    and _parallel_safe(self.fitter, base_models, plan.curve_ids))
 
         def report(count: int) -> None:
             if progress:
                 progress(count / replicates, f"{method}: {count}/{replicates}")
 
-        if parallel:
+        if parallel or isolated:
             outcomes = _parallel_map(
                 _resample_in_process, seeds, workers,
                 (method, baseline, trial_plan, curves, base_models, lengths), token, report,
                 formulas=_worker_formulas(self.fitter, base_models, plan.curve_ids),
+                replica_timeout_seconds=self.replica_timeout_seconds,
             )
         else:
             outcomes = []
             for replicate, trial_seed in enumerate(seeds):
                 outcomes.append(_resample_trial(
                     trial_seed, method, baseline, trial_plan, curves, base_models,
-                    lengths, self.fitter, token))
+                    lengths, self.fitter, token, self.replica_timeout_seconds))
                 report(replicate + 1)
         collected = [sample for sample, _ in outcomes if sample is not None]
         failures = [message for _, message in outcomes if message is not None]
@@ -679,6 +784,7 @@ class UncertaintyAnalyzer:
             intervals=intervals,
             confidence_level=settings.confidence_level,
             configuration={"fit_settings": asdict(settings),
+                           "replica_timeout_seconds": self.replica_timeout_seconds,
                            "workers_used": min(workers, replicates, os.cpu_count() or 1) if parallel else 1,
                            **extra_configuration},
             failure_messages=failures[:100],
@@ -698,6 +804,8 @@ class UncertaintyAnalyzer:
         context = (method, baseline, plan, curves, models, lengths)
         parallel = (workers > 1 and adaptive.maximum_attempts > 1
                     and _parallel_safe(self.fitter, models, plan.curve_ids))
+        isolated = (_WORKER_REPLICA_ACTIVITY is None
+                    and _parallel_safe(self.fitter, models, plan.curve_ids))
         collected: list[list[float]] = []
         failures: list[str] = []
         attempts = stable_checks = checks_completed = 0
@@ -714,14 +822,17 @@ class UncertaintyAnalyzer:
                          f"{stable_checks}/{adaptive.consecutive_checks}")
 
         with ExitStack() as stack:
-            pool = stop = None
-            if parallel:
+            pool = stop = activity = None
+            if parallel or isolated:
                 mp_context = multiprocessing.get_context("spawn")
                 stop = mp_context.Event()
+                activity = mp_context.Queue()
+                stack.callback(activity.close)
                 pool = stack.enter_context(ProcessPoolExecutor(
                     max_workers=min(workers, adaptive.maximum_attempts, os.cpu_count() or 1),
                     mp_context=mp_context, initializer=_init_uncertainty_worker,
-                    initargs=(stop, _worker_formulas(self.fitter, models, plan.curve_ids) or {}, *context),
+                    initargs=(stop, _worker_formulas(self.fitter, models, plan.curve_ids) or {},
+                              activity, self.replica_timeout_seconds, *context),
                 ))
             while attempts < adaptive.maximum_attempts and not converged:
                 token.raise_if_cancelled()
@@ -741,7 +852,7 @@ class UncertaintyAnalyzer:
                         failures.append(message or "Replica returned no finite parameter sample.")
                     report()
 
-                if parallel:
+                if parallel or isolated:
                     # Consume in seed order, independently of worker completion
                     # order, so checkpoints and saved samples are reproducible.
                     batch_size = len(trial_seeds)
@@ -751,7 +862,8 @@ class UncertaintyAnalyzer:
                             (attempts + count) / adaptive.maximum_attempts,
                             f"{method}: fitting batch, {count}/{batch_size} attempts complete",
                         ) if progress else None,
-                        pool=pool, stop=stop,
+                        pool=pool, stop=stop, activity=activity,
+                        replica_timeout_seconds=self.replica_timeout_seconds,
                     )
                     for index, outcome in enumerate(outcomes):
                         collect(index, outcome)
@@ -760,7 +872,7 @@ class UncertaintyAnalyzer:
                         token.raise_if_cancelled()
                         collect(index, _resample_trial(
                             trial_seed, method, baseline, plan, curves, models,
-                            lengths, self.fitter, token))
+                            lengths, self.fitter, token, self.replica_timeout_seconds))
                 token.raise_if_cancelled()
                 if len(collected) == target:
                     current = _percentile_endpoints(collected, plan.settings.confidence_level)
@@ -785,6 +897,7 @@ class UncertaintyAnalyzer:
                      for index, path in enumerate(paths) if len(samples)}
         configuration = {
             "fit_settings": asdict(plan.settings),
+            "replica_timeout_seconds": self.replica_timeout_seconds,
             "workers_used": min(workers, adaptive.maximum_attempts, os.cpu_count() or 1) if parallel else 1,
             **extra_configuration,
             "adaptive": {

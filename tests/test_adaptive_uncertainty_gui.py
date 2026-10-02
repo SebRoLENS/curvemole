@@ -20,6 +20,8 @@ from curvemole.gui.panels import UncertaintyPanel
 def test_adaptive_controls_and_run_request_are_method_specific():
     app = QApplication.instance() or QApplication([])
     panel = UncertaintyPanel()
+    assert panel.replica_timeout.value() == 60
+    assert panel.form.isRowVisible(panel.replica_timeout)
     assert panel.adaptive_settings() is None
     panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("adaptive"))
     assert panel.adaptive_settings() == AdaptiveReplicateSettings()
@@ -27,16 +29,20 @@ def test_adaptive_controls_and_run_request_are_method_specific():
     assert panel.adaptive_initial.isEnabled()
     requested = []
     panel.runRequested.connect(lambda *args: requested.append(args))
+    panel.replica_timeout.setValue(90)
     panel._run()
-    assert requested[0][-1] == AdaptiveReplicateSettings()
+    assert requested[0][-2] == AdaptiveReplicateSettings()
+    assert requested[0][-1] == 90
     panel.method.setCurrentIndex(panel.method.findData("covariance"))
     assert panel.adaptive_settings() is None
     assert not panel.adaptive_initial.isEnabled()
     assert not panel.replica_mode.isEnabled()
+    assert not panel.form.isRowVisible(panel.replica_timeout)
     panel.method.setCurrentIndex(panel.method.findData("profile_likelihood"))
     assert panel.adaptive_settings() is None
     panel.method.setCurrentIndex(panel.method.findData("block_bootstrap"))
     assert panel.adaptive_settings() == AdaptiveReplicateSettings()
+    assert panel.form.isRowVisible(panel.replica_timeout)
     panel.adaptive_initial.setValue(12_000)
     assert panel.adaptive_maximum.value() == 12_000
     panel.close()
@@ -77,6 +83,7 @@ def test_custom_formulas_parallelize_from_gui_and_save_adaptive_results(tmp_path
     panel.scope.setCurrentIndex(panel.scope.findData(scope))
     panel.workers.setValue(12)
     panel.replicates.setValue(10)
+    panel.replica_timeout.setValue(90)
     if adaptive_mode:
         panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("adaptive"))
         panel.adaptive_initial.setValue(3)
@@ -95,6 +102,7 @@ def test_custom_formulas_parallelize_from_gui_and_save_adaptive_results(tmp_path
     for curve_id in expected:
         analysis = reports[curve_id]["block_bootstrap"]["analysis"]
         assert analysis["failed"] == 0
+        assert analysis["configuration"]["replica_timeout_seconds"] == 90
         assert analysis["configuration"]["batch_workers_used"] == min(panel.workers.value(), len(expected))
         if adaptive_mode:
             config = analysis["configuration"]["adaptive"]

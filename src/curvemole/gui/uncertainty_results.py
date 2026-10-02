@@ -79,6 +79,8 @@ class UncertaintyResults(QWidget):
     def refresh(self):
         if self.project is None:
             return
+        failure = self.project.results.get("uncertainty_failures_by_curve", {}).get(
+            self.curve_id, {}).get(self.method)
         record = self.project.results.get("uncertainty_reports_by_curve", {}).get(self.curve_id, {}).get(self.method)
         if record is None:
             legacy = self.project.results.get("uncertainty_reports", {}).get(self.method)
@@ -93,7 +95,9 @@ class UncertaintyResults(QWidget):
         )
         self.spectrum_heading.setToolTip(self.spectrum_heading.text())
         if not record:
-            self.summary.setText("No recorded result for this spectrum and method. Run an analysis.")
+            self.summary.setText(
+                "Uncertainty analysis failed: " + failure["message"] if failure
+                else "No recorded result for this spectrum and method. Run an analysis.")
             self.details.clear()
             return
         analysis, baseline = record["analysis"], record["baseline"]
@@ -116,6 +120,9 @@ class UncertaintyResults(QWidget):
                 text += f" · {analysis['completed']}/{analysis['requested']} completed · {analysis['failed']} failed"
         elif self.method == "profile_likelihood":
             text += f" · {analysis['failed_points']} failed grid points"
+        if failure:
+            text = ("Uncertainty analysis failed: " + failure["message"]
+                    + "\nPrevious completed result retained: " + text)
         self.summary.setText(text)
         colors = {"OK": "#187541", "Attention": "#9b6500", "Critical": "#ba3030", "Fixed": "#777777"}
         self._assessment_rows = {}
@@ -154,6 +161,8 @@ class UncertaintyResults(QWidget):
             f"Seed: {analysis.get('seed', 'not applicable')}\n"
             + (f"Worker processes: {configuration.get('batch_workers_used', configuration.get('workers_used', 1))}\n"
                if "completed" in analysis else "")
+            + (f"Replica timeout: {configuration['replica_timeout_seconds']:g} seconds\n"
+               if "replica_timeout_seconds" in configuration else "")
             + (f"Adaptive: initial {adaptive['initial_successes']} successful, "
                f"batch {adaptive['batch_successes']}, tolerance {adaptive['tolerance']:.2%} "
                f"of current interval width; {adaptive['stable_checks']}/"

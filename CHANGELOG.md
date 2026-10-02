@@ -5,6 +5,20 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Configurable per-replica timeout for Monte Carlo and bootstrap analyses (60 seconds
+  by default), in fixed/adaptive modes and with one or multiple CPU processes.
+
+### Fixed
+
+- Stop unresponsive resampling workers when a replica exceeds its deadline, excluding
+  queue waiting time; preserve fitted curves and completed uncertainty results.
+- Show a persistent, method-specific failure tag after a replica timeout, clearing it
+  when that analysis later succeeds.
+- Discover draft releases correctly during packaging and retain current publication
+  tools when building an existing release tag.
+
 ## [0.36.0] - 2026-10-02
 
 ### Added

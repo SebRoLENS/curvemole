@@ -229,6 +229,13 @@ def _curve_state_presentation(
     reports_by_curve = project.results.get("uncertainty_reports_by_curve", {})
     reports = reports_by_curve.get(curve.id, {}) if isinstance(reports_by_curve, dict) else {}
     methods = [method for method, report in reports.items() if report]
+    selected_method = ("parametric_monte_carlo" if uncertainty_method == "monte_carlo"
+                       else uncertainty_method)
+    failure = project.results.get("uncertainty_failures_by_curve", {}).get(
+        curve.id, {}).get(selected_method)
+    if failure:
+        return (f"{curve.state.value}  ·  Uncertainty analysis failed",
+                f"{selected_method}: {failure['message']}")
     if not methods:
         return curve.state.value, ""
 
@@ -2474,7 +2481,8 @@ class MainWindow(QMainWindow):
 
     def start_uncertainty(self, method: str, replicates: int, option: Any,
                           scope: str = "active", workers: int = 1,
-                          adaptive: AdaptiveReplicateSettings | None = None) -> None:
+                          adaptive: AdaptiveReplicateSettings | None = None,
+                          replica_timeout_seconds: float = 60.0) -> None:
         if not self._ensure_editable():
             return
         if self._thread is not None:
@@ -2543,7 +2551,8 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Profile limits must be numeric, or blank for automatic."), warning=True)
                 return
             profile_lower = profile_upper = None
-        analyzer = UncertaintyAnalyzer(Fitter(self.registry))
+        analyzer = UncertaintyAnalyzer(Fitter(self.registry),
+                                       replica_timeout_seconds=replica_timeout_seconds)
         curve_map = {curve.id: curve for curve in self.project.curves}
         self._cancellation = CancellationToken()
         grouped: dict[tuple[Any, ...], list[str]] = {}
@@ -2555,6 +2564,12 @@ class MainWindow(QMainWindow):
                 unique_jobs.append((curve_id, baseline, plan, key))
                 grouped[key] = []
             grouped[key].append(curve_id)
+
+        self._uncertainty_task = {
+            "method": "parametric_monte_carlo" if method == "monte_carlo" else method,
+            "curve_ids": {cid for cid, _, _ in jobs},
+            "completed": set(),
+        }
 
         def operation(progress: Callable[[float | None, str], None], publish=None) -> Any:
             completed = []
@@ -2643,6 +2658,10 @@ class MainWindow(QMainWindow):
 
     def _store_uncertainty_result(self, curve_id: str, baseline: FitResult, result: Any) -> None:
         method = "covariance" if isinstance(result, FitResult) else getattr(result, "method", "profile_likelihood")
+        self.project.results.get("uncertainty_failures_by_curve", {}).get(curve_id, {}).pop(method, None)
+        task = getattr(self, "_uncertainty_task", None)
+        if task and task["method"] == method:
+            task["completed"].add(curve_id)
         self.project.results.setdefault("uncertainty", {})[method] = result
         self.project.results.setdefault("uncertainty_by_curve", {}).setdefault(curve_id, {})[method] = result
         analysis = result.to_dict()
@@ -3739,6 +3758,12 @@ class MainWindow(QMainWindow):
 
     def _task_failed(self, message: str, details: str) -> None:
         self._log(details)
+        task = getattr(self, "_uncertainty_task", None)
+        if task and message.startswith("Uncertainty replica timeout:"):
+            failures = self.project.results.setdefault("uncertainty_failures_by_curve", {})
+            for curve_id in task["curve_ids"] - task["completed"]:
+                failures.setdefault(curve_id, {})[task["method"]] = {"message": message}
+            self.project.touch()
         if "cancelled" in message.lower():
             self._notify(self.tr("Task cancelled; the previous valid result was retained."), warning=True)
         else:
@@ -3756,6 +3781,7 @@ class MainWindow(QMainWindow):
         self._worker = None
         self._cancellation = None
         self._fit_task_active = False
+        self._uncertainty_task = None
         self.progress.setVisible(False)
         self.cancel_action.setEnabled(False)
         self.fit_action.setEnabled(True)
