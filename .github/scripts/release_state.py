@@ -100,7 +100,9 @@ def commit(args: argparse.Namespace) -> None:
     subprocess.run(["git", "add", *FILES, "docs/screenshots"], check=True)
     message = (f"Prepare v{args.version} release [skip release]\n\n"
                f"Release-Run: {args.run_id}\nRelease-Source: {source}")
-    subprocess.run(["git", "commit", "-m", message], check=True)
+    # A corrected source may already carry this unpublished version's generated
+    # files. Still record the new run identity so retries select this source.
+    subprocess.run(["git", "commit", "--allow-empty", "-m", message], check=True)
     subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
     output(commit_sha=git("rev-parse", "HEAD"))
 

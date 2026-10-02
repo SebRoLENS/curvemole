@@ -94,6 +94,22 @@ def test_release_retry_reuses_its_commit_and_version_after_tag_exists(repository
     assert state.previous_release("12", source) is None
 
 
+def test_preparation_records_identity_when_generated_files_are_unchanged(repository):
+    source = git(repository, "rev-parse", "HEAD")
+    with tarfile.open("prepared-release.tar.gz", "w:gz") as archive:
+        for name in state.FILES:
+            archive.add(name, arcname=name)
+    args = type("Args", (), {"run_id": "456", "version": "0.35.4"})()
+    state.commit(args)
+    prepared = git(repository, "rev-parse", "HEAD")
+    assert prepared != source
+    assert git(repository, "rev-parse", "HEAD^{tree}") == git(repository, "rev-parse", source + "^{tree}")
+    assert state.previous_release("456", source) == (prepared, "0.35.4")
+    git(repository, "checkout", source)
+    state.commit(args)
+    assert git(repository, "rev-parse", "origin/main") == prepared
+
+
 def test_stale_preparation_cannot_push_over_a_new_source(repository):
     source = git(repository, "rev-parse", "HEAD")
     archive_changes(repository)
