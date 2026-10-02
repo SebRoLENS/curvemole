@@ -104,7 +104,7 @@ def test_first_uncertainty_report_is_visible_while_batch_runs(monkeypatch) -> No
     release = threading.Event()
 
     def staged_batch(self, method, jobs, *, replicates, option, workers,
-                     cancellation, progress, on_result):
+                     cancellation, progress, on_result, adaptive=None):
         results = []
         for index, (baseline, _plan, _curves, _models) in enumerate(jobs):
             paths = list(baseline.free_parameter_paths)

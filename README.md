@@ -147,7 +147,8 @@ to releases.
   three keep the target free within hard source-dependent bounds, combined with its
   static bounds and updated throughout fitting
 - independent, propagating sequential, and global simultaneous least-squares
-  fitting, with configurable safeguards and durable pause/resume
+  fitting, with configurable safeguards and durable pause/resume; independent
+  multicore fitting supports built-in functions and custom formulas
 - local least-squares methods, differential evolution with local refinement,
   Nelder-Mead, Powell, L-BFGS-B, and explicit solver-specific controls
 - reversible transformations and graphical masks with immutable original data
@@ -175,6 +176,11 @@ to releases.
   including unplotted columns, and single-spectrum or grouped selection scopes
 - covariance statistics, confidence intervals, profile likelihood, Monte Carlo,
   residual bootstrap, and block bootstrap
+- optional adaptive resampling checks interval stability after blocks of successful
+  replicas, with configurable tolerance and a hard attempt limit; custom formulas
+  support parallel uncertainty analysis across selected or all fitted spectra
+- spectrum analysis tags follow the currently selected uncertainty method, with
+  saved results retained separately for each method
 - portable, versioned `.fitproj` projects without pickle, recent-project access,
   Undo/Redo for fits and model edits, and recovery after an abnormal exit
 - a **Laboratory notebook** for project notes and descriptions of series, spectra,

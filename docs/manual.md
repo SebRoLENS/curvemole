@@ -1438,6 +1438,13 @@ Each selected curve is fitted as an independent problem. Results are then combin
 for reporting. Parameter links between different independently fitted curves cannot
 act as a simultaneous cross-curve constraint; use Global mode for that purpose.
 
+**CPU processes (independent fits)** in the advanced settings runs multiple spectra
+in separate processes, up to the selected count and the available CPUs. Both built-in
+functions and user-defined formulas support this, including mixed models. Formula
+definitions are reconstructed in each worker; fitted parameters, covariance and
+completed-spectrum results are returned to the main workspace. Executable plugin
+functions and plugin solvers retain their single-process execution path.
+
 #### Sequential
 
 Sequential mode is a propagating refinement. Choose an **Initial source spectrum**
@@ -1715,16 +1722,53 @@ default to **200 replicates** (not optimizer iterations), and remain configurabl
 The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
 quick estimate; use more and check stability when precise percentile endpoints matter.
 
+For Monte Carlo and both bootstrap methods, **Replicate mode** offers **Fixed count**
+or **Adaptive - stop when intervals stabilize**. Adaptive mode defaults to:
+
+- 500 successful replicates for the first interval estimate;
+- 200 additional successful replicates per checkpoint;
+- less than 5% endpoint change, measured against each interval's current width;
+- three consecutive stable checks;
+- a hard limit of 10,000 attempts, including failed fits.
+
+All five settings are editable. Each checkpoint recomputes percentile intervals
+using all successful replicates accumulated so far. Both endpoints of every free
+parameter must satisfy the tolerance; an unstable check resets the consecutive
+counter. With these defaults the earliest stable stop is at 1,100 successful
+replicates. Failed fits do not count toward the initial sample or subsequent
+blocks, but do count toward the maximum attempts. If the limit interrupts a block,
+the final intervals still use all successful replicates, and the result explicitly
+reports that stability was not reached. Identical zero-width intervals are treated
+as numerically stable; changing to a zero-width interval is not a stable check.
+
+The limit applies separately to each independent spectrum, or once to a joint global
+fit. The report records the actual successes, failures, attempts, stopping reason,
+settings and checkpoint history, including when the project is saved and reopened.
+Reaching the limit before stability is flagged in the assessment. This is a numerical
+stability criterion, not a guarantee of statistical accuracy or model validity.
+Covariance and profile likelihood do not use adaptive replicate counts.
+
 **CPU processes** sets the maximum number of independent spectra analyzed in
 parallel, with remaining spectra queued. The default is up to four processes,
-limited by the available CPU count. Profile scans can parallelize their grid points;
-analyses involving executable plugin functions use one process. Raising the process
-count can increase memory use, and it does not change the requested replicate count.
+limited by the available CPU count. Built-in functions and custom formulas support
+this parallelism for both selected spectra and all fitted spectra, in fixed and
+adaptive modes. A single spectrum or joint global analysis can parallelize its
+replicates instead; profile scans can parallelize their grid points. Analyses
+involving executable plugin functions use one process. Raising the process count
+can increase memory use, and it does not change the requested replicate count.
+The actual worker process count is recorded under **Technical details**.
 
 **Run on** selects the active spectrum, spectra selected in the project tree, or all
 fitted spectra. Each independent spectrum uses its own last successful fit, even if
 another spectrum was fitted more recently. Switching the active spectrum updates the
 report shown in the panel. Results are saved separately for each spectrum and method.
+The spectrum list's **Uncertainty analysed** tag refers to the method currently
+chosen in **Method**. Switching from bootstrap to Monte Carlo removes the completed
+tag from spectra without a saved Monte Carlo analysis; switching back restores the
+bootstrap tag. A saved analysis of the selected method is marked outdated after
+data/model changes. Hover over the state to see the selected method and all saved
+analyses. Changing the method preserves the selection and does not rerun or delete
+any analysis.
 **Displayed uncertainty** selects which saved analysis supplies the coloured
 **Analysis − / +** column in **Model and parameters** for the active spectrum.
 The most recently completed resampling/profile analysis is selected automatically;

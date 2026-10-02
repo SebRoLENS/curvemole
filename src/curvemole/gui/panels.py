@@ -38,6 +38,7 @@ from curvemole.core.functions import formula_definition
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
+from curvemole.core.uncertainty import AdaptiveReplicateSettings
 
 
 def background_component_subtracted(curve: Any, component_id: str) -> bool:
@@ -815,7 +816,7 @@ class DiagnosticsPanel(QWidget):
 
 
 class UncertaintyPanel(QWidget):
-    runRequested = Signal(str, int, object, str, int)
+    runRequested = Signal(str, int, object, str, int, object)
     displayMethodChanged = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -841,12 +842,41 @@ class UncertaintyPanel(QWidget):
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
         self.replicates.setValue(200)
+        self.replica_mode = QComboBox()
+        self.replica_mode.addItem(self.tr("Fixed count"), "fixed")
+        self.replica_mode.addItem(self.tr("Adaptive - stop when intervals stabilize"), "adaptive")
+        self.adaptive_initial = QSpinBox()
+        self.adaptive_initial.setRange(2, 1_000_000)
+        self.adaptive_initial.setValue(500)
+        self.adaptive_batch = QSpinBox()
+        self.adaptive_batch.setRange(1, 1_000_000)
+        self.adaptive_batch.setValue(200)
+        self.adaptive_tolerance = QDoubleSpinBox()
+        self.adaptive_tolerance.setRange(0.01, 99.99)
+        self.adaptive_tolerance.setDecimals(2)
+        self.adaptive_tolerance.setValue(5)
+        self.adaptive_tolerance.setSuffix(" %")
+        self.adaptive_tolerance.setToolTip(self.tr(
+            "Both endpoints of every free parameter's interval must change by less "
+            "than this percentage of that interval's current width. "
+            "This checks numerical stability, not the validity of the model."))
+        self.adaptive_checks = QSpinBox()
+        self.adaptive_checks.setRange(1, 100)
+        self.adaptive_checks.setValue(3)
+        self.adaptive_maximum = QSpinBox()
+        self.adaptive_maximum.setRange(500, 1_000_000)
+        self.adaptive_maximum.setValue(10_000)
+        self.adaptive_maximum.setToolTip(self.tr(
+            "Hard limit per independent spectrum or joint fit, including failed fits. "
+            "Only successful replicates count toward the initial sample and each batch."))
+        self.adaptive_initial.valueChanged.connect(self.adaptive_maximum.setMinimum)
         self.workers = QSpinBox()
         self.workers.setRange(1, max(1, os.cpu_count() or 1))
         self.workers.setValue(min(4, self.workers.maximum()))
         self.workers.setToolTip(self.tr(
             "Maximum spectra processed in parallel: one process per spectrum, "
-            "with remaining spectra queued. Profile scans parallelize grid points. "
+            "with remaining spectra queued. A single or joint analysis parallelizes "
+            "replicates; profile scans parallelize grid points. Custom formulas are supported. "
             "Plugin functions run in one process."))
         self.block_length = QSpinBox()
         self.block_length.setRange(0, 1_000_000)
@@ -872,7 +902,13 @@ class UncertaintyPanel(QWidget):
         layout.addRow(self.tr("Run on"), self.scope)
         layout.addRow(self.tr("Displayed uncertainty"), self.display_method)
         layout.labelForField(self.display_method).setToolTip(self.display_method.toolTip())
+        layout.addRow(self.tr("Replicate mode"), self.replica_mode)
         layout.addRow(self.tr("Replicates"), self.replicates)
+        layout.addRow(self.tr("Initial successful replicates"), self.adaptive_initial)
+        layout.addRow(self.tr("Successful replicates per batch"), self.adaptive_batch)
+        layout.addRow(self.tr("Endpoint change tolerance"), self.adaptive_tolerance)
+        layout.addRow(self.tr("Consecutive stable checks"), self.adaptive_checks)
+        layout.addRow(self.tr("Maximum attempts (including failures)"), self.adaptive_maximum)
         layout.addRow(self.tr("CPU processes"), self.workers)
         layout.addRow(self.tr("Block length"), self.block_length)
         layout.addRow(self.tr("Profile parameter"), self.parameter)
@@ -883,6 +919,7 @@ class UncertaintyPanel(QWidget):
         layout.addRow(run)
         layout.addRow(self.results)
         self.method.currentIndexChanged.connect(self._update_controls)
+        self.replica_mode.currentIndexChanged.connect(self._update_controls)
         self._update_controls()
 
     def set_parameters(self, project: Project, curve_id: str | None) -> None:
@@ -920,7 +957,14 @@ class UncertaintyPanel(QWidget):
 
     def _update_controls(self) -> None:
         method = self.method.currentData()
-        self.replicates.setEnabled(method not in {"profile_likelihood", "covariance"})
+        resampling = method not in {"profile_likelihood", "covariance"}
+        adaptive = resampling and self.replica_mode.currentData() == "adaptive"
+        self.replica_mode.setEnabled(resampling)
+        self.replicates.setEnabled(resampling and not adaptive)
+        for widget in (self.adaptive_initial, self.adaptive_batch, self.adaptive_tolerance,
+                       self.adaptive_checks, self.adaptive_maximum):
+            widget.setEnabled(adaptive)
+            self.form.setRowVisible(widget, adaptive)
         self.workers.setEnabled(method != "covariance")
         self.profile_points.setEnabled(method == "profile_likelihood")
         self.profile_lower.setEnabled(method == "profile_likelihood")
@@ -932,7 +976,8 @@ class UncertaintyPanel(QWidget):
         if method == "profile_likelihood":
             self.scope.setCurrentIndex(0)
         for widget, visible in (
-            (self.replicates, method not in {"profile_likelihood", "covariance"}),
+            (self.replica_mode, resampling),
+            (self.replicates, resampling and not adaptive),
             (self.workers, method != "covariance"),
             (self.block_length, method == "block_bootstrap"),
             (self.parameter, method == "profile_likelihood"),
@@ -944,6 +989,18 @@ class UncertaintyPanel(QWidget):
             self.form.setRowVisible(widget, visible)
         self.results.show_method(method)
 
+    def adaptive_settings(self) -> AdaptiveReplicateSettings | None:
+        if (self.method.currentData() in {"profile_likelihood", "covariance"}
+                or self.replica_mode.currentData() != "adaptive"):
+            return None
+        return AdaptiveReplicateSettings(
+            initial_successes=self.adaptive_initial.value(),
+            batch_successes=self.adaptive_batch.value(),
+            tolerance=self.adaptive_tolerance.value() / 100,
+            consecutive_checks=self.adaptive_checks.value(),
+            maximum_attempts=self.adaptive_maximum.value(),
+        )
+
     def _run(self) -> None:
         method = self.method.currentData()
         option = (
@@ -954,4 +1011,5 @@ class UncertaintyPanel(QWidget):
             else self.block_length.value()
         )
         self.runRequested.emit(method, self.replicates.value(), option,
-                               self.scope.currentData(), self.workers.value())
+                               self.scope.currentData(), self.workers.value(),
+                               self.adaptive_settings())

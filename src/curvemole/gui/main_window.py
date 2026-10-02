@@ -100,7 +100,7 @@ from curvemole.core.project import Project
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
-from curvemole.core.uncertainty import UncertaintyAnalyzer
+from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
 from curvemole.gui.colours import (
     DEFAULT_SERIES_PALETTE,
     SERIES_PALETTES,
@@ -222,8 +222,10 @@ class CallbackCommand(QUndoCommand):
         self._undo()
 
 
-def _curve_state_presentation(project: Project, curve: Curve) -> tuple[str, str]:
-    """Return the fit state plus any uncertainty analysis saved for this spectrum."""
+def _curve_state_presentation(
+    project: Project, curve: Curve, uncertainty_method: str | None = None,
+) -> tuple[str, str]:
+    """Show completion for the chosen uncertainty method, retaining all saved reports."""
     reports_by_curve = project.results.get("uncertainty_reports_by_curve", {})
     reports = reports_by_curve.get(curve.id, {}) if isinstance(reports_by_curve, dict) else {}
     methods = [method for method, report in reports.items() if report]
@@ -236,12 +238,21 @@ def _curve_state_presentation(project: Project, curve: Curve) -> tuple[str, str]
         method: "Fit covariance" if method == "covariance" else DISPLAY_METHODS.get(method, method)
         for method in methods
     }
+    tooltip = "Saved uncertainty analyses: " + ", ".join(labels[method] for method in methods)
+    if uncertainty_method is not None:
+        uncertainty_method = (
+            "parametric_monte_carlo" if uncertainty_method == "monte_carlo" else uncertainty_method
+        )
+        chosen_label = ("Fit covariance" if uncertainty_method == "covariance"
+                        else DISPLAY_METHODS.get(uncertainty_method, uncertainty_method))
+        if uncertainty_method not in methods:
+            return curve.state.value, f"{chosen_label}: not analysed.\n{tooltip}"
+        tooltip = f"Selected uncertainty method: {chosen_label}.\n{tooltip}"
     analysis_state = (
         "Uncertainty analysed"
         if curve.state == CurveState.FITTED
         else "Uncertainty analysis outdated"
     )
-    tooltip = "Saved uncertainty analyses: " + ", ".join(labels[method] for method in methods)
     return f"{curve.state.value}  ·  {analysis_state}", tooltip
 
 
@@ -270,6 +281,7 @@ class CurveTree(QTreeWidget):
         self.setAlternatingRowColors(True)
         self._updating = False
         self._project: Project | None = None
+        self._uncertainty_method: str | None = None
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.currentItemChanged.connect(self._active_changed)
@@ -320,7 +332,9 @@ class CurveTree(QTreeWidget):
                     self.addTopLevelItem(parent)
                     items[("series", series.id)] = parent
                     for curve in series.curves:
-                        state_text, state_tooltip = _curve_state_presentation(project, curve)
+                        state_text, state_tooltip = _curve_state_presentation(
+                            project, curve, self._uncertainty_method,
+                        )
                         child = QTreeWidgetItem(["", curve.name, state_text])
                         if state_tooltip:
                             child.setToolTip(2, state_tooltip)
@@ -370,6 +384,23 @@ class CurveTree(QTreeWidget):
                     self.horizontalScrollBar().setValue(scroll_x)
         finally:
             self._updating = False
+
+    def set_uncertainty_method(self, method: str) -> None:
+        self._uncertainty_method = method
+        if self._project is None:
+            return
+        curves = {curve.id: curve for curve in self._project.curves}
+        with QSignalBlocker(self):
+            for index in range(self.topLevelItemCount()):
+                parent = self.topLevelItem(index)
+                for child_index in range(parent.childCount()):
+                    item = parent.child(child_index)
+                    metadata = item.data(1, Qt.ItemDataRole.UserRole)
+                    curve = curves.get(metadata[1]) if metadata else None
+                    if curve is not None:
+                        text, tooltip = _curve_state_presentation(self._project, curve, method)
+                        item.setText(2, text)
+                        item.setToolTip(2, tooltip)
 
     def _style_curve_visibility(self, item: QTreeWidgetItem) -> None:
         visible = item.checkState(0) == Qt.CheckState.Checked
@@ -1189,9 +1220,14 @@ class MainWindow(QMainWindow):
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
         self.uncertainty_panel.displayMethodChanged.connect(self._select_uncertainty_display)
+        self.uncertainty_panel.method.currentIndexChanged.connect(self._update_uncertainty_tags)
+        self._update_uncertainty_tags()
         self.model_panel.renameRequested.connect(self.rename_function)
         self.model_panel.reorderRequested.connect(self.reorder_functions)
         self.model_panel.reorderRulesRequested.connect(self.edit_reorder_rules)
+
+    def _update_uncertainty_tags(self) -> None:
+        self.curve_tree.set_uncertainty_method(self.uncertainty_panel.method.currentData())
 
     def refresh_all(self) -> None:
         self.setWindowTitle(self._title())
@@ -2437,12 +2473,22 @@ class MainWindow(QMainWindow):
         return baseline_for_curve(latest, curve_id), individual_plan(plan, curve_id)
 
     def start_uncertainty(self, method: str, replicates: int, option: Any,
-                          scope: str = "active", workers: int = 1) -> None:
+                          scope: str = "active", workers: int = 1,
+                          adaptive: AdaptiveReplicateSettings | None = None) -> None:
         if not self._ensure_editable():
             return
         if self._thread is not None:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
+        if adaptive is not None:
+            try:
+                adaptive.validate()
+            except Exception as exc:
+                self._show_error(self.tr("Adaptive uncertainty settings"), exc)
+                return
+        method_index = self.uncertainty_panel.method.findData(method)
+        if method_index >= 0:
+            self.uncertainty_panel.method.setCurrentIndex(method_index)
         if scope == "all":
             ids = [curve.id for curve in self.project.curves if curve.state == CurveState.FITTED]
         elif scope == "selected":
@@ -2519,7 +2565,7 @@ class MainWindow(QMainWindow):
                                   {cid: curve_map[cid] for cid in plan.curve_ids},
                                   {cid: self.project.model_for(cid) for cid in plan.curve_ids}))
                 results = analyzer.resampling_batch(
-                    method, batch, replicates=replicates, option=option,
+                    method, batch, replicates=replicates, option=option, adaptive=adaptive,
                     workers=workers, cancellation=self._cancellation,
                     progress=lambda count: progress(count / len(unique_jobs),
                                                     f"{method}: {count}/{len(unique_jobs)} spectra"),
@@ -2549,8 +2595,8 @@ class MainWindow(QMainWindow):
                 else:
                     arguments = dict(
                         baseline=baseline, plan=plan, curves=curve_map,
-                        models=self.project.models, replicates=replicates,
-                        workers=1,
+                        models=self.project.models, replicates=replicates, adaptive=adaptive,
+                        workers=workers,
                         cancellation=self._cancellation, progress=step)
                     if method == "monte_carlo":
                         result = analyzer.parametric_monte_carlo(**arguments)
@@ -2592,9 +2638,7 @@ class MainWindow(QMainWindow):
         self.curve_tree.populate(self.project, self.active_curve_id)
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.model_panel.refresh_parameters()
-        if result:
-            method = "covariance" if isinstance(result[0][2], FitResult) else getattr(result[0][2], "method", "profile_likelihood")
-            self.uncertainty_panel.results.show_method(method)
+        self.uncertainty_panel.results.show_method(self.uncertainty_panel.method.currentData())
         self._notify(self.tr("Uncertainty analysis completed."))
 
     def _store_uncertainty_result(self, curve_id: str, baseline: FitResult, result: Any) -> None:

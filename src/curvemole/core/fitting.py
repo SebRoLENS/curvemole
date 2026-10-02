@@ -25,6 +25,7 @@ from curvemole.core.errors import ConstraintError, FitCancelled, FitError
 from curvemole.core.models import Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.core.registry import FunctionRegistry, default_registry
+from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
 
 ProgressCallback = Callable[[float | None, str], None]
 CurveResultCallback = Callable[[str, "FitResult"], None]
@@ -341,18 +342,20 @@ class _ProcessCancellationToken:
 
 
 _FIT_STOP_EVENT: Any = None
+_FIT_WORKER_REGISTRY: FunctionRegistry | None = None
 
 
-def _init_fit_process(event: Any) -> None:
-    global _FIT_STOP_EVENT
+def _init_fit_process(event: Any, formulas: Mapping[str, Any] | None = None) -> None:
+    global _FIT_STOP_EVENT, _FIT_WORKER_REGISTRY
     _FIT_STOP_EVENT = event
+    _FIT_WORKER_REGISTRY = registry_from_worker_formulas(formulas or {})
 
 
 def _fit_in_process(curve: Curve, model: Model, plan: FitPlan) -> FitResult:
     # A separate process owns its copy of the spectrum and model. The parent
     # commits the returned estimates only after the task has completed.
     try:
-        return Fitter()._fit_problem(
+        return Fitter(_FIT_WORKER_REGISTRY)._fit_problem(
             [curve], {curve.id: model}, plan, _ProcessCancellationToken(_FIT_STOP_EVENT), None,
         )
     except FitCancelled:
@@ -667,19 +670,12 @@ class Fitter:
         on_curve_result: CurveResultCallback | None = None,
     ) -> FitResult:
         from curvemole.core.extensions import extensions
-        from curvemole.core.functions import builtin_definitions
 
-        # Plugin callbacks cannot safely be transferred to spawned processes.
-        builtins = {definition.identifier: definition.evaluator
-                    for definition in builtin_definitions()}
-        if (any(
-                component.enabled and (
-                    component.function_id not in builtins or
-                    self.registry.get(component.function_id).evaluator is not builtins[component.function_id]
-                )
-                for curve in curves for component in models[curve.id].components
-            ) or any(entry.identifier == plan.settings.solver
-                     for entry in extensions.values("fit_solvers"))):
+        formulas = worker_formula_specs(self.registry, models, [curve.id for curve in curves])
+        # Declarative formulas are rebuilt in workers; executable plugin
+        # callbacks and plugin solvers still require the current process.
+        if (formulas is None or any(entry.identifier == plan.settings.solver
+                                   for entry in extensions.values("fit_solvers"))):
             return self._fit_independent(curves, models, plan, cancellation, progress, on_curve_result)
 
         jobs = []
@@ -701,7 +697,7 @@ class Fitter:
             max_workers=min(plan.settings.workers, len(curves), os.cpu_count() or 1),
             mp_context=context,
             initializer=_init_fit_process,
-            initargs=(stop,),
+            initargs=(stop, formulas),
         ) as pool:
             pending = {
                 pool.submit(_fit_in_process, curve, model, local_plan): curve

@@ -5,6 +5,24 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.35.4] - 2026-10-02
+
+### Added
+
+- Optional adaptive Monte Carlo and bootstrap replica counts: configurable initial
+  successes, batch size, endpoint tolerance, consecutive stable checks and maximum
+  attempts. Save convergence status, actual counts and checkpoint history with results.
+
+### Fixed
+
+- Restore parallel uncertainty analysis for custom formulas in selected/all fitted
+  spectra by reconstructing declarative function definitions in spawned workers.
+- Apply the same custom-formula support to multicore independent fitting, avoiding
+  a silent fallback to serial execution for the entire spectrum batch.
+- Honor the uncertainty worker count for a single spectrum or joint global analysis.
+- Make spectrum uncertainty-completion tags follow the currently selected analysis
+  method, updating immediately when switching methods without discarding saved reports.
+
 ## [0.35.3] - 2026-10-02
 
 ### Fixed

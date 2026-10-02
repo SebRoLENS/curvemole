@@ -53,7 +53,8 @@ class UncertaintyResults(QWidget):
             "click the assessment for its reasons. Thresholds: |r| ≥0.95; "
             "interval ≥80% of bounded range. These are diagnostic heuristics, not scientific validation. "
             "Alternative minima are not tested automatically. "
-            "200 replicates give a quick estimate; repeat with more for stable interval endpoints.")
+            "200 fixed replicates give a quick estimate. Adaptive mode checks interval endpoint "
+            "stability; it does not validate the model or guarantee interval accuracy.")
         legend.setWordWrap(True)
         layout.addWidget(legend)
         toggle = QPushButton("Technical details")
@@ -104,8 +105,15 @@ class UncertaintyResults(QWidget):
         rows = [row for row in rows if row["path"].startswith(self.curve_id + ".")]
         confidence = analysis.get("confidence_level", baseline.get("settings", {}).get("confidence_level", .95))
         text = f"{METHOD_LABELS[self.method]} · {confidence:.1%} confidence"
+        configuration = analysis.get("configuration", {})
+        adaptive = configuration.get("adaptive")
         if "completed" in analysis:
-            text += f" · {analysis['completed']}/{analysis['requested']} completed · {analysis['failed']} failed"
+            if adaptive:
+                text += (f" · {analysis['completed']} successful · {adaptive['attempted']}/"
+                         f"{adaptive['maximum_attempts']} attempts · {analysis['failed']} failed")
+                text += " · Intervals stable" if adaptive["converged"] else " · Limit reached before stability"
+            else:
+                text += f" · {analysis['completed']}/{analysis['requested']} completed · {analysis['failed']} failed"
         elif self.method == "profile_likelihood":
             text += f" · {analysis['failed_points']} failed grid points"
         self.summary.setText(text)
@@ -144,6 +152,19 @@ class UncertaintyResults(QWidget):
         self.details.setPlainText(
             f"Method: {self.method}\nBaseline timestamp: {baseline.get('timestamp', '')}\n"
             f"Seed: {analysis.get('seed', 'not applicable')}\n"
+            + (f"Worker processes: {configuration.get('batch_workers_used', configuration.get('workers_used', 1))}\n"
+               if "completed" in analysis else "")
+            + (f"Adaptive: initial {adaptive['initial_successes']} successful, "
+               f"batch {adaptive['batch_successes']}, tolerance {adaptive['tolerance']:.2%} "
+               f"of current interval width; {adaptive['stable_checks']}/"
+               f"{adaptive['consecutive_checks']} consecutive stable checks.\n"
+               f"Stop reason: {adaptive['stop_reason']}\n"
+               + "\n".join(
+                   f"Checkpoint: {check['successful']} successful / {check['attempts']} attempts; "
+                   f"largest endpoint change: {check['maximum_endpoint_change_fraction']} "
+                   f"(fraction of interval width); stable checks: {check['stable_checks']}"
+                   for check in adaptive["history"]
+               ) + "\n" if adaptive else "")
             + "\n".join(f"{r['path']}: ({r['lower']}, {r['upper']})" for r in rows))
 
     def _cell_clicked(self, row: int, column: int) -> None:

@@ -111,6 +111,9 @@ def summarize(project, baseline, analysis, method):
                 flag(1, "Fewer than 200 successful replicates; interval endpoints may be unstable.")
             if failed:
                 flag(1, f"{failed} replicates failed; the interval may be biased.")
+            adaptive = analysis.get("configuration", {}).get("adaptive")
+            if adaptive and not adaptive.get("converged", False):
+                flag(1, "Maximum attempts reached before interval endpoints met the requested stability criterion.")
         if finite and not fixed:
             global_lower = estimate.get("global_minimum")
             global_upper = estimate.get("global_maximum")

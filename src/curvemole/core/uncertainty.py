@@ -8,6 +8,7 @@ import multiprocessing
 import os
 from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -27,6 +28,30 @@ from curvemole.core.fitting import (
 )
 from curvemole.core.models import Model
 from curvemole.core.parameters import resolve_parameter_values
+from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
+
+
+@dataclass(frozen=True, slots=True)
+class AdaptiveReplicateSettings:
+    """Stop resampling when all percentile endpoints remain numerically stable."""
+
+    initial_successes: int = 500
+    batch_successes: int = 200
+    tolerance: float = 0.05
+    consecutive_checks: int = 3
+    maximum_attempts: int = 10_000
+
+    def validate(self) -> None:
+        for value in (self.initial_successes, self.batch_successes,
+                      self.consecutive_checks, self.maximum_attempts):
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise FitError("Adaptive replicate counts must be positive integers.")
+        if self.initial_successes < 2:
+            raise FitError("Adaptive analysis requires at least two initial successful replicates.")
+        if self.maximum_attempts < self.initial_successes:
+            raise FitError("Maximum attempts must be at least the initial successful replicate count.")
+        if not math.isfinite(self.tolerance) or not 0 < self.tolerance < 1:
+            raise FitError("Adaptive tolerance must be finite and between 0 and 1.")
 
 
 @dataclass(slots=True)
@@ -80,11 +105,13 @@ class ProfileResult:
 
 
 _WORKER_CONTEXT: tuple[Any, ...] | None = None
+_WORKER_FITTER: Fitter | None = None
 
 
-def _init_uncertainty_worker(stop: Any, *context: Any) -> None:
-    global _WORKER_CONTEXT
+def _init_uncertainty_worker(stop: Any, formulas: Mapping[str, Any], *context: Any) -> None:
+    global _WORKER_CONTEXT, _WORKER_FITTER
     _WORKER_CONTEXT = (stop, *context)
+    _WORKER_FITTER = Fitter(registry_from_worker_formulas(formulas))
 
 
 def _parallel_map(
@@ -92,16 +119,20 @@ def _parallel_map(
     context: tuple[Any, ...], cancellation: CancellationToken,
     progress: Callable[[int], None] | None,
     on_result: Callable[[int, Any], None] | None = None,
+    *, pool: ProcessPoolExecutor | None = None, stop: Any = None,
+    formulas: Mapping[str, Any] | None = None,
 ) -> list[Any]:
     """Keep only a few spawned-process jobs queued and return results in input order."""
-    mp_context = multiprocessing.get_context("spawn")
-    stop = mp_context.Event()
     results: list[Any] = [None] * len(inputs)
-    with ProcessPoolExecutor(
-        max_workers=min(workers, len(inputs), os.cpu_count() or 1),
-        mp_context=mp_context, initializer=_init_uncertainty_worker,
-        initargs=(stop, *context),
-    ) as pool:
+    with ExitStack() as stack:
+        if pool is None:
+            mp_context = multiprocessing.get_context("spawn")
+            stop = mp_context.Event()
+            pool = stack.enter_context(ProcessPoolExecutor(
+                max_workers=min(workers, len(inputs), os.cpu_count() or 1),
+                mp_context=mp_context, initializer=_init_uncertainty_worker,
+                initargs=(stop, formulas or {}, *context),
+            ))
         pending = {}
         next_index = 0
         completed = 0
@@ -129,16 +160,14 @@ def _parallel_map(
     return results
 
 
-def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str]) -> bool:
-    """A spawned process can reconstruct builtin evaluators, but not plugin callbacks."""
-    from curvemole.core.functions import builtin_definitions
+def _worker_formulas(
+    fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str],
+) -> dict[str, Any] | None:
+    return worker_formula_specs(fitter.registry, models, curve_ids)
 
-    builtins = {definition.identifier: definition.evaluator for definition in builtin_definitions()}
-    return all(
-        component.function_id in builtins
-        and fitter.registry.get(component.function_id).evaluator is builtins[component.function_id]
-        for curve_id in curve_ids for component in models[curve_id].components if component.enabled
-    )
+
+def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str]) -> bool:
+    return _worker_formulas(fitter, models, curve_ids) is not None
 
 
 def _resample_trial(
@@ -200,18 +229,18 @@ def _resample_trial(
 
 
 def _resample_in_process(seed: int) -> tuple[list[float] | None, str | None]:
-    assert _WORKER_CONTEXT is not None
+    assert _WORKER_CONTEXT is not None and _WORKER_FITTER is not None
     stop, method, baseline, plan, curves, models, lengths = _WORKER_CONTEXT
     return _resample_trial(seed, method, baseline, plan, curves, models, lengths,
-                           Fitter(), _ProcessCancellationToken(stop))
+                           _WORKER_FITTER, _ProcessCancellationToken(stop))
 
 
 def _batch_resample_in_process(job: tuple[Any, ...]) -> ResamplingResult:
     assert _WORKER_CONTEXT is not None
     stop = _WORKER_CONTEXT[0]
-    method, baseline, plan, curves, models, replicates, option = job
-    analyzer = UncertaintyAnalyzer()
-    arguments = dict(replicates=replicates, workers=1,
+    method, baseline, plan, curves, models, replicates, option, adaptive = job
+    analyzer = UncertaintyAnalyzer(_WORKER_FITTER)
+    arguments = dict(replicates=replicates, workers=1, adaptive=adaptive,
                      cancellation=_ProcessCancellationToken(stop))
     if method == "monte_carlo":
         return analyzer.parametric_monte_carlo(baseline, plan, curves, models, **arguments)
@@ -261,10 +290,10 @@ def _profile_trial(
 
 
 def _profile_in_process(value: float) -> float | None:
-    assert _WORKER_CONTEXT is not None
+    assert _WORKER_CONTEXT is not None and _WORKER_FITTER is not None
     stop, curve, model, parameter_path, baseline, baseline_chi, spectrum_weight, equal = _WORKER_CONTEXT
     return _profile_trial(value, curve, model, parameter_path, baseline, baseline_chi,
-                          spectrum_weight, equal, Fitter(), _ProcessCancellationToken(stop))
+                          spectrum_weight, equal, _WORKER_FITTER, _ProcessCancellationToken(stop))
 
 
 class UncertaintyAnalyzer:
@@ -275,6 +304,7 @@ class UncertaintyAnalyzer:
         self, method: str, jobs: Sequence[tuple[FitResult, FitPlan,
                                                Mapping[str, Curve], Mapping[str, Model]]],
         *, replicates: int, option: int | None = None, workers: int = 1,
+        adaptive: AdaptiveReplicateSettings | None = None,
         cancellation: CancellationToken | None = None,
         progress: Callable[[int], None] | None = None,
         on_result: Callable[[int, ResamplingResult], None] | None = None,
@@ -288,20 +318,32 @@ class UncertaintyAnalyzer:
             raise FitError(f"Unknown resampling method: {method}")
         if not isinstance(workers, int) or workers < 1:
             raise FitError("Worker process count must be a positive integer.")
+        if adaptive is not None:
+            adaptive.validate()
         token = cancellation or CancellationToken()
         parallel = (workers > 1 and len(jobs) > 1 and all(
             _parallel_safe(self.fitter, models, plan.curve_ids)
             for _, plan, _, models in jobs
         ))
         if parallel:
-            payloads = [(method, baseline, plan, curves, models, replicates, option)
+            formulas = {}
+            for _, plan, _, models in jobs:
+                formulas.update(_worker_formulas(self.fitter, models, plan.curve_ids) or {})
+            payloads = [(method, baseline, plan, curves, models, replicates, option, adaptive)
                         for baseline, plan, curves, models in jobs]
+            batch_workers = min(workers, len(jobs), os.cpu_count() or 1)
+
+            def publish(index: int, result: ResamplingResult) -> None:
+                result.configuration["batch_workers_used"] = batch_workers
+                if on_result:
+                    on_result(index, result)
+
             return _parallel_map(_batch_resample_in_process, payloads, workers,
-                                 (), token, progress, on_result)
+                                 (), token, progress, publish, formulas=formulas)
         results = []
         for baseline, plan, curves, models in jobs:
             token.raise_if_cancelled()
-            arguments = dict(replicates=replicates, workers=1, cancellation=token)
+            arguments = dict(replicates=replicates, workers=1, cancellation=token, adaptive=adaptive)
             if method == "monte_carlo":
                 result = self.parametric_monte_carlo(baseline, plan, curves, models, **arguments)
             elif method == "block_bootstrap":
@@ -310,6 +352,7 @@ class UncertaintyAnalyzer:
             else:
                 result = self.residual_bootstrap(baseline, plan, curves, models, **arguments)
             results.append(result)
+            result.configuration["batch_workers_used"] = 1
             if on_result:
                 on_result(len(results) - 1, result)
             if progress:
@@ -324,6 +367,7 @@ class UncertaintyAnalyzer:
         models: Mapping[str, Model],
         *,
         replicates: int = 200,
+        adaptive: AdaptiveReplicateSettings | None = None,
         seed: int | None = None,
         workers: int = 1,
         cancellation: CancellationToken | None = None,
@@ -348,6 +392,7 @@ class UncertaintyAnalyzer:
             cancellation,
             progress,
             {},
+            adaptive,
         )
 
     def residual_bootstrap(
@@ -358,6 +403,7 @@ class UncertaintyAnalyzer:
         models: Mapping[str, Model],
         *,
         replicates: int = 200,
+        adaptive: AdaptiveReplicateSettings | None = None,
         seed: int | None = None,
         workers: int = 1,
         cancellation: CancellationToken | None = None,
@@ -377,6 +423,7 @@ class UncertaintyAnalyzer:
             cancellation,
             progress,
             {},
+            adaptive,
         )
 
     def block_bootstrap(
@@ -387,6 +434,7 @@ class UncertaintyAnalyzer:
         models: Mapping[str, Model],
         *,
         replicates: int = 200,
+        adaptive: AdaptiveReplicateSettings | None = None,
         block_length: int | None = None,
         seed: int | None = None,
         workers: int = 1,
@@ -411,6 +459,7 @@ class UncertaintyAnalyzer:
             cancellation,
             progress,
             {"block_lengths": lengths},
+            adaptive,
         )
 
     def profile_parameter(
@@ -477,6 +526,7 @@ class UncertaintyAnalyzer:
                 _profile_in_process, grid.tolist(), workers,
                 (curve, model, parameter_path, baseline, baseline_chi,
                  spectrum_weight, equal_contribution), token, report,
+                formulas=_worker_formulas(self.fitter, {curve.id: model}, [curve.id]),
             )
         else:
             values = []
@@ -511,8 +561,11 @@ class UncertaintyAnalyzer:
         cancellation: CancellationToken | None,
         progress: Callable[[float | None, str], None] | None,
         extra_configuration: dict[str, Any],
+        adaptive: AdaptiveReplicateSettings | None = None,
     ) -> ResamplingResult:
-        if replicates <= 0:
+        if adaptive is not None:
+            adaptive.validate()
+        elif replicates <= 0:
             raise FitError("The requested number of replicates must be positive.")
         if not isinstance(workers, int) or workers < 1:
             raise FitError("Worker process count must be a positive integer.")
@@ -527,6 +580,13 @@ class UncertaintyAnalyzer:
         trial_plan = copy.deepcopy(plan)
         trial_plan.settings = settings
         lengths = extra_configuration.get("block_lengths", {})
+        if adaptive is not None:
+            if not paths:
+                raise FitError("Adaptive uncertainty analysis requires at least one free parameter.")
+            return self._adaptive_resample(
+                method, baseline, trial_plan, curves, base_models, adaptive,
+                selected_seed, workers, token, progress, extra_configuration,
+            )
         seeds = rng.integers(0, np.iinfo(np.int64).max, size=replicates).tolist()
         parallel = workers > 1 and replicates > 1 and _parallel_safe(self.fitter, base_models, plan.curve_ids)
 
@@ -538,6 +598,7 @@ class UncertaintyAnalyzer:
             outcomes = _parallel_map(
                 _resample_in_process, seeds, workers,
                 (method, baseline, trial_plan, curves, base_models, lengths), token, report,
+                formulas=_worker_formulas(self.fitter, base_models, plan.curve_ids),
             )
         else:
             outcomes = []
@@ -575,6 +636,140 @@ class UncertaintyAnalyzer:
                            **extra_configuration},
             failure_messages=failures[:100],
         )
+
+    def _adaptive_resample(
+        self, method: str, baseline: FitResult, plan: FitPlan,
+        curves: Mapping[str, Curve], models: Mapping[str, Model],
+        adaptive: AdaptiveReplicateSettings, seed: int, workers: int,
+        token: CancellationToken, progress: Callable[[float | None, str], None] | None,
+        extra_configuration: dict[str, Any],
+    ) -> ResamplingResult:
+        paths = list(baseline.free_parameter_paths)
+        seeds = np.random.default_rng(seed).integers(
+            0, np.iinfo(np.int64).max, size=adaptive.maximum_attempts).tolist()
+        lengths = extra_configuration.get("block_lengths", {})
+        context = (method, baseline, plan, curves, models, lengths)
+        parallel = (workers > 1 and adaptive.maximum_attempts > 1
+                    and _parallel_safe(self.fitter, models, plan.curve_ids))
+        collected: list[list[float]] = []
+        failures: list[str] = []
+        attempts = stable_checks = checks_completed = 0
+        previous: np.ndarray | None = None
+        history: list[dict[str, Any]] = []
+        target = adaptive.initial_successes
+        converged = False
+
+        def report(_count: int = 0) -> None:
+            if progress:
+                progress(attempts / adaptive.maximum_attempts,
+                         f"{method}: {len(collected)} successful, {attempts}/"
+                         f"{adaptive.maximum_attempts} attempts; stable checks "
+                         f"{stable_checks}/{adaptive.consecutive_checks}")
+
+        with ExitStack() as stack:
+            pool = stop = None
+            if parallel:
+                mp_context = multiprocessing.get_context("spawn")
+                stop = mp_context.Event()
+                pool = stack.enter_context(ProcessPoolExecutor(
+                    max_workers=min(workers, adaptive.maximum_attempts, os.cpu_count() or 1),
+                    mp_context=mp_context, initializer=_init_uncertainty_worker,
+                    initargs=(stop, _worker_formulas(self.fitter, models, plan.curve_ids) or {}, *context),
+                ))
+            while attempts < adaptive.maximum_attempts and not converged:
+                token.raise_if_cancelled()
+                # Limit each chunk to the successes still needed. Failed fits are
+                # replaced before checking, without overshooting a checkpoint.
+                count = min(target - len(collected), adaptive.maximum_attempts - attempts)
+                trial_seeds = seeds[attempts:attempts + count]
+
+                def collect(_index: int, outcome: Any) -> None:
+                    nonlocal attempts
+                    sample, message = outcome
+                    attempts += 1
+                    if (sample is not None and len(sample) == len(paths)
+                            and np.all(np.isfinite(sample))):
+                        collected.append(sample)
+                    else:
+                        failures.append(message or "Replica returned no finite parameter sample.")
+                    report()
+
+                if parallel:
+                    # Consume in seed order, independently of worker completion
+                    # order, so checkpoints and saved samples are reproducible.
+                    batch_size = len(trial_seeds)
+                    outcomes = _parallel_map(
+                        _resample_in_process, trial_seeds, workers, context, token,
+                        lambda count, batch_size=batch_size: progress(
+                            (attempts + count) / adaptive.maximum_attempts,
+                            f"{method}: fitting batch, {count}/{batch_size} attempts complete",
+                        ) if progress else None,
+                        pool=pool, stop=stop,
+                    )
+                    for index, outcome in enumerate(outcomes):
+                        collect(index, outcome)
+                else:
+                    for index, trial_seed in enumerate(trial_seeds):
+                        token.raise_if_cancelled()
+                        collect(index, _resample_trial(
+                            trial_seed, method, baseline, plan, curves, models,
+                            lengths, self.fitter, token))
+                token.raise_if_cancelled()
+                if len(collected) == target:
+                    current = _percentile_endpoints(collected, plan.settings.confidence_level)
+                    change = None
+                    if previous is not None:
+                        checks_completed += 1
+                        change = _endpoint_change(previous, current)
+                        stable_checks = stable_checks + 1 if change < adaptive.tolerance else 0
+                        converged = stable_checks >= adaptive.consecutive_checks
+                    history.append({
+                        "successful": len(collected), "attempts": attempts,
+                        "maximum_endpoint_change_fraction": (
+                            change if change is not None and math.isfinite(change) else None),
+                        "stable_checks": stable_checks,
+                    })
+                    previous = current
+                    target += adaptive.batch_successes
+                    report()
+        samples = np.asarray(collected, dtype=float).reshape(-1, len(paths))
+        endpoints = _percentile_endpoints(samples, plan.settings.confidence_level) if len(samples) else []
+        intervals = {path: tuple(map(float, endpoints[index]))
+                     for index, path in enumerate(paths) if len(samples)}
+        configuration = {
+            "fit_settings": asdict(plan.settings),
+            "workers_used": min(workers, adaptive.maximum_attempts, os.cpu_count() or 1) if parallel else 1,
+            **extra_configuration,
+            "adaptive": {
+                **asdict(adaptive), "converged": converged,
+                "stop_reason": "stable_intervals" if converged else "maximum_attempts",
+                "attempted": attempts, "checks_completed": checks_completed,
+                "stable_checks": stable_checks, "history": history,
+            },
+        }
+        if progress:
+            progress(1.0, f"{method}: {'stable intervals' if converged else 'maximum attempts reached'}; "
+                     f"{len(samples)} successful, {len(failures)} failed")
+        return ResamplingResult(
+            method, adaptive.maximum_attempts, len(samples), len(failures), seed,
+            paths, samples, intervals, plan.settings.confidence_level, configuration,
+            failures[:100],
+        )
+
+
+def _percentile_endpoints(samples: Any, confidence_level: float) -> np.ndarray:
+    alpha = (1 - confidence_level) / 2
+    return np.quantile(np.asarray(samples), [alpha, 1 - alpha], axis=0).T
+
+
+def _endpoint_change(previous: np.ndarray, current: np.ndarray) -> float:
+    """Worst endpoint movement, normalized by each current interval's width."""
+    movement = np.max(np.abs(current - previous), axis=1)
+    width = current[:, 1] - current[:, 0]
+    fractions = np.full_like(width, np.inf)
+    np.divide(movement, width, out=fractions, where=width > 0)
+    fractions[(width == 0) & (movement == 0)] = 0
+    return float(np.max(fractions)) if np.all(np.isfinite(fractions)) else math.inf
 
 
 def _curve_map(curves: Mapping[str, Curve] | Sequence[Curve]) -> Mapping[str, Curve]:

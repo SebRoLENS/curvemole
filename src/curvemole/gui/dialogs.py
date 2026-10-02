@@ -597,6 +597,7 @@ class FitPlanDialog(QDialog):
         self.workers.setValue(min(settings.workers, self.workers.maximum()))
         self.workers.setToolTip(self.tr(
             "Run independent fits of multiple spectra in separate CPU processes. "
+            "Built-in functions and custom formulas support this. "
             "Sequential and global fits remain single-process. Plugins with custom "
             "functions or solvers use the single-process path."))
         advanced.addRow(self.tr("CPU processes (independent fits)"), self.workers)

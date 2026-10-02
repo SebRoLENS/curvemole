@@ -125,10 +125,15 @@ def test_spectrum_state_shows_uncertainty_only_when_an_analysis_exists(gaussian_
     assert state_item.text(2) == "Fitted"
     assert state_item.toolTip(2) == ""
 
+    window.uncertainty_panel.method.setCurrentIndex(
+        window.uncertainty_panel.method.findData("covariance"),
+    )
     window._uncertainty_finished(baseline)
     state_item = window.curve_tree.topLevelItem(0).child(0)
     assert state_item.text(2) == "Fitted  ·  Uncertainty analysed"
-    assert state_item.toolTip(2) == "Saved uncertainty analyses: Fit covariance"
+    assert state_item.toolTip(2) == (
+        "Selected uncertainty method: Fit covariance.\nSaved uncertainty analyses: Fit covariance"
+    )
 
     gaussian_curve.state = CurveState.MODIFIED
     window.curve_tree.populate(project, gaussian_curve.id)
@@ -412,6 +417,9 @@ def test_uncertainty_table_groups_parameters_under_each_function(gaussian_curve)
     }))
     baseline = Fitter().fit_single(gaussian_curve, model)
     window = MainWindow(project)
+    window.uncertainty_panel.method.setCurrentIndex(
+        window.uncertainty_panel.method.findData("covariance"),
+    )
     window._uncertainty_finished([(gaussian_curve.id, baseline, baseline)])
     table = window.uncertainty_panel.results.table
     assert window.uncertainty_panel.results.spectrum_heading.text() == (
