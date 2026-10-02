@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.36.1] - 2026-10-02
+
 ### Added
 
 - Configurable per-replica timeout for Monte Carlo and bootstrap analyses (60 seconds

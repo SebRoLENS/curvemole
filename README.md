@@ -22,7 +22,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.36.0 Preview**. The scientific core and desktop workflow
+> **Status:** Version **0.36.1 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
 
@@ -305,19 +305,19 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **0.36.0**
+Current public version: **0.36.1**
 
 ## How to cite
 
 If CurveMole contributes to published research, please cite the exact version used.
 GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
 
-Zenodo archival for version **0.36.0** is pending. The release DOI will be
+Zenodo archival for version **0.36.1** is pending. The release DOI will be
 inserted here automatically when the record is available. Until then, use the
 versioned GitHub release below.
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.36.0)
-> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.36.0
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 0.36.1)
+> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v0.36.1
 
 ## License
 
