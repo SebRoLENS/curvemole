@@ -80,7 +80,7 @@ def spectrum_export_dataframe(
         columns["Background"] = background
 
     if options.include_components and model is not None:
-        for component in model.components:
+        for component in model.display_components:
             if not component.enabled or component.id not in components:
                 continue
             parts = ["Component", component.name, component.function_id]

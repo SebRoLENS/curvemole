@@ -129,6 +129,182 @@ def test_add_builds_complex_rational_expression_with_repeated_references(gui):
     assert expression.evaluate(references=project.resolved_parameter_values()) == pytest.approx(5 / 3)
 
 
+@pytest.mark.parametrize("text", [
+    "Gaussian2.center + Gaussian3.center",
+    "${Gaussian2.center} + ${Gaussian3.center}",
+    "Gaussian2 . center + ${Gaussian3.center}",
+])
+def test_typed_parameter_names_match_add_without_prior_registration(gui, text):
+    project, (curve, copied_curve, _) = _project()
+    target, second, third, *_ = project.model_for(curve.id).components
+    window = gui(MainWindow, project)
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText(text)
+    expected = f"{_reference(curve, second)} + {_reference(curve, third)}"
+    assert dialog.link_expression() == expected
+    assert dialog.advanced.text() == text
+    _apply(window, dialog, curve, target)
+    assert dialog.selected_reference_scopes() == ["relative", "relative"]
+    assert project.resolved_parameter_values()[f"{curve.id}.{target.id}.center"] == 5
+    project.copy_fit(curve.id, [copied_curve.id], structure=False)
+    copied_target, copied_second, copied_third, *_ = project.model_for(copied_curve.id).components
+    assert copied_target.parameters["center"].link == (
+        f"{_reference(copied_curve, copied_second)} + {_reference(copied_curve, copied_third)}")
+    copied_second.parameters["center"].value = 12
+    copied_third.parameters["center"].value = 13
+    assert project.resolved_parameter_values()[f"{copied_curve.id}.{copied_target.id}.center"] == 25
+
+
+def test_typed_complex_expression_preserves_functions_numbers_and_repeated_references(gui):
+    project, (curve, _, _) = _project()
+    target, second, _, _, fifth = project.model_for(curve.id).components
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText(
+        "3 * Gaussian2.center * Gaussian5.center / (4 * Gaussian5.center - Gaussian2.center) + sqrt(1.2e-3)**2")
+    dialog._accept()
+    a, b = _reference(curve, second), _reference(curve, fifth)
+    assert dialog.selected_link() == f"3 * {a} * {b} / (4 * {b} - {a}) + sqrt(1.2e-3)**2"
+    assert dialog.selected_reference_scopes() == ["relative"] * 4
+    assert SafeExpression.compile(dialog.selected_link()).evaluate(
+        references=project.resolved_parameter_values()) == pytest.approx(5 / 3 + .0012)
+
+
+def test_typed_reference_keeps_selected_spectrum_when_picker_changes(gui):
+    project, (curve, fixed_curve, _) = _project()
+    target, _, third, *_ = project.model_for(curve.id).components
+    fixed_source = project.model_for(fixed_curve.id).components[1]
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.source_curve.setCurrentIndex(dialog.source_curve.findData(fixed_curve.id))
+    dialog.advanced.setText("Gaussian2.center")
+    dialog.source_curve.setCurrentIndex(dialog.source_curve.findData("self"))
+    dialog.advanced.insertPlainText(" + Gaussian3.center")
+    dialog._accept()
+    assert dialog.selected_link() == f"{_reference(fixed_curve, fixed_source)} + {_reference(curve, third)}"
+    assert dialog.selected_reference_scopes() == ["absolute", "relative"]
+
+
+def test_typed_qualified_reference_and_custom_name_with_spaces(gui):
+    project, (curve, fixed_curve, _) = _project()
+    target, second, *_ = project.model_for(curve.id).components
+    second.name = "Left peak"
+    second.metadata["custom_name"] = True
+    fixed_source = project.model_for(fixed_curve.id).components[1]
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText("${Left peak.center} + ${Pressure scan / Spectrum 2 / Gaussian2.center}")
+    dialog._accept()
+    assert dialog.selected_link() == f"{_reference(curve, second)} + {_reference(fixed_curve, fixed_source)}"
+    assert dialog.selected_reference_scopes() == ["relative", "absolute"]
+    assert "Global simultaneous fit" in dialog.constraint_help.text()
+
+
+def test_add_does_not_rebind_a_typed_reference_to_another_spectrum(gui):
+    project, (curve, fixed_curve, _) = _project()
+    target, local_source, *_ = project.model_for(curve.id).components
+    fixed_source = project.model_for(fixed_curve.id).components[1]
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.source_curve.setCurrentIndex(dialog.source_curve.findData(fixed_curve.id))
+    dialog.advanced.setText("Gaussian2.center + ")
+    dialog.source_curve.setCurrentIndex(dialog.source_curve.findData("self"))
+    _choose(dialog, local_source)
+    dialog.add_parameter.click()
+    dialog._accept()
+    assert dialog.selected_link() == f"{_reference(fixed_curve, fixed_source)} + {_reference(curve, local_source)}"
+    assert dialog.selected_reference_scopes() == ["absolute", "relative"]
+
+
+@pytest.mark.parametrize("text", ["Gaussian9.center", "${Gaussian2.missing}"])
+def test_unknown_typed_reference_has_readable_error_and_does_not_change_project(gui, monkeypatch, text):
+    project, (curve, _, _) = _project()
+    target = project.model_for(curve.id).components[0]
+    before = project.model_for(curve.id).to_dict()
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText(text)
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    dialog._accept()
+    assert dialog.selected_link() is None
+    assert len(warnings) == 1 and "Unknown function or parameter" in warnings[0]
+    assert "use Add" in warnings[0]
+    assert project.model_for(curve.id).to_dict() == before
+
+
+def test_ambiguous_typed_name_requires_explicit_add_even_if_default_picker_matches(gui, monkeypatch):
+    project, (curve, _, _) = _project()
+    target, second, third, *_ = project.model_for(curve.id).components
+    third.name = second.name
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText("Gaussian2.center")
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    dialog._accept()
+    assert dialog.selected_link() is None
+    assert len(warnings) == 1 and "Ambiguous parameter name" in warnings[0]
+    dialog.advanced.setText("")
+    _choose(dialog, third)
+    dialog.add_parameter.click()
+    dialog._accept()
+    assert dialog.selected_link() == _reference(curve, third)
+
+
+def test_typed_link_survives_reorder_undo_redo_and_reopen(gui):
+    project, (curve, _, _) = _project()
+    target, second, third, *_ = project.model_for(curve.id).components
+    target.parameters["center"].value = 4
+    window = gui(MainWindow, project)
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    dialog.advanced.setText("(Gaussian2.center + Gaussian3.center) / 2")
+    before = target.parameters["center"].to_dict()
+    _apply(window, dialog, curve, target)
+    parameter = target.parameters["center"]
+    after = parameter.to_dict()
+    window.undo_stack.undo()
+    assert parameter.to_dict() == before
+    window.undo_stack.redo()
+    assert parameter.to_dict() == after
+    reorder_component_names(project.model_for(curve.id), default_registry(), {})
+    assert second.name == "Gaussian1"
+    assert parameter.link == f"({_reference(curve, second)} + {_reference(curve, third)}) / 2"
+    reopened = gui(ParameterLinkDialog, project, curve.id, target.id, "center", parameter.link,
+                   current_scope=parameter.link_scope, current_reference_scopes=parameter.link_reference_scopes)
+    reopened._accept()
+    assert reopened.selected_link() == parameter.link
+    assert reopened.selected_reference_scopes() == ["relative", "relative"]
+    assert project.resolved_parameter_values()[f"{curve.id}.{target.id}.center"] == 2.5
+
+
+def test_direct_canonical_references_remain_compatible(gui):
+    project, (curve, fixed_curve, _) = _project()
+    target, second, *_ = project.model_for(curve.id).components
+    fixed_source = project.model_for(fixed_curve.id).components[1]
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center")
+    _advanced(dialog)
+    expression = f"{_reference(curve, second)} + {_reference(fixed_curve, fixed_source)}"
+    dialog.advanced.setText(expression)
+    dialog._accept()
+    assert dialog.selected_link() == expression
+    assert dialog.selected_reference_scopes() == ["relative", "absolute"]
+
+
+def test_remove_link_ignores_unfinished_typed_expression(gui):
+    project, (curve, _, _) = _project()
+    target, second, *_ = project.model_for(curve.id).components
+    dialog = gui(ParameterLinkDialog, project, curve.id, target.id, "center", _reference(curve, second))
+    _advanced(dialog)
+    dialog.advanced.setText("Gaussian2.not_finished +")
+    dialog._remove_link()
+    assert dialog.selected_link() is None
+    assert dialog.selected_reference_scopes() == []
+    assert dialog.selected_link_scope() == "relative"
+
+
 def test_changing_picker_preserves_existing_reference_expression_and_scope(gui):
     project, (first, second, _) = _project()
     target, anchor, third, *_ = project.model_for(first.id).components

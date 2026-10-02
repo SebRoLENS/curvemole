@@ -137,8 +137,9 @@ to releases.
 - opt-in automatic folder import of new acquisition files, with filename filtering,
   stable-file checks, and optional processing by a trusted plugin
 - fixed values, lower/upper bounds, intervals, and expression links across spectra
-- readable multi-parameter links: choose functions and parameters, click **Add**, and
-  combine their references in an editable expression with an explicit target value
+- readable multi-parameter links: insert references with **Add** or type names such
+  as `Gaussian2.center` directly in an expression with an explicit target value;
+  unknown and ambiguous names are reported before applying the link
 - series-grouped source choices: **Same spectrum as this parameter** follows copied
   functions by default; specific spectra stay fixed, with copy behavior retained
   separately for each inserted reference
@@ -156,7 +157,8 @@ to releases.
   controls and separate enable/disable checkboxes
 - undoable **Reorder** sorts the function list by X position and renumbers automatic
   names without changing the fit or mathematical composition; custom names are
-  retained and advanced rules choose another sorting parameter
+  retained and advanced rules choose another sorting parameter. Exported parameter
+  rows and component columns follow the displayed order and current names
 - function selection stays at the same list position when switching spectra in the
   active-spectrum Functions view; shorter models select their last function
 - explicit, undoable parameter copying between compatible functions, including

@@ -21,11 +21,15 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.errors import ExpressionError
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.project import Project
 from curvemole.gui.series_groups import SourceSpectrumComboBox
 
 _REFERENCE = re.compile(r"\$\{([^{}]+)\}")
+_INPUT_REFERENCE = re.compile(
+    r"\$\{([^{}]+)\}|(?<![\w.$])([^\W\d]\w*\s*\.\s*[^\W\d]\w*)(?![\w.])"
+)
 
 
 class ExpressionEdit(QPlainTextEdit):
@@ -62,7 +66,10 @@ class ParameterLinkDialog(QDialog):
         self.target_parameter = target_parameter
         self._current_scope = current_scope
         self._result_link = current_link
+        self._link_removed = False
         self._aliases: dict[str, tuple[str, str]] = {}
+        self._bound_aliases: set[str] = set()
+        self._typed_aliases: dict[str, tuple[str, str]] = {}
         self._advanced_text = ""
         self._last_mode = "equal"
         self._setting_expression = False
@@ -79,7 +86,7 @@ class ParameterLinkDialog(QDialog):
         layout.addWidget(title)
         explanation = QLabel(self.tr(
             "Choose a relationship and its source parameter. For a formula, choose "
-            "Advanced expression, then Add each parameter and type the mathematical operators."))
+            "Advanced expression, then Add parameters or type their function and parameter names."))
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
 
@@ -125,13 +132,15 @@ class ParameterLinkDialog(QDialog):
         form.addRow("", self.copy_help)
         self.advanced = ExpressionEdit()
         self.advanced.setMaximumHeight(105)
-        self.advanced.setPlaceholderText(self.tr("Add parameters, for example: (${Gaussian2.center} + ${Gaussian3.center}) / 2"))
+        self.advanced.setPlaceholderText(self.tr("For example: (Gaussian2.center + Gaussian3.center) / 2"))
         self.advanced_label = QLabel()
         form.addRow(self.advanced_label, self.advanced)
         layout.addLayout(form)
         self.advanced_help = QLabel(self.tr(
             "Add inserts a named reference to the exact parameter you selected. Use +, -, *, /, "
-            "** and parentheses. Changing the selectors does not change references already inserted."))
+            "** and parentheses. You can also type Function.parameter; new names use the selected "
+            "source spectrum. Use ${Function name.parameter} for names with spaces. "
+            "Recognized references keep their source when the selectors change."))
         self.advanced_help.setWordWrap(True)
         layout.addWidget(self.advanced_help)
         self.preview = QLabel()
@@ -238,7 +247,8 @@ class ParameterLinkDialog(QDialog):
 
     def _alias(self, path: str, scope: str) -> str:
         for alias, reference in self._aliases.items():
-            if alias != "source" and reference == (path, scope):
+            if (alias != "source" and reference == (path, scope)
+                    and self._typed_aliases.get(alias, reference) == reference):
                 return alias
         try:
             curve_id, component_id, parameter = path.split(".", 2)
@@ -252,7 +262,8 @@ class ParameterLinkDialog(QDialog):
         base = base.replace("{", "(").replace("}", ")")
         alias = base
         number = 2
-        while alias in self._aliases and self._aliases[alias] != (path, scope):
+        while any(alias in aliases and aliases[alias] != (path, scope)
+                  for aliases in (self._aliases, self._typed_aliases)):
             alias = f"{base} [{number}]"
             number += 1
         self._aliases[alias] = (path, scope)
@@ -265,7 +276,9 @@ class ParameterLinkDialog(QDialog):
             nonlocal index
             scope = scopes[index] if index < len(scopes) else self._current_scope
             index += 1
-            return "${" + self._alias(match.group(1).strip(), scope) + "}"
+            alias = self._alias(match.group(1).strip(), scope)
+            self._bound_aliases.add(alias)
+            return "${" + alias + "}"
 
         return _REFERENCE.sub(replace, expression)
 
@@ -320,6 +333,14 @@ class ParameterLinkDialog(QDialog):
             return
         if "${source}" in self.advanced.text() and "source" not in self._aliases and self._source_path():
             self._aliases["source"] = (self._source_path(), self._picker_scope())
+            self._bound_aliases.add("source")
+        for match in _INPUT_REFERENCE.finditer(self.advanced.text()):
+            alias = self._input_alias(match)
+            try:
+                reference = self._resolve_input_reference(alias)
+            except ExpressionError:
+                continue  # Allow incomplete names while the user is typing.
+            self._typed_aliases.setdefault(alias, reference)
         self._advanced_text = self.advanced.text()
         self._update_preview()
 
@@ -327,6 +348,7 @@ class ParameterLinkDialog(QDialog):
         path = self._source_path()
         if path and self.mode.currentData() == "advanced":
             alias = self._alias(path, self._picker_scope())
+            self._bound_aliases.add(alias)
             self.advanced.insertPlainText("${" + alias + "}")
             self.advanced.setFocus()
 
@@ -364,8 +386,51 @@ class ParameterLinkDialog(QDialog):
             "The parameter remains free within this constraint. Its limits follow the source at every fit iteration. Static bounds also apply."
             if bounded else "This relationship determines the parameter's value."))
         if self._source_curve_id() != self.target_curve_id or any(
-                path.split(".", 1)[0] != self.target_curve_id for path, _ in self._aliases.values()):
+                path.split(".", 1)[0] != self.target_curve_id
+                for path, _ in (*self._aliases.values(), *self._typed_aliases.values())):
             self.constraint_help.setText(self.constraint_help.text() + " " + self.tr("References to other spectra require a Global simultaneous fit including their sources."))
+
+    @staticmethod
+    def _input_alias(match: re.Match[str]) -> str:
+        if match.group(1) is not None:
+            return match.group(1).strip()
+        return re.sub(r"\s*\.\s*", ".", match.group(2))
+
+    def _resolve_input_reference(self, alias: str) -> tuple[str, str]:
+        if alias in self._bound_aliases:
+            return self._aliases[alias]
+        if alias in self._typed_aliases:
+            return self._typed_aliases[alias]
+        if alias in self.project.parameter_map():
+            scope = self._current_scope if alias.startswith(self.target_curve_id + ".") else "absolute"
+            return alias, scope
+
+        qualified = " / " in alias
+        candidates = []
+        for curve in self.project.curves:
+            if not qualified and curve.id != self._source_curve_id():
+                continue
+            for component in self.project.model_for(curve.id).components:
+                for parameter in component.parameters:
+                    name = f"{component.name}.{parameter}"
+                    if qualified:
+                        series = self.project.dataset.series_for(curve.id)
+                        name = f"{series.name} / {curve.name} / {name}"
+                    name = name.replace("{", "(").replace("}", ")")
+                    if name == alias:
+                        path = f"{curve.id}.{component.id}.{parameter}"
+                        candidates.append((path, "absolute" if qualified else self._picker_scope()))
+        if len(candidates) == 1:
+            return candidates[0]
+        if candidates:
+            raise ExpressionError(self.tr(
+                "Ambiguous parameter name '{name}'. Use Add to select the exact function "
+                "and spectrum."
+            ).format(name=alias))
+        raise ExpressionError(self.tr(
+            "Unknown function or parameter '{name}' in the selected source spectrum. "
+            "Check its exact name or use Add."
+        ).format(name=alias))
 
     def _references(self) -> tuple[str, list[str]]:
         if self.mode.currentData() != "advanced":
@@ -374,12 +439,13 @@ class ParameterLinkDialog(QDialog):
         scopes = []
 
         def replace(match):
-            alias = match.group(1).strip()
-            path, scope = self._aliases.get(alias, (alias, self._current_scope if alias.startswith(self.target_curve_id + ".") else "absolute"))
+            alias = self._input_alias(match)
+            path, scope = self._resolve_input_reference(alias)
+            self._typed_aliases.setdefault(alias, (path, scope))
             scopes.append(scope)
             return f"${{{path}}}"
 
-        return _REFERENCE.sub(replace, self.advanced.text().strip()), scopes
+        return _INPUT_REFERENCE.sub(replace, self.advanced.text().strip()), scopes
 
     def link_expression(self) -> str | None:
         return self._references()[0] or None
@@ -388,6 +454,8 @@ class ParameterLinkDialog(QDialog):
         return self._references()[1] if self._result_link is not None else []
 
     def selected_link_scope(self) -> str:
+        if self._link_removed:
+            return self._current_scope
         scopes = self._references()[1]
         return "absolute" if scopes and all(scope == "absolute" for scope in scopes) else "relative"
 
@@ -406,14 +474,15 @@ class ParameterLinkDialog(QDialog):
 
     def _remove_link(self) -> None:
         self._result_link = None
+        self._link_removed = True
         self.accept()
 
     def _accept(self) -> None:
-        link = self.link_expression()
-        if not link:
-            QMessageBox.warning(self, self.windowTitle(), self.tr("Choose a source parameter, write an expression, or use Remove link / constraint."))
-            return
         try:
+            link = self.link_expression()
+            if not link:
+                QMessageBox.warning(self, self.windowTitle(), self.tr("Choose a source parameter, write an expression, or use Remove link / constraint."))
+                return
             SafeExpression.compile(link)
         except Exception as exc:
             QMessageBox.warning(self, self.windowTitle(), str(exc))

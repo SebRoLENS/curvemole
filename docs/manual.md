@@ -526,6 +526,9 @@ Ctrl-click and Shift-click multi-selection, including selections across spectra.
 Mathematical composition order matters because operators are evaluated sequentially.
 **Reorder** sorts only this displayed list and automatic names; it preserves the
 composition order and fit. The Up/Down controls explicitly change composition order.
+Exported parameter rows and component trace columns follow this displayed order
+and use the current function names. Their values and uncertainties remain associated
+with the same functions, including models with multiplication, division or convolution.
 
 **Select all** selects every displayed function. **Select all except backgrounds**
 selects only functions that are not marked as background and clears any previous
@@ -1278,6 +1281,15 @@ cursor, then type arithmetic operators, numbers and parentheses as needed. You c
 insert any number of references and use the same parameter more than once. Selecting
 another spectrum, function or parameter does not change references already inserted;
 click **Add** to insert the new selection.
+
+You can also type `(Gaussian2.center + Gaussian3.center) / 2` directly, with or
+without `${...}` around individual references. New names use the selected
+**Source spectrum**; once recognized, each reference keeps that spectrum and copy
+behavior when the selectors change. Use `${Left peak.center}` for function names
+with spaces, or `${Series / Spectrum / Function.parameter}` for a fixed spectrum
+reference. Unknown names and duplicate matching names are rejected with a readable
+message; use **Add** to choose the exact source when names are ambiguous. Typed
+references are saved with stable identities, just like references inserted with Add.
 
 To set Gaussian1's `center` to the mean of Gaussian2's and Gaussian3's centres:
 

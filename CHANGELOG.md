@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.35.2] - 2026-10-02
+
+### Fixed
+
+- Recognize typed function/parameter names in advanced links, with or without
+  `${...}`, and bind them to stable parameter identities using the selected source
+  spectrum. Preserve existing Add references and copy scopes, and report unknown
+  or ambiguous names explicitly.
+- Export function parameters, fit-result rows and component trace columns in the
+  displayed function order, using the current names after Reorder. Preserve the
+  mathematical composition, fitted values and uncertainties.
+
 ## [0.35.1] - 2026-10-01
 
 ### Fixed

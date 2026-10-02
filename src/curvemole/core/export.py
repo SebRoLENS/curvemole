@@ -146,7 +146,7 @@ def wide_dataframe(
                 curve.x, curve_id=curve.id, values=parameter_values, registry=registry
             )
         if selection.components:
-            for component in model.components:
+            for component in model.display_components:
                 if component.enabled and component.id in components:
                     columns[f"Component | {component.name} | {component.function_id}"] = components[
                         component.id
@@ -222,7 +222,7 @@ def parameter_dataframe(
             derived = model.derived_quantities(
                 curve_id=curve.id, values=parameter_values, registry=registry
             )
-            for component in model.components:
+            for component in model.display_components:
                 definition = registry.get(component.function_id)
                 component_derived = derived.get(component.id, {})
                 for name, parameter in component.parameters.items():
@@ -305,7 +305,7 @@ def export_function_parameters(
         model = project.models.get(curve.id)
         occurrences: dict[str, int] = {}
         if model is not None:
-            for component in model.components:
+            for component in model.display_components:
                 occurrences[component.name] = occurrences.get(component.name, 0) + 1
                 # Keep separately named instances aligned across spectra, even
                 # when a model contains more than one with the same name.
@@ -517,7 +517,7 @@ def export_figure(
             )
             axis.plot(curve.x[valid], total[valid], color="#D55E00", linewidth=1.8, label=f"{curve.name} fit")
             if include_components:
-                for component in model.components:
+                for component in model.display_components:
                     if component.enabled and component.id in components:
                         axis.plot(curve.x[valid], components[component.id][valid], "--", linewidth=0.8, alpha=0.75)
             if residual_axis is not None:

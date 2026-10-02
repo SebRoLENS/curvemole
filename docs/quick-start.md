@@ -112,6 +112,11 @@ and Gaussian3, type `(`, add Gaussian2's `center`, type ` + `, add Gaussian3's
 references. Changing the source selection does not alter references already added;
 each retains its own local or fixed copy behavior.
 
+You can also type `(Gaussian2.center + Gaussian3.center) / 2` directly. New names
+use the selected source spectrum and retain that choice once recognized. Use
+`${Left peak.center}` for names with spaces. If names are ambiguous, use **Add**
+to select the exact source.
+
 Quick relationships also offer **At least source**, **At most source**, and **Similar
 to source**. These keep the target free within source-dependent hard bounds, updated
 throughout fitting and combined with its ordinary Lower/Upper bounds. **Similar**
@@ -196,6 +201,9 @@ background functions enabled: CurveMole fits the original data using background 
 peaks even though the plot is displayed with the background visually removed.
 
 ## 7. Inspect and export
+
+After **Reorder**, exported parameter rows and component columns follow the function
+list and its current names while preserving the mathematical fit.
 
 Residuals appear under the curve. Open **View → Diagnostics** for interpretable
 warnings and **Fit → Uncertainty Analysis** for explicit resampling.
