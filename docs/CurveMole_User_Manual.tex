@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.35.4}
+\ohead{Version 0.36.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.35.4\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.36.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.35.4}
+\subtitle{Preview 0.36.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.35.4}
+\date{Updated for CurveMole 0.36.0}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.35.4 Preview. The Markdown file is the authoritative source.
+CurveMole 0.36.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.35.4 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.36.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.35.4
-describes CurveMole 0.35.4.
+an independent document version. For example, a manual marked 0.36.0
+describes CurveMole 0.36.0.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.35.4{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.35.4{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.36.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.36.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.35.4{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.36.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.35.4{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.36.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{35}\NormalTok{.}\FunctionTok{4}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{36}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.35.4{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.36.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{35}\NormalTok{.}\FunctionTok{4}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{36}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1331,6 +1331,9 @@ Optional columns are:
 \item
   \texttt{sigma\_y};
 \item
+  Y error (confidence interval), or a pair of asymmetric Y error
+  columns;
+\item
   generic weight;
 \item
   variance;
@@ -1338,10 +1341,23 @@ Optional columns are:
   inverse variance.
 \end{itemize}
 
-Only one of \texttt{sigma\_y}, generic weight, variance, or inverse
-variance can be selected for a given import. Variance is converted to
-\texttt{sigma\_y} by square root. \texttt{sigma\_x} is stored in the
-project but is not used by the version 0.35.4 optimizer.
+Only one of \texttt{sigma\_y}, confidence-interval errors, generic
+weight, variance, or inverse variance can be selected for a given
+import. Variance is converted to \texttt{sigma\_y} by square root.
+\texttt{sigma\_x} is stored in the project but is not used by the
+version 0.36.0 optimizer.
+
+For confidence intervals, choose \textbf{Y error (confidence interval)}
+and one symmetric half-width column, or check \textbf{Asymmetric error}
+and select \textbf{Y error +} and \textbf{Y error -} separately. Both
+columns contain positive magnitudes, not signed errors or interval
+endpoints: the interval is
+\texttt{{[}y\ -\ error\ -,\ y\ +\ error\ +{]}}. \textbf{Data error
+confidence} declares its central coverage (default 95\%). This is
+independent of the confidence selected for fitted parameter intervals.
+Existing \texttt{sigma\_y} imports continue to mean one standard
+deviation, regardless of this field. The import preview shows the
+supplied errors at their original confidence.
 
 The spectrum preview below the numeric table updates as you change X/Y
 columns, uncertainty mappings, delimiter, decimal separator, header or
@@ -1457,6 +1473,37 @@ is recorded in the curve metadata.
 Zero generic weight is allowed and gives a point zero numerical
 influence. A zero or negative \texttt{sigma\_y} is invalid and excludes
 the row.
+
+For a confidence level \(C\), interval half-widths are converted to
+approximate Gaussian scales by dividing each side by
+\(z=\Phi^{-1}((1+C)/2)\). At every evaluation, a prediction above the
+measured value uses the upper scale; a prediction below uses the lower
+scale. Equal half-widths reproduce symmetric Gaussian weighting. The
+error arrays and confidence are saved and exported; plotted bars keep
+the supplied half-widths, rather than these converted scales.
+
+\textbf{Fit \textgreater{} Advanced algorithm options \textgreater{} Use
+data errors / weights in the fit} is on by default. Turn it off to fit
+without imported Y errors or point weights. Masks, fit ranges and
+spectrum-level weights remain in effect. Rows invalid only because of
+their error or point weight can then participate. The display of bars
+and the noise model of Monte Carlo remain independent of this choice.
+
+This is an approximation: two interval half-widths and a confidence
+level do not specify the full measurement distribution. The scales
+describe a Gaussian side on each side of the reported value; Monte Carlo
+assigns equal probability to the two sides, reproducing the supplied
+central interval. Covariance is a local Jacobian approximation, and
+asymmetrical parameter intervals should be assessed using resampling or
+a suitably calibrated profile. Correlation between measured points and X
+uncertainty are not incorporated into this Y-residual fit.
+
+Use \textbf{Error bars} above the main graph to show or hide the bars.
+Autoscaling includes their endpoints, and bars follow logarithmic,
+waterfall and background views. Scalar and curve scaling propagate
+widths and exchange upper/lower sides for negative factors. Custom and
+column formulas use local derivative propagation; for strongly nonlinear
+transformations this is only a local approximation.
 
 \hypertarget{curves-masks-and-transformations}{%
 \chapter{7. Curves, masks, and
@@ -2603,8 +2650,11 @@ default}\label{advanced-algorithm-options-and-reset-default}}
 
 The default remains \textbf{Local least squares (automatic)} with
 \textbf{linear} loss. \textbf{Advanced algorithm options} shows only the
-controls relevant to the chosen solver. Numeric fields accept scientific
-notation such as \texttt{1e-8}; tooltips explain each option.
+controls relevant to the chosen solver. It also contains \textbf{Use
+data errors / weights in the fit}, enabled by default; this choice
+applies to independent, sequential and global fitting and replica
+refits. Numeric fields accept scientific notation such as \texttt{1e-8};
+tooltips explain each option.
 
 \begin{longtable}[]{@{}ll@{}}
 \toprule
@@ -2788,7 +2838,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.35.4 does not yet provide a single comprehensive on-screen
+Preview 0.36.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -2834,7 +2884,8 @@ fitted y, residual, weighted residual, N, RSS, RMSE, and descriptive
 correlation}\label{covariance-and-correlation}}
 
 For ordinary least squares, covariance is derived from the fit Jacobian.
-If all curves provide \texttt{sigma\_y}, the uncertainty is treated as
+If all curves provide \texttt{sigma\_y} or declared confidence-interval
+Y errors and weighting is enabled, the uncertainty is treated as
 absolute by default and the covariance is not rescaled by residual
 variance. Otherwise residual variance scales the covariance.
 
@@ -3042,9 +3093,15 @@ Reports remain inspectable but are marked outdated when appropriate.
 \section{12.1 Parametric Monte Carlo}\label{parametric-monte-carlo}}
 
 This method generates synthetic y values from the fitted model plus
-independent normal noise using the imported absolute \texttt{sigma\_y}
-array. Every selected curve must therefore provide valid
-\texttt{sigma\_y}.
+independent normal noise using imported absolute \texttt{sigma\_y}, or a
+two-sided Gaussian approximation using the lower/upper Y error
+half-widths and their declared confidence. The latter transforms
+negative/positive standard-normal draws with the respective scale; it
+preserves the declared central interval and has its median at the fitted
+prediction. Every selected curve must provide valid Y errors on the
+fitted rows. Noise is still generated from these errors when weighting
+is turned off in the Fit dialog. The chosen approximation and input
+confidence are recorded in the analysis settings.
 
 Each synthetic data set is refitted using the local solver. The result
 records the requested, completed, and failed replicates, seed, free
@@ -3053,18 +3110,25 @@ parameter paths, samples, empirical intervals, and failure messages.
 \hypertarget{residual-bootstrap}{%
 \section{12.2 Residual bootstrap}\label{residual-bootstrap}}
 
-Residuals are centered, sampled independently with replacement, added to
-the fitted model, and refitted. This assumes residual exchangeability
-and can be inappropriate when residuals are serially correlated or
+Residuals from fitted rows are centered, sampled independently with
+replacement, added to the fitted model, and refitted. With Y errors,
+residuals are first standardized using each observation's lower/upper
+scale, then reconstructed with each destination row's appropriate scale.
+This accommodates the supplied relative noise levels without adding
+measurement noise a second time. Masked rows do not supply residuals.
+This assumes exchangeability of the standardized residuals and can be
+inappropriate when residuals remain serially correlated or
 heteroscedastic.
 
 \hypertarget{block-bootstrap}{%
 \section{12.3 Block bootstrap}\label{block-bootstrap}}
 
-The block bootstrap resamples contiguous circular residual blocks. Enter
-a block length or choose Automatic. The automatic estimate uses the
-first lag at which the absolute residual autocorrelation falls below
-\(e^{-1}\), subject to practical limits.
+The block bootstrap resamples contiguous circular residual blocks. With
+Y errors it resamples standardized residuals and restores the
+destination row's noise scale, as in residual bootstrap. Enter a block
+length or choose Automatic. The automatic estimate uses the first lag at
+which the absolute residual autocorrelation falls below \(e^{-1}\),
+subject to practical limits.
 
 Block resampling is often preferable for spectra or kinetic traces with
 local correlation, but the block length remains a scientific modeling
@@ -4357,8 +4421,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.35.4) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.35.4
+(Version 0.36.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.36.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -4586,9 +4650,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.35.4-limitations}{%
-\chapter{Appendix D. Preview 0.35.4
-limitations}\label{appendix-d.-preview-0.35.4-limitations}}
+\hypertarget{appendix-d.-preview-0.36.0-limitations}{%
+\chapter{Appendix D. Preview 0.36.0
+limitations}\label{appendix-d.-preview-0.36.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 

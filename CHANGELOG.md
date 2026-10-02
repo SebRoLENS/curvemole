@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.36.0] - 2026-10-02
+
 ### Added
 
 - Experimental error bars in import previews and the graph, with a display toggle.
