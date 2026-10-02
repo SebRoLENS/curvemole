@@ -35,7 +35,8 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          # Use the caller's tools even when an older tag predates these checks.
+          ref: ${{ github.sha }}
       - id: check
         env:
           GH_TOKEN: ${{ github.token }}
