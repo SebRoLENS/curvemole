@@ -146,6 +146,49 @@ def test_published_release_refuses_rebuild_before_any_upload(repository, monkeyp
         assets.finalize("v0.35.4", repository / "absent")
 
 
+def test_draft_lookup_paginates_when_tag_endpoint_returns_404(monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    monkeypatch.setattr(assets.subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], 1, "", "gh: Not Found (HTTP 404)"))
+    draft = {"id": 42, "tag_name": "v0.36.0", "draft": True, "assets": []}
+    pages = []
+
+    def lookup(path):
+        pages.append(path)
+        return ([{"tag_name": f"v0.1.{i}"} for i in range(100)]
+                if path.endswith("page=1") else [draft])
+
+    monkeypatch.setattr(assets, "api", lookup)
+    assert assets.release("v0.36.0") == draft
+    assert pages == ["releases?per_page=100&page=1", "releases?per_page=100&page=2"]
+
+
+def test_missing_draft_finishes_lookup_on_last_page(monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    monkeypatch.setattr(assets.subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], 1, "", "gh: Not Found (HTTP 404)"))
+    monkeypatch.setattr(assets, "api", lambda path: [])
+    assert assets.release("v0.36.0") is None
+
+
+def test_release_lookup_does_not_hide_permission_errors(monkeypatch):
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    monkeypatch.setattr(assets.subprocess, "run", lambda *args, **kwargs:
+                        subprocess.CompletedProcess(args[0], 1, "", "gh: Forbidden (HTTP 403)"))
+    monkeypatch.setattr(assets, "api", lambda path: pytest.fail("Must not list on a permission failure"))
+    with pytest.raises(RuntimeError, match="HTTP 403"):
+        assets.release("v0.36.0")
+
+
+def test_finalization_uses_current_tools_with_original_tagged_source():
+    workflow = yaml.safe_load((ROOT / ".github/workflows/build-desktop.yml").read_text())
+    steps = workflow["jobs"]["publish-release-assets"]["steps"]
+    assert steps[0]["with"]["ref"] == "${{ github.sha }}"
+    assert '"$RUNNER_TEMP/release_assets.py"' in steps[1]["run"]
+    assert steps[2]["with"]["ref"] == "${{ inputs.source_ref }}"
+    assert steps[-1]["run"].startswith('python "$RUNNER_TEMP/release_assets.py" finalize')
+
+
 def test_finalization_uploads_complete_assets_before_publishing(repository, monkeypatch):
     directory = repository / "release-assets"
     directory.mkdir()

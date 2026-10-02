@@ -15,7 +15,7 @@ def run(*args: str) -> str:
     return subprocess.check_output(list(args), text=True).strip()
 
 
-def api(path: str) -> dict:
+def api(path: str) -> dict | list[dict]:
     return json.loads(run("gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/{path}"))
 
 
@@ -25,7 +25,17 @@ def release(tag: str) -> dict | None:
     if process.returncode == 0:
         return json.loads(process.stdout)
     if "HTTP 404" in process.stderr:
-        return None
+        # The tag endpoint only returns published releases. Authenticated list
+        # requests also expose drafts to users/tokens with repository push access.
+        page = 1
+        while True:
+            releases = api(f"releases?per_page=100&page={page}")
+            for current in releases:
+                if current["tag_name"] == tag:
+                    return current
+            if len(releases) < 100:
+                return None
+            page += 1
     raise RuntimeError(process.stderr)
 
 

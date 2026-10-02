@@ -396,6 +396,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
+      - name: Keep current publication tools before selecting tagged source
+        run: cp .github/scripts/release_assets.py "$RUNNER_TEMP/release_assets.py"
+      - uses: actions/checkout@v6
+        with:
           ref: ${{ inputs.source_ref }}
 
       - uses: actions/download-artifact@v7
@@ -420,4 +425,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.source_ref }}
-        run: python .github/scripts/release_assets.py finalize --tag "$RELEASE_TAG"
+        run: python "$RUNNER_TEMP/release_assets.py" finalize --tag "$RELEASE_TAG"
