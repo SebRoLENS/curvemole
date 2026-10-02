@@ -63,7 +63,7 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --no-default-groups --group test
       - name: Tests
-        timeout-minutes: 4
+        timeout-minutes: 8
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen

@@ -128,7 +128,7 @@ class _ReplicaCancellation:
 
     def raise_if_cancelled(self) -> None:
         self.parent.raise_if_cancelled()
-        if time.monotonic() >= self.deadline:
+        if time.perf_counter() >= self.deadline:
             raise ReplicaTimeout(_timeout_message(self.timeout))
 
 
@@ -162,7 +162,7 @@ def _check_replica_activity(activity: Any, running: dict[int, float], timeout: f
             running.pop(pid, None)
         else:
             running[pid] = started
-    if any(time.monotonic() - started >= timeout
+    if any(time.perf_counter() - started >= timeout
            for started in running.values()):
         raise ReplicaTimeout(_timeout_message(timeout))
 
@@ -250,7 +250,9 @@ def _resample_trial(
     replica_timeout_seconds: float | None = None,
 ) -> tuple[list[float] | None, str | None]:
     timeout = REPLICA_TIMEOUT_SECONDS if replica_timeout_seconds is None else replica_timeout_seconds
-    started = time.monotonic()
+    # perf_counter uses the high-resolution monotonic clock on Windows 3.12,
+    # where monotonic's coarse tick counter can miss short replica deadlines.
+    started = time.perf_counter()
     if _WORKER_REPLICA_ACTIVITY is not None:
         _WORKER_REPLICA_ACTIVITY.put((os.getpid(), started))
     token = _ReplicaCancellation(cancellation, started + timeout, timeout)

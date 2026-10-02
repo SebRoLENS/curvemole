@@ -119,8 +119,9 @@ def choose_version(explicit_bump: str | None = None, explicit_version: str | Non
     releases = released_versions()
     if explicit_version is not None:
         target = version_tuple(explicit_version)
-        if target <= max(version_tuple(v) for v in [current, *releases]):
-            raise SystemExit("Release version must be newer than source and every existing tag.")
+        if (target < version_tuple(current)
+                or any(target <= version_tuple(v) for v in releases)):
+            raise SystemExit("Release version must not precede source and must be newer than every existing tag.")
         return explicit_version
     if not releases:
         return current

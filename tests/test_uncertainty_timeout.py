@@ -81,6 +81,15 @@ def test_invalid_replica_timeout_is_rejected(timeout):
         UncertaintyAnalyzer(replica_timeout_seconds=timeout)
 
 
+def test_replica_deadline_uses_high_resolution_clock(monkeypatch):
+    # Model a platform whose monotonic clock has not advanced to its next tick.
+    monkeypatch.setattr(uncertainty.time, "monotonic", lambda: 1.)
+    monkeypatch.setattr(uncertainty.time, "perf_counter", lambda: 2.)
+    token = uncertainty._ReplicaCancellation(CancellationToken(), 1.5, .5)
+    with pytest.raises(ReplicaTimeout):
+        token.raise_if_cancelled()
+
+
 def test_serial_isolation_preserves_custom_fitter_behaviour():
     project, curve, analyzer, baseline, plan = _analysis()
     calls = []

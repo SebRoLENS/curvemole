@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -29,3 +31,19 @@ def test_release_scripts_accept_centered_html_badges() -> None:
     assert prepare.DOI_BADGE_RE.search(pending)
     assert zenodo.VERSION_BADGE_RE.search(pending)
     assert zenodo.DOI_BADGE_RE.search(pending)
+
+
+@pytest.mark.parametrize("requested,allowed", [("0.36.1", True), ("0.36.2", True),
+                                               ("0.36.0", False), ("0.35.9", False)])
+def test_release_can_resume_prepared_version_only_before_it_has_a_tag(monkeypatch, requested, allowed):
+    prepare = _load_script("prepare_release_resume", ".github/scripts/prepare_release.py")
+    monkeypatch.setattr(prepare, "read_current_version", lambda: "0.36.1")
+    monkeypatch.setattr(prepare, "released_versions", lambda: ["0.36.0"])
+    if allowed:
+        assert prepare.choose_version(explicit_version=requested) == requested
+    else:
+        with pytest.raises(SystemExit):
+            prepare.choose_version(explicit_version=requested)
+    monkeypatch.setattr(prepare, "released_versions", lambda: ["0.36.0", "0.36.1"])
+    with pytest.raises(SystemExit):
+        prepare.choose_version(explicit_version="0.36.1")
