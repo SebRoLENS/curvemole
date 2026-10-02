@@ -68,8 +68,9 @@ jobs:
           sudo apt-get install -y fonts-dejavu-core latexmk pandoc \
             libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0 \
             texlive-xetex texlive-latex-extra texlive-fonts-recommended
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
+          enable-cache: false
           python-version: "3.12"
       - run: uv sync --locked --no-default-groups --group screenshots
       - name: Prepare version, screenshots and manuals once
