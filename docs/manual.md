@@ -423,7 +423,9 @@ and **State** columns.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays. Hover over the checkbox for an explanation. Hiding a spectrum retains
   its data and fit; hidden spectra are excluded from fit plans. Highlighting rows
-  separately selects spectra for operations.
+  separately selects spectra for operations. Hidden spectrum names appear muted;
+  Up/Down navigation skips them. Click a hidden spectrum to inspect it, or check
+  its visibility box to include it in navigation again.
 - Double-click an editable name, or right-click and choose **Rename data…** or
   **Rename series…**. Series names must remain unique.
 - Right-click a series and choose **Delete series…** to remove it together with all
@@ -503,8 +505,8 @@ Normal plot navigation is available when neither placement nor Mask mode is acti
 The mouse wheel remains available during Quick Add peak placement, spline placement,
 Quick Fit, and live fit refreshes. A refresh preserves the current viewport instead
 of resetting a zoom chosen by the user. When the plot has keyboard focus, Up and Down
-activate the previous or next spectrum in project order, matching navigation in the
-curve tree.
+activate the previous or next checked spectrum in project order. Up/Down in the
+curve tree also skips unchecked spectra.
 
 Use **View > Axes** for:
 

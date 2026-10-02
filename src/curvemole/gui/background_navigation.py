@@ -457,11 +457,16 @@ def _step_active_spectrum(window: MainWindow, delta: int) -> None:
     ids = [str(item.data(1, Qt.ItemDataRole.UserRole)[1]) for item in items]
     try:
         index = ids.index(str(window.active_curve_id))
-        target = max(0, min(len(items) - 1, index + delta))
-        if target == index:
-            return
+        start = index + delta
     except ValueError:
-        target = 0 if delta > 0 else len(items) - 1
+        start = 0 if delta > 0 else len(items) - 1
+    target = next(
+        (index for index in range(start, len(items) if delta > 0 else -1, delta)
+         if items[index].checkState(0) == Qt.CheckState.Checked),
+        None,
+    )
+    if target is None:
+        return
     item = items[target]
     window.curve_tree.clearSelection()
     item.setSelected(True)

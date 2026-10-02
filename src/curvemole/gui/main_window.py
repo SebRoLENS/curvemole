@@ -333,11 +333,13 @@ class CurveTree(QTreeWidget):
                             | Qt.ItemFlag.ItemIsSelectable
                         )
                         child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
+                        self._style_curve_visibility(child)
                         child.setToolTip(0, self.tr(
                             "Checked: show this spectrum in Overlay and Waterfall.\n"
                             "Unchecked: hide it from these views without deleting its data or fit.\n"
                             "Row highlighting selects spectra for operations; this checkbox "
                             "controls visibility. Hidden spectra are excluded from fit plans."
+                            " Up/Down navigation skips hidden spectra."
                         ))
                         child.setForeground(2, _state_colour(curve.state))
                         parent.addChild(child)
@@ -368,6 +370,41 @@ class CurveTree(QTreeWidget):
                     self.horizontalScrollBar().setValue(scroll_x)
         finally:
             self._updating = False
+
+    def _style_curve_visibility(self, item: QTreeWidgetItem) -> None:
+        visible = item.checkState(0) == Qt.CheckState.Checked
+        colour = self.palette().color(QPalette.ColorRole.Text)
+        if not visible:
+            background = self.palette().color(QPalette.ColorRole.Base)
+            colour = QColor(
+                (colour.red() + background.red()) // 2,
+                (colour.green() + background.green()) // 2,
+                (colour.blue() + background.blue()) // 2,
+            )
+        with QSignalBlocker(self):
+            item.setForeground(1, colour)
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            for index in range(self.topLevelItemCount()):
+                parent = self.topLevelItem(index)
+                for child_index in range(parent.childCount()):
+                    self._style_curve_visibility(parent.child(child_index))
+
+    def moveCursor(self, cursor_action, modifiers):
+        if cursor_action not in (self.CursorAction.MoveUp, self.CursorAction.MoveDown):
+            return super().moveCursor(cursor_action, modifiers)
+        index = super().moveCursor(cursor_action, modifiers)
+        item = self.itemFromIndex(index)
+        step = self.itemAbove if cursor_action == self.CursorAction.MoveUp else self.itemBelow
+        while item is not None:
+            metadata = item.data(1, Qt.ItemDataRole.UserRole)
+            if (not metadata or metadata[0] != "curve"
+                    or item.checkState(0) == Qt.CheckState.Checked):
+                return self.indexFromItem(item, index.column())
+            item = step(item)
+        return self.currentIndex()
 
     def selected_curve_ids(self) -> set[str]:
         result: set[str] = set()
@@ -512,6 +549,7 @@ class CurveTree(QTreeWidget):
             return
         curve_id = str(metadata[1])
         if column == 0:
+            self._style_curve_visibility(item)
             self.curveVisibilityChanged.emit(curve_id, item.checkState(0) == Qt.CheckState.Checked)
         elif column == 1:
             self.curveRenamed.emit(curve_id, item.text(1))

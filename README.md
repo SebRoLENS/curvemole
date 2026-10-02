@@ -169,6 +169,8 @@ to releases.
   inspection, and non-destructive viewport navigation during fitting
 - Overlay and Waterfall comparison with **All series / Active series / Selected**
   display controls, Ctrl/Shift selection, themes, and a colourblind-safe palette
+- hidden spectra have muted names; Up/Down navigation in the list and plot skips
+  them until their visibility checkbox is checked again
 - a **Data Calculator** with advanced formulas across all imported columns,
   including unplotted columns, and single-spectrum or grouped selection scopes
 - covariance statistics, confidence intervals, profile likelihood, Monte Carlo,

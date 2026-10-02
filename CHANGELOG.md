@@ -5,6 +5,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.35.3] - 2026-10-02
+
+### Fixed
+
+- Mute unchecked spectrum names immediately, adapting to light and dark themes.
+- Skip unchecked spectra during Up/Down navigation in the spectrum tree and plot,
+  preserving their position when navigating from a manually selected hidden spectrum.
+
 ## [0.35.2] - 2026-10-02
 
 ### Fixed

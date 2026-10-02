@@ -147,3 +147,88 @@ def test_plot_focus_arrow_keys_step_through_spectra_like_the_curve_tree() -> Non
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("focus", ["tree", "plot"])
+def test_arrow_navigation_skips_unchecked_spectra_in_both_directions(focus: str) -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("hidden navigation")
+    for index in range(5):
+        project.add_curve(Curve(f"spectrum {index}", [0.0, 1.0], [index, index + 1.0]))
+    project.curves[1].visible = False
+    project.curves[3].visible = False
+    project.curves[4].visible = False
+    project.dirty = False
+    window = CurveMoleMainWindow(project)
+    window.show()
+    app.processEvents()
+    widget = window.curve_tree if focus == "tree" else window.plot_workspace.graphics.viewport()
+    widget.setFocus(Qt.FocusReason.OtherFocusReason)
+    app.processEvents()
+
+    for key, expected in ((Qt.Key.Key_Down, 2), (Qt.Key.Key_Down, 2), (Qt.Key.Key_Up, 0)):
+        QTest.keyClick(widget, key)
+        app.processEvents()
+        assert window.active_curve_id == project.curves[expected].id
+
+    # A hidden spectrum selected manually still navigates from its own position.
+    window._set_active_curve(project.curves[3].id)
+    widget.setFocus(Qt.FocusReason.OtherFocusReason)
+    app.processEvents()
+    QTest.keyClick(widget, Qt.Key.Key_Up)
+    app.processEvents()
+    assert window.active_curve_id == project.curves[2].id
+
+    # Checking a spectrum immediately puts it back into the navigation sequence.
+    parent = window.curve_tree.topLevelItem(0)
+    parent.child(1).setCheckState(0, Qt.CheckState.Checked)
+    widget.setFocus(Qt.FocusReason.OtherFocusReason)
+    app.processEvents()
+    QTest.keyClick(widget, Qt.Key.Key_Up)
+    app.processEvents()
+    assert window.active_curve_id == project.curves[1].id
+
+    for index in range(parent.childCount()):
+        parent.child(index).setCheckState(0, Qt.CheckState.Unchecked)
+    widget.setFocus(Qt.FocusReason.OtherFocusReason)
+    app.processEvents()
+    QTest.keyClick(widget, Qt.Key.Key_Down)
+    app.processEvents()
+    assert window.active_curve_id == project.curves[1].id
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+@pytest.mark.parametrize("dark", [False, True])
+def test_unchecked_spectrum_names_are_muted_and_restore_on_check(dark: bool) -> None:
+    from PySide6.QtGui import QColor, QPalette
+
+    from curvemole.gui.main_window import CurveTree
+
+    app = QApplication.instance() or QApplication([])
+    project = Project("muted names")
+    curve = Curve("spectrum", [0.0, 1.0], [1.0, 2.0])
+    curve.visible = False
+    project.add_curve(curve)
+    tree = CurveTree()
+    palette = tree.palette()
+    palette.setColor(QPalette.ColorRole.Text, QColor("#eeeeee" if dark else "#111111"))
+    palette.setColor(QPalette.ColorRole.Base, QColor("#111111" if dark else "#eeeeee"))
+    tree.setPalette(palette)
+    tree.populate(project, curve.id)
+    item = tree.topLevelItem(0).child(0)
+    normal = palette.color(QPalette.ColorRole.Text)
+    muted = item.foreground(1).color()
+    assert muted != normal
+    assert (muted.lightness() < normal.lightness()) if dark else (muted.lightness() > normal.lightness())
+    item.setCheckState(0, Qt.CheckState.Checked)
+    assert item.foreground(1).color() == normal
+    item.setCheckState(0, Qt.CheckState.Unchecked)
+    assert item.foreground(1).color() == muted
+    palette.setColor(QPalette.ColorRole.Base, QColor("#555555"))
+    tree.setPalette(palette)
+    assert item.foreground(1).color() != muted
+    assert item.flags() & Qt.ItemFlag.ItemIsEnabled
+    tree.close()
+    app.processEvents()
