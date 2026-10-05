@@ -93,7 +93,8 @@ def test_right_drag_pans_without_changing_span(window, inverted, locked):
 
 
 @pytest.mark.parametrize("style_name", ["Fusion", "Windows"])
-def test_plot_controls_wrap_inside_resized_docks(window, style_name):
+@pytest.mark.parametrize("constrain_dock_width", [False, True])
+def test_plot_controls_wrap_inside_resized_docks(window, style_name, constrain_dock_width):
     app, main = window
     style = QStyleFactory.create(style_name)
     if style is None:
@@ -109,14 +110,15 @@ def test_plot_controls_wrap_inside_resized_docks(window, style_name):
     docks = [dock for dock in main.findChildren(QDockWidget)
              if main.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
              and dock.isVisible() and not dock.isFloating()]
-    heights = []
+    if constrain_dock_width:
+        for dock in docks:
+            dock.setFixedWidth(dock.width())
     for width in (300, 650, 300):
         main.resizeDocks(docks, [width] * len(docks), Qt.Orientation.Horizontal)
         app.processEvents()
         controls = workspace.view_controls
         assert controls.geometry().right() < workspace.width()
         assert controls.width() == workspace.width()
-        heights.append(controls.height())
         for row_index in range(controls.layout().count()):
             row = controls.layout().itemAt(row_index).layout()
             for index in range(row.count()):
@@ -127,7 +129,18 @@ def test_plot_controls_wrap_inside_resized_docks(window, style_name):
         label = workspace.coordinate_label
         assert label.height() >= label.heightForWidth(label.width())
         assert workspace.graphics.mapTo(workspace, QPoint()).y() >= controls.geometry().bottom()
-    assert heights[1] > heights[0]
+
+    # resizeDocks requests sizes; Qt can constrain both requests to the same
+    # actual width on Windows/offscreen desktops. Verify wrapping with explicit
+    # layout widths, while keeping all containment checks above for real docks.
+    display_row = controls.layout().itemAt(0).layout()
+    items = [display_row.itemAt(index) for index in range(display_row.count())
+             if not display_row.itemAt(index).isEmpty()]
+    wide = sum(item.sizeHint().width() for item in items)
+    wide += display_row.spacing() * (len(items) - 1)
+    narrow = display_row.minimumSize().width()
+    assert display_row.hasHeightForWidth()
+    assert display_row.heightForWidth(narrow) > display_row.heightForWidth(wide)
 
 
 @pytest.mark.parametrize("unit", ["nm", "s", "Pa"])
