@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.36.2] - 2026-10-05
+
 ### Added
 
 - Left double-click to frame all experimental points, right double-click to frame
