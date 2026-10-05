@@ -502,6 +502,14 @@ so a data curve can never be confused with the fitted sum.
 ### 5.3 Navigation and axes
 
 Normal plot navigation is available when neither placement nor Mask mode is active.
+Left double-click frames all experimental data, including masked points. Right
+double-click frames only unmasked experimental points. Hold the right button and
+drag to pan the spectrum; a single right-click opens the plot context menu after
+the double-click interval. Display controls and the coordinate readout wrap onto
+additional rows when dock resizing narrows the plot.
+Axes always retain the original data units. Numeric tick labels switch to
+scientific notation only when their decimal representation is too wide for the
+available space; this never changes spectrum values or adds an SI unit prefix.
 The mouse wheel remains available during Quick Add peak placement, spline placement,
 Quick Fit, and live fit refreshes. A refresh preserves the current viewport instead
 of resetting a zoom chosen by the user. When the plot has keyboard focus, Up and Down

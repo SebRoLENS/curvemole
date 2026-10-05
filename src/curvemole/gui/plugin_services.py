@@ -26,6 +26,37 @@ class PluginServices:
         self._window()
         return self._host.context(self.owner, with_services=True)
 
+    def active_spectrum_state(self):
+        """Detached identifiers/hash for polling; never copy the full project."""
+        window = self._window()
+        curve = next(
+            (curve for series in window.project.dataset.series for curve in series.curves
+             if curve.id == window.active_curve_id), None
+        )
+        return (window.project.id, curve.id if curve else None,
+                curve.content_hash if curve else None, curve.name if curve else None)
+
+    def spectrum_snapshot(self, *, include_selected=False):
+        """Detached spectrum-only context, without models, results or fit history."""
+        from curvemole.core.data import Dataset, Series
+        from curvemole.core.project import Project
+        from curvemole.gui.plugin_host import PluginContext
+
+        window = self._window()
+        selected = tuple(window.curve_tree.selected_curve_ids()) if include_selected else ()
+        ids = set(selected)
+        ids.add(window.active_curve_id)
+        groups = []
+        for series in window.project.dataset.series:
+            curves = [curve for curve in series.curves if curve.id in ids]
+            if curves:
+                groups.append(Series(series.name, copy.deepcopy(curves), id=series.id))
+        project = Project(
+            name=window.project.name, id=window.project.id, dataset=Dataset(groups),
+            path=window.project.path, read_only=window.project.read_only,
+        )
+        return PluginContext(project, window.active_curve_id, selected, self.owner, services=self)
+
     def save_settings(self, data, *, metadata_key=None, curve_metadata=None):
         """Undoable settings/metadata only; preserve fit state and selection."""
         window = self._window()

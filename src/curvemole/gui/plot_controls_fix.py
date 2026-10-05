@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel, QSizePolicy
 
+from curvemole.gui.flow_layout import FlowLayout
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import normalize_plot_appearance
 
@@ -77,6 +78,8 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
     offset_row.removeWidget(self.coordinate_label)
     x_label = QLabel(self.tr("X offset:"), self.view_controls)
     y_label = QLabel(self.tr("Y offset:"), self.view_controls)
+    x_label.setBuddy(self.x_offset)
+    y_label.setBuddy(self.y_offset)
     _insert_before_stretch(display_row, x_label)
     _insert_before_stretch(display_row, self.x_offset)
     _insert_before_stretch(display_row, y_label)
@@ -84,6 +87,10 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
     display_row.addWidget(self.coordinate_label)
     self.x_offset_label = x_label
     self.y_offset_label = y_label
+    self.coordinate_label.setWordWrap(True)
+    self.coordinate_label.setSizePolicy(
+        QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
+    )
 
     # Residual visibility belongs with the other view-scaling controls.
     offset_row.removeWidget(self.residual_toggle)
@@ -92,6 +99,23 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
     self.autoscale_toggle.setToolTip(
         self.tr("Automatically fit the experimental data whenever the active data item changes.")
     )
+
+    # Native Windows fonts/DPI can make this row wider than the central plot.
+    # Let every control row wrap and report its height for the available width,
+    # so QMainWindow dock resizing cannot clip coordinates or display options.
+    for index in range(view_layout.count()):
+        old_row = view_layout.itemAt(index).layout()
+        if old_row is None:
+            continue
+        row = FlowLayout()
+        while old_row.count():
+            item = old_row.takeAt(0)
+            if item.widget() is not None:
+                row.addItem(item)
+        view_layout.takeAt(index)
+        old_row.setParent(None)
+        old_row.deleteLater()
+        view_layout.insertLayout(index, row)
 
 
 # Install semantic methods before __init__ is called so the signal connection made

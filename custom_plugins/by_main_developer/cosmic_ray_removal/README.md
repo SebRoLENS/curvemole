@@ -19,6 +19,10 @@ rejected while the other corrections are retained.
 
 The panel opens automatically and remains a normal dockable CurveMole panel.
 Accepted intervals and detection settings are stored in spectrum metadata.
+On current CurveMole versions, preview refreshes check only the active spectrum
+and copy its data only when it changes. Repeated-spectrum detection copies only
+the selected acquisitions. Hidden panels pause preview polling. Version 0.3.0
+keeps a compatibility fallback for older hosts without these lightweight services.
 
 ## Detection methods
 

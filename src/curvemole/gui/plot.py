@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
@@ -40,6 +40,7 @@ from curvemole.gui.plot_appearance import (
     plot_mode_flags,
     qt_pen_style,
 )
+from curvemole.gui.scientific_axis import ScientificAxisItem
 
 
 class MaskViewBox(pg.ViewBox):
@@ -64,6 +65,15 @@ class MaskViewBox(pg.ViewBox):
         super().__init__(enableMenu=True)
         self.mask_mode = False
         self.interaction_mode: str | None = None
+        self._context_menu_event = None
+        self._context_menu_timer = QTimer(self)
+        self._context_menu_timer.setSingleShot(True)
+        self._context_menu_timer.timeout.connect(self._show_pending_context_menu)
+
+    def _show_pending_context_menu(self) -> None:
+        event, self._context_menu_event = self._context_menu_event, None
+        if event is not None and not self.mask_mode and self.interaction_mode is None:
+            self.raiseContextMenu(event)
 
     def mouseClickEvent(self, event: Any) -> None:
         if self.interaction_mode == "peak" and event.button() == Qt.MouseButton.LeftButton:
@@ -91,6 +101,29 @@ class MaskViewBox(pg.ViewBox):
             signal = self.unmaskPointRequested if event.button() == Qt.MouseButton.LeftButton else self.maskPointRequested
             signal.emit(float(point.x()))
             event.accept()
+            return
+        if self.interaction_mode is None and event.double():
+            self._context_menu_timer.stop()
+            self._context_menu_event = None
+            callback = None
+            if event.button() == Qt.MouseButton.LeftButton:
+                callback = getattr(self, "data_range_callback", None)
+            elif event.button() == Qt.MouseButton.RightButton:
+                callback = getattr(self, "unmasked_range_callback", None)
+            if callback is not None:
+                callback()
+                event.accept()
+                return
+        if (
+            self.interaction_mode is None
+            and event.button() == Qt.MouseButton.RightButton
+            and self.menuEnabled()
+        ):
+            # Wait for a possible second click before opening a popup that would
+            # otherwise steal the right double-click from the spectrum.
+            event.accept()
+            self._context_menu_event = event
+            self._context_menu_timer.start(QApplication.doubleClickInterval())
             return
         super().mouseClickEvent(event)
 
@@ -123,6 +156,21 @@ class MaskViewBox(pg.ViewBox):
                 if abs(end.x() - start.x()) > 0:
                     self.unmaskRangeRequested.emit(float(start.x()), float(end.x()))
             event.accept()
+            return
+        if self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
+            self._context_menu_timer.stop()
+            self._context_menu_event = None
+            event.accept()
+            # Use the same ViewBox-local coordinates as pyqtgraph's pan handler,
+            # preserving inversion, logarithmic axes and per-axis view locking.
+            delta = self.mapToView(event.lastPos()) - self.mapToView(event.pos())
+            enabled = self.state["mouseEnabled"]
+            x = float(delta.x()) if enabled[0] and axis != 1 else None
+            y = float(delta.y()) if enabled[1] and axis != 0 else None
+            self._resetTarget()
+            if x is not None or y is not None:
+                self.translateBy(x=x, y=y)
+            self.sigRangeChangedManually.emit(enabled)
             return
         super().mouseDragEvent(event, axis=axis)
 
@@ -312,7 +360,11 @@ class PlotWorkspace(QWidget):
         self.graphics.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.view_box = MaskViewBox()
         self.view_box.data_range_callback = self.auto_range
-        self.plot = self.graphics.addPlot(row=0, col=0, viewBox=self.view_box)
+        self.view_box.unmasked_range_callback = self.view_active
+        self.plot = self.graphics.addPlot(
+            row=0, col=0, viewBox=self.view_box,
+            axisItems={side: ScientificAxisItem(side) for side in ("bottom", "left")},
+        )
         self.plot.autoBtn.clicked.disconnect()
         self.plot.autoBtn.clicked.connect(lambda: self.auto_range())
         self.plot.showGrid(x=True, y=True, alpha=0.15)
@@ -327,7 +379,10 @@ class PlotWorkspace(QWidget):
         self.component_labels_action.setChecked(True)
         self.component_labels_action.toggled.connect(self.set_component_labels_visible)
         view_menu.addAction(self.component_labels_action)
-        self.residual_plot = self.graphics.addPlot(row=1, col=0)
+        self.residual_plot = self.graphics.addPlot(
+            row=1, col=0,
+            axisItems={side: ScientificAxisItem(side) for side in ("bottom", "left")},
+        )
         self.residual_plot.setXLink(self.plot)
         self.residual_plot.setMaximumHeight(190)
         self.residual_plot.showGrid(x=True, y=True, alpha=0.15)

@@ -342,6 +342,15 @@ panel reuses its window; unloading a plugin closes its panels. Closing a monitor
 panel does not stop automatic import. `Follow newest spectrum` can be toggled
 while import runs to preserve manual editing focus.
 
+For frequent spectrum previews, poll `active_spectrum_state()` instead of copying
+the project: it returns `(project_id, curve_id, content_hash, curve_name)` and
+does not copy spectrum arrays. On a change, request `spectrum_snapshot()` for a
+detached context containing only the active spectrum, or
+`spectrum_snapshot(include_selected=True)` for the active and selected spectra.
+These lightweight contexts omit models, fit results, history and plugin settings;
+use the full `snapshot()` when those are needed. Pause preview polling while the
+panel is hidden.
+
 Panel contributions can pass `auto_show=True` to `api.add("panels", ...)` to open
 once when enabled (including application startup), without starting acquisition.
 All plugin panels are hosted in generic, scrollable QDockWidgets in the main

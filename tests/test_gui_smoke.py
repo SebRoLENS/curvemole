@@ -225,10 +225,8 @@ def test_graphical_peak_and_spline_placement_create_components() -> None:
 
 @pytest.mark.parametrize("mask_enabled", [False, True])
 def test_right_drag_requests_interval_mask_only_when_enabled(monkeypatch, mask_enabled) -> None:
-    import pyqtgraph as pg
-
     navigation = []
-    monkeypatch.setattr(pg.ViewBox, "mouseDragEvent", lambda *args, **kwargs: navigation.append(True))
+    monkeypatch.setattr(MaskViewBox, "translateBy", lambda *args, **kwargs: navigation.append(kwargs))
     class TestViewBox(MaskViewBox):
         def mapSceneToView(self, point: QPointF) -> QPointF:
             return point
@@ -248,6 +246,12 @@ def test_right_drag_requests_interval_mask_only_when_enabled(monkeypatch, mask_e
         def scenePos(self) -> QPointF:
             return QPointF(4.75, 0.0)
 
+        def pos(self) -> QPointF:
+            return QPointF(4.75, 0.0)
+
+        def lastPos(self) -> QPointF:
+            return QPointF(1.25, 0.0)
+
         def accept(self) -> None:
             self.accepted = True
 
@@ -260,7 +264,7 @@ def test_right_drag_requests_interval_mask_only_when_enabled(monkeypatch, mask_e
     view_box.mouseDragEvent(event)
 
     assert requested == ([(1.25, 4.75)] if mask_enabled else [])
-    assert event.accepted == mask_enabled
+    assert event.accepted
     assert bool(navigation) != mask_enabled
 
 

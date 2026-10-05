@@ -179,3 +179,87 @@ def test_panel_previews_and_commits_only_checked_candidates():
         panel.close()
         panel.deleteLater()
         app.processEvents()
+
+
+def test_large_project_panel_polls_without_copying_unrelated_spectra(monkeypatch):
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.core.data import Transformation
+    from curvemole.core.extensions import Contribution
+    from curvemole.gui.plugin_services import PluginServices
+
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    x, y = smooth_spectrum()
+    y[900] += 900
+    curves = [Curve(str(i), x, y) for i in range(100)]
+    for curve in curves:
+        project.add_curve(curve)
+
+    class DoNotCopy:
+        def __deepcopy__(self, memo):
+            raise AssertionError("The preview copied unrelated project data")
+
+    for curve in curves[3:]:
+        curve.metadata["unrelated"] = DoNotCopy()
+    project.results["large_fit_result"] = DoNotCopy()
+    monkeypatch.setattr(extensions, "entries", {
+        cosmic.OWNER + ":panel": Contribution(
+            cosmic.OWNER, cosmic.OWNER + ":panel", "Cosmic", "panels", lambda ctx: None
+        )
+    })
+    window = SimpleNamespace(
+        project=project, active_curve_id=curves[0].id,
+        curve_tree=SimpleNamespace(selected_curve_ids=lambda: [c.id for c in curves[:3]]),
+        plugin_manager=SimpleNamespace(errors={}),
+    )
+    # No full-project context method: even one accidental snapshot() must fail.
+    services = PluginServices(SimpleNamespace(window=window), cosmic.OWNER)
+    requests = []
+    original = services.spectrum_snapshot
+
+    def snapshot(*, include_selected=False):
+        requests.append(include_selected)
+        return original(include_selected=include_selected)
+
+    monkeypatch.setattr(services, "spectrum_snapshot", snapshot)
+    context = PluginContext(project, curves[0].id, (), cosmic.OWNER, services=services)
+    panel = cosmic.cosmic_ray_panel(context)
+    panel.timer.stop()
+    try:
+        assert requests == [False]
+        for _ in range(20):
+            panel.refresh()
+        assert requests == [False]
+        panel.detect()
+        assert requests == [False, False]
+        assert panel.candidates and panel.accept.isEnabled()
+        curves[0].name = "Renamed spectrum"
+        panel.refresh()
+        assert panel.title.text() == curves[0].name
+        assert len(requests) == 2
+        curves[0].apply_transformation(Transformation("y_add", parameters={"value": 10}))
+        panel.refresh()
+        assert requests == [False, False, False]
+        assert panel.candidates == []
+        assert not panel.accept.isEnabled()
+        panel.method.setCurrentIndex(1)
+        panel.detect()
+        assert requests[-1] is True
+        window.active_curve_id = curves[1].id
+        panel.refresh()
+        assert panel.curve_id == curves[1].id
+        panel.hide()
+        window.active_curve_id = curves[2].id
+        before = len(requests)
+        panel.refresh_visible()
+        assert len(requests) == before
+        panel.show()
+        app.processEvents()
+        assert panel.curve_id == curves[2].id
+    finally:
+        panel.close()
+        panel.deleteLater()
+        app.processEvents()

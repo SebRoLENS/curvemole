@@ -274,11 +274,12 @@ def cosmic_ray_panel(context):
     )
 
     services = context.services
+    project_id = context.project.id
 
     class CosmicRayPanel(QWidget):
         def __init__(self):
             super().__init__()
-            self.project_id = context.project.id
+            self.project_id = project_id
             self.curve_id = None
             self.curve_hash = None
             self.base_x = self.base_y = None
@@ -400,7 +401,7 @@ def cosmic_ray_panel(context):
             layout.addWidget(self.status)
             self.timer = QTimer(self)
             self.timer.setInterval(400)
-            self.timer.timeout.connect(self.refresh)
+            self.timer.timeout.connect(self.refresh_visible)
             self.timer.start()
             self.refresh()
 
@@ -415,9 +416,33 @@ def cosmic_ray_panel(context):
                 (c for c in snapshot.project.curves if c.id == snapshot.active_curve_id), None
             )
 
+        def snapshot(self, *, include_selected=False):
+            if hasattr(services, "spectrum_snapshot"):
+                return services.spectrum_snapshot(include_selected=include_selected)
+            return services.snapshot()
+
+        def refresh_visible(self):
+            # A closed or tabbed-away dock has no preview to keep repainting.
+            if self.isVisible():
+                self.refresh()
+
+        def showEvent(self, event):
+            super().showEvent(event)
+            self.refresh()
+
         def refresh(self):
             try:
-                snapshot = services.snapshot()
+                if hasattr(services, "active_spectrum_state"):
+                    project_id, new_id, content_hash, name = services.active_spectrum_state()
+                    if (project_id, new_id, content_hash) == (
+                        self.project_id, self.curve_id, self.curve_hash
+                    ):
+                        self.title.setText(name or "No spectrum selected")
+                        self.accept.setEnabled(
+                            bool(self.candidates and any(c.accepted for c in self.candidates))
+                        )
+                        return
+                snapshot = self.snapshot()
                 curve = self.current(snapshot)
                 new_id = curve.id if curve else None
                 if snapshot.project.id != self.project_id or new_id != self.curve_id:
@@ -447,7 +472,7 @@ def cosmic_ray_panel(context):
                 self.accept.setEnabled(False)
 
         def detect(self):
-            snapshot = services.snapshot()
+            snapshot = self.snapshot(include_selected=self.method.currentIndex() == 1)
             curve = self.current(snapshot)
             if curve is None:
                 raise ValueError("Select a spectrum first.")
@@ -578,6 +603,7 @@ def cosmic_ray_panel(context):
                 self.update_plot()
 
         def update_plot(self):
+            self.accept.setEnabled(any(candidate.accepted for candidate in self.candidates))
             self.plot.clear()
             if self.base_x is None:
                 return
@@ -606,7 +632,7 @@ def cosmic_ray_panel(context):
                 )
 
         def apply(self):
-            snapshot = services.snapshot()
+            snapshot = self.snapshot()
             curve = self.current(snapshot)
             if curve is None or curve.id != self.curve_id:
                 raise ValueError("The selected spectrum changed; run detection again.")
@@ -648,7 +674,7 @@ def cosmic_ray_panel(context):
             )
             self.candidates = []
             self.base_y = result
-            updated = services.snapshot()
+            updated = self.snapshot()
             updated_curve = self.current(updated)
             self.curve_hash = updated_curve.content_hash if updated_curve else None
             self.update_table()

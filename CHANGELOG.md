@@ -5,6 +5,20 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Left double-click to frame all experimental points, right double-click to frame
+  unmasked points, and right-drag to pan during normal spectrum navigation.
+
+### Fixed
+
+- Wrap plot display controls and coordinate readouts when dock resizing reduces
+  the available width, including Windows font and display scaling.
+- Preserve original axis units and use scientific notation for numeric labels
+  that are too long for the available screen space, without adding SI prefixes.
+- Keep cosmic-ray removal previews responsive with many loaded spectra by polling
+  active-spectrum state and copying only spectra needed for detection.
+
 ## [0.36.1] - 2026-10-02
 
 ### Added
