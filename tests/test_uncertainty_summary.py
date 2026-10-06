@@ -211,8 +211,8 @@ def test_selected_analysis_adds_asymmetric_errors_without_replacing_fit_sigma(ga
     window._store_uncertainty_result(curve_id, baseline, bootstrap)
     window.uncertainty_panel.set_parameters(project, curve_id)
     window.model_panel.refresh_parameters()
-    assert window.model_panel.display_method.currentData() == "residual_bootstrap"
-    assert "every spectrum" in window.model_panel.uncertainty_display_label.toolTip()
+    assert window.model_panel.display_method.current_method == "residual_bootstrap"
+    assert "every spectrum" in window.model_panel.parameters.horizontalHeaderItem(3).toolTip()
     assert window.model_panel.parameters.item(0, 3).text() == "−0.2 / +0.4"
     assert "Calculated with Residual bootstrap (95.0% confidence)" in (
         window.model_panel.parameters.item(0, 3).toolTip())
@@ -223,11 +223,9 @@ def test_selected_analysis_adds_asymmetric_errors_without_replacing_fit_sigma(ga
     window._store_uncertainty_result(curve_id, baseline, profile)
     window.uncertainty_panel.set_parameters(project, curve_id)
     window.model_panel.refresh_parameters()
-    window.model_panel.display_method.setCurrentIndex(
-        window.model_panel.display_method.findData("profile_likelihood"))
+    window.model_panel.display_method.method_actions["profile_likelihood"].trigger()
     assert window.model_panel.parameters.item(0, 3).text() == "−0.1 / +0.3"
-    window.model_panel.display_method.setCurrentIndex(
-        window.model_panel.display_method.findData("residual_bootstrap"))
+    window.model_panel.display_method.method_actions["residual_bootstrap"].trigger()
     assert window.model_panel.parameters.item(0, 3).text() == "−0.2 / +0.4"
 
     export = export_function_parameters(project, tmp_path / "parameters.csv")
@@ -289,11 +287,10 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     assert window._thread is None
     assert "residual_bootstrap" in project.results["uncertainty_reports_by_curve"][first]
     assert "residual_bootstrap" not in project.results["uncertainty_reports_by_curve"].get(second, {})
-    window.model_panel.display_method.setCurrentIndex(
-        window.model_panel.display_method.findData("residual_bootstrap"))
-    assert window.model_panel.display_method.currentData() == "residual_bootstrap"
+    window.model_panel.display_method.method_actions["residual_bootstrap"].trigger()
+    assert window.model_panel.display_method.current_method == "residual_bootstrap"
     window._set_active_curve(second)
-    assert window.model_panel.display_method.currentData() == "residual_bootstrap"
+    assert window.model_panel.display_method.current_method == "residual_bootstrap"
     assert window.uncertainty_panel.results.table.rowCount() == 0
     window.curve_tree.clearSelection()
     window.curve_tree.topLevelItem(0).child(0).setSelected(True)
@@ -311,7 +308,7 @@ def test_uncertainty_tracks_selected_spectrum_and_batch_survives_reopen(tmp_path
     assert "target" not in rows.columns
     assert window.uncertainty_panel.results.spectrum_heading.text() == "Spectrum: scan 1"
     window._set_active_curve(first)
-    assert window.model_panel.display_method.currentData() == "residual_bootstrap"
+    assert window.model_panel.display_method.current_method == "covariance"
     assert window.uncertainty_panel.results.spectrum_heading.text() == "Spectrum: scan 0"
 
     path = tmp_path / "scans.fitproj"

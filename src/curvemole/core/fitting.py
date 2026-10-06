@@ -24,6 +24,7 @@ from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
 from curvemole.core.models import Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
+from curvemole.core.process_pool import managed_process_pool
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
 
@@ -702,12 +703,12 @@ class Fitter:
         context = multiprocessing.get_context("spawn")
         results: dict[str, FitResult] = {}
         stop = context.Event()
-        with ProcessPoolExecutor(
+        with managed_process_pool(ProcessPoolExecutor(
             max_workers=min(plan.settings.workers, len(curves), os.cpu_count() or 1),
             mp_context=context,
             initializer=_init_fit_process,
             initargs=(stop, formulas),
-        ) as pool:
+        )) as pool:
             pending = {
                 pool.submit(_fit_in_process, curve, model, local_plan): curve
                 for curve, model, local_plan in jobs

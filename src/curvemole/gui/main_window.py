@@ -10,6 +10,7 @@ import re
 import time
 import traceback
 from collections.abc import Callable
+from dataclasses import fields
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -24,7 +25,6 @@ from PySide6.QtCore import (
     QSignalBlocker,
     QSize,
     Qt,
-    QThread,
     QTimer,
     QUrl,
     Signal,
@@ -130,6 +130,7 @@ from curvemole.gui.panels import (
 )
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog
+from curvemole.gui.task_thread import TaskThread
 from curvemole.version import __version__
 
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
@@ -160,17 +161,26 @@ class Worker(QObject):
         super().__init__()
         self.operation = operation
         self.streaming = streaming
+        self.outcome = None
+        self._last_progress = 0.0
 
     @Slot()
     def run(self) -> None:
         try:
             def progress(value, text):
-                self.progress.emit(value, text)
+                now = time.monotonic()
+                if now - self._last_progress >= .05 or value == 1:
+                    self._last_progress = now
+                    self.progress.emit(value, text)
             result = (self.operation(progress, self.partial.emit) if self.streaming
                       else self.operation(progress))
+            self.outcome = ("finished", result)
             self.finished.emit(result)
-        except Exception as exc:
-            self.failed.emit(str(exc), traceback.format_exc())
+        except BaseException as exc:
+            message = str(exc) or type(exc).__name__
+            details = traceback.format_exc()
+            self.outcome = ("failed", (message, details))
+            self.failed.emit(message, details)
 
 
 class TaskCallbacks(QObject):
@@ -181,29 +191,85 @@ class TaskCallbacks(QObject):
         self.window = window
         self.on_finished = finished
         self.on_partial = partial
+        self.delivered = False
+        self.closed = False
+
+    def active(self):
+        return not self.closed and self.window._task_callbacks is self
+
+    def report_failure(self, message, details):
+        try:
+            self.window._task_failed(message, details)
+        except BaseException:
+            self.window._log(traceback.format_exc())
+            self.window._notify(message, warning=True)
 
     @Slot(object, str)
     def progress(self, value, text):
-        self.window._task_progress(value, text)
+        if self.active() and not self.delivered:
+            self.window._task_progress(value, text)
 
     @Slot(object)
     def partial(self, result):
-        if self.on_partial is not None:
-            self.on_partial(result)
+        if self.active() and not self.delivered and self.on_partial is not None:
+            try:
+                self.on_partial(result)
+            except BaseException as exc:
+                self.delivered = True
+                self.window.cancel_task()
+                self.report_failure(str(exc) or type(exc).__name__, traceback.format_exc())
 
     @Slot(object)
     def finished(self, result):
-        self.on_finished(result)
+        if self.active() and not self.delivered:
+            self.delivered = True
+            try:
+                self.on_finished(result)
+            except BaseException as exc:
+                self.report_failure(str(exc) or type(exc).__name__, traceback.format_exc())
 
     @Slot(str, str)
     def failed(self, message, details):
-        self.window._task_failed(message, details)
+        if self.active() and not self.delivered:
+            self.delivered = True
+            self.report_failure(message, details)
 
     @Slot()
     def done(self):
-        self.window._task_done()
-        self.window._task_callbacks = None
-        self.deleteLater()
+        if not self.active():
+            return
+        # A watchdog can also reach here if a completion notification was lost.
+        outcome = self.window._worker.outcome if self.window._worker else None
+        if not self.delivered and outcome is not None:
+            kind, value = outcome
+            self.finished(value) if kind == "finished" else self.failed(*value)
+        if not self.active():
+            return
+        self.cleanup()
+
+    def retire(self):
+        if not self.active():
+            return
+        self.delivered = True
+        self.closed = True
+        self.report_failure(
+            self.window.tr("Task cancelled: the calculation did not respond. Previous valid results were retained."),
+            "Task retired after cancellation grace period; late callbacks are ignored.",
+        )
+        self.cleanup()
+
+    def cleanup(self):
+        self.closed = True
+        try:
+            self.window._task_done()
+        except BaseException:
+            self.window._log(traceback.format_exc())
+        finally:
+            # Even errors in a GUI completion hook must release the busy state.
+            if self.window._task_callbacks is self:
+                self.window._reset_task_state()
+                self.window._task_callbacks = None
+            self.deleteLater()
 
 
 class CallbackCommand(QUndoCommand):
@@ -634,6 +700,7 @@ class DockTabTitleFilter(QObject):
 
 class MainWindow(QMainWindow):
     _LAYOUT_SCHEMA_VERSION = 2
+    _TASK_CANCEL_GRACE_SECONDS = 5
 
     def __init__(self, project: Project | None = None) -> None:
         super().__init__()
@@ -646,9 +713,15 @@ class MainWindow(QMainWindow):
         self.fit_settings = FitSettings()
         self.last_fit_plan: FitPlan | None = None
         self._paused_result: FitResult | None = None
-        self._thread: QThread | None = None
+        self._thread: TaskThread | None = None
         self._worker: Worker | None = None
         self._cancellation: CancellationToken | None = None
+        self._task_callbacks = None
+        self._task_snapshot_safe = False
+        self._cancel_requested_at = None
+        self._task_watchdog = QTimer(self)
+        self._task_watchdog.setInterval(250)
+        self._task_watchdog.timeout.connect(self._poll_task)
         self._project_lock: ProjectLock | None = None
         self._session_finished = False
         self._pending_component: Component | None = None
@@ -953,6 +1026,7 @@ class MainWindow(QMainWindow):
             lambda visible: self.open_notebook() if visible else self.notebook_dock.hide()
         )
         self.notebook_dock.visibilityChanged.connect(self.notebook_action.setChecked)
+        self.notebook_dock.visibilityChanged.connect(self._notebook_visibility_changed)
         self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
         self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
         self.recent_projects_menu = QMenu(self.tr("Recent projects"), self)
@@ -1255,8 +1329,8 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel.deleteRequested.connect(self.delete_uncertainty_analysis)
         self.model_panel.displayMethodChanged.connect(self._select_uncertainty_display)
         self.model_panel.uncertaintyRequested.connect(self._show_uncertainty_analysis)
-        self.uncertainty_panel.method.currentIndexChanged.connect(self._update_uncertainty_tags)
-        self._update_uncertainty_tags()
+        self.uncertainty_panel.method.currentIndexChanged.connect(self._uncertainty_method_changed)
+        self._sync_uncertainty_method()
         self.model_panel.renameRequested.connect(self.rename_function)
         self.model_panel.reorderRequested.connect(self.reorder_functions)
         self.model_panel.reorderRulesRequested.connect(self.edit_reorder_rules)
@@ -1264,7 +1338,28 @@ class MainWindow(QMainWindow):
     def _update_uncertainty_tags(self) -> None:
         self.curve_tree.set_uncertainty_method(self.uncertainty_panel.method.currentData())
 
+    def _sync_uncertainty_method(self) -> None:
+        from curvemole.core.analysis_errors import display_method
+
+        method = display_method(self.project)
+        if method is not None:
+            ui_method = "monte_carlo" if method == "parametric_monte_carlo" else method
+            index = self.uncertainty_panel.method.findData(ui_method)
+            if index >= 0 and index != self.uncertainty_panel.method.currentIndex():
+                with QSignalBlocker(self.uncertainty_panel.method):
+                    self.uncertainty_panel.method.setCurrentIndex(index)
+                self.uncertainty_panel._update_controls()
+        self._update_uncertainty_tags()
+
+    def _uncertainty_method_changed(self, _index: int) -> None:
+        self._select_uncertainty_display(self.uncertainty_panel.method.currentData())
+
     def refresh_all(self) -> None:
+        self._sync_uncertainty_method()
+        # Restoring Qt's dock state can expose the lazy placeholder without the
+        # toolbar action running. Also rebind an open notebook on project changes.
+        if not self.notebook_dock.isHidden():
+            self._ensure_notebook_widget()
         self.setWindowTitle(self._title())
         self.curve_tree.populate(self.project, self.active_curve_id)
         selected = self.curve_tree.selected_curve_ids()
@@ -1408,6 +1503,17 @@ class MainWindow(QMainWindow):
         self._manual_save_controller.save(selected, save_project, portable=True)
 
     def open_notebook(self) -> None:
+        self._ensure_notebook_widget(refresh=True)
+        self.activate_tool_dock(self.notebook_dock)
+
+    def _notebook_visibility_changed(self, _visible: bool) -> None:
+        # Qt reports False for an open dock behind another tab as well. Such a
+        # dock still needs its contents ready when the user selects its tab.
+        if not self.notebook_dock.isHidden():
+            self._ensure_notebook_widget()
+
+    def _ensure_notebook_widget(self, *, refresh: bool = False) -> None:
+        """Populate the dock without changing its visibility or active tool tab."""
         from curvemole.gui.notebook import LaboratoryNotebookDialog
 
         editable = self._thread is None and not self.project.read_only
@@ -1421,16 +1527,17 @@ class MainWindow(QMainWindow):
                 self.project, self.notebook_dock, editable=editable, embedded=True
             )
             old = self.notebook_dock.widget()
-            self.notebook_dock.setWidget(panel)
+            # setWidget() can emit visibilityChanged; make that reentrant call
+            # see the new panel rather than creating a second one.
             self._notebook_widget = panel
+            self.notebook_dock.setWidget(panel)
             if old is self._notebook_placeholder:
                 self._notebook_placeholder = None
             if old is not None:
                 old.deleteLater()
-        else:
+        elif refresh:
             self.project.notebook.sync(self.project)
             current._populate()
-        self.activate_tool_dock(self.notebook_dock)
 
     def open_attached_note(self, reference) -> None:
         kind, object_id, curve_id = reference
@@ -2167,28 +2274,57 @@ class MainWindow(QMainWindow):
         self._running_fit_plan = copy.deepcopy(plan)
         self._fit_task_active = True
         self._cancellation = CancellationToken()
+        cancellation = self._cancellation
         fitter = Fitter(self.registry)
-        curve_map = {curve.id: curve for curve in self.project.curves}
+        curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
+                     if curve.id in plan.curve_ids}
         stream = plan.mode == FitMode.INDEPENDENT and len(plan.curve_ids) > 1
-        # The worker must not modify the model objects currently being viewed.
-        if stream:
-            curve_map = {cid: copy.deepcopy(curve_map[cid]) for cid in plan.curve_ids}
-            models = {cid: self.project.model_for(cid).clone() for cid in plan.curve_ids}
-        else:
-            models = self.project.models
+        # Every mode owns its inputs, including sequential propagation. This
+        # permits coherent saves and safe retirement of an unresponsive task.
+        models = {cid: self.project.model_for(cid).clone() for cid in plan.curve_ids}
+        plan = copy.deepcopy(plan)
+        self._task_snapshot_safe = True
 
         def operation(progress, publish=None):
             return fitter.fit(
-                plan, curve_map, models, cancellation=self._cancellation,
+                plan, curve_map, models, cancellation=cancellation,
                 progress=progress,
                 on_curve_result=(lambda cid, result: publish((cid, result))) if publish else None,
             )
 
+        def finished(result):
+            # Apply worker-side propagation and states only on the GUI thread.
+            for cid in plan.curve_ids:
+                curve = self.project.dataset.curve(cid)
+                curve.state = curve_map[cid].state
+                current = self.project.model_for(cid)
+                saved = models[cid]
+                existing = {component.id: component for component in current.components}
+                components = []
+                for snapshot in saved.components:
+                    component = existing.get(snapshot.id)
+                    if component is None:
+                        component = snapshot
+                    else:
+                        for field in fields(snapshot):
+                            if field.name != "parameters":
+                                setattr(component, field.name, copy.deepcopy(getattr(snapshot, field.name)))
+                        for name, parameter in snapshot.parameters.items():
+                            if name not in component.parameters:
+                                component.parameters[name] = parameter
+                            else:
+                                for field in fields(parameter):
+                                    setattr(component.parameters[name], field.name, copy.deepcopy(getattr(parameter, field.name)))
+                    components.append(component)
+                current.components = components
+                current.display_order = list(saved.display_order)
+            self._fit_finished(result)
+
         if stream:
-            self._run_background(operation, self._fit_finished, self.tr("Fitting…"),
+            self._run_background(operation, finished, self.tr("Fitting…"),
                                  partial=self._partial_fit_result)
         else:
-            self._run_background(operation, self._fit_finished, self.tr("Fitting…"))
+            self._run_background(operation, finished, self.tr("Fitting…"))
 
     def _partial_fit_result(self, item: tuple[str, FitResult]) -> None:
         """Expose a completed independent spectrum while other fits are queued."""
@@ -2360,8 +2496,11 @@ class MainWindow(QMainWindow):
         self._run_fit(plan)
 
     def cancel_task(self) -> None:
+        self._poll_task()
         if self._cancellation:
             self._cancellation.cancel()
+            if self._cancel_requested_at is None:
+                self._cancel_requested_at = time.monotonic()
             self._notify(self.tr("Cancellation requested…"), warning=True)
 
     def rename_function(self, curve_id: str, component_id: str) -> None:
@@ -2561,8 +2700,13 @@ class MainWindow(QMainWindow):
             profile_lower = profile_upper = None
         analyzer = UncertaintyAnalyzer(Fitter(self.registry),
                                        replica_timeout_seconds=replica_timeout_seconds)
-        curve_map = {curve.id: curve for curve in self.project.curves}
+        needed_ids = {cid for _, _, plan in jobs for cid in plan.curve_ids}
+        curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
+                     if curve.id in needed_ids}
+        models = {cid: self.project.model_for(cid).clone() for cid in needed_ids}
         self._cancellation = CancellationToken()
+        cancellation = self._cancellation
+        self._task_snapshot_safe = True
         grouped: dict[tuple[Any, ...], list[str]] = {}
         unique_jobs = []
         for curve_id, baseline, plan in jobs:
@@ -2586,10 +2730,10 @@ class MainWindow(QMainWindow):
                 for _, baseline, plan, _ in unique_jobs:
                     batch.append((baseline, plan,
                                   {cid: curve_map[cid] for cid in plan.curve_ids},
-                                  {cid: self.project.model_for(cid) for cid in plan.curve_ids}))
+                                  {cid: models[cid] for cid in plan.curve_ids}))
                 results = analyzer.resampling_batch(
                     method, batch, replicates=replicates, option=option, adaptive=adaptive,
-                    workers=workers, cancellation=self._cancellation,
+                    workers=workers, cancellation=cancellation,
                     progress=lambda count: progress(count / len(unique_jobs),
                                                     f"{method}: {count}/{len(unique_jobs)} spectra"),
                     on_result=(lambda index, result: publish([
@@ -2601,26 +2745,26 @@ class MainWindow(QMainWindow):
                     completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
                 return completed
             for index, (curve_id, baseline, plan, key) in enumerate(unique_jobs):
-                self._cancellation.raise_if_cancelled()
+                cancellation.raise_if_cancelled()
                 def step(value, message, index=index):
                     progress((index + (value or 0.0)) / len(unique_jobs), message)
                 if method == "profile_likelihood":
                     if not option:
-                        raise RuntimeError(self.tr("Choose a profile parameter."))
+                        raise RuntimeError("Choose a profile parameter.")
                     result = analyzer.profile_parameter(
-                        baseline, curve_map[curve_id], self.project.model_for(curve_id),
+                        baseline, curve_map[curve_id], models[curve_id],
                         str(option), confidence_level=plan.settings.confidence_level,
                         points=profile_points, lower=profile_lower, upper=profile_upper,
                         spectrum_weight=plan.spectrum_weights.get(curve_id, 1.0),
                         equal_contribution=plan.equal_contribution,
                         workers=workers,
-                        cancellation=self._cancellation, progress=step)
+                        cancellation=cancellation, progress=step)
                 else:
                     arguments = dict(
                         baseline=baseline, plan=plan, curves=curve_map,
-                        models=self.project.models, replicates=replicates, adaptive=adaptive,
+                        models=models, replicates=replicates, adaptive=adaptive,
                         workers=workers,
-                        cancellation=self._cancellation, progress=step)
+                        cancellation=cancellation, progress=step)
                     if method == "monte_carlo":
                         result = analyzer.parametric_monte_carlo(**arguments)
                     elif method == "block_bootstrap":
@@ -2732,15 +2876,20 @@ class MainWindow(QMainWindow):
 
         if self.project.results.get("uncertainty_display_method") not in DISPLAY_METHODS:
             self.project.results["uncertainty_display_method"] = method
+            self._sync_uncertainty_method()
 
     def _select_uncertainty_display(self, method: str) -> None:
-        from curvemole.core.analysis_errors import available_methods
+        from curvemole.core.analysis_errors import DISPLAY_METHODS
 
-        if method not in available_methods(self.project):
+        method = "parametric_monte_carlo" if method == "monte_carlo" else method
+        if method not in DISPLAY_METHODS:
             return
+        previous = self.project.results.get("uncertainty_display_method")
         self.project.results["uncertainty_display_method"] = method
-        if not self.project.read_only:
+        if previous != method and not self.project.read_only:
             self.project.touch()
+        self._sync_uncertainty_method()
+        self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.model_panel.refresh_parameters()
 
     def _show_uncertainty_analysis(self) -> None:
@@ -3782,21 +3931,18 @@ class MainWindow(QMainWindow):
         if self._thread is not None:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
-        self._thread = QThread(self)
+        if self._cancellation is None:
+            self._cancellation = CancellationToken()
         self._worker = Worker(operation, streaming=partial is not None)
+        self._thread = TaskThread(self._worker, self._cancellation)
         self._task_callbacks = TaskCallbacks(self, finished, partial)
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
         self._worker.progress.connect(self._task_callbacks.progress, Qt.ConnectionType.QueuedConnection)
         if partial is not None:
             self._worker.partial.connect(self._task_callbacks.partial, Qt.ConnectionType.QueuedConnection)
         self._worker.finished.connect(self._task_callbacks.finished, Qt.ConnectionType.QueuedConnection)
         self._worker.failed.connect(self._task_callbacks.failed, Qt.ConnectionType.QueuedConnection)
-        # Keep the worker and thread alive until run() has actually returned.
-        # Dropping them while a completion/cancellation signal is still being
-        # emitted can destroy a live QObject and crash the application.
-        self._worker.finished.connect(self._thread.quit, Qt.ConnectionType.DirectConnection)
-        self._worker.failed.connect(self._thread.quit, Qt.ConnectionType.DirectConnection)
+        # The runner owns the emitter until the operation returns, including
+        # after cancellation has retired its GUI callbacks.
         self._thread.finished.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._task_callbacks.done, Qt.ConnectionType.QueuedConnection)
         self._thread.finished.connect(self._thread.deleteLater)
@@ -3808,13 +3954,26 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel.set_busy(True)
         self._notify(status)
         self._thread.start()
+        self._task_watchdog.start()
+
+    def _poll_task(self) -> None:
+        callbacks = self._task_callbacks
+        if self._thread is None or callbacks is None or not callbacks.active():
+            return
+        if not self._thread.isRunning():
+            callbacks.done()
+        elif (self._task_snapshot_safe and self._cancel_requested_at is not None
+              and time.monotonic() - self._cancel_requested_at >= self._TASK_CANCEL_GRACE_SECONDS):
+            callbacks.retire()
 
     def _task_progress(self, value: float | None, text: str) -> None:
         if value is None:
             self.progress.setRange(0, 0)
         else:
             self.progress.setRange(0, 100)
-            self.progress.setValue(int(max(0.0, min(value, 1.0)) * 100))
+            # 100% of replicas is not yet a completed task: finalization and
+            # result delivery must finish before the busy state is released.
+            self.progress.setValue(min(99, int(max(0.0, min(value, 1.0)) * 100)))
         self.statusBar().showMessage(text)
 
     def _task_failed(self, message: str, details: str) -> None:
@@ -3836,17 +3995,24 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def _task_done(self, *_: Any) -> None:
-        # Invoked only after QThread.finished; the Qt object may already have
-        # been deleted during a modal pause notification's nested event loop.
+        self._reset_task_state()
+
+    def _reset_task_state(self) -> None:
+        """Idempotent busy-state cleanup, also used if a completion hook fails."""
+        self._task_watchdog.stop()
         self._thread = None
         self._worker = None
         self._cancellation = None
+        self._cancel_requested_at = None
+        self._task_snapshot_safe = False
         self._fit_task_active = False
         self._uncertainty_task = None
         self.progress.setVisible(False)
         self.cancel_action.setEnabled(False)
         self.fit_action.setEnabled(True)
         self.uncertainty_panel.set_busy(False)
+        self.undo_action.setEnabled(self.undo_stack.canUndo())
+        self.redo_action.setEnabled(self.undo_stack.canRedo())
 
     def _mask_targets(self) -> list[Curve]:
         if not self.active_curve_id:

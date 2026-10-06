@@ -30,6 +30,7 @@ from curvemole.core.fitting import (
 )
 from curvemole.core.models import Model
 from curvemole.core.parameters import resolve_parameter_values
+from curvemole.core.process_pool import managed_process_pool
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
 
 
@@ -137,19 +138,14 @@ def _timeout_message(timeout: float = REPLICA_TIMEOUT_SECONDS) -> str:
             "seconds. The analysis was stopped and marked as failed.")
 
 
-def _terminate_pool(pool: ProcessPoolExecutor) -> None:
-    # Python 3.12/3.13 have no public terminate_workers API. Stop the owned
-    # processes before shutdown so an unresponsive solver cannot hold the GUI.
-    processes = list((getattr(pool, "_processes", None) or {}).values())
-    for process in processes:
-        if process.is_alive():
-            process.terminate()
-    for process in processes:
-        process.join(timeout=1)
-        if process.is_alive():
-            process.kill()
-            process.join(timeout=1)
-    pool.shutdown(wait=True, cancel_futures=True)
+def _drain_replica_activity(activity: Any) -> None:
+    # Results have already been collected. These are only timing notifications,
+    # but their Queue feeder can prevent a process from exiting until consumed.
+    for _ in range(1000):
+        try:
+            activity.get_nowait()
+        except Empty:
+            break
 
 
 def _check_replica_activity(activity: Any, running: dict[int, float], timeout: float) -> None:
@@ -194,11 +190,11 @@ def _parallel_map(
             stop = mp_context.Event()
             activity = mp_context.Queue()
             stack.callback(activity.close)
-            pool = stack.enter_context(ProcessPoolExecutor(
+            pool = stack.enter_context(managed_process_pool(ProcessPoolExecutor(
                 max_workers=min(workers, len(inputs), os.cpu_count() or 1),
                 mp_context=mp_context, initializer=_init_uncertainty_worker,
                 initargs=(stop, formulas or {}, activity, timeout, *context),
-            ))
+            ), drain=lambda: _drain_replica_activity(activity)))
         pending = {}
         next_index = 0
         completed = 0
@@ -221,12 +217,10 @@ def _parallel_map(
                     completed += 1
                     if progress:
                         progress(completed)
-        except BaseException as exc:
+        except BaseException:
             stop.set()
             for future in pending:
                 future.cancel()
-            if isinstance(exc, ReplicaTimeout):
-                _terminate_pool(pool)
             raise
     return results
 
@@ -830,12 +824,12 @@ class UncertaintyAnalyzer:
                 stop = mp_context.Event()
                 activity = mp_context.Queue()
                 stack.callback(activity.close)
-                pool = stack.enter_context(ProcessPoolExecutor(
+                pool = stack.enter_context(managed_process_pool(ProcessPoolExecutor(
                     max_workers=min(workers, adaptive.maximum_attempts, os.cpu_count() or 1),
                     mp_context=mp_context, initializer=_init_uncertainty_worker,
                     initargs=(stop, _worker_formulas(self.fitter, models, plan.curve_ids) or {},
                               activity, self.replica_timeout_seconds, *context),
-                ))
+                ), drain=lambda: _drain_replica_activity(activity)))
             while attempts < adaptive.maximum_attempts and not converged:
                 token.raise_if_cancelled()
                 # Limit each chunk to the successes still needed. Failed fits are

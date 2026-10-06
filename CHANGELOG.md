@@ -5,6 +5,25 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Bound process-pool shutdown and drain remaining uncertainty progress messages
+  so completed analyses cannot hang during worker teardown. Cancel unresponsive
+  processes, and retire a nonresponding fit/analysis after five seconds of user
+  cancellation, ignoring late callbacks and releasing the workspace safely.
+- Release task busy state after worker exits and GUI callback failures, with a
+  watchdog for missed completion notifications. Keep finalization below 100%.
+- Run every fit mode and uncertainty analysis on detached inputs, allowing manual
+  saves and autosaves during calculation without waiting for the task to finish.
+- Populate a restored laboratory notebook tab immediately and rebind it when
+  opening or creating a project, without requiring a close/reopen of the panel.
+- Keep the analysis method, the parameter-header display choice and spectrum
+  warning tags synchronized. Preserve a selected method without saved results
+  rather than showing another method, including after project reopening.
+- Open the project-wide uncertainty display choices directly from the
+  Analysis - / + parameter-table heading, replacing the separate selector.
+  Keep the active method checked and the analysis-panel link when no results exist.
+
 ## [0.38.1] - 2026-10-06
 
 ### Documentation

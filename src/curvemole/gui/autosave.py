@@ -56,9 +56,9 @@ class AutosaveController(QObject):
             self._generation = None
 
         if self._requested:
-            # Fit workers can update models/results outside the GUI thread.
-            # Capture after they finish, without delaying the request by ten minutes.
-            if self.window._thread is not None:
+            # Built-in calculations own detached inputs. Preserve the wait for
+            # callers that have not declared their task safe for snapshotting.
+            if self.window._thread is not None and not self.window._task_snapshot_safe:
                 self.timer.start()
                 return
             self._requested = False

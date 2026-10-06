@@ -453,8 +453,9 @@ Uncertainty tags are added to the fit state for the method currently selected in
 **Uncertainty Analysis > Method**. A failed replica, an adaptive stability limit or
 a timeout adds a warning icon beside the spectrum and an amber status. Hover over
 the State column for the reason and counts. Switching the method updates these tags
-without refitting or deleting results. This method is separate from the universal
-**Displayed uncertainty** choice in **Model and parameters**; see Section 12.
+without refitting or deleting results. It is the same universal method selected
+through the **Analysis - / +** header in **Model and parameters**: changing either
+control updates both panels and the spectrum tags. See Section 12.
 
 ### 5.2 Plot workspace
 
@@ -570,7 +571,9 @@ The controls below the list are:
 | Copy fit to next | Copy to the next curve in the source series, then open it |
 | Copy parameter | Copy one parameter from one source function to chosen project-wide targets |
 
-**Displayed uncertainty** lists methods recorded for at least one spectrum. The
+Click the **Analysis - / +** column heading to open **Displayed uncertainty**, a
+menu of methods recorded for at least one spectrum. The checked entry is the method
+currently displayed. There is no separate selector above the parameter table. The
 sole available method is selected automatically. With several methods, choose the
 one to show for every spectrum: spectra without it show a dash instead of another
 method's errors. The choice survives switching spectra, Show all functions, saving
@@ -1317,7 +1320,7 @@ The table columns are:
 | Parameter | Parameter name; parameters with a relation show its indicator |
 | Value | Current value or successful fitted value |
 | ±1 sigma | Covariance-based standard error when available |
-| Analysis - / + | Lower/upper distances from this spectrum's saved result for the project-wide Displayed uncertainty method; a dash if that method or a usable interval is unavailable |
+| Analysis - / + | Lower/upper distances from this spectrum's saved result for the project-wide display method; click this heading to choose a method, with a dash if its interval is unavailable |
 | Fixed | Exclude the parameter from optimization |
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
@@ -1691,8 +1694,14 @@ usually much slower than a well-initialized local fit.
 ### 10.7 Cancellation and failed fits
 
 Use **Fit > Cancel running task** to request cancellation. The request is checked
-during residual evaluation and resampling. The window cannot close while a background
-task remains active.
+during residual evaluation and resampling. If a built-in fit or uncertainty task
+does not respond within five seconds, CurveMole retires it and releases the
+workspace. Calculations own detached inputs; late results from a retired task
+are ignored. Previous valid results remain available.
+An uncooperative executable plugin may continue computing in its detached daemon
+thread, but cannot keep the project locked or prevent the application from closing.
+Save and autosave can capture the current project while a calculation is active.
+Finalization keeps progress below 100% until the task has actually finished.
 
 If the solver raises an error or does not converge, CurveMole restores the last valid
 parameter values instead of committing an incomplete optimizer vector. The curve is
@@ -1807,7 +1816,9 @@ starts when that replica begins calculating, excluding time waiting in the queue
 and resets for every replica. It applies in fixed and adaptive modes, with one or
 multiple CPU processes. Built-in functions and custom formulas run in isolated
 workers, allowing CurveMole to stop even an unresponsive replica. Executable
-plugin functions and custom fitter subclasses use cooperative cancellation.
+plugin functions and custom fitter subclasses use cooperative cancellation for
+the replica deadline; the task cancellation safeguard described in section 10.7
+also applies to these analyses.
 
 If a replica exceeds the limit, the entire active analysis stops and is marked
 **Uncertainty analysis failed (timeout)** for the selected method, with an amber
@@ -1863,8 +1874,8 @@ methods, and preserves all other methods, spectra and fitted parameters. **Undo*
 and **Redo** restore or remove it. The button is disabled in read-only projects and
 while a background task is running.
 The panel scrolls when its controls and results exceed the available height.
-The deletion applies to the analysis panel's **Method**, independently of **Run on**
-and of the display method chosen in Model and parameters. Save the project to persist
+The deletion applies to the shared selected method, independently of **Run on**.
+Both the analysis panel and Model and parameters show this same method. Save the project to persist
 the removal. Previously saved project files are not rewritten until saved; other
 archives and exported files are not deleted by this button.
 
@@ -1889,7 +1900,8 @@ bootstrap tag. A saved analysis of the selected method is marked outdated after
 data/model changes. Hover over the state to see the selected method and all saved
 analyses. Changing the method preserves the selection and does not rerun or delete
 any analysis.
-In **Model and parameters**, **Displayed uncertainty** selects which saved
+In **Model and parameters**, click **Analysis - / +** in the parameter-table header
+to open the **Displayed uncertainty** menu. Its checked entry selects which saved
 analysis supplies the coloured **Analysis − / +** column for every spectrum.
 The choice is universal within the project: switching spectra or using **Show all
 functions** does not change the selected method. The selector lists methods recorded
@@ -1898,13 +1910,18 @@ shows a dash in the analysis column; it does not fall back to another method.
 The sole available method is displayed automatically, including after reopening
 older projects without a saved display preference. If several analyses are
 available, the selector remembers one project-wide choice after saving and reopening.
-Running another analysis preserves this choice while its results remain available.
+Finishing a background analysis preserves a different method selected while it was running.
 Older per-spectrum preferences migrate to the first available saved choice in spectrum
 order. Fit covariance analyses use their recorded confidence limits.
-When no analysis is available anywhere in the project, clicking the selector explains that an analysis
+When no analysis is available anywhere in the project, clicking the column heading explains that an analysis
 must be run first and offers **Open Uncertainty Analysis**, which opens that panel.
-The selector is available in the model panel, next to the parameter results;
-the uncertainty panel's **Method** control chooses which analysis to run or inspect.
+The menu is attached directly to the error-column heading;
+the uncertainty panel's **Method** control chooses the same method to show, inspect
+or run. Changing either control updates the other and all spectrum tags. Selection
+does not run an analysis: use **Run explicit uncertainty analysis** to calculate it.
+If the chosen method has no recorded result, errors remain blank. The header menu
+marks it as **no recorded result** when other saved methods are available; it does
+not silently substitute another method. Available saved methods can still be selected.
 With **Show all functions**, the empty-state link activates the spectrum owning the
 displayed function before opening its analysis panel. The project-wide selector
 remains available when several functions are selected and parameter rows are hidden.
@@ -2082,7 +2099,11 @@ integrity checks keep the plot and controls available. Each backup represents
 a coherent snapshot from the start of the operation; edits made while it is
 being written remain unsaved and are included in a later backup. Only one
 autosave runs at a time, with overlapping requests combined into the latest
-requested state. Requests during a fit wait until its worker has finished.
+requested state. Built-in fits and uncertainty analyses work on detached inputs,
+so manual saves and autosaves include the current project and results already
+committed without waiting for the entire calculation. Later completed results
+become new unsaved changes. Undeclared external background tasks still defer
+snapshotting until their worker has finished.
 
 Every ten minutes, a modified revision is written to the operating system's CurveMole
 user cache. An unchanged revision does not create another recovery. The six newest
@@ -2944,7 +2965,9 @@ Undo restores its live status. Copying a function does not duplicate its notes.
 
 Edits in the notebook are kept in the current project as you type; save the
 `.fitproj` file to persist them. Notebook contents are also included in portable
-project copies. **Save notebook as text** writes the complete notebook as UTF-8.
+project copies. A notebook tab restored at startup displays the current project's
+contents immediately and follows the project when another file is opened.
+**Save notebook as text** writes the complete notebook as UTF-8.
 Alternatively, select **Laboratory notebook (TXT)** in **Export analysis bundle**;
 this writes `laboratory_notebook.txt` and follows the usual export ownership rules.
 The notebook can be viewed and exported from a read-only project. Editing is

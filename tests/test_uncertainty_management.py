@@ -77,10 +77,12 @@ def test_delete_selected_method_everywhere_updates_tags_and_supports_undo(manage
         assert all("parametric_monte_carlo" not in methods for methods in project.results[key].values())
     assert "parametric_monte_carlo" not in project.results["uncertainty"]
     assert "block_bootstrap" in project.results["uncertainty_reports_by_curve"][first.id]
-    assert item(window).text(2) == item(window, 1).text(2) == "Fitted"
+    assert "Uncertainty analysed" in item(window).text(2)
+    assert item(window, 1).text(2) == "Fitted"
     assert item(window, 1).icon(1).isNull()
-    assert window.model_panel.display_method.currentData() == "block_bootstrap"
-    assert not window.uncertainty_panel.delete_button.isEnabled()
+    assert window.model_panel.display_method.current_method == "block_bootstrap"
+    assert window.uncertainty_panel.method.currentData() == "block_bootstrap"
+    assert window.uncertainty_panel.delete_button.isEnabled()
     for index, curve in enumerate(project.curves):
         assert curve.state == CurveState.FITTED
         np.testing.assert_array_equal(curve.y, y_values[index])
@@ -88,7 +90,7 @@ def test_delete_selected_method_everywhere_updates_tags_and_supports_undo(manage
     window.undo_stack.undo()
     assert "Uncertainty analysed" in item(window).text(2)
     assert "failed" in item(window, 1).text(2)
-    assert window.model_panel.display_method.currentData() == "parametric_monte_carlo"
+    assert window.model_panel.display_method.current_method == "parametric_monte_carlo"
     assert window.uncertainty_panel.delete_button.isEnabled()
     window.undo_stack.redo()
     reopened = load_project(save_project(project, tmp_path / "deleted.fitproj"))
@@ -251,3 +253,85 @@ def test_failed_replica_and_adaptive_limit_are_both_reported(management_window):
     text = window.uncertainty_panel.results.warning.text()
     assert "Adaptive limit reached" in text
     assert "1 replica(s) failed out of 7 attempts" in text
+
+
+@pytest.mark.parametrize("origin", ["header", "analysis"])
+@pytest.mark.parametrize("warning_kind", ["failed", "limit", "timeout"])
+@pytest.mark.parametrize("readonly", [False, True])
+def test_both_method_controls_update_errors_reports_and_warning_tags(
+    management_window, monkeypatch, origin, warning_kind, readonly,
+):
+    _app, window, baselines = management_window
+    first = window.project.curves[0]
+    normal = result(baselines[0], "residual_bootstrap")
+    warned = result(baselines[0], "parametric_monte_carlo", converged=False if warning_kind == "limit" else None)
+    if warning_kind == "failed":
+        warned.completed, warned.failed, warned.requested = 200, 1, 201
+    window._uncertainty_finished([(first.id, baselines[0], normal), (first.id, baselines[0], warned)])
+    if warning_kind == "timeout":
+        window.project.results["uncertainty_failures_by_curve"] = {
+            first.id: {"parametric_monte_carlo": {"reason": "timeout", "message": "Uncertainty replica timeout: test"}}}
+    choose(window, "residual_bootstrap")
+    window.refresh_all()
+    assert "⚠" not in item(window).text(2)
+    previous_item = item(window)
+    selected = window.curve_tree.selected_curve_ids()
+    model_before = window.project.model_for(first.id).to_dict()
+    window.project.read_only = readonly
+    window.project.dirty = False
+    revision = window.project.revision
+    run_requests = []
+    window.uncertainty_panel.runRequested.connect(lambda *args: run_requests.append(args))
+    monkeypatch.setattr(window, "start_uncertainty", lambda *a, **kw: pytest.fail("Selecting a method must not run it"))
+    if origin == "header":
+        window.model_panel.display_method.method_actions["parametric_monte_carlo"].trigger()
+    else:
+        choose(window, "monte_carlo")
+    assert window.uncertainty_panel.method.currentData() == "monte_carlo"
+    assert window.model_panel.display_method.current_method == "parametric_monte_carlo"
+    assert window.uncertainty_panel.results.method == "parametric_monte_carlo"
+    assert not run_requests and window._thread is None
+    assert not window.uncertainty_panel.results.warning.isHidden()
+    assert "⚠" in item(window).text(2)
+    assert not item(window).icon(1).isNull()
+    assert item(window).foreground(2).color().name() != "#009e73"
+    assert item(window) is previous_item
+    assert window.curve_tree.selected_curve_ids() == selected
+    assert window.project.model_for(first.id).to_dict() == model_before
+    assert window.project.dataset.curve(first.id).state == CurveState.FITTED
+    assert window.model_panel.parameters.item(0, 3).text() == "−0.1 / +0.3"
+    if readonly:
+        assert window.project.revision == revision and not window.project.dirty
+    choose(window, "residual_bootstrap")
+    assert window.model_panel.display_method.current_method == "residual_bootstrap"
+    assert window.uncertainty_panel.results.method == "residual_bootstrap"
+    assert window.uncertainty_panel.results.warning.isHidden()
+    assert "⚠" not in item(window).text(2)
+    assert item(window).icon(1).isNull()
+
+
+def test_uncomputed_method_stays_linked_after_reopen(management_window, tmp_path):
+    app, window, baselines = management_window
+    first = window.project.curves[0]
+    window._uncertainty_finished([(first.id, baselines[0], result(baselines[0]))])
+    choose(window, "block_bootstrap")
+    assert window.model_panel.display_method.current_method == "block_bootstrap"
+    action = window.model_panel.display_method.method_actions["block_bootstrap"]
+    assert action.isChecked() and not action.isEnabled()
+    assert "no recorded result" in action.text()
+    assert window.model_panel.parameters.item(0, 3).text() == "—"
+    assert item(window).text(2) == "Fitted"
+    saved = load_project(save_project(window.project, tmp_path / "pending-method.fitproj"))
+    other = MainWindow(saved)
+    try:
+        assert other.uncertainty_panel.method.currentData() == "block_bootstrap"
+        assert other.model_panel.display_method.current_method == "block_bootstrap"
+        assert other.uncertainty_panel.results.method == "block_bootstrap"
+        assert other.model_panel.parameters.item(0, 3).text() == "—"
+        assert "No recorded result" in other.uncertainty_panel.results.summary.text()
+        assert item(other).text(2) == "Fitted"
+    finally:
+        saved.dirty = False
+        other.close()
+        other.deleteLater()
+        app.processEvents()

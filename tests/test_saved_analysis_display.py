@@ -53,10 +53,9 @@ def test_saved_display_works_for_current_and_explicitly_historical_reports(analy
     restored = load_project(project.path)
     other = MainWindow(restored)
     try:
-        assert other.model_panel.display_method.currentData() == method
-        index = other.model_panel.display_method.findData(method)
-        assert index >= 0
-        other.model_panel.display_method.setCurrentIndex(index)
+        assert other.model_panel.display_method.current_method == method
+        assert method in other.model_panel.display_method.method_actions
+        other.model_panel.display_method.method_actions[method].trigger()
         cell = other.model_panel.parameters.item(0, 3)
         if state == CurveState.FITTED:
             assert cell.text() == "−0.2 / +0.4"
@@ -89,10 +88,8 @@ def test_read_only_project_can_select_saved_display_without_becoming_dirty(analy
     window.project.dirty = False
     window.model_panel.refresh_parameters()
     monkeypatch.setattr(window, "_ensure_editable", lambda: pytest.fail("Viewing results must work read-only"))
-    window.model_panel.display_method.setCurrentIndex(
-        window.model_panel.display_method.findData("profile_likelihood"))
-    window.model_panel.display_method.setCurrentIndex(
-        window.model_panel.display_method.findData("block_bootstrap"))
+    window.model_panel.display_method.method_actions["profile_likelihood"].trigger()
+    window.model_panel.display_method.method_actions["block_bootstrap"].trigger()
     assert window.model_panel.parameters.item(0, 3).text() == "−0.1 / +0.3"
     assert not window.project.dirty
 
@@ -111,7 +108,7 @@ def test_saved_monte_carlo_alias_restores_selected_errors_automatically(analysis
     restored = load_project(save_project(project, tmp_path / "monte-carlo.fitproj"))
     other = MainWindow(restored)
     try:
-        assert other.model_panel.display_method.currentData() == "parametric_monte_carlo"
+        assert other.model_panel.display_method.current_method == "parametric_monte_carlo"
         assert other.model_panel.parameters.item(0, 3).text() == "−0.3 / +0.5"
     finally:
         restored.dirty = False

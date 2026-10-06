@@ -2,14 +2,16 @@
 
 from html import escape
 
-from PySide6.QtCore import QPoint, Qt, Signal
-from PySide6.QtWidgets import QComboBox, QLabel, QMenu, QWidgetAction
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QActionGroup
+from PySide6.QtWidgets import QLabel, QMenu, QWidgetAction
 
 from curvemole.core.analysis_errors import DISPLAY_METHODS, available_methods, display_method
 
 
-class UncertaintyDisplaySelector(QComboBox):
+class UncertaintyDisplayMenu(QMenu):
     analysisRequested = Signal()
+    methodSelected = Signal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -19,10 +21,12 @@ class UncertaintyDisplaySelector(QComboBox):
             "Spectra without that analysis show no analysis error. "
             "The original fit ±1σ remains visible. Outdated results are labelled Recorded.")
         self.setToolTip(self._description)
-        self._has_analysis = False
+        self.current_method = None
+        self.method_actions = {}
+        self.action_group = QActionGroup(self)
+        self.action_group.setExclusive(True)
         self.curve_id = None
-        self.empty_menu = QMenu(self)
-        action = QWidgetAction(self.empty_menu)
+        self.empty_action = QWidgetAction(self)
         self.empty_message = QLabel(
             escape(self.tr("To see the analysis error, first run an analysis in its panel."))
             + '<br><br><a href="uncertainty">'
@@ -34,40 +38,36 @@ class UncertaintyDisplaySelector(QComboBox):
         self.empty_message.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         self.empty_message.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.empty_message.linkActivated.connect(self._open_analysis)
-        action.setDefaultWidget(self.empty_message)
-        self.empty_menu.addAction(action)
+        self.empty_action.setDefaultWidget(self.empty_message)
 
     def set_context(self, project, curve_id):
         self.curve_id = curve_id
-        self.empty_menu.hide()
-        self.blockSignals(True)
-        try:
-            self.clear()
-            available = available_methods(project) if project is not None else ()
-            for method, label in DISPLAY_METHODS.items():
-                if method in available:
-                    self.addItem(self.tr(label), method)
-            self._has_analysis = self.count() > 0
-            if not self._has_analysis:
-                self.addItem(self.tr("No analysis available…"), "")
-            chosen = display_method(project) if project is not None else None
-            self.setCurrentIndex(max(0, self.findData(chosen or "")))
-            self.setEnabled(project is not None)
-        finally:
-            self.blockSignals(False)
-
-    def showPopup(self):
-        if not self.isEnabled():
-            return
-        if self._has_analysis:
-            super().showPopup()
-        else:
-            self.empty_menu.popup(self.mapToGlobal(QPoint(0, self.height())))
-
-    def hidePopup(self):
-        self.empty_menu.hide()
-        super().hidePopup()
+        self.hide()
+        self.removeAction(self.empty_action)
+        for action in self.method_actions.values():
+            self.removeAction(action)
+            self.action_group.removeAction(action)
+            action.deleteLater()
+        self.method_actions.clear()
+        available = available_methods(project) if project is not None else ()
+        self.current_method = display_method(project) if project is not None else None
+        for method, label in DISPLAY_METHODS.items():
+            if method in available or (available and method == self.current_method):
+                title = self.tr(label)
+                if method not in available:
+                    title += self.tr(" (no recorded result)")
+                action = self.addAction(title)
+                action.setData(method)
+                action.setCheckable(True)
+                action.setEnabled(method in available)
+                self.action_group.addAction(action)
+                action.setChecked(method == self.current_method)
+                action.triggered.connect(lambda checked=False, name=method: self.methodSelected.emit(name))
+                self.method_actions[method] = action
+        if not self.method_actions:
+            self.addAction(self.empty_action)
+        self.setEnabled(project is not None)
 
     def _open_analysis(self, _link):
-        self.empty_menu.hide()
+        self.hide()
         self.analysisRequested.emit()

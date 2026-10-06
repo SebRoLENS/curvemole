@@ -62,10 +62,10 @@ def available_methods(project) -> tuple[str, ...]:
 
 def display_method(project) -> str | None:
     """Resolve one display method for the whole project without changing it."""
-    available = available_methods(project)
     method = project.results.get("uncertainty_display_method")
-    if method in available:
+    if method in DISPLAY_METHODS:
         return method
+    available = available_methods(project)
     # The single available method needs no persisted preference. A deterministic
     # default also lets older projects without any choice show recorded results.
     return available[-1] if available else None

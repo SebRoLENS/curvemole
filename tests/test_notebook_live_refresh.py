@@ -5,10 +5,12 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem
 
 from curvemole import Component, Curve, Project, Series
 from curvemole.core.notebook import description_key
+from curvemole.core.serialization import load_project, save_project
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.notebook import DescriptionDialog
 
@@ -18,6 +20,100 @@ def _labels(item: QTreeWidgetItem) -> list[str]:
     for index in range(item.childCount()):
         values.extend(_labels(item.child(index)))
     return values
+
+
+@pytest.mark.parametrize("dock_state", ["active", "background", "hidden"])
+@pytest.mark.parametrize("read_only", [False, True])
+def test_saved_notebook_tab_restores_contents_without_toggling(
+    tmp_path, monkeypatch, dock_state, read_only,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr("curvemole.gui.main_window.QSettings", lambda *args: settings)
+    project = Project("Saved notebook")
+    series = Series("Experiment", [Curve("Data", [0., 1.], [1., 2.])])
+    project.add_series(series)
+    project.notebook.notes = "Saved experimental observations"
+    project.notebook.set_description(project, "series", series.id, "Saved series details")
+    path = save_project(project, tmp_path / "notebook.fitproj")
+
+    window = MainWindow(project)
+    window.show()
+    window.open_notebook()
+    if dock_state == "background":
+        window.activate_tool_dock(window.model_dock)
+    elif dock_state == "hidden":
+        window.notebook_dock.hide()
+    app.processEvents()
+    window.close()
+    app.processEvents()
+
+    restored = load_project(path)
+    restored.read_only = read_only
+    revision = restored.revision
+    other = MainWindow(restored)
+    try:
+        other.show()
+        app.processEvents()
+        assert other.notebook_dock.isHidden() == (dock_state == "hidden")
+        if dock_state == "hidden":
+            assert other._notebook_widget is None
+            assert other.notebook_dock.widget() is other._notebook_placeholder
+            # Also exercise the dock's own toggle action, without open_notebook().
+            other.notebook_dock.toggleViewAction().trigger()
+            app.processEvents()
+        panel = other._notebook_widget
+        assert panel is not None
+        assert other.notebook_dock.widget() is panel
+        assert panel.notes.toPlainText() == restored.notebook.notes
+        assert panel.notes.isReadOnly() == read_only
+        assert panel.tree.topLevelItemCount() == 1
+        assert "Series description" in _labels(panel.tree.topLevelItem(0))
+        if dock_state == "background":
+            assert not other.model_dock.visibleRegion().isEmpty()
+            assert other.notebook_dock.visibleRegion().isEmpty()
+        assert not restored.dirty
+        assert restored.revision == revision
+    finally:
+        other.project.dirty = False
+        other.close()
+        app.processEvents()
+
+
+def test_open_project_updates_restored_notebook_and_new_project_clears_it(
+    tmp_path, monkeypatch,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / "layout.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr("curvemole.gui.main_window.QSettings", lambda *args: settings)
+    project = Project("Loaded after startup")
+    series = Series("Experiment", [Curve("Data", [0., 1.], [1., 2.])])
+    project.add_series(series)
+    project.notebook.notes = "Notes from the file"
+    project.notebook.set_description(project, "series", series.id, "File description")
+    path = save_project(project, tmp_path / "notebook.fitproj")
+    window = MainWindow()
+    try:
+        window.show()
+        window.open_notebook()
+        old_panel = window._notebook_widget
+        window.open_project(path)
+        app.processEvents()
+        panel = window._notebook_widget
+        assert panel is not old_panel
+        assert panel.project is window.project
+        assert panel.notes.toPlainText() == "Notes from the file"
+        assert panel.tree.topLevelItemCount() == 1
+        assert not window.project.dirty
+        window.new_project()
+        app.processEvents()
+        assert window._notebook_widget.project is window.project
+        assert window._notebook_widget.notes.toPlainText() == ""
+        assert window._notebook_widget.tree.topLevelItemCount() == 0
+    finally:
+        window.project.dirty = False
+        window.close()
+        app.processEvents()
 
 
 def test_external_description_appears_immediately_in_open_notebook(

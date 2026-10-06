@@ -68,7 +68,7 @@ class ManualSaveController(QObject):
             return
         try:
             if self._future is None and self._pending is not None:
-                if self.window._thread is not None:
+                if self.window._thread is not None and not self.window._task_snapshot_safe:
                     return
                 path, writer, portable = self._pending
                 self._source = self.window.project

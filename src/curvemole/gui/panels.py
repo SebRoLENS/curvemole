@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -122,32 +122,28 @@ class ModelPanel(QWidget):
         self.copy_fit_next_button.clicked.connect(self.copyFitNextRequested)
         buttons.addWidget(self.copy_fit_next_button)
         single_layout.addLayout(buttons)
-        from curvemole.gui.uncertainty_display import UncertaintyDisplaySelector
+        from curvemole.gui.uncertainty_display import UncertaintyDisplayMenu
 
-        self.uncertainty_display_label = QLabel(self.tr("Displayed uncertainty"))
-        self.display_method = UncertaintyDisplaySelector(self)
-        self.uncertainty_display_label.setBuddy(self.display_method)
-        self.uncertainty_display_label.setToolTip(self.display_method.toolTip())
-        self.display_method.currentIndexChanged.connect(
-            lambda: self.displayMethodChanged.emit(self.display_method.currentData() or ""))
+        self.display_method = UncertaintyDisplayMenu(self)
+        self.display_method.methodSelected.connect(self.displayMethodChanged)
         self.display_method.analysisRequested.connect(self.uncertaintyRequested)
-        display_layout = QFormLayout()
-        display_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
-        display_layout.addRow(self.uncertainty_display_label, self.display_method)
-        single_layout.addLayout(display_layout)
         self.parameters = QTableWidget(0, 8)
         self.parameters.setHorizontalHeaderLabels(
             [
                 self.tr("Parameter"),
                 self.tr("Value"),
                 self.tr("±1σ"),
-                self.tr("Analysis − / +"),
+                self.tr("Analysis − / + ▾"),
                 self.tr("Fixed"),
                 self.tr("Lower"),
                 self.tr("Upper"),
                 self.tr("Link"),
             ]
         )
+        self.parameters.horizontalHeaderItem(3).setToolTip(
+            self.tr("Click to choose the displayed uncertainty. ") + self.display_method.toolTip())
+        self.parameters.horizontalHeader().setSectionsClickable(True)
+        self.parameters.horizontalHeader().sectionClicked.connect(self._show_uncertainty_menu)
         self.parameters.itemChanged.connect(self._parameter_changed)
         single_layout.addWidget(self.parameters, 2)
         fixed_buttons = QHBoxLayout()
@@ -266,6 +262,13 @@ class ModelPanel(QWidget):
     def selected_component_id(self) -> str | None:
         item = self.components.currentItem()
         return str(item.data(Qt.ItemDataRole.UserRole)) if item else None
+
+    def _show_uncertainty_menu(self, section: int) -> None:
+        if section != 3 or not self.display_method.isEnabled():
+            return
+        header = self.parameters.horizontalHeader()
+        point = QPoint(header.sectionViewportPosition(section), header.height())
+        self.display_method.popup(header.viewport().mapToGlobal(point))
 
     def refresh_parameters(self) -> None:
         self.display_method.set_context(self.project, self.curve_id)
