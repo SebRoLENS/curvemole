@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.37.1] - 2026-10-06
+
 ### Fixed
 
 - Restore legacy uncertainty reports and Monte Carlo display choices consistently
