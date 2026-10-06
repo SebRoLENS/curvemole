@@ -9,6 +9,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Fixed
 
+- Resolve fit-result types once before background serialization, avoiding repeated
+  GUI import-hook calls while walking saved results and threaded coverage deadlocks.
 - Reconnect legacy background subtraction history to an unambiguous builtin
   model function when reopening projects whose function IDs changed before the
   history-preservation fix. The recovery list and per-function status now agree.

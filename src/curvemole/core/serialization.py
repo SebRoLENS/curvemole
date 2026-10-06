@@ -21,6 +21,7 @@ import numpy as np
 
 from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series, Transformation
 from curvemole.core.errors import ProjectFormatError
+from curvemole.core.fitting import FitResult
 from curvemole.core.models import Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.process import process_alive
@@ -476,8 +477,6 @@ def _load_transformations(
 
 
 def _json_safe(value: Any) -> Any:
-    from curvemole.core.fitting import FitResult
-
     if isinstance(value, FitResult):
         return _json_safe(value.to_dict(arrays=True))
     if hasattr(value, "to_dict") and callable(value.to_dict):
@@ -503,8 +502,6 @@ def _json_safe(value: Any) -> Any:
 
 
 def _load_results(value: Any) -> Any:
-    from curvemole.core.fitting import FitResult
-
     if isinstance(value, dict):
         if {
             "success",

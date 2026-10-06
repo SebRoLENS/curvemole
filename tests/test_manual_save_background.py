@@ -162,3 +162,37 @@ def test_failed_manual_save_keeps_backups_and_dirty_state(saved_window, monkeypa
     assert errors == ["Disk full"]
     assert window.project.dirty
     assert len(window.recovery.candidates()) == 1
+
+
+def test_background_save_does_not_reenter_gui_import_hooks_for_each_result_value(saved_window, monkeypatch):
+    import builtins
+
+    import numpy as np
+
+    from curvemole import Component, Curve, Fitter
+
+    _app, window = saved_window
+    curve = Curve("Saved fit", np.linspace(0., 1., 21), np.ones(21))
+    window.project.add_curve(curve)
+    model = window.project.model_for(curve.id)
+    model.add(Component.create("constant", initial={"offset": 1.}))
+    baseline = Fitter().fit_single(curve, model)
+    window.project.results["last_fit"] = baseline
+    gui_thread = threading.get_ident()
+    original_import = builtins.__import__
+    errors = []
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "curvemole.core.fitting" and threading.get_ident() != gui_thread:
+            raise RuntimeError("Background serialization must not reenter GUI import hooks")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(window, "_show_error", lambda _title, error: errors.append(str(error)))
+    assert window.save_project()
+    assert errors == []
+    restored = load_project(window.project.path)
+    result = restored.results["last_fit"]
+    assert result.parameters[baseline.free_parameter_paths[0]].value == pytest.approx(1.)
+    np.testing.assert_array_equal(result.curve_outputs[curve.id].fitted,
+                                  baseline.curve_outputs[curve.id].fitted)
