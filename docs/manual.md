@@ -1982,6 +1982,12 @@ for confidential data.
 
 ### 13.5 Autosave recovery
 
+Manual Save, Save As and portable-copy writing also run on a background worker.
+The status bar identifies the file being saved while the plot and controls remain
+available. Edits made during writing remain unsaved; a completed snapshot does
+not clear recovery copies for newer changes. Close/Open waits for the save outcome
+with a responsive interface and asks again if newer unsaved changes remain.
+
 Autosave runs in a dedicated background thread, so compression, disk writing and
 integrity checks keep the plot and controls available. Each backup represents
 a coherent snapshot from the start of the operation; edits made while it is
@@ -1990,20 +1996,37 @@ autosave runs at a time, with overlapping requests combined into the latest
 requested state. Requests during a fit wait until its worker has finished.
 
 Every ten minutes, a modified revision is written to the operating system's CurveMole
-user cache. An unchanged revision does not create another recovery. The three newest
+user cache. An unchanged revision does not create another recovery. The six newest
 valid, distinct recovery files for a project are retained.
 
-Only after a crash or abnormal exit, CurveMole offers **Recoverable sessions** at startup.
-Normal launches do not prompt, even when older deferred copies exist.
+CurveMole offers **Recoverable sessions** at startup for unresolved sessions,
+including crashes and exits without a successful Save or explicit Discard.
 The same list is available from **File > Recoverable sessions**. Sessions are grouped
 by project name with their recovery date and copy count. **Recover** opens the newest
 valid copy by default; an older retained copy can also be selected. The recovered
 workspace is unsaved and does not overwrite the original project.
 
-**Decide later** retains the copies. **Delete recovery copies** removes all backups
-for the selected session after confirmation. Saving a project normally or explicitly
+The proposal explicitly names the original project/file and the recovery file
+it will open. Each project lists named **backup 1** through **backup 6** entries,
+with dates and the newest valid copy selected. Older copies without stored names
+use the internal project name or an identifier to keep unnamed sessions distinct.
+
+**Decide later** retains the copies and the proposal for the next launch.
+**Delete selected copies** removes individual copies or selected project groups
+after confirmation. Saving all current changes successfully or explicitly
 choosing **Discard** when closing or switching projects removes its recovery copies.
 Cancelling a dialog or a failed save preserves them. Other projects' copies remain.
+
+The application counts completed recovery files once per minute. Startup recommends
+periodic manual cleanup to limit disk usage and opens the recovery manager when
+the total reaches a new multiple of 50: 50, 100, 150, 200 and so on. Each warning
+is shown once per reached band, remembered across restarts. If several thresholds
+are crossed between launches, only one warning is shown for the current count.
+Cleanup to fewer than 50 copies restarts the warning cycle. Copies from multiple
+projects can be kept indefinitely within each project's six-valid-copy rotation;
+there is no automatic age expiry. Damaged completed copies can be deleted manually.
+Abandoned staging files are automatically removed only when their owning process
+is known to have exited; files still in use are retained.
 
 **File > Recent projects** lists up to ten successfully opened or saved projects;
 choose an entry to reopen it, or clear the list from that menu.

@@ -5,6 +5,26 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Responsive manual Save, Save As and portable-copy writing on a dedicated worker,
+  with a saving indicator, preserved edits made during writing, and safe deferred
+  Close/Open transitions until the save outcome is known.
+- Six valid autosave copies per project, with named and dated backup 1–6 entries,
+  explicit original/recovery filenames in restore proposals, and individual or
+  multiple-copy deletion in the recovery manager.
+- Persistent unresolved recovery sessions, including normal exits without an
+  explicit Save/Discard decision and repeated startup proposals after Decide later.
+- A periodic recovery-copy count and startup cleanup advice at 50 copies and
+  at 100, 150, 200…; warning bands persist across restarts and reset after cleanup
+  below 50 copies. Damaged completed copies remain visible for manual cleanup.
+
+### Fixed
+
+- Prevent pending background saves from recreating explicitly deleted backups,
+  preserve useful copies after failed or partial saves, and safely remove abandoned
+  staging files belonging to processes that have exited.
+
 ## [0.36.3] - 2026-10-06
 
 ### Fixed

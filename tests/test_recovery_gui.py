@@ -41,7 +41,7 @@ def test_save_removes_three_backups_but_failed_or_cancelled_save_preserves_them(
     from curvemole.gui import main_window
 
     with monkeypatch.context() as patch:
-        def fail(*args):
+        def fail(*args, **kwargs):
             raise OSError("Disk full")
         patch.setattr(main_window, "save_project", fail)
         patch.setattr(window, "_show_error", lambda *args: None)
@@ -109,6 +109,8 @@ def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
             seen.append(dialog.sessions.topLevelItemCount())
             assert dialog.versions.count() == 3
             dialog.later_button.click()
+        else:
+            QTimer.singleShot(10, later)
     QTimer.singleShot(0, later)
     window.show_recovery_sessions(startup=True)
     assert seen == [1]
@@ -117,6 +119,8 @@ def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
         dialog = app.activeModalWidget()
         if isinstance(dialog, RecoveryDialog):
             dialog.recover_button.click()
+        else:
+            QTimer.singleShot(10, recover)
     QTimer.singleShot(0, recover)
     window.recovery_action.trigger()
     wait_autosave(app, window)
@@ -124,7 +128,7 @@ def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
     assert window.project.notebook.notes == "Notes 2"
     assert window.project.path is None
     assert window.project.dirty
-    assert len(window.recovery.candidates()) == 3
+    assert len(window.recovery.candidates()) == 4
     window.project.path = tmp_path / "recovered.fitproj"
     assert window.save_project()
     assert not window.recovery.candidates()

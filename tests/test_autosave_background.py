@@ -71,7 +71,7 @@ def test_gui_remains_responsive_and_saves_a_coherent_snapshot(autosave_window, p
     gui_thread = threading.get_ident()
     records = []
     window._recovery_session = SimpleNamespace(
-        record=lambda project_id: records.append((project_id, threading.get_ident())), finish=lambda: None,
+        record=lambda project_id: records.append((project_id, threading.get_ident())), finish=lambda **kwargs: None,
     )
     revision = window.project.revision
     window._autosave()

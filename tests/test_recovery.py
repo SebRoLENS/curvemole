@@ -17,12 +17,12 @@ def test_rotation_same_second_project_switch_and_clear(tmp_path, monkeypatch):
     monkeypatch.setattr(recovery, "datetime", FixedClock)
     manager = RecoveryManager(tmp_path)
     first, second = Project("First"), Project("Second")
-    for index in range(5):
+    for index in range(12):
         first.notebook.notes = str(index)
         first.touch()
         assert manager.autosave(first)
-    assert len(manager.candidates(first.id)) == 3
-    assert manager.recover(manager.candidates(first.id)[0]).notebook.notes == "4"
+    assert len(manager.candidates(first.id)) == 6
+    assert manager.recover(manager.candidates(first.id)[0]).notebook.notes == "11"
     manager._last_project_id, manager._last_revision = first.id, first.revision
     assert manager.autosave(first) is None
     second.revision = first.revision

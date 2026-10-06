@@ -646,6 +646,8 @@ class MainWindow(QMainWindow):
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
         from curvemole.gui.autosave import AutosaveController
         self._autosave_controller = AutosaveController(self)
+        from curvemole.gui.manual_save import ManualSaveController
+        self._manual_save_controller = ManualSaveController(self)
         self._tool_docks: list[QDockWidget] = []
         self._tool_tab_filter = DockTabTitleFilter(self)
         self._tab_refresh_pending = False
@@ -677,6 +679,10 @@ class MainWindow(QMainWindow):
         self.autosave_timer.setInterval(10 * 60 * 1000)
         self.autosave_timer.timeout.connect(self._autosave)
         self.autosave_timer.start()
+        self.recovery_monitor_timer = QTimer(self)
+        self.recovery_monitor_timer.setInterval(60 * 1000)
+        self.recovery_monitor_timer.timeout.connect(self._monitor_recovery_count)
+        self.recovery_monitor_timer.start()
         from platformdirs import user_config_path
         self.plugin_manager = PluginManager(self.registry, storage=user_config_path("CurveMole") / "plugins")
         plugin_recovery = self.plugin_manager.start_session()
@@ -1353,6 +1359,8 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Import data"), exc)
 
     def save_project(self, *, save_as: bool = False) -> bool:
+        if self._manual_save_controller.busy and not self._manual_save_controller.wait():
+            return False
         if self.project.read_only and not save_as:
             save_as = True
         path = None if save_as else self.project.path
@@ -1366,17 +1374,7 @@ class MainWindow(QMainWindow):
             if not selected:
                 return False
             path = Path(selected)
-        try:
-            save_project(self.project, path)
-            self.project.read_only = False
-            self._clear_recovery()
-            self.setWindowTitle(self._title())
-            self._notify(self.tr("Project saved."))
-            self._remember_recent_project(self.project.path)
-            return True
-        except Exception as exc:
-            self._show_error(self.tr("Save project"), exc)
-            return False
+        return self._manual_save_controller.save(path, save_project)
 
     def save_portable_copy(self) -> None:
         selected, _ = QFileDialog.getSaveFileName(
@@ -1387,16 +1385,7 @@ class MainWindow(QMainWindow):
         )
         if not selected:
             return
-        try:
-            save_project(
-                self.project,
-                selected,
-                portable=True,
-                update_project_path=False,
-            )
-            self._notify(self.tr("Portable copy saved."))
-        except Exception as exc:
-            self._show_error(self.tr("Save portable copy"), exc)
+        self._manual_save_controller.save(selected, save_project, portable=True)
 
     def open_notebook(self) -> None:
         from curvemole.gui.notebook import LaboratoryNotebookDialog
@@ -3873,6 +3862,12 @@ class MainWindow(QMainWindow):
             self.recovery.clear(self.project.id)
         except OSError as exc:
             self._notify(self.tr("Could not remove recovery copies: ") + str(exc), warning=True)
+        try:
+            session = getattr(self, "_recovery_session", None)
+            if session is not None and hasattr(session, "resolve"):
+                session.resolve(self.project.id)
+        except OSError as exc:
+            self._notify(self.tr("Could not update recovery session: ") + str(exc), warning=True)
 
     def _remember_recent_project(self, path) -> None:
         if path is None:
@@ -3900,22 +3895,48 @@ class MainWindow(QMainWindow):
         )
 
     def show_recovery_sessions(self, *, startup: bool = False) -> None:
+        from curvemole.gui.background_io import run_background_io
         from curvemole.gui.recovery import RecoveryDialog
+        from curvemole.gui.recovery_monitor import should_warn
 
         if self._thread is not None:
             self._notify(self.tr("Wait for the running task before recovering another session."))
             return
         try:
-            paths = self.recovery.candidates()
+            paths = self.recovery.files()
+            warning = should_warn(self.settings, len(paths), announce=startup)
+            if warning:
+                QMessageBox.warning(self, self.tr("Recovery backup cleanup"), self.tr(
+                    "There are {count} recovery copies. You may keep all of them, but periodic cleanup "
+                    "is recommended to limit disk usage. Use the backup manager to manually delete old "
+                    "copies or copies you no longer need."
+                ).format(count=len(paths)))
             if startup:
                 crashed = getattr(self, "_crashed_recovery_projects", set())
-                paths = [path for path in paths if path.name.split(".recovery-", 1)[0] in crashed]
-                self._crashed_recovery_projects = set()
+                if not warning:
+                    paths = [path for path in paths if path.name.split(".recovery-", 1)[0] in crashed]
             if not paths:
                 if not startup:
                     self._notify(self.tr("No recoverable sessions are available."))
                 return
-            dialog = RecoveryDialog(self.recovery, paths, self)
+            def scan():
+                from curvemole.core.serialization import validate_project_archive
+                descriptions = {}
+                for path in paths:
+                    if self._session_finished:
+                        break
+                    info = self.recovery.description(path)
+                    info["valid"] = info["readable"] and not validate_project_archive(path, raise_on_error=False)
+                    if path.exists():
+                        descriptions[path] = info
+                return descriptions
+            descriptions = run_background_io(scan)
+            if self._session_finished:
+                return
+            paths = [p for p in paths if p in descriptions]
+            if not paths:
+                return
+            dialog = RecoveryDialog(self.recovery, paths, self, descriptions=descriptions)
             if dialog.exec() != dialog.DialogCode.Accepted:
                 return
             project = self.recovery.recover(dialog.selected_path)
@@ -3935,7 +3956,19 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._show_error(self.tr("Recover session"), exc)
 
+    def _monitor_recovery_count(self) -> None:
+        from curvemole.gui.recovery_monitor import should_warn
+        try:
+            should_warn(self.settings, len(self.recovery.files()))
+            for message in self.recovery.cleanup_errors:
+                self._log(f"Recovery temporary-file cleanup failed: {message}")
+            self.recovery.cleanup_errors.clear()
+        except OSError as exc:
+            self._log(f"Recovery count failed: {exc}")
+
     def _confirm_discard_or_save(self) -> bool:
+        if self._manual_save_controller.busy and not self._manual_save_controller.wait():
+            return False
         if not self.project.dirty:
             return True
         answer = QMessageBox.question(
@@ -3949,7 +3982,9 @@ class MainWindow(QMainWindow):
         if answer == QMessageBox.StandardButton.Cancel:
             return False
         if answer == QMessageBox.StandardButton.Save:
-            return self.save_project()
+            if not self.save_project():
+                return False
+            return self._confirm_discard_or_save() if self.project.dirty else True
         if answer == QMessageBox.StandardButton.Discard:
             self._clear_recovery()
             return True
@@ -3993,7 +4028,10 @@ class MainWindow(QMainWindow):
     def _title(self) -> str:
         marker = " *" if self.project.dirty else ""
         mode = " [read-only]" if self.project.read_only else ""
-        project_name = self.project.path.stem if self.project.path is not None else self.project.name
+        source_file = self.project.ui_state.get("recovery_source_file", "")
+        project_name = self.project.path.stem if self.project.path is not None else (
+            Path(source_file).stem if source_file else self.project.name
+        )
         return f"{project_name}{marker}{mode} — CurveMole {__version__}"
 
     def _restore_layout(self) -> None:
@@ -4038,12 +4076,15 @@ class MainWindow(QMainWindow):
         if self._session_finished:
             return
         self._session_finished = True
+        self.recovery_monitor_timer.stop()
+        self.autosave_timer.stop()
+        self._manual_save_controller.shutdown()
         self._autosave_controller.shutdown()
         self._release_lock()
         session = getattr(self, "_recovery_session", None)
         if session is not None:
             try:
-                session.finish()
+                session.finish(preserve=True)
             except OSError as exc:
                 self._log(f"Recovery session cleanup failed: {exc}")
         try:

@@ -92,9 +92,15 @@ def capture_project_snapshot(project: Project) -> ProjectSaveSnapshot:
             stable = array if immutable else array.copy()
             memo[id(array)] = stable
         arrays.append((name, stable))
+    metadata = copy.deepcopy(project.to_metadata(), memo)
+    source_file = project.path.name if project.path is not None else project.ui_state.get("recovery_source_file", "")
+    metadata["recovery"] = {
+        "display_name": Path(source_file).stem if source_file else project.name,
+        "source_file": source_file,
+    }
     return ProjectSaveSnapshot(
         project.id, project.revision, project.dirty, project.read_only,
-        copy.deepcopy(project.to_metadata(), memo), tuple(arrays),
+        metadata, tuple(arrays),
     )
 
 
@@ -113,6 +119,10 @@ def save_project(
         destination = destination.with_suffix(".fitproj")
     destination.parent.mkdir(parents=True, exist_ok=True)
     metadata = project.to_metadata()
+    mask_names = {
+        f"data/{curve_id}/masks/{mask['id']}.npy"
+        for curve_id, curve in metadata["curves"].items() for mask in curve.get("masks", [])
+    }
     metadata["path"] = None
     if portable:
         metadata["export_config"] = {
@@ -136,7 +146,7 @@ def save_project(
             temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True
         ) as archive:
             for name, array in _project_arrays(project):
-                if "/masks/" in name:
+                if name in mask_names:
                     array = array.astype(np.uint8)
                 _write_array(archive, name, array, checksums)
             manifest = {
