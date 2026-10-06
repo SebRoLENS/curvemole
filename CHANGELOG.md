@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.38.1] - 2026-10-06
+
 ### Documentation
 
 - Align the parameter-table and assessment references with the project-wide

@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.38.0}
+\ohead{Version 0.38.1}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.38.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.38.1\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.38.0}
+\subtitle{Preview 0.38.1}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.38.0}
+\date{Updated for CurveMole 0.38.1}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.38.0 Preview. The Markdown file is the authoritative source.
+CurveMole 0.38.1 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.38.0 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.38.1 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.38.0
-describes CurveMole 0.38.0.
+an independent document version. For example, a manual marked 0.38.1
+describes CurveMole 0.38.1.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.38.1{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.38.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.38.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.38.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.38.1{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.38.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.38.1{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -947,6 +947,15 @@ Failed & The latest fit attempt failed\tabularnewline
 \bottomrule
 \end{longtable}
 
+Uncertainty tags are added to the fit state for the method currently
+selected in \textbf{Uncertainty Analysis \textgreater{} Method}. A
+failed replica, an adaptive stability limit or a timeout adds a warning
+icon beside the spectrum and an amber status. Hover over the State
+column for the reason and counts. Switching the method updates these
+tags without refitting or deleting results. This method is separate from
+the universal \textbf{Displayed uncertainty} choice in \textbf{Model and
+parameters}; see Section 12.
+
 \hypertarget{plot-workspace}{%
 \section{5.2 Plot workspace}\label{plot-workspace}}
 
@@ -1147,6 +1156,16 @@ targets\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
+
+\textbf{Displayed uncertainty} lists methods recorded for at least one
+spectrum. The sole available method is selected automatically. With
+several methods, choose the one to show for every spectrum: spectra
+without it show a dash instead of another method's errors. The choice
+survives switching spectra, Show all functions, saving and reopening.
+With no recorded analysis, clicking the selector explains how to run one
+and offers a link to \textbf{Uncertainty Analysis}. It remains available
+when several functions are selected, even while the parameter table is
+hidden.
 
 Bulk actions on selected functions can delete, duplicate, reorder,
 enable or disable, mark or unmark backgrounds, and fix or free their
@@ -1354,7 +1373,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 import. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.38.0 optimizer.
+version 0.38.1 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -2211,8 +2230,9 @@ Covariance-based standard error when available\strut
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 Analysis - / +\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Separate lower/upper distances from the saved uncertainty analysis
-selected for this spectrum\strut
+Lower/upper distances from this spectrum's saved result for the
+project-wide Displayed uncertainty method; a dash if that method or a
+usable interval is unavailable\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 Fixed\strut
@@ -2864,7 +2884,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.38.0 does not yet provide a single comprehensive on-screen
+Preview 0.38.1 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -3051,7 +3071,12 @@ updates the spectrum tags and available display methods, and preserves
 all other methods, spectra and fitted parameters. \textbf{Undo} and
 \textbf{Redo} restore or remove it. The button is disabled in read-only
 projects and while a background task is running. The panel scrolls when
-its controls and results exceed the available height.
+its controls and results exceed the available height. The deletion
+applies to the analysis panel's \textbf{Method}, independently of
+\textbf{Run on} and of the display method chosen in Model and
+parameters. Save the project to persist the removal. Previously saved
+project files are not rewritten until saved; other archives and exported
+files are not deleted by this button.
 
 \textbf{CPU processes} sets the maximum number of independent spectra
 analyzed in parallel, with remaining spectra queued. The default is up
@@ -3158,8 +3183,9 @@ practical adequacy\strut
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 Attention\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Bound contact, strong correlation, failed replicates, an open profile
-scan, or another stated caveat\strut
+Bound contact, strong correlation, unstable interval endpoints, an open
+profile scan, outdated results, or another stated diagnostic
+caveat\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 Critical\strut
@@ -3186,6 +3212,12 @@ wrong. Click the assessment to see why it is flagged; no color certifies
 the correctness of the physical model. Analyses describe their recorded
 baseline; editing data or models requires refitting before resampling.
 Reports remain inspectable but are marked outdated when appropriate.
+Failed-replica counts alone do not change a parameter's assessment. A
+parameter can therefore be \textbf{OK} while its spectrum has a
+failed-replica warning. Read both the parameter assessment and the
+spectrum-level warning before interpreting the interval; \textbf{OK}
+does not mean that every replica succeeded or that the analysis has been
+scientifically validated.
 
 \hypertarget{parametric-monte-carlo}{%
 \section{12.1 Parametric Monte Carlo}\label{parametric-monte-carlo}}
@@ -3235,11 +3267,12 @@ decision.
 \hypertarget{profile-likelihood}{%
 \section{12.4 Profile likelihood}\label{profile-likelihood}}
 
-Choose one independent, non-linked parameter. CurveMole fixes it across
-a finite grid, refits all remaining free parameters, and compares
-chi-square with the baseline. The default grid spans approximately three
-covariance standard errors on either side, or a fallback span when no
-standard error is available, while respecting bounds.
+Choose one free parameter that is not fixed or equality-linked.
+CurveMole fixes it across a finite grid, refits all remaining free
+parameters, and compares chi-square with the baseline. The default grid
+spans approximately three covariance standard errors on either side, or
+a fallback span when no standard error is available, while respecting
+bounds.
 
 The default uses 31 grid points and a one-parameter chi-square
 threshold. The grid size, confidence level and lower/upper scan limits
@@ -3261,9 +3294,14 @@ messages. Do not report an empirical interval without also reporting how
 many replicates completed and failed. Selecting \textbf{Uncertainty
 intervals, assessments and matrices} in the export dialog also writes
 \texttt{uncertainty/parameter\_assessments.csv} for the recorded
-analyses, including names, fitted values, interval endpoints, confidence
-level, targets and reasons. Covariance/correlation matrices remain
-available in the same export option.
+analyses, including spectrum/function names, parameter paths, fitted
+values, interval endpoints, confidence level, method and reasons.
+Covariance/correlation matrices remain available in the same export
+option. This CSV contains parameter assessments, not the spectrum-wide
+failed-replica counts. Keep the \texttt{.fitproj} project, or select a
+project copy in the analysis bundle, to retain the recorded counts,
+failure messages and adaptive configuration alongside the parameter
+assessments.
 
 \hypertarget{projects-saving-and-recovery}{%
 \chapter{13. Projects, saving, and
@@ -4420,6 +4458,17 @@ unstable under perturbation. Increase robustness of the model before
 increasing replicate count. Report completed and failed counts with any
 interval.
 
+Even one failed replica produces a spectrum-level warning, not an
+automatic failure of every parameter. Inspect the cause as well as the
+count: an isolated difficult fit and repeatedly failing parameter
+regions can have different consequences. Intervals use successful
+replicas only. Adaptive checks numerical stability of that successful
+sample; it cannot demonstrate that excluded failures are harmless. If
+maximum attempts are reached before stability, the recorded intervals
+remain available with an explicit warning. A replica timeout instead
+stops the new analysis and retains any previous completed results. See
+Section 12 for these distinctions.
+
 \hypertarget{an-update-is-detected-but-cannot-be-installed-automatically}{%
 \section{19.15 An update is detected but cannot be installed
 automatically}\label{an-update-is-detected-but-cannot-be-installed-automatically}}
@@ -4554,8 +4603,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.38.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.38.0
+(Version 0.38.1) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.38.1
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -4783,9 +4832,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.38.0-limitations}{%
-\chapter{Appendix D. Preview 0.38.0
-limitations}\label{appendix-d.-preview-0.38.0-limitations}}
+\hypertarget{appendix-d.-preview-0.38.1-limitations}{%
+\chapter{Appendix D. Preview 0.38.1
+limitations}\label{appendix-d.-preview-0.38.1-limitations}}
 
 The following boundaries are important when evaluating this release:
 
