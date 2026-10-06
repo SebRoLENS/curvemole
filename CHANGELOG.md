@@ -5,6 +5,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Documentation
+
+- Align the parameter-table and assessment references with the project-wide
+  uncertainty selector and spectrum-level failed-replica warnings. Clarify the
+  separate analysis/display methods, deletion scope, persistence, and troubleshooting.
+- Describe profile parameters consistently with free and equality-linked states.
+
 ## [0.38.0] - 2026-10-06
 
 ### Changed

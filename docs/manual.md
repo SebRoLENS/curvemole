@@ -449,6 +449,13 @@ Curve states are:
 | Modified/outdated | Data or model changed after the last successful fit |
 | Failed | The latest fit attempt failed |
 
+Uncertainty tags are added to the fit state for the method currently selected in
+**Uncertainty Analysis > Method**. A failed replica, an adaptive stability limit or
+a timeout adds a warning icon beside the spectrum and an amber status. Hover over
+the State column for the reason and counts. Switching the method updates these tags
+without refitting or deleting results. This method is separate from the universal
+**Displayed uncertainty** choice in **Model and parameters**; see Section 12.
+
 ### 5.2 Plot workspace
 
 The central workspace contains the data/model plot and an optional residual plot.
@@ -562,6 +569,14 @@ The controls below the list are:
 | Copy fit | Copy selected model information to other curves |
 | Copy fit to next | Copy to the next curve in the source series, then open it |
 | Copy parameter | Copy one parameter from one source function to chosen project-wide targets |
+
+**Displayed uncertainty** lists methods recorded for at least one spectrum. The
+sole available method is selected automatically. With several methods, choose the
+one to show for every spectrum: spectra without it show a dash instead of another
+method's errors. The choice survives switching spectra, Show all functions, saving
+and reopening. With no recorded analysis, clicking the selector explains how to run
+one and offers a link to **Uncertainty Analysis**. It remains available when several
+functions are selected, even while the parameter table is hidden.
 
 Bulk actions on selected functions can delete, duplicate, reorder, enable or disable,
 mark or unmark backgrounds, and fix or free their parameters as applicable. Each bulk
@@ -1302,7 +1317,7 @@ The table columns are:
 | Parameter | Parameter name; parameters with a relation show its indicator |
 | Value | Current value or successful fitted value |
 | ±1 sigma | Covariance-based standard error when available |
-| Analysis - / + | Separate lower/upper distances from the saved uncertainty analysis selected for this spectrum |
+| Analysis - / + | Lower/upper distances from this spectrum's saved result for the project-wide Displayed uncertainty method; a dash if that method or a usable interval is unavailable |
 | Fixed | Exclude the parameter from optimization |
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
@@ -1848,6 +1863,10 @@ methods, and preserves all other methods, spectra and fitted parameters. **Undo*
 and **Redo** restore or remove it. The button is disabled in read-only projects and
 while a background task is running.
 The panel scrolls when its controls and results exceed the available height.
+The deletion applies to the analysis panel's **Method**, independently of **Run on**
+and of the display method chosen in Model and parameters. Save the project to persist
+the removal. Previously saved project files are not rewritten until saved; other
+archives and exported files are not deleted by this button.
 
 **CPU processes** sets the maximum number of independent spectra analyzed in
 parallel, with remaining spectra queued. The default is up to four processes,
@@ -1926,7 +1945,7 @@ confidence level. Changing the method recalls its most recent recorded analysis.
 | Assessment | Meaning |
 |---|---|
 | OK | No diagnostic issue is flagged by these checks; this does not establish practical adequacy |
-| Attention | Bound contact, strong correlation, failed replicates, an open profile scan, or another stated caveat |
+| Attention | Bound contact, strong correlation, unstable interval endpoints, an open profile scan, outdated results, or another stated diagnostic caveat |
 | Critical | No usable interval, too few successful replicas, rank-deficient covariance, or an interval spanning most of the allowed range |
 | Fixed | Parameter was fixed; its uncertainty was not estimated |
 
@@ -1939,6 +1958,11 @@ A parameter touching a bound is not necessarily physically wrong. Click the asse
 to see why it is flagged; no color certifies the correctness of the physical model.
 Analyses describe their recorded baseline; editing data or models requires refitting
 before resampling. Reports remain inspectable but are marked outdated when appropriate.
+Failed-replica counts alone do not change a parameter's assessment. A parameter
+can therefore be **OK** while its spectrum has a failed-replica warning. Read both
+the parameter assessment and the spectrum-level warning before interpreting the
+interval; **OK** does not mean that every replica succeeded or that the analysis
+has been scientifically validated.
 
 ### 12.1 Parametric Monte Carlo
 
@@ -1977,7 +2001,7 @@ correlation, but the block length remains a scientific modeling decision.
 
 ### 12.4 Profile likelihood
 
-Choose one independent, non-linked parameter. CurveMole fixes it across a finite grid,
+Choose one free parameter that is not fixed or equality-linked. CurveMole fixes it across a finite grid,
 refits all remaining free parameters, and compares chi-square with the baseline.
 The default grid spans approximately three covariance standard errors on either side,
 or a fallback span when no standard error is available, while respecting bounds.
@@ -1997,8 +2021,12 @@ outputs record configuration and up to the first 100 failure messages. Do not re
 an empirical interval without also reporting how many replicates completed and
 failed. Selecting **Uncertainty intervals, assessments and matrices** in the export
 dialog also writes `uncertainty/parameter_assessments.csv` for the recorded analyses,
-including names, fitted values, interval endpoints, confidence level, targets and
-reasons. Covariance/correlation matrices remain available in the same export option.
+including spectrum/function names, parameter paths, fitted values, interval endpoints,
+confidence level, method and reasons. Covariance/correlation matrices remain available
+in the same export option. This CSV contains parameter assessments, not the
+spectrum-wide failed-replica counts. Keep the `.fitproj` project, or select a project
+copy in the analysis bundle, to retain the recorded counts, failure messages and
+adaptive configuration alongside the parameter assessments.
 
 ## 13. Projects, saving, and recovery
 
@@ -2848,6 +2876,15 @@ manifest; retain it. CurveMole will not claim ownership of unrelated colliding f
 The baseline may be near bounds, poorly initialized, or structurally unstable under
 perturbation. Increase robustness of the model before increasing replicate count.
 Report completed and failed counts with any interval.
+
+Even one failed replica produces a spectrum-level warning, not an automatic failure
+of every parameter. Inspect the cause as well as the count: an isolated difficult
+fit and repeatedly failing parameter regions can have different consequences.
+Intervals use successful replicas only. Adaptive checks numerical stability of
+that successful sample; it cannot demonstrate that excluded failures are harmless.
+If maximum attempts are reached before stability, the recorded intervals remain
+available with an explicit warning. A replica timeout instead stops the new analysis
+and retains any previous completed results. See Section 12 for these distinctions.
 
 ### 19.15 An update is detected but cannot be installed automatically
 
