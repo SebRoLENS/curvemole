@@ -294,6 +294,8 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 dirty=False,
             )
             project.dataset.validate_unique_ids()
+            from curvemole.core.analysis_errors import restore_uncertainty_reports
+            restore_uncertainty_reports(project)
             return project
     except zipfile.BadZipFile as exc:
         raise ProjectFormatError(f"'{source}' is not a valid .fitproj ZIP archive.") from exc

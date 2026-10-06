@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.background_status import background_component_subtracted
+from curvemole.core.data import CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.expressions import SafeExpression, expression_parameters
 from curvemole.core.functions import formula_definition
@@ -39,15 +41,6 @@ from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.core.uncertainty import AdaptiveReplicateSettings
-
-
-def background_component_subtracted(curve: Any, component_id: str) -> bool:
-    """Whether an active curve transformation contains this model background."""
-    return any(
-        transformation.operation == "background_subtract"
-        and component_id in transformation.parameters.get("component_ids", ())
-        for transformation in curve.transformations
-    )
 
 
 class ModelPanel(QWidget):
@@ -203,11 +196,13 @@ class ModelPanel(QWidget):
                 tooltip = ""
                 if component.is_background:
                     label += self.tr("  ·  Background")
-                    subtracted = background_component_subtracted(curve, component.id)
+                    subtracted = background_component_subtracted(curve, component)
                     if subtracted:
                         label += self.tr("  ·  Subtracted")
                         tooltip = self.tr(
-                            "Background status: subtracted from this spectrum."
+                            "Background status: subtracted from this spectrum. "
+                            "The subtraction keeps the values used at that time; editing or "
+                            "copying parameter values does not subtract the function again."
                         )
                     else:
                         label += self.tr("  ·  Not subtracted")
@@ -268,7 +263,7 @@ class ModelPanel(QWidget):
             self.parameters.setRowCount(len(component.parameters))
             from curvemole.core.analysis_errors import (
                 DISPLAY_METHODS,
-                analysis_error,
+                recorded_analysis_error,
                 selected_method,
             )
 
@@ -279,6 +274,10 @@ class ModelPanel(QWidget):
             if hasattr(recorded_analysis, "to_dict"):
                 recorded_analysis = recorded_analysis.to_dict()
             confidence = recorded_analysis.get("confidence_level")
+            baseline = report.get("baseline", {})
+            if hasattr(baseline, "to_dict"):
+                baseline = baseline.to_dict(arrays=False)
+            outdated = self.project.dataset.curve(self.curve_id).state != CurveState.FITTED
             provenance = DISPLAY_METHODS[chosen] if chosen else self.tr("No analysis selected")
             if confidence is not None:
                 provenance += f" ({confidence:.1%} confidence)"
@@ -295,17 +294,26 @@ class ModelPanel(QWidget):
                 error.setFlags(error.flags() & ~Qt.ItemFlag.ItemIsEditable)
                 self.parameters.setItem(row, 2, error)
                 path = model.parameter_path(self.curve_id, component.id, name)
-                offsets = analysis_error(self.project, self.curve_id, path)
+                offsets = recorded_analysis_error(self.project, self.curve_id, path)
+                text = f"−{offsets[0]:.5g} / +{offsets[1]:.5g}" if offsets else "—"
+                if offsets and outdated:
+                    text = self.tr("Recorded: ") + text
                 analysis_item = QTableWidgetItem(
-                    f"−{offsets[0]:.5g} / +{offsets[1]:.5g}" if offsets else "—")
+                    text)
                 analysis_item.setFlags(analysis_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                analysis_item.setForeground(QColor("#2877b7"))
+                analysis_item.setForeground(QColor("#9b6500" if outdated else "#2877b7"))
                 analysis_item.setToolTip(
                     self.tr("Calculated with {method}. Negative and positive errors are "
                             "distances from the fitted value to the confidence limits.")
                     .format(method=provenance) if offsets else
                     self.tr("{method}: no valid interval for this parameter.")
                     .format(method=provenance))
+                if offsets and outdated:
+                    recorded_value = baseline.get("parameters", {}).get(path, {}).get("value")
+                    analysis_item.setToolTip(analysis_item.toolTip() + "\n" + self.tr(
+                        "Historical result around recorded fit value {value}. Data/model have changed; "
+                        "these are not uncertainties of the current fit. Refit and rerun the analysis."
+                    ).format(value=f"{recorded_value:.12g}"))
                 self.parameters.setItem(row, 3, analysis_item)
                 fixed = QTableWidgetItem("🔒" if parameter.fixed else "")
                 fixed.setFlags(fixed.flags() | Qt.ItemFlag.ItemIsUserCheckable)
@@ -843,8 +851,9 @@ class UncertaintyPanel(QWidget):
         self.scope.addItem(self.tr("All fitted spectra"), "all")
         self.display_method = QComboBox()
         self.display_method.setToolTip(self.tr(
-            "Choose which saved analysis supplies the coloured errors in Model and parameters. "
-            "The original fit ±1σ remains visible."))
+            "Choose which saved analysis supplies the coloured errors for the active spectrum "
+            "in Model and parameters. The original fit ±1σ remains visible. Outdated results "
+            "are labelled Recorded and refer to the earlier fit."))
         self.display_method.currentIndexChanged.connect(self._display_method_changed)
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)

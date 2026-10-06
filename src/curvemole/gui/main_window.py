@@ -623,6 +623,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.registry = default_registry()
         self.project = project or Project()
+        from curvemole.core.analysis_errors import restore_uncertainty_reports
+        restore_uncertainty_reports(self.project)
         self.active_curve_id: str | None = self.project.curves[0].id if self.project.curves else None
         self.selected_component_id: str | None = None
         self.fit_settings = FitSettings()
@@ -2669,7 +2671,7 @@ class MainWindow(QMainWindow):
             self.project.results.setdefault("uncertainty_display_method_by_curve", {})[curve_id] = method
 
     def _select_uncertainty_display(self, method: str) -> None:
-        if not self.active_curve_id or not self._ensure_editable():
+        if not self.active_curve_id:
             return
         chosen = dict(self.project.results.get("uncertainty_display_method_by_curve", {}))
         if method and method in self.project.results.get("uncertainty_reports_by_curve", {}).get(self.active_curve_id, {}):
@@ -2677,7 +2679,8 @@ class MainWindow(QMainWindow):
         else:
             chosen.pop(self.active_curve_id, None)
         self.project.results["uncertainty_display_method_by_curve"] = chosen
-        self.project.touch()
+        if not self.project.read_only:
+            self.project.touch()
         self.model_panel.refresh_parameters()
 
     def mask_point(self, x_value: float, *, unmask: bool = False) -> None:

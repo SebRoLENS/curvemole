@@ -983,6 +983,13 @@ be subtracted. The subtraction uses the current resolved/fitted parameter values
 reversible with Undo, applies over the complete data array, and disables the subtracted
 components afterwards to prevent double-counting.
 
+The **Subtracted** / **Not subtracted** labels follow the subtraction history of
+each spectrum. Copying a fit preserves the destination's existing subtraction;
+it does not subtract the source background from the destination's data. The saved
+subtraction retains the parameter values used at that time. Editing or copying
+later parameter values does not recalculate it. A duplicated function starts with
+its own history and is not marked as subtracted merely because its source was.
+
 The same dialog can apply the operation to every eligible spectrum, using the enabled
 functions already marked as background in each model. **Data > Revert background...**
 lists only spectra changed by this dedicated subtraction command and restores the
@@ -1841,6 +1848,13 @@ a dash when a parameter has no valid interval or the interval excludes the
 original fitted value; inspect the assessment for details. The parameter CSV
 retains `parameter_err` for the fit error and adds `parameter_analysis_err_minus`,
 `parameter_analysis_err_plus`, and the selected method when applicable.
+Saved analyses remain selectable after reopening, including reports from older
+project formats and projects opened read-only. When data/model changes make an
+analysis outdated, its intervals are shown in amber with **Recorded:**. They refer
+to the earlier fitted value, given in the tooltip, and are not uncertainties of
+the current parameter values. Refit and rerun the analysis to obtain current
+intervals. Current-parameter CSV errors exclude outdated analyses; the uncertainty
+report retains the historical results and their assessment.
 In **File > Export functions parameters**, **Also export covariance matrices**
 is off by default. When selected, a sibling `*_covariance` folder contains an
 `index.csv` and labelled matrices: the fit covariance and, separately, sample

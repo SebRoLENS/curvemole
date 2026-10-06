@@ -11,6 +11,7 @@ from typing import Any
 
 import numpy as np
 
+from curvemole.core.background_status import copy_background_history
 from curvemole.core.data import Curve, Dataset, Mask, Series
 from curvemole.core.models import Component, Model
 from curvemole.core.notebook import LaboratoryNotebook
@@ -129,14 +130,15 @@ class Project:
                     clone = Component.from_dict(copy.deepcopy(component.to_dict()))
                     matching = None
                     if existing:
-                        matching = next(
-                            (
-                                item
-                                for item in existing.components
-                                if item.id == component.id or item.name == component.name
-                            ),
-                            None,
-                        )
+                        matches = [item for item in existing.components
+                                   if item.function_id == component.function_id
+                                   and item.id == component.id]
+                        if not matches:
+                            matches = [item for item in existing.components
+                                       if item.function_id == component.function_id
+                                       and item.name == component.name]
+                        matching = matches[0] if len(matches) == 1 else None
+                    copy_background_history(source_curve, component, target_curve, matching, clone)
                     for name, parameter in clone.parameters.items():
                         source_parameter = component.parameters[name]
                         target_parameter = matching.parameters.get(name) if matching else None

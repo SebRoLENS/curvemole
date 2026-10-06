@@ -315,10 +315,12 @@ def _install_model_panel() -> None:
                 background_status = ""
                 if component.is_background:
                     label += panel.tr("  ·  Background")
-                    if background_component_subtracted(curve, component.id):
+                    if background_component_subtracted(curve, component):
                         label += panel.tr("  ·  Subtracted")
                         background_status = panel.tr(
-                            "Background status: subtracted from this spectrum."
+                            "Background status: subtracted from this spectrum. "
+                            "The subtraction keeps the values used at that time; editing or "
+                            "copying parameter values does not subtract the function again."
                         )
                     else:
                         label += panel.tr("  ·  Not subtracted")

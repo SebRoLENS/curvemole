@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restore legacy uncertainty reports and Monte Carlo display choices consistently
+  after reopening a project. Saved results can also be viewed in read-only projects.
+- Show outdated selected uncertainty intervals in Model and parameters as explicit
+  recorded results around the earlier fit value; exports of current parameter
+  errors continue to exclude outdated analyses.
+- Preserve destination background subtraction identity and enabled state when
+  copying a model between spectra. Copied and duplicated functions do not inherit
+  another spectrum's subtraction status; reverting backgrounds updates the live
+  model correctly after model replacement and project reopening.
+
 ## [0.37.0] - 2026-10-06
 
 ### Added

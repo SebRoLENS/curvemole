@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.background_status import background_component_ids
 from curvemole.core.calculator import apply_background_subtraction
 from curvemole.core.data import Curve, CurveState, Transformation
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401
@@ -496,7 +497,13 @@ def _revert_backgrounds(
         remaining = [
             item for item in curve.transformations if not _is_background_button_transformation(item)
         ]
-        component_after = _states_before_backgrounds(removed)
+        recorded_states = _states_before_backgrounds(removed)
+        component_after = {}
+        for component in model.components:
+            for old_id, state in recorded_states.items():
+                if old_id in background_component_ids(component):
+                    component_after[component.id] = state
+                    break
         component_before: dict[str, tuple[bool, bool]] = {}
         for component_id in component_after:
             with suppress(KeyError):
@@ -531,7 +538,7 @@ def _revert_backgrounds(
                 record["after_redo"],
                 record["after_state"],
             )
-            _restore_component_states(record["model"], record["after_components"])
+            _restore_component_states(window.project.model_for(record["curve"].id), record["after_components"])
 
     def undo() -> None:
         for record in records:
@@ -541,7 +548,7 @@ def _revert_backgrounds(
                 record["before_redo"],
                 record["before_state"],
             )
-            _restore_component_states(record["model"], record["before_components"])
+            _restore_component_states(window.project.model_for(record["curve"].id), record["before_components"])
 
     window.undo_stack.push(
         CallbackCommand(

@@ -14,6 +14,34 @@ DISPLAY_METHODS = {
 }
 
 
+def restore_uncertainty_reports(project) -> None:
+    """Promote legacy saved reports to the same per-spectrum records the GUI uses."""
+    reports = project.results.get("uncertainty_reports_by_curve", {})
+    for methods in reports.values():
+        if "monte_carlo" in methods:
+            methods.setdefault("parametric_monte_carlo", methods.pop("monte_carlo"))
+    legacy = project.results.get("uncertainty_reports", {})
+    for saved_method, record in list(legacy.items()):
+        baseline = record.get("baseline", {})
+        parameters = baseline.parameters if hasattr(baseline, "parameters") else baseline.get("parameters", {})
+        curve_ids = [curve.id for curve in project.curves
+                     if any(path.startswith(curve.id + ".") for path in parameters)]
+        if not curve_ids:
+            continue
+        method = "parametric_monte_carlo" if saved_method == "monte_carlo" else saved_method
+        for curve_id in curve_ids:
+            reports.setdefault(curve_id, {}).setdefault(method, record)
+        # A later refit can now invalidate these reports without a legacy
+        # fallback resurrecting an analysis of the previous fit.
+        legacy.pop(saved_method)
+    if reports:
+        project.results["uncertainty_reports_by_curve"] = reports
+    choices = project.results.get("uncertainty_display_method_by_curve", {})
+    for curve_id, method in list(choices.items()):
+        if method == "monte_carlo":
+            choices[curve_id] = "parametric_monte_carlo"
+
+
 def selected_method(project, curve_id: str) -> str | None:
     method = project.results.get("uncertainty_display_method_by_curve", {}).get(curve_id)
     if method not in DISPLAY_METHODS:
@@ -26,6 +54,11 @@ def analysis_error(project, curve_id: str, path: str) -> tuple[float, float] | N
     """Return distances below/above the fitted value, only for a valid saved fit."""
     if project.dataset.curve(curve_id).state != CurveState.FITTED:
         return None
+    return recorded_analysis_error(project, curve_id, path)
+
+
+def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, float] | None:
+    """Recorded errors around the recorded fit value, including historical fits."""
     method = selected_method(project, curve_id)
     if method is None:
         return None
