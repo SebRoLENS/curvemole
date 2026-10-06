@@ -172,6 +172,7 @@ def _subtract_current_background(window: MainWindow) -> None:
         parameters={
             "component_ids": list(component_ids),
             "component_names": [component.name for component in selected],
+            "component_functions": {component.id: component.function_id for component in selected},
             "source": "background_button",
             "component_states_before": _states_payload(states_before),
             "curve_state_before": state_before.value,
@@ -289,6 +290,7 @@ def _subtract_all_backgrounds(
                 parameters={
                     "component_ids": component_ids,
                     "component_names": [component.name for component in marked],
+                    "component_functions": {component.id: component.function_id for component in marked},
                     "source": "background_button",
                     "component_states_before": _states_payload(states_before),
                     "curve_state_before": state_before.value,

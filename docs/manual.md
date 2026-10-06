@@ -989,6 +989,13 @@ it does not subtract the source background from the destination's data. The save
 subtraction retains the parameter values used at that time. Editing or copying
 later parameter values does not recalculate it. A duplicated function starts with
 its own history and is not marked as subtracted merely because its source was.
+On opening older projects, CurveMole can reconnect a recorded subtraction to a
+uniquely identified builtin background whose internal ID changed. This restores
+the label and function-state restoration without changing the measured data,
+the stored subtraction array or the current fitted parameter values. If the old
+history is ambiguous, the label reads **Subtraction recorded - function uncertain**;
+**Revert background** still uses the actual recorded array. Confirming Revert
+removes the subtraction, so **Not subtracted** is then the expected status.
 
 The same dialog can apply the operation to every eligible spectrum, using the enabled
 functions already marked as background in each model. **Data > Revert background...**

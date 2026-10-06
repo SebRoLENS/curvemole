@@ -132,6 +132,8 @@ class Model:
         source = self.component(component_id)
         duplicate = Component.from_dict(source.to_dict())
         duplicate.metadata.pop("background_subtraction_ids", None)
+        duplicate.metadata.pop("background_unresolved_ids", None)
+        duplicate.metadata["background_history_detached"] = True
         duplicate.id = _identifier("component")
         duplicate.name = f"{source.name} copy"
         self.components.insert(self.components.index(source) + 1, duplicate)

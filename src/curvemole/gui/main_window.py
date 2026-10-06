@@ -1686,6 +1686,8 @@ class MainWindow(QMainWindow):
         component.name = f"{base}{max(used, default=0) + 1}"
 
     def _normalise_component_names(self) -> None:
+        from curvemole.core.background_status import restore_background_history
+        restore_background_history(self.project, self.registry)
         for model in self.project.models.values():
             used: dict[str, set[int]] = {}
             pending: list[Component] = []

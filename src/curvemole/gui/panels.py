@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from curvemole.core.background_status import background_component_subtracted
+from curvemole.core.background_status import background_component_status
 from curvemole.core.data import CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.expressions import SafeExpression, expression_parameters
@@ -196,13 +196,20 @@ class ModelPanel(QWidget):
                 tooltip = ""
                 if component.is_background:
                     label += self.tr("  ·  Background")
-                    subtracted = background_component_subtracted(curve, component)
-                    if subtracted:
+                    background_status = background_component_status(curve, component, model, self.registry)
+                    if background_status == "subtracted":
                         label += self.tr("  ·  Subtracted")
                         tooltip = self.tr(
                             "Background status: subtracted from this spectrum. "
                             "The subtraction keeps the values used at that time; editing or "
                             "copying parameter values does not subtract the function again."
+                        )
+                    elif background_status == "unresolved":
+                        label += self.tr("  ·  Subtraction recorded — function uncertain")
+                        tooltip = self.tr(
+                            "A background subtraction is recorded for this spectrum, but the saved "
+                            "history cannot identify this function unambiguously. Revert background "
+                            "uses the stored subtraction array; the data have not been changed."
                         )
                     else:
                         label += self.tr("  ·  Not subtracted")

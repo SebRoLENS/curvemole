@@ -18,12 +18,13 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.background_status import background_component_status
 from curvemole.core.errors import ConstraintError
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.models import Model
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
-from curvemole.gui.panels import ModelPanel, background_component_subtracted
+from curvemole.gui.panels import ModelPanel
 
 _CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _BATCH = "__curvemole_batch_components__"
@@ -315,12 +316,20 @@ def _install_model_panel() -> None:
                 background_status = ""
                 if component.is_background:
                     label += panel.tr("  ·  Background")
-                    if background_component_subtracted(curve, component):
+                    status = background_component_status(curve, component, project.model_for(curve.id), panel.registry)
+                    if status == "subtracted":
                         label += panel.tr("  ·  Subtracted")
                         background_status = panel.tr(
                             "Background status: subtracted from this spectrum. "
                             "The subtraction keeps the values used at that time; editing or "
                             "copying parameter values does not subtract the function again."
+                        )
+                    elif status == "unresolved":
+                        label += panel.tr("  ·  Subtraction recorded — function uncertain")
+                        background_status = panel.tr(
+                            "A background subtraction is recorded for this spectrum, but the saved "
+                            "history cannot identify this function unambiguously. Revert background "
+                            "uses the stored subtraction array; the data have not been changed."
                         )
                     else:
                         label += panel.tr("  ·  Not subtracted")

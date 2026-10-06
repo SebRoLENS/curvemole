@@ -5,6 +5,15 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reconnect legacy background subtraction history to an unambiguous builtin
+  model function when reopening projects whose function IDs changed before the
+  history-preservation fix. The recovery list and per-function status now agree.
+- Explicitly label ambiguous historical associations instead of claiming
+  "Not subtracted". Keep ambiguity across renumbering and save/reopen cycles,
+  and record function types for new subtractions without changing saved data.
+
 ## [0.37.1] - 2026-10-06
 
 ### Fixed
