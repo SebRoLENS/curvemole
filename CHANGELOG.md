@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.38.2] - 2026-10-06
+
 ### Fixed
 
 - Bound process-pool shutdown and drain remaining uncertainty progress messages
