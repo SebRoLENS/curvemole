@@ -22,7 +22,7 @@ def test_adaptive_controls_and_run_request_are_method_specific():
     panel = UncertaintyPanel()
     assert panel.replica_timeout.value() == 60
     assert panel.form.isRowVisible(panel.replica_timeout)
-    assert panel.adaptive_settings() is None
+    assert panel.adaptive_settings() == AdaptiveReplicateSettings()
     panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("adaptive"))
     assert panel.adaptive_settings() == AdaptiveReplicateSettings()
     assert not panel.replicates.isEnabled()
@@ -91,6 +91,8 @@ def test_custom_formulas_parallelize_from_gui_and_save_adaptive_results(tmp_path
         panel.adaptive_tolerance.setValue(99.)
         panel.adaptive_checks.setValue(1)
         panel.adaptive_maximum.setValue(7)
+    else:
+        panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("fixed"))
     panel._run()
     deadline = time.monotonic() + 20
     while window._thread is not None and time.monotonic() < deadline:

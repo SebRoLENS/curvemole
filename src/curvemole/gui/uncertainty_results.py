@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.core.uncertainty_summary import METHOD_LABELS, summarize
 
 
@@ -31,6 +32,11 @@ class UncertaintyResults(QWidget):
         self.summary = QLabel("Run an analysis to inspect confidence intervals.")
         self.summary.setWordWrap(True)
         layout.addWidget(self.summary)
+        self.warning = QLabel()
+        self.warning.setWordWrap(True)
+        self.warning.setStyleSheet("color: #9b6500; background: #fff2cf; padding: 6px; font-weight: bold;")
+        self.warning.hide()
+        layout.addWidget(self.warning)
         self.spectrum_heading = QLabel()
         self.spectrum_heading.setWordWrap(True)
         font = self.spectrum_heading.font()
@@ -94,6 +100,9 @@ class UncertaintyResults(QWidget):
             if self.curve_id else ""
         )
         self.spectrum_heading.setToolTip(self.spectrum_heading.text())
+        warning = uncertainty_warning(self.project, self.curve_id, self.method)
+        self.warning.setText("⚠ " + warning if warning else "")
+        self.warning.setVisible(bool(warning))
         if not record:
             self.summary.setText(
                 "Uncertainty analysis failed: " + failure["message"] if failure

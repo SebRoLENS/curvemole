@@ -42,7 +42,7 @@ def test_saved_display_works_for_current_and_explicitly_historical_reports(analy
         result = ResamplingResult(method, 200, 200, 0, 42, [path],
                                   np.full((200, 1), value), {path: interval}, .95, {})
     window._store_uncertainty_result(curve.id, baseline, result)
-    project.results["uncertainty_display_method_by_curve"].clear()
+    project.results.pop("uncertainty_display_method", None)
     if legacy:
         record = project.results.pop("uncertainty_reports_by_curve")[curve.id][method]
         saved_method = "monte_carlo" if method == "parametric_monte_carlo" else method
@@ -53,10 +53,10 @@ def test_saved_display_works_for_current_and_explicitly_historical_reports(analy
     restored = load_project(project.path)
     other = MainWindow(restored)
     try:
-        assert other.model_panel.parameters.item(0, 3).text() == "—"
-        index = other.uncertainty_panel.display_method.findData(method)
-        assert index > 0
-        other.uncertainty_panel.display_method.setCurrentIndex(index)
+        assert other.model_panel.display_method.currentData() == method
+        index = other.model_panel.display_method.findData(method)
+        assert index >= 0
+        other.model_panel.display_method.setCurrentIndex(index)
         cell = other.model_panel.parameters.item(0, 3)
         if state == CurveState.FITTED:
             assert cell.text() == "−0.2 / +0.4"
@@ -83,13 +83,16 @@ def test_read_only_project_can_select_saved_display_without_becoming_dirty(analy
     result = ResamplingResult("block_bootstrap", 200, 200, 0, 42, [path],
                               np.full((200, 1), value), {path: (value - .1, value + .3)}, .95, {})
     window._store_uncertainty_result(curve.id, baseline, result)
-    window.project.results["uncertainty_display_method_by_curve"].clear()
+    window._store_uncertainty_result(curve.id, baseline, ProfileResult(
+        path, np.array([value]), np.array([0.]), .95, (value - .2, value + .4), 0))
     window.project.read_only = True
     window.project.dirty = False
-    window.uncertainty_panel.set_parameters(window.project, curve.id)
+    window.model_panel.refresh_parameters()
     monkeypatch.setattr(window, "_ensure_editable", lambda: pytest.fail("Viewing results must work read-only"))
-    window.uncertainty_panel.display_method.setCurrentIndex(
-        window.uncertainty_panel.display_method.findData("block_bootstrap"))
+    window.model_panel.display_method.setCurrentIndex(
+        window.model_panel.display_method.findData("profile_likelihood"))
+    window.model_panel.display_method.setCurrentIndex(
+        window.model_panel.display_method.findData("block_bootstrap"))
     assert window.model_panel.parameters.item(0, 3).text() == "−0.1 / +0.3"
     assert not window.project.dirty
 
@@ -108,7 +111,7 @@ def test_saved_monte_carlo_alias_restores_selected_errors_automatically(analysis
     restored = load_project(save_project(project, tmp_path / "monte-carlo.fitproj"))
     other = MainWindow(restored)
     try:
-        assert other.uncertainty_panel.display_method.currentData() == "parametric_monte_carlo"
+        assert other.model_panel.display_method.currentData() == "parametric_monte_carlo"
         assert other.model_panel.parameters.item(0, 3).text() == "−0.3 / +0.5"
     finally:
         restored.dirty = False

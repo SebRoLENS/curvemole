@@ -58,6 +58,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QStyle,
     QTabBar,
     QTabWidget,
     QToolBar,
@@ -101,6 +102,7 @@ from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
+from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.colours import (
     DEFAULT_SERIES_PALETTE,
     SERIES_PALETTES,
@@ -234,7 +236,9 @@ def _curve_state_presentation(
     failure = project.results.get("uncertainty_failures_by_curve", {}).get(
         curve.id, {}).get(selected_method)
     if failure:
-        return (f"{curve.state.value}  ·  Uncertainty analysis failed",
+        timeout = failure.get("reason") == "timeout" or "timeout" in failure.get("message", "").lower()
+        suffix = " (timeout)" if timeout else ""
+        return (f"{curve.state.value}  ·  ⚠ Uncertainty analysis failed{suffix}",
                 f"{selected_method}: {failure['message']}")
     if not methods:
         return curve.state.value, ""
@@ -260,6 +264,11 @@ def _curve_state_presentation(
         if curve.state == CurveState.FITTED
         else "Uncertainty analysis outdated"
     )
+    warning = uncertainty_warning(project, curve.id, uncertainty_method)
+    if warning:
+        analysis_state = ("⚠ Uncertainty warning"
+                          if curve.state == CurveState.FITTED else analysis_state + "  ·  ⚠ Uncertainty warning")
+        tooltip = warning + "\n" + tooltip
     return f"{curve.state.value}  ·  {analysis_state}", tooltip
 
 
@@ -362,7 +371,7 @@ class CurveTree(QTreeWidget):
                             "controls visibility. Hidden spectra are excluded from fit plans."
                             " Up/Down navigation skips hidden spectra."
                         ))
-                        child.setForeground(2, _state_colour(curve.state))
+                        self._style_uncertainty_state(child, curve)
                         parent.addChild(child)
                         items[("curve", curve.id)] = child
                         if curve.id == active_curve_id:
@@ -408,6 +417,13 @@ class CurveTree(QTreeWidget):
                         text, tooltip = _curve_state_presentation(self._project, curve, method)
                         item.setText(2, text)
                         item.setToolTip(2, tooltip)
+                        self._style_uncertainty_state(item, curve)
+
+    def _style_uncertainty_state(self, item: QTreeWidgetItem, curve: Curve) -> None:
+        warning = uncertainty_warning(self._project, curve.id, self._uncertainty_method)
+        dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
+        item.setForeground(2, QColor("#ffd166" if dark else "#9b6500") if warning else _state_colour(curve.state))
+        item.setIcon(1, self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning) if warning else QIcon())
 
     def _style_curve_visibility(self, item: QTreeWidgetItem) -> None:
         visible = item.checkState(0) == Qt.CheckState.Checked
@@ -1236,7 +1252,9 @@ class MainWindow(QMainWindow):
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
         self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
-        self.uncertainty_panel.displayMethodChanged.connect(self._select_uncertainty_display)
+        self.uncertainty_panel.deleteRequested.connect(self.delete_uncertainty_analysis)
+        self.model_panel.displayMethodChanged.connect(self._select_uncertainty_display)
+        self.model_panel.uncertaintyRequested.connect(self._show_uncertainty_analysis)
         self.uncertainty_panel.method.currentIndexChanged.connect(self._update_uncertainty_tags)
         self._update_uncertainty_tags()
         self.model_panel.renameRequested.connect(self.rename_function)
@@ -2203,8 +2221,7 @@ class MainWindow(QMainWindow):
                 "baseline": baseline,
             }
             self.project.results["fit_by_curve"] = records
-            for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve",
-                        "uncertainty_display_method_by_curve"):
+            for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve"):
                 updated = dict(self.project.results.get(key, {}))
                 for affected_id in affected_ids:
                     updated.pop(affected_id, None)
@@ -2274,7 +2291,6 @@ class MainWindow(QMainWindow):
             records = dict(self.project.results.get("fit_by_curve", {}))
             reports = dict(self.project.results.get("uncertainty_reports_by_curve", {}))
             analyses = dict(self.project.results.get("uncertainty_by_curve", {}))
-            display_methods = dict(self.project.results.get("uncertainty_display_method_by_curve", {}))
             global_baselines = dict(self.project.results.get("global_fit_baselines", {}))
             for curve_id in successful_ids:
                 previous_key = records.get(curve_id, {}).get("global_key")
@@ -2284,11 +2300,9 @@ class MainWindow(QMainWindow):
                             records.pop(related_id, None)
                             reports.pop(related_id, None)
                             analyses.pop(related_id, None)
-                            display_methods.pop(related_id, None)
                     global_baselines.pop(previous_key, None)
                 reports.pop(curve_id, None)
                 analyses.pop(curve_id, None)
-                display_methods.pop(curve_id, None)
             global_key = None
             if result.mode == FitMode.GLOBAL:
                 global_key = result.timestamp
@@ -2306,7 +2320,6 @@ class MainWindow(QMainWindow):
             self.project.results["global_fit_baselines"] = global_baselines
             self.project.results["uncertainty_reports_by_curve"] = reports
             self.project.results["uncertainty_by_curve"] = analyses
-            self.project.results["uncertainty_display_method_by_curve"] = display_methods
         self.project.snapshot(
             "Fit",
             {
@@ -2635,7 +2648,7 @@ class MainWindow(QMainWindow):
         self.curve_tree.populate(self.project, self.active_curve_id)
         if self.active_curve_id in {curve_id for curve_id, _, _ in completed}:
             self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
-            self.model_panel.refresh_parameters()
+        self.model_panel.refresh_parameters()
 
     def _uncertainty_finished(self, result: Any) -> None:
         if not isinstance(result, list):
@@ -2649,7 +2662,53 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.model_panel.refresh_parameters()
         self.uncertainty_panel.results.show_method(self.uncertainty_panel.method.currentData())
-        self._notify(self.tr("Uncertainty analysis completed."))
+        warnings = [uncertainty_warning(self.project, curve_id,
+                    "covariance" if isinstance(analysis, FitResult) else getattr(analysis, "method", "profile_likelihood"))
+                    for curve_id, _baseline, analysis in result if curve_id is not None]
+        self._notify(self.tr("Uncertainty analysis finished with warnings. See the analysis panel.")
+                     if any(warnings) else self.tr("Uncertainty analysis completed."), warning=any(warnings))
+
+    def delete_uncertainty_analysis(self, method: str) -> None:
+        if not self._ensure_editable():
+            return
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the running task before deleting an analysis."), warning=True)
+            return
+        method = "parametric_monte_carlo" if method == "monte_carlo" else method
+        names = {method, "monte_carlo"} if method == "parametric_monte_carlo" else {method}
+        per_curve_keys = ("uncertainty_reports_by_curve", "uncertainty_by_curve", "uncertainty_failures_by_curve")
+        global_keys = ("uncertainty", "uncertainty_reports")
+        saved = {
+            key: {curve_id: {name: value for name, value in methods.items() if name in names}
+                  for curve_id, methods in self.project.results.get(key, {}).items()
+                  if names.intersection(methods)} for key in per_curve_keys}
+        old_global = {key: {name: value for name, value in self.project.results.get(key, {}).items() if name in names}
+                      for key in global_keys}
+        if not any(saved.values()) and not any(old_global.values()):
+            return
+        old_choice = self.project.results.get("uncertainty_display_method")
+
+        def remove() -> None:
+            for key in per_curve_keys:
+                self.project.results[key] = {
+                    curve_id: remaining for curve_id, methods in self.project.results.get(key, {}).items()
+                    if (remaining := {name: value for name, value in methods.items() if name not in names})}
+            for key in global_keys:
+                self.project.results[key] = {name: value for name, value in self.project.results.get(key, {}).items()
+                                             if name not in names}
+            if self.project.results.get("uncertainty_display_method") in names:
+                self.project.results.pop("uncertainty_display_method", None)
+
+        def restore() -> None:
+            for key, curves in saved.items():
+                for curve_id, methods in curves.items():
+                    self.project.results.setdefault(key, {}).setdefault(curve_id, {}).update(methods)
+            for key, methods in old_global.items():
+                self.project.results.setdefault(key, {}).update(methods)
+            if old_choice is not None:
+                self.project.results["uncertainty_display_method"] = old_choice
+
+        self._push_change(self.tr("Delete uncertainty analysis"), remove, restore, modified_curve_ids=set())
 
     def _store_uncertainty_result(self, curve_id: str, baseline: FitResult, result: Any) -> None:
         method = "covariance" if isinstance(result, FitResult) else getattr(result, "method", "profile_likelihood")
@@ -2669,21 +2728,26 @@ class MainWindow(QMainWindow):
         self.project.results.setdefault("uncertainty_reports_by_curve", {}).setdefault(curve_id, {})[method] = {
             "baseline": baseline.to_dict(arrays=False), "analysis": analysis,
         }
-        if method != "covariance":
-            self.project.results.setdefault("uncertainty_display_method_by_curve", {})[curve_id] = method
+        from curvemole.core.analysis_errors import DISPLAY_METHODS
+
+        if self.project.results.get("uncertainty_display_method") not in DISPLAY_METHODS:
+            self.project.results["uncertainty_display_method"] = method
 
     def _select_uncertainty_display(self, method: str) -> None:
-        if not self.active_curve_id:
+        from curvemole.core.analysis_errors import available_methods
+
+        if method not in available_methods(self.project):
             return
-        chosen = dict(self.project.results.get("uncertainty_display_method_by_curve", {}))
-        if method and method in self.project.results.get("uncertainty_reports_by_curve", {}).get(self.active_curve_id, {}):
-            chosen[self.active_curve_id] = method
-        else:
-            chosen.pop(self.active_curve_id, None)
-        self.project.results["uncertainty_display_method_by_curve"] = chosen
+        self.project.results["uncertainty_display_method"] = method
         if not self.project.read_only:
             self.project.touch()
         self.model_panel.refresh_parameters()
+
+    def _show_uncertainty_analysis(self) -> None:
+        curve_id = self.model_panel.display_method.curve_id
+        if curve_id and curve_id != self.active_curve_id:
+            self._set_active_curve(curve_id)
+        self.activate_tool_dock(self.uncertainty_dock)
 
     def mask_point(self, x_value: float, *, unmask: bool = False) -> None:
         x_offset, _ = self.plot_workspace._active_display_offsets()
@@ -3741,6 +3805,7 @@ class MainWindow(QMainWindow):
         self.progress.setVisible(True)
         self.cancel_action.setEnabled(True)
         self.fit_action.setEnabled(False)
+        self.uncertainty_panel.set_busy(True)
         self._notify(status)
         self._thread.start()
 
@@ -3758,7 +3823,7 @@ class MainWindow(QMainWindow):
         if task and message.startswith("Uncertainty replica timeout:"):
             failures = self.project.results.setdefault("uncertainty_failures_by_curve", {})
             for curve_id in task["curve_ids"] - task["completed"]:
-                failures.setdefault(curve_id, {})[task["method"]] = {"message": message}
+                failures.setdefault(curve_id, {})[task["method"]] = {"message": message, "reason": "timeout"}
             self.project.touch()
         if "cancelled" in message.lower():
             self._notify(self.tr("Task cancelled; the previous valid result was retained."), warning=True)
@@ -3781,6 +3846,7 @@ class MainWindow(QMainWindow):
         self.progress.setVisible(False)
         self.cancel_action.setEnabled(False)
         self.fit_action.setEnabled(True)
+        self.uncertainty_panel.set_busy(False)
 
     def _mask_targets(self) -> list[Curve]:
         if not self.active_curve_id:

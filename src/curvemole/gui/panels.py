@@ -17,12 +17,14 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QLayout,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QStackedWidget,
     QTableWidget,
@@ -44,6 +46,8 @@ from curvemole.core.uncertainty import AdaptiveReplicateSettings
 
 
 class ModelPanel(QWidget):
+    displayMethodChanged = Signal(str)
+    uncertaintyRequested = Signal()
     noteRequested = Signal(object)
     componentSelected = Signal(str)
     addRequested = Signal()
@@ -118,6 +122,19 @@ class ModelPanel(QWidget):
         self.copy_fit_next_button.clicked.connect(self.copyFitNextRequested)
         buttons.addWidget(self.copy_fit_next_button)
         single_layout.addLayout(buttons)
+        from curvemole.gui.uncertainty_display import UncertaintyDisplaySelector
+
+        self.uncertainty_display_label = QLabel(self.tr("Displayed uncertainty"))
+        self.display_method = UncertaintyDisplaySelector(self)
+        self.uncertainty_display_label.setBuddy(self.display_method)
+        self.uncertainty_display_label.setToolTip(self.display_method.toolTip())
+        self.display_method.currentIndexChanged.connect(
+            lambda: self.displayMethodChanged.emit(self.display_method.currentData() or ""))
+        self.display_method.analysisRequested.connect(self.uncertaintyRequested)
+        display_layout = QFormLayout()
+        display_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
+        display_layout.addRow(self.uncertainty_display_label, self.display_method)
+        single_layout.addLayout(display_layout)
         self.parameters = QTableWidget(0, 8)
         self.parameters.setHorizontalHeaderLabels(
             [
@@ -175,6 +192,7 @@ class ModelPanel(QWidget):
     ) -> None:
         self.project = project
         self.curve_id = curve_id
+        self.display_method.set_context(project, curve_id)
         self.stack.setCurrentIndex(1 if selected_count > 1 else 0)
         self.refresh(component_id)
 
@@ -250,6 +268,7 @@ class ModelPanel(QWidget):
         return str(item.data(Qt.ItemDataRole.UserRole)) if item else None
 
     def refresh_parameters(self) -> None:
+        self.display_method.set_context(self.project, self.curve_id)
         self._updating = True
         try:
             self.parameters.setRowCount(0)
@@ -270,17 +289,17 @@ class ModelPanel(QWidget):
             self.parameters.setRowCount(len(component.parameters))
             from curvemole.core.analysis_errors import (
                 DISPLAY_METHODS,
+                display_method,
                 recorded_analysis_error,
-                selected_method,
             )
 
-            chosen = selected_method(self.project, self.curve_id)
+            chosen = display_method(self.project)
             report = self.project.results.get("uncertainty_reports_by_curve", {}).get(
                 self.curve_id, {}).get(chosen, {}) if chosen else {}
             recorded_analysis = report.get("analysis", {})
             if hasattr(recorded_analysis, "to_dict"):
                 recorded_analysis = recorded_analysis.to_dict()
-            confidence = recorded_analysis.get("confidence_level")
+            confidence = recorded_analysis.get("confidence_level", recorded_analysis.get("settings", {}).get("confidence_level"))
             baseline = report.get("baseline", {})
             if hasattr(baseline, "to_dict"):
                 baseline = baseline.to_dict(arrays=False)
@@ -839,11 +858,20 @@ class DiagnosticsPanel(QWidget):
 
 class UncertaintyPanel(QWidget):
     runRequested = Signal(str, int, object, str, int, object, int)
-    displayMethodChanged = Signal(str)
+    deleteRequested = Signal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        layout = QFormLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll = QScrollArea(self)
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        content = QWidget()
+        layout = QFormLayout(content)
+        layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll)
         self.form = layout
         self.method = QComboBox()
         self.method.addItem(self.tr("Fit covariance"), "covariance")
@@ -856,12 +884,6 @@ class UncertaintyPanel(QWidget):
         self.scope.addItem(self.tr("Active spectrum"), "active")
         self.scope.addItem(self.tr("Selected spectra"), "selected")
         self.scope.addItem(self.tr("All fitted spectra"), "all")
-        self.display_method = QComboBox()
-        self.display_method.setToolTip(self.tr(
-            "Choose which saved analysis supplies the coloured errors for the active spectrum "
-            "in Model and parameters. The original fit ±1σ remains visible. Outdated results "
-            "are labelled Recorded and refer to the earlier fit."))
-        self.display_method.currentIndexChanged.connect(self._display_method_changed)
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
         self.replicates.setValue(200)
@@ -874,6 +896,12 @@ class UncertaintyPanel(QWidget):
         self.replica_mode = QComboBox()
         self.replica_mode.addItem(self.tr("Fixed count"), "fixed")
         self.replica_mode.addItem(self.tr("Adaptive - stop when intervals stabilize"), "adaptive")
+        self.replica_mode.setCurrentIndex(self.replica_mode.findData("adaptive"))
+        self.fixed_warning = QLabel(self.tr(
+            "Fixed count does not check the numerical stability of confidence intervals. "
+            "Prefer Adaptive; use fixed count for tests or when a quick analysis is needed."))
+        self.fixed_warning.setWordWrap(True)
+        self.fixed_warning.setStyleSheet("color: #9b6500; background: #fff2cf; padding: 6px;")
         self.adaptive_initial = QSpinBox()
         self.adaptive_initial.setRange(2, 1_000_000)
         self.adaptive_initial.setValue(500)
@@ -927,11 +955,16 @@ class UncertaintyPanel(QWidget):
         self.status = self.results.details
         run = QPushButton(self.tr("Run explicit uncertainty analysis"))
         run.clicked.connect(self._run)
+        self.delete_button = QPushButton(self.tr("Delete selected analysis from all spectra"))
+        self.delete_button.setToolTip(self.tr(
+            "Remove the method selected above from every spectrum, including stored samples "
+            "and warning tags. Other methods and fitted parameters are preserved. Undo restores it."))
+        self.delete_button.clicked.connect(lambda: self.deleteRequested.emit(self.method.currentData()))
+        self._busy = False
         layout.addRow(self.tr("Method"), self.method)
         layout.addRow(self.tr("Run on"), self.scope)
-        layout.addRow(self.tr("Displayed uncertainty"), self.display_method)
-        layout.labelForField(self.display_method).setToolTip(self.display_method.toolTip())
         layout.addRow(self.tr("Replicate mode"), self.replica_mode)
+        layout.addRow(self.fixed_warning)
         layout.addRow(self.tr("Replicates"), self.replicates)
         layout.addRow(self.tr("Replica timeout (seconds)"), self.replica_timeout)
         layout.addRow(self.tr("Initial successful replicates"), self.adaptive_initial)
@@ -947,26 +980,15 @@ class UncertaintyPanel(QWidget):
         layout.addRow(self.tr("Profile upper limit"), self.profile_upper)
         layout.addRow(self.tr("Confidence level"), self.confidence)
         layout.addRow(run)
+        layout.addRow(self.delete_button)
         layout.addRow(self.results)
         self.method.currentIndexChanged.connect(self._update_controls)
         self.replica_mode.currentIndexChanged.connect(self._update_controls)
         self._update_controls()
 
     def set_parameters(self, project: Project, curve_id: str | None) -> None:
-        from curvemole.core.analysis_errors import DISPLAY_METHODS, selected_method
-
         self.results.set_project(project, curve_id)
-        self.display_method.blockSignals(True)
-        self.display_method.clear()
-        self.display_method.addItem(self.tr("Fit error only"), "")
-        reports = project.results.get("uncertainty_reports_by_curve", {}).get(curve_id, {})
-        for method, label in DISPLAY_METHODS.items():
-            if method in reports:
-                self.display_method.addItem(self.tr(label), method)
-        chosen = selected_method(project, curve_id) if curve_id else None
-        self.display_method.setCurrentIndex(max(0, self.display_method.findData(chosen or "")))
-        self.display_method.setEnabled(bool(curve_id) and self.display_method.count() > 1)
-        self.display_method.blockSignals(False)
+        self._update_delete_button()
         current = self.parameter.currentData()
         self.parameter.clear()
         if curve_id:
@@ -981,9 +1003,6 @@ class UncertaintyPanel(QWidget):
                     self.parameter.addItem(f"{component.name} · {name}", path)
         index = self.parameter.findData(current)
         self.parameter.setCurrentIndex(max(0, index))
-
-    def _display_method_changed(self) -> None:
-        self.displayMethodChanged.emit(self.display_method.currentData() or "")
 
     def _update_controls(self) -> None:
         method = self.method.currentData()
@@ -1019,6 +1038,22 @@ class UncertaintyPanel(QWidget):
         ):
             self.form.setRowVisible(widget, visible)
         self.results.show_method(method)
+        self.form.setRowVisible(self.fixed_warning, resampling and not adaptive)
+        self._update_delete_button()
+
+    def set_busy(self, busy: bool) -> None:
+        self._busy = busy
+        self._update_delete_button()
+
+    def _update_delete_button(self) -> None:
+        project = self.results.project
+        method = self.method.currentData()
+        method = "parametric_monte_carlo" if method == "monte_carlo" else method
+        available = project is not None and any(
+            method in methods for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve",
+                                         "uncertainty_failures_by_curve")
+            for methods in project.results.get(key, {}).values())
+        self.delete_button.setEnabled(bool(available) and not project.read_only and not self._busy)
 
     def adaptive_settings(self) -> AdaptiveReplicateSettings | None:
         if (self.method.currentData() in {"profile_likelihood", "covariance"}

@@ -127,11 +127,12 @@ def test_first_uncertainty_report_is_visible_while_batch_runs(monkeypatch) -> No
         assert window._thread is not None
         assert "residual_bootstrap" not in project.results.get(
             "uncertainty_reports_by_curve", {}).get(second.id, {})
-        assert window.uncertainty_panel.display_method.findData("residual_bootstrap") >= 0
+        assert window.model_panel.display_method.findData("residual_bootstrap") >= 0
         window._set_active_curve(second.id)
-        assert window.uncertainty_panel.display_method.findData("residual_bootstrap") < 0
+        assert window.model_panel.display_method.findData("residual_bootstrap") >= 0
+        assert window.model_panel.parameters.item(0, 3).text() == "—"
         window._set_active_curve(first.id)
-        assert window.uncertainty_panel.display_method.findData("residual_bootstrap") >= 0
+        assert window.model_panel.display_method.findData("residual_bootstrap") >= 0
         release.set()
         _wait_for(app, lambda: window._thread is None)
         assert "residual_bootstrap" in project.results[

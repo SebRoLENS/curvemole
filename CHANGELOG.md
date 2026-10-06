@@ -5,6 +5,26 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Report failed resampling replicas once for the spectrum with failed/attempted
+  and successful counts, instead of flagging every parameter. Retain independent
+  parameter diagnostics, and show failure and stability-limit warnings together.
+- Default resampling analyses to Adaptive and show an explicit fixed-count notice
+  recommending stability checks. Highlight adaptive limits and replica timeouts
+  in the results and spectrum list, using warning icons and amber status text.
+- Move the saved uncertainty selector into Model and parameters beside its error
+  column. Use one display method for every spectrum in the project, list methods
+  available anywhere in it, and leave errors blank on spectra lacking the selected
+  method. Automatically display a sole method and include recorded fit covariance
+  confidence limits. When no analysis exists, offer a direct link to its panel.
+
+### Added
+
+- Delete the method selected in Uncertainty Analysis from all spectra, including
+  recorded reports, sample arrays and timeout tags. Undo/redo restores or removes
+  the analysis without modifying the spectra or fitted parameters.
+
 ## [0.37.2] - 2026-10-06
 
 ### Fixed

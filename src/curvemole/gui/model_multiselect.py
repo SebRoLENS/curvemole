@@ -243,6 +243,7 @@ def _install_model_panel() -> None:
     ) -> None:
         panel.project = project
         panel.curve_id = curve_id
+        panel.display_method.set_context(project, curve_id)
         can_copy_next = False
         if curve_id and project is not None and not project.read_only:
             ids = [curve.id for curve in project.dataset.series_for(curve_id).curves]
@@ -256,6 +257,7 @@ def _install_model_panel() -> None:
         panel.refresh(component_id)
 
     def refresh(panel: ModelPanel, selected_component_id: str | None = None) -> None:
+        panel.display_method.set_context(panel.project, panel.curve_id)
         previous = set(panel.selected_component_refs())
         panel._updating = True
         try:
@@ -455,6 +457,7 @@ def _install_model_panel() -> None:
                 original_refresh_parameters(panel)
             return
 
+        panel.display_method.set_context(panel.project, None)
         panel._updating = True
         try:
             panel.parameters.setRowCount(0)

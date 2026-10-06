@@ -1780,9 +1780,11 @@ Open **Fit > Uncertainty Analysis** only after a successful fit. These calculati
 run in the background, can be cancelled, and may be substantially slower than the
 baseline fit. **Fit covariance** displays the uncertainty already calculated by
 the fit without running replicas. Monte Carlo, residual bootstrap and block bootstrap
-default to **200 replicates** (not optimizer iterations), and remain configurable.
-The optimizer's default evaluation budget is unchanged. Two hundred replicas are a
-quick estimate; use more and check stability when precise percentile endpoints matter.
+default to **Adaptive - stop when intervals stabilize**. **Fixed count** remains
+available with an initial count of **200 replicates** (not optimizer iterations).
+Selecting it shows a notice: fixed count does not check interval stability. Prefer
+Adaptive; use fixed count for tests or when a quick analysis is needed.
+The optimizer's default evaluation budget is unchanged.
 
 **Replica timeout (seconds)** limits each Monte Carlo or bootstrap replica to
 **60 seconds** by default and can be changed before running an analysis. The timer
@@ -1793,10 +1795,21 @@ workers, allowing CurveMole to stop even an unresponsive replica. Executable
 plugin functions and custom fitter subclasses use cooperative cancellation.
 
 If a replica exceeds the limit, the entire active analysis stops and is marked
-**Uncertainty analysis failed** for the selected method. The existing fit and
+**Uncertainty analysis failed (timeout)** for the selected method, with an amber
+status and a warning icon beside the spectrum. The results panel also shows an
+explicit timeout warning. The existing fit and
 previous completed analyses remain available; spectra already completed in the
 batch keep their results. A later successful analysis clears the failure tag.
 The timeout is recorded under **Technical details** and saved with results.
+
+Ordinary failed replicas produce one warning for the spectrum, showing failed
+attempts and successful replicas used for the intervals. Even a single failure is
+reported, since excluding unsuccessful fits may bias intervals. This warning does
+not mark every parameter as **Attention**: parameter assessments retain their own
+diagnostics and may remain **OK**, meaning that those checks flagged no local issue.
+The spectrum warning still applies to the analysis as a whole. If the adaptive
+limit is also reached, both warnings are shown. Too few successful samples and
+parameter-specific diagnostic issues continue to be reported in assessments.
 
 For Monte Carlo and both bootstrap methods, **Replicate mode** offers **Fixed count**
 or **Adaptive - stop when intervals stabilize**. Adaptive mode defaults to:
@@ -1820,9 +1833,21 @@ as numerically stable; changing to a zero-width interval is not a stable check.
 The limit applies separately to each independent spectrum, or once to a joint global
 fit. The report records the actual successes, failures, attempts, stopping reason,
 settings and checkpoint history, including when the project is saved and reopened.
-Reaching the limit before stability is flagged in the assessment. This is a numerical
+Reaching the limit before stability is flagged in the assessment, in a prominent
+results warning, and beside the spectrum with an amber status and warning icon.
+The intervals are retained, but the required stability has not been demonstrated.
+Warnings follow the method selected in the analysis panel and survive save/reopen;
+switching to another method shows that method's status. This is a numerical
 stability criterion, not a guarantee of statistical accuracy or model validity.
 Covariance and profile likelihood do not use adaptive replicate counts.
+
+**Delete selected analysis from all spectra** removes the method currently chosen
+in this panel's **Method** field from the entire project. It removes its reports,
+saved samples and timeout warnings, updates the spectrum tags and available display
+methods, and preserves all other methods, spectra and fitted parameters. **Undo**
+and **Redo** restore or remove it. The button is disabled in read-only projects and
+while a background task is running.
+The panel scrolls when its controls and results exceed the available height.
 
 **CPU processes** sets the maximum number of independent spectra analyzed in
 parallel, with remaining spectra queued. The default is up to four processes,
@@ -1845,10 +1870,25 @@ bootstrap tag. A saved analysis of the selected method is marked outdated after
 data/model changes. Hover over the state to see the selected method and all saved
 analyses. Changing the method preserves the selection and does not rerun or delete
 any analysis.
-**Displayed uncertainty** selects which saved analysis supplies the coloured
-**Analysis − / +** column in **Model and parameters** for the active spectrum.
-The most recently completed resampling/profile analysis is selected automatically;
-the choice is saved per spectrum and can be changed or set to **Fit error only**.
+In **Model and parameters**, **Displayed uncertainty** selects which saved
+analysis supplies the coloured **Analysis − / +** column for every spectrum.
+The choice is universal within the project: switching spectra or using **Show all
+functions** does not change the selected method. The selector lists methods recorded
+for at least one spectrum in the project. A spectrum without the selected analysis
+shows a dash in the analysis column; it does not fall back to another method.
+The sole available method is displayed automatically, including after reopening
+older projects without a saved display preference. If several analyses are
+available, the selector remembers one project-wide choice after saving and reopening.
+Running another analysis preserves this choice while its results remain available.
+Older per-spectrum preferences migrate to the first available saved choice in spectrum
+order. Fit covariance analyses use their recorded confidence limits.
+When no analysis is available anywhere in the project, clicking the selector explains that an analysis
+must be run first and offers **Open Uncertainty Analysis**, which opens that panel.
+The selector is available in the model panel, next to the parameter results;
+the uncertainty panel's **Method** control chooses which analysis to run or inspect.
+With **Show all functions**, the empty-state link activates the spectrum owning the
+displayed function before opening its analysis panel. The project-wide selector
+remains available when several functions are selected and parameter rows are hidden.
 The adjacent **±1σ** column always retains the original fit error. The analysis
 column shows the distances below and above the fitted value separately. It shows
 a dash when a parameter has no valid interval or the interval excludes the

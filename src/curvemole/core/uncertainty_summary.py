@@ -104,13 +104,10 @@ def summarize(project, baseline, analysis, method):
                 flag(1, "Robust-loss covariance is approximate; compare with resampling.")
         if method not in {"covariance", "profile_likelihood"}:
             completed = analysis.get("completed", 0)
-            failed = analysis.get("failed", 0)
             if completed < 20:
                 flag(2, "Too few successful replicates for a reliable percentile interval (<20).")
             elif completed < 200:
                 flag(1, "Fewer than 200 successful replicates; interval endpoints may be unstable.")
-            if failed:
-                flag(1, f"{failed} replicates failed; the interval may be biased.")
             adaptive = analysis.get("configuration", {}).get("adaptive")
             if adaptive and not adaptive.get("converged", False):
                 flag(1, "Maximum attempts reached before interval endpoints met the requested stability criterion.")
