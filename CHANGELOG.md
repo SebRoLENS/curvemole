@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.36.3] - 2026-10-06
+
 ### Fixed
 
 - Run autosave compression, writing, integrity validation and recovery rotation
