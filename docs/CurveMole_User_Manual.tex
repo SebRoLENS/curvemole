@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.37.2}
+\ohead{Version 0.38.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.37.2\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.38.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.37.2}
+\subtitle{Preview 0.38.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.37.2}
+\date{Updated for CurveMole 0.38.0}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.37.2 Preview. The Markdown file is the authoritative source.
+CurveMole 0.38.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.37.2 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.38.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.37.2
-describes CurveMole 0.37.2.
+an independent document version. For example, a manual marked 0.38.0
+describes CurveMole 0.38.0.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.37.2{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.37.2{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.37.2{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.38.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.37.2{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.38.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{37}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.37.2{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.38.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{37}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1354,7 +1354,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 import. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.37.2 optimizer.
+version 0.38.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -2864,7 +2864,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.37.2 does not yet provide a single comprehensive on-screen
+Preview 0.38.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -2963,10 +2963,12 @@ successful fit. These calculations run in the background, can be
 cancelled, and may be substantially slower than the baseline fit.
 \textbf{Fit covariance} displays the uncertainty already calculated by
 the fit without running replicas. Monte Carlo, residual bootstrap and
-block bootstrap default to \textbf{200 replicates} (not optimizer
-iterations), and remain configurable. The optimizer's default evaluation
-budget is unchanged. Two hundred replicas are a quick estimate; use more
-and check stability when precise percentile endpoints matter.
+block bootstrap default to \textbf{Adaptive - stop when intervals
+stabilize}. \textbf{Fixed count} remains available with an initial count
+of \textbf{200 replicates} (not optimizer iterations). Selecting it
+shows a notice: fixed count does not check interval stability. Prefer
+Adaptive; use fixed count for tests or when a quick analysis is needed.
+The optimizer's default evaluation budget is unchanged.
 
 \textbf{Replica timeout (seconds)} limits each Monte Carlo or bootstrap
 replica to \textbf{60 seconds} by default and can be changed before
@@ -2979,11 +2981,24 @@ Executable plugin functions and custom fitter subclasses use cooperative
 cancellation.
 
 If a replica exceeds the limit, the entire active analysis stops and is
-marked \textbf{Uncertainty analysis failed} for the selected method. The
-existing fit and previous completed analyses remain available; spectra
-already completed in the batch keep their results. A later successful
-analysis clears the failure tag. The timeout is recorded under
-\textbf{Technical details} and saved with results.
+marked \textbf{Uncertainty analysis failed (timeout)} for the selected
+method, with an amber status and a warning icon beside the spectrum. The
+results panel also shows an explicit timeout warning. The existing fit
+and previous completed analyses remain available; spectra already
+completed in the batch keep their results. A later successful analysis
+clears the failure tag. The timeout is recorded under \textbf{Technical
+details} and saved with results.
+
+Ordinary failed replicas produce one warning for the spectrum, showing
+failed attempts and successful replicas used for the intervals. Even a
+single failure is reported, since excluding unsuccessful fits may bias
+intervals. This warning does not mark every parameter as
+\textbf{Attention}: parameter assessments retain their own diagnostics
+and may remain \textbf{OK}, meaning that those checks flagged no local
+issue. The spectrum warning still applies to the analysis as a whole. If
+the adaptive limit is also reached, both warnings are shown. Too few
+successful samples and parameter-specific diagnostic issues continue to
+be reported in assessments.
 
 For Monte Carlo and both bootstrap methods, \textbf{Replicate mode}
 offers \textbf{Fixed count} or \textbf{Adaptive - stop when intervals
@@ -3020,9 +3035,23 @@ The limit applies separately to each independent spectrum, or once to a
 joint global fit. The report records the actual successes, failures,
 attempts, stopping reason, settings and checkpoint history, including
 when the project is saved and reopened. Reaching the limit before
-stability is flagged in the assessment. This is a numerical stability
-criterion, not a guarantee of statistical accuracy or model validity.
-Covariance and profile likelihood do not use adaptive replicate counts.
+stability is flagged in the assessment, in a prominent results warning,
+and beside the spectrum with an amber status and warning icon. The
+intervals are retained, but the required stability has not been
+demonstrated. Warnings follow the method selected in the analysis panel
+and survive save/reopen; switching to another method shows that method's
+status. This is a numerical stability criterion, not a guarantee of
+statistical accuracy or model validity. Covariance and profile
+likelihood do not use adaptive replicate counts.
+
+\textbf{Delete selected analysis from all spectra} removes the method
+currently chosen in this panel's \textbf{Method} field from the entire
+project. It removes its reports, saved samples and timeout warnings,
+updates the spectrum tags and available display methods, and preserves
+all other methods, spectra and fitted parameters. \textbf{Undo} and
+\textbf{Redo} restore or remove it. The button is disabled in read-only
+projects and while a background task is running. The panel scrolls when
+its controls and results exceed the available height.
 
 \textbf{CPU processes} sets the maximum number of independent spectra
 analyzed in parallel, with remaining spectra queued. The default is up
@@ -3048,17 +3077,35 @@ analysis; switching back restores the bootstrap tag. A saved analysis of
 the selected method is marked outdated after data/model changes. Hover
 over the state to see the selected method and all saved analyses.
 Changing the method preserves the selection and does not rerun or delete
-any analysis. \textbf{Displayed uncertainty} selects which saved
-analysis supplies the coloured \textbf{Analysis − / +} column in
-\textbf{Model and parameters} for the active spectrum. The most recently
-completed resampling/profile analysis is selected automatically; the
-choice is saved per spectrum and can be changed or set to \textbf{Fit
-error only}. The adjacent \textbf{±1σ} column always retains the
-original fit error. The analysis column shows the distances below and
-above the fitted value separately. It shows a dash when a parameter has
-no valid interval or the interval excludes the original fitted value;
-inspect the assessment for details. The parameter CSV retains
-\texttt{parameter\_err} for the fit error and adds
+any analysis. In \textbf{Model and parameters}, \textbf{Displayed
+uncertainty} selects which saved analysis supplies the coloured
+\textbf{Analysis − / +} column for every spectrum. The choice is
+universal within the project: switching spectra or using \textbf{Show
+all functions} does not change the selected method. The selector lists
+methods recorded for at least one spectrum in the project. A spectrum
+without the selected analysis shows a dash in the analysis column; it
+does not fall back to another method. The sole available method is
+displayed automatically, including after reopening older projects
+without a saved display preference. If several analyses are available,
+the selector remembers one project-wide choice after saving and
+reopening. Running another analysis preserves this choice while its
+results remain available. Older per-spectrum preferences migrate to the
+first available saved choice in spectrum order. Fit covariance analyses
+use their recorded confidence limits. When no analysis is available
+anywhere in the project, clicking the selector explains that an analysis
+must be run first and offers \textbf{Open Uncertainty Analysis}, which
+opens that panel. The selector is available in the model panel, next to
+the parameter results; the uncertainty panel's \textbf{Method} control
+chooses which analysis to run or inspect. With \textbf{Show all
+functions}, the empty-state link activates the spectrum owning the
+displayed function before opening its analysis panel. The project-wide
+selector remains available when several functions are selected and
+parameter rows are hidden. The adjacent \textbf{±1σ} column always
+retains the original fit error. The analysis column shows the distances
+below and above the fitted value separately. It shows a dash when a
+parameter has no valid interval or the interval excludes the original
+fitted value; inspect the assessment for details. The parameter CSV
+retains \texttt{parameter\_err} for the fit error and adds
 \texttt{parameter\_analysis\_err\_minus},
 \texttt{parameter\_analysis\_err\_plus}, and the selected method when
 applicable. Saved analyses remain selectable after reopening, including
@@ -4507,8 +4554,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.37.2) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.37.2
+(Version 0.38.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.38.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -4736,9 +4783,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.37.2-limitations}{%
-\chapter{Appendix D. Preview 0.37.2
-limitations}\label{appendix-d.-preview-0.37.2-limitations}}
+\hypertarget{appendix-d.-preview-0.38.0-limitations}{%
+\chapter{Appendix D. Preview 0.38.0
+limitations}\label{appendix-d.-preview-0.38.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 

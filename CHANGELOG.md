@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.38.0] - 2026-10-06
+
 ### Changed
 
 - Report failed resampling replicas once for the spectrum with failed/attempted
