@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
@@ -7,6 +9,14 @@ from curvemole import Project
 from curvemole.core.recovery import RecoveryManager
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.recovery import RecoveryDialog
+
+
+def wait_autosave(app, window):
+    deadline = time.monotonic() + 10
+    while window._autosave_controller.busy and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.001)
+    assert not window._autosave_controller.busy
 
 
 def window_with_recoveries(tmp_path):
@@ -18,6 +28,7 @@ def window_with_recoveries(tmp_path):
         project.notebook.notes = f"Notes {i}"
         project.touch()
         window._autosave()
+        wait_autosave(app, window)
     return app, window
 
 
@@ -108,6 +119,7 @@ def test_startup_recovery_dialog_and_menu_recover_real_backup(tmp_path):
             dialog.recover_button.click()
     QTimer.singleShot(0, recover)
     window.recovery_action.trigger()
+    wait_autosave(app, window)
     assert window.project.name == "Work"
     assert window.project.notebook.notes == "Notes 2"
     assert window.project.path is None

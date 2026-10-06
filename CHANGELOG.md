@@ -5,6 +5,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Run autosave compression, writing, integrity validation and recovery rotation
+  on a dedicated background thread, keeping large projects responsive.
+- Capture coherent lightweight autosave snapshots without copying immutable
+  original spectra or rendered arrays; coalesce overlapping requests and defer
+  snapshots until fit workers finish updating the project.
+- Invalidate pending backups on Save, Discard, recovery and close so background
+  completion cannot recreate cleared copies or affect the wrong project.
+
 ## [0.36.2] - 2026-10-05
 
 ### Added

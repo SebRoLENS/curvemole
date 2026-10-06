@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import io
 import json
@@ -9,7 +10,7 @@ import os
 import socket
 import tempfile
 import zipfile
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -27,14 +28,86 @@ from curvemole.core.project import Project
 from curvemole.version import FITMODEL_SCHEMA_VERSION, PROJECT_SCHEMA_VERSION, __version__
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectSaveSnapshot:
+    """Detached metadata and stable archive arrays, without rendered data copies."""
+
+    id: str
+    revision: int
+    dirty: bool
+    read_only: bool
+    metadata: dict[str, Any]
+    arrays: tuple[tuple[str, np.ndarray], ...]
+
+    def to_metadata(self) -> dict[str, Any]:
+        return self.metadata
+
+
+def _project_arrays(project: Project | ProjectSaveSnapshot) -> Iterator[tuple[str, np.ndarray]]:
+    if isinstance(project, ProjectSaveSnapshot):
+        yield from project.arrays
+        return
+    for curve in project.curves:
+        prefix = f"data/{curve.id}"
+        yield f"{prefix}/original_x.npy", curve.original_x
+        yield f"{prefix}/original_y.npy", curve.original_y
+        for name, array in (
+            ("sigma_x.npy", curve.sigma_x), ("sigma_y.npy", curve.sigma_y),
+            ("error_y_minus.npy", curve.error_y_minus), ("error_y_plus.npy", curve.error_y_plus),
+            ("weights.npy", curve.weights),
+        ):
+            if array is not None:
+                yield f"{prefix}/{name}", array
+        for index, array in enumerate(curve.original_columns.values()):
+            yield f"{prefix}/columns/{index}.npy", array
+        for mask in curve.masks.values():
+            yield f"{prefix}/masks/{mask.id}.npy", mask.excluded
+        for stack_name, transformations in (
+            ("transformations", curve.transformations), ("redo_transformations", curve.redo_transformations),
+        ):
+            for index, transformation in enumerate(transformations):
+                if transformation.operand is not None:
+                    yield f"{prefix}/{stack_name}/{index}_operand.npy", transformation.operand
+
+
+def capture_project_snapshot(project: Project) -> ProjectSaveSnapshot:
+    """Capture on the owning thread, sharing immutable original data only.
+
+    Mutable masks, transformation operands and result metadata are detached.
+    Current/rendered curve arrays are not stored by the archive and need no copy.
+    JSON conversion, compression and integrity checks belong to the save worker.
+    """
+    arrays = []
+    memo: dict[int, Any] = {}
+    for name, array in _project_arrays(project):
+        stable = memo.get(id(array))
+        if stable is None:
+            owner = array
+            immutable = not owner.flags.writeable
+            while immutable and isinstance(owner.base, np.ndarray):
+                owner = owner.base
+                immutable = not owner.flags.writeable
+            # A readonly view of a writable array/external buffer can still change.
+            immutable = immutable and owner.base is None
+            stable = array if immutable else array.copy()
+            memo[id(array)] = stable
+        arrays.append((name, stable))
+    return ProjectSaveSnapshot(
+        project.id, project.revision, project.dirty, project.read_only,
+        copy.deepcopy(project.to_metadata(), memo), tuple(arrays),
+    )
+
+
 def save_project(
-    project: Project,
+    project: Project | ProjectSaveSnapshot,
     path: str | Path,
     *,
     include_uncertainty_samples: bool = True,
     portable: bool = False,
     update_project_path: bool = True,
 ) -> Path:
+    if isinstance(project, ProjectSaveSnapshot) and update_project_path:
+        raise ValueError("Saving a detached snapshot cannot mark the live project as saved.")
     destination = Path(path)
     if destination.suffix.lower() != ".fitproj":
         destination = destination.with_suffix(".fitproj")
@@ -62,40 +135,10 @@ def save_project(
         with zipfile.ZipFile(
             temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6, allowZip64=True
         ) as archive:
-            for curve in project.curves:
-                prefix = f"data/{curve.id}"
-                _write_array(archive, f"{prefix}/original_x.npy", curve.original_x, checksums)
-                _write_array(archive, f"{prefix}/original_y.npy", curve.original_y, checksums)
-                for name, array in (
-                    ("sigma_x.npy", curve.sigma_x),
-                    ("sigma_y.npy", curve.sigma_y),
-                    ("error_y_minus.npy", curve.error_y_minus),
-                    ("error_y_plus.npy", curve.error_y_plus),
-                    ("weights.npy", curve.weights),
-                ):
-                    if array is not None:
-                        _write_array(archive, f"{prefix}/{name}", array, checksums)
-                for index, array in enumerate(curve.original_columns.values()):
-                    _write_array(archive, f"{prefix}/columns/{index}.npy", array, checksums)
-                for mask in curve.masks.values():
-                    _write_array(
-                        archive,
-                        f"{prefix}/masks/{mask.id}.npy",
-                        mask.excluded.astype(np.uint8),
-                        checksums,
-                    )
-                for stack_name, transformations in (
-                    ("transformations", curve.transformations),
-                    ("redo_transformations", curve.redo_transformations),
-                ):
-                    for index, transformation in enumerate(transformations):
-                        if transformation.operand is not None:
-                            _write_array(
-                                archive,
-                                f"{prefix}/{stack_name}/{index}_operand.npy",
-                                transformation.operand,
-                                checksums,
-                            )
+            for name, array in _project_arrays(project):
+                if "/masks/" in name:
+                    array = array.astype(np.uint8)
+                _write_array(archive, name, array, checksums)
             manifest = {
                 "format": "CurveMole project",
                 "schema_version": PROJECT_SCHEMA_VERSION,

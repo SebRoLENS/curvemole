@@ -1982,6 +1982,13 @@ for confidential data.
 
 ### 13.5 Autosave recovery
 
+Autosave runs in a dedicated background thread, so compression, disk writing and
+integrity checks keep the plot and controls available. Each backup represents
+a coherent snapshot from the start of the operation; edits made while it is
+being written remain unsaved and are included in a later backup. Only one
+autosave runs at a time, with overlapping requests combined into the latest
+requested state. Requests during a fit wait until its worker has finished.
+
 Every ten minutes, a modified revision is written to the operating system's CurveMole
 user cache. An unchanged revision does not create another recovery. The three newest
 valid, distinct recovery files for a project are retained.

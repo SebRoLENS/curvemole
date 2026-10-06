@@ -644,6 +644,8 @@ class MainWindow(QMainWindow):
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
+        from curvemole.gui.autosave import AutosaveController
+        self._autosave_controller = AutosaveController(self)
         self._tool_docks: list[QDockWidget] = []
         self._tool_tab_filter = DockTabTitleFilter(self)
         self._tab_refresh_pending = False
@@ -3864,15 +3866,7 @@ class MainWindow(QMainWindow):
                 self._log(f"Custom function skipped: {exc}")
 
     def _autosave(self) -> None:
-        try:
-            path = self.recovery.autosave(self.project)
-            if path:
-                session = getattr(self, "_recovery_session", None)
-                if session is not None:
-                    session.record(self.project.id)
-                self._log(f"Recovery saved: {path.name}")
-        except Exception as exc:
-            self._log(f"Autosave failed: {exc}")
+        self._autosave_controller.request()
 
     def _clear_recovery(self) -> None:
         try:
@@ -4044,6 +4038,7 @@ class MainWindow(QMainWindow):
         if self._session_finished:
             return
         self._session_finished = True
+        self._autosave_controller.shutdown()
         self._release_lock()
         session = getattr(self, "_recovery_session", None)
         if session is not None:
