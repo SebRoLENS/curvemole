@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.37.0] - 2026-10-06
+
 ### Added
 
 - Responsive manual Save, Save As and portable-copy writing on a dedicated worker,
