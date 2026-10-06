@@ -31,10 +31,12 @@ def main() -> int:
     if not executable.exists():
         raise SystemExit(f"Bundle executable was not created: {executable}")
     environment["CURVEMOLE_SMOKE_TEST"] = "1"
-    # A fresh macOS runner may spend over 20 seconds creating Matplotlib's font
-    # cache before CurveMole reaches its smoke-test exit path.  Leave enough
-    # headroom for slower Intel runners while still detecting a hung bundle.
-    subprocess.run([str(executable)], env=environment, timeout=90, check=True)
+    # The complete frozen-process test starts several workers, each with a cold
+    # font cache. Intel macOS runners can exceed 90 seconds doing this work.
+    # Keep the ordinary GUI check short and give that full test a bounded budget.
+    smoke_timeout = 300 if sys.platform == "darwin" and environment.get("CURVEMOLE_PACKAGING_SMOKE") == "1" else 90
+    print(f"Smoke-testing frozen application (timeout: {smoke_timeout}s)", flush=True)
+    subprocess.run([str(executable)], env=environment, timeout=smoke_timeout, check=True)
     print(distribution)
     return 0
 

@@ -332,7 +332,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: ${{ github.sha }}
+      - name: Keep current macOS build checks before selecting source
+        run: cp scripts/build_desktop.py "$RUNNER_TEMP/build_desktop.py"
+      - uses: actions/checkout@v6
+        with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Use current build checks with the selected application source
+        run: cp "$RUNNER_TEMP/build_desktop.py" scripts/build_desktop.py
       - uses: actions/download-artifact@v7
         with:
           name: build-icons
