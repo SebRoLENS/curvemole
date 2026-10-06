@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.37.2] - 2026-10-06
+
 ### Fixed
 
 - Reconnect legacy background subtraction history to an unambiguous builtin
