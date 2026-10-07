@@ -2,9 +2,9 @@
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMenu
+from PySide6.QtCore import QRect, QSettings, Qt
+from PySide6.QtTest import QSignalSpy, QTest
+from PySide6.QtWidgets import QAbstractItemView, QApplication, QMenu
 
 from curvemole import Component, Curve, Fitter, Project
 from curvemole.core.analysis_errors import recorded_analysis_error, selected_method
@@ -14,8 +14,10 @@ from curvemole.gui.main_window import MainWindow
 
 
 @pytest.fixture
-def selector_window():
+def selector_window(tmp_path, monkeypatch):
     app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / "selector-layout.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr("curvemole.gui.main_window.QSettings", lambda *args: settings)
     project = Project("Display choices")
     first = Curve("Analysed spectrum", np.arange(5.), [1., 1.2, .8, 1.1, 1.],
                   sigma_y=np.full(5, .1))
@@ -43,11 +45,26 @@ def store(window, baseline, method, minus, plus):
 
 
 def click_header(window, section):
-    header = window.model_panel.parameters.horizontalHeader()
-    window.model_panel.parameters.horizontalScrollBar().setValue(header.sectionPosition(section))
-    point = QPoint(header.sectionViewportPosition(section) + header.sectionSize(section) // 2,
-                   header.height() // 2)
+    table = window.model_panel.parameters
+    header = table.horizontalHeader()
+    # ScrollPerItem uses column indices, not pixel positions. Click only the
+    # visible part: a wide section's full centre may be outside the viewport.
+    position = (header.sectionPosition(section)
+                if table.horizontalScrollMode() == QAbstractItemView.ScrollMode.ScrollPerPixel
+                else header.visualIndex(section))
+    table.horizontalScrollBar().setValue(position)
+    QApplication.processEvents()
+    visible = QRect(header.sectionViewportPosition(section), 0,
+                    header.sectionSize(section), header.viewport().height()).intersected(
+                        header.viewport().rect())
+    assert not visible.isEmpty()
+    point = visible.center()
+    assert header.viewport().rect().contains(point)
+    assert header.logicalIndexAt(point) == section
+    clicked = QSignalSpy(header.sectionClicked)
     QTest.mouseClick(header.viewport(), Qt.MouseButton.LeftButton, pos=point)
+    assert clicked.count() == 1
+    assert clicked.at(0) == [section]
 
 
 def test_empty_selector_explains_and_opens_uncertainty_tool(selector_window):
@@ -230,7 +247,11 @@ def test_partial_result_on_another_spectrum_refreshes_global_methods(selector_wi
     assert window.model_panel.parameters.item(0, 3).text() == "—"
 
 
-def test_header_opens_method_menu_and_real_click_selects_global_errors(selector_window):
+@pytest.mark.parametrize("scroll_mode", list(QAbstractItemView.ScrollMode))
+@pytest.mark.parametrize("wide_columns", [False, True])
+def test_header_opens_method_menu_and_real_click_selects_global_errors(
+    selector_window, scroll_mode, wide_columns,
+):
     app, window, baseline = selector_window
     store(window, baseline, "residual_bootstrap", .2, .4)
     store(window, baseline, "parametric_monte_carlo", .1, .3)
@@ -239,6 +260,11 @@ def test_header_opens_method_menu_and_real_click_selects_global_errors(selector_
     window.activate_tool_dock(window.model_dock)
     app.processEvents()
     panel = window.model_panel
+    panel.parameters.setHorizontalScrollMode(scroll_mode)
+    if wide_columns:
+        for column in range(panel.parameters.columnCount()):
+            panel.parameters.setColumnWidth(column, 500)
+        assert panel.parameters.columnWidth(3) > panel.parameters.viewport().width()
     menu = panel.display_method
     assert isinstance(menu, QMenu)
     assert not hasattr(panel, "uncertainty_display_label")
