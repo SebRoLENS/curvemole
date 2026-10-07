@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QSettings, Qt
-from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QSignalSpy, QTest
+from PySide6.QtWidgets import QApplication, QCheckBox, QStyle, QStyleFactory, QStyleOptionButton
 
 from curvemole import Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -31,9 +31,45 @@ def quick_window(tmp_path, monkeypatch):
 
 def set_checked(app, checkbox, checked):
     if checkbox.isChecked() != checked:
-        QTest.mouseClick(checkbox, Qt.MouseButton.LeftButton)
+        option = QStyleOptionButton()
+        checkbox.initStyleOption(option)
+        # A stretched checkbox's centre can be blank space rather than part of
+        # the native indicator/label hit area (notably with Windows styles).
+        indicator = checkbox.style().subElementRect(
+            QStyle.SubElement.SE_CheckBoxIndicator, option, checkbox)
+        assert not indicator.isEmpty()
+        point = indicator.center()
+        assert checkbox.rect().contains(point)
+        assert checkbox.hitButton(point)
+        toggled = QSignalSpy(checkbox.toggled)
+        QTest.mouseClick(checkbox, Qt.MouseButton.LeftButton, pos=point)
         app.processEvents()
+        assert toggled.count() == 1
+        assert toggled.at(0) == [checked]
     assert checkbox.isChecked() == checked
+
+
+@pytest.mark.parametrize("style_name", ["Windows", "Fusion"])
+@pytest.mark.parametrize("direction", [Qt.LayoutDirection.LeftToRight, Qt.LayoutDirection.RightToLeft])
+def test_indicator_click_toggles_wide_short_label_checkbox(style_name, direction):
+    app = QApplication.instance() or QApplication([])
+    checkbox = QCheckBox("Background")
+    style = QStyleFactory.create(style_name)
+    assert style is not None
+    style.setParent(checkbox)
+    checkbox.setStyle(style)
+    checkbox.setLayoutDirection(direction)
+    checkbox.resize(500, 40)
+    checkbox.show()
+    app.processEvents()
+    try:
+        assert not checkbox.hitButton(checkbox.rect().center())
+        set_checked(app, checkbox, True)
+        set_checked(app, checkbox, False)
+    finally:
+        checkbox.close()
+        checkbox.deleteLater()
+        app.processEvents()
 
 
 @pytest.mark.parametrize("background", [False, True])

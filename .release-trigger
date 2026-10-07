@@ -7,3 +7,4 @@ release-request=0.31.1
 release-request=0.36.2
 release-request=0.38.1-manual-alignment
 release-request=0.38.2-validation-retry
+release-request=0.39.0-checkbox-validation-retry
