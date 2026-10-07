@@ -3,7 +3,7 @@ message: "If you use CurveMole in scientific work, please cite the exact release
 title: "CurveMole: Modular Scientific Curve Fitting"
 type: software
 version: "0.38.2"
-date-released: 2026-10-06
+date-released: 2026-10-07
 authors:
   - family-names: Romi
     given-names: Sebastiano
