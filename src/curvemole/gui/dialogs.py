@@ -131,10 +131,16 @@ class ImportMappingDialog(QDialog):
         self.y_columns = QListWidget()
         self.y_columns.setMaximumHeight(105)
         mapping.addWidget(self.y_columns, 0, 3, 3, 1)
+        self.separated_files = QCheckBox(self.tr("as separated files"))
+        self.separated_files.setToolTip(self.tr(
+            "Import each selected Y column as an independent spectrum, using its associated X. "
+            "Each spectrum is named after its Y column. No files are written to disk."))
+        mapping.addWidget(self.separated_files, 3, 3)
         mapping.addWidget(QLabel(self.tr("sigma_x")), 1, 0)
         self.sigma_x = QComboBox()
         mapping.addWidget(self.sigma_x, 1, 1)
-        mapping.addWidget(QLabel(self.tr("Uncertainty/weight")), 2, 0)
+        self.uncertainty_label = QLabel(self.tr("Uncertainty/weight"))
+        mapping.addWidget(self.uncertainty_label, 2, 0)
         uncertainty_row = QHBoxLayout()
         self.uncertainty_kind = QComboBox()
         self.uncertainty_kind.addItems(
@@ -172,17 +178,25 @@ class ImportMappingDialog(QDialog):
             "Fit and Monte Carlo use a Gaussian approximation on each side."))
         self.asymmetric_error.toggled.connect(self._update_error_mapping)
         self.uncertainty_kind.currentIndexChanged.connect(self._update_error_mapping)
+        self.asymmetric_error.toggled.connect(self._suggest_error_columns)
+        self.uncertainty_kind.currentIndexChanged.connect(self._suggest_error_columns)
         self._update_error_mapping()
         layout.addWidget(mapping_box)
         y_buttons = QHBoxLayout()
         self.select_all_y_button = QPushButton(self.tr("Select all Y columns"))
         self.deselect_all_y_button = QPushButton(self.tr("Deselect all Y columns"))
-        self.select_all_y_button.clicked.connect(lambda: _set_list_checked(self.y_columns, True))
+        self.select_all_y_button.clicked.connect(self._select_all_import_y)
         self.deselect_all_y_button.clicked.connect(lambda: _set_list_checked(self.y_columns, False))
         y_buttons.addWidget(self.select_all_y_button)
         y_buttons.addWidget(self.deselect_all_y_button)
         y_buttons.addStretch(1)
         layout.addLayout(y_buttons)
+        from curvemole.gui.import_spectra import SpectrumMappingEditor
+        self.spectra_editor = SpectrumMappingEditor(self)
+        layout.addWidget(self.spectra_editor)
+        self.separated_files.toggled.connect(self._separated_mode_changed)
+        self.y_columns.itemChanged.connect(self._y_selection_changed)
+        self.spectra_editor.structure.currentIndexChanged.connect(self._update_mapping_controls)
 
         self.apply_all = QCheckBox(self.tr("Apply this mapping to all files in this batch"))
         self.apply_all.setChecked(batch_size > 1)
@@ -208,6 +222,8 @@ class ImportMappingDialog(QDialog):
         )
 
     def mapping(self) -> ColumnMapping:
+        if self.separated_files.isChecked() and len(self.inspection.columns) > 2:
+            return self.spectra_editor.mapping()
         selected_y = [
             self.y_columns.item(index).text()
             for index in range(self.y_columns.count())
@@ -220,11 +236,16 @@ class ImportMappingDialog(QDialog):
         )
         kind = self.uncertainty_kind.currentText()
         column = self.uncertainty_column.currentData()
+        if (not self.asymmetric_error.isChecked()
+                and self.uncertainty_kind.currentIndex() > 0 and column is None):
+            raise ValueError(self.tr("Select the error/weight column."))
         if self.asymmetric_error.isChecked():
             mapping.error_y_plus = self.error_plus_column.currentData()
             mapping.error_y_minus = self.error_minus_column.currentData()
             if mapping.error_y_plus is None or mapping.error_y_minus is None:
                 raise ValueError(self.tr("Select both Y error + and Y error − columns."))
+            if mapping.error_y_plus == mapping.error_y_minus:
+                raise ValueError(self.tr("Asymmetric errors require two distinct error columns."))
             mapping.error_confidence_level = self.error_confidence.value() / 100
         elif kind == self.tr("Y error (confidence interval)"):
             if column is None:
@@ -239,16 +260,84 @@ class ImportMappingDialog(QDialog):
             mapping.variance = column
         elif kind == self.tr("Inverse variance"):
             mapping.inverse_variance = column
+        axes = {mapping.x, *mapping.y}
+        for name in ("sigma_x", "sigma_y", "weights", "variance", "inverse_variance",
+                     "error_y_plus", "error_y_minus"):
+            if getattr(mapping, name) is not None and getattr(mapping, name) in axes:
+                raise ValueError(self.tr("An error/weight column is already assigned as X or Y."))
         return mapping
+
+    def _select_all_import_y(self) -> None:
+        self.y_columns.blockSignals(True)
+        for row in range(self.y_columns.count()):
+            self.y_columns.item(row).setCheckState(
+                Qt.CheckState.Checked if row != self.x_column.currentIndex()
+                else Qt.CheckState.Unchecked)
+        self.y_columns.blockSignals(False)
+        self.spectra_editor.sync_shared()
+
+    def _y_selection_changed(self, item: QListWidgetItem) -> None:
+        if not self.separated_files.isChecked() and item.checkState() == Qt.CheckState.Checked:
+            self.y_columns.blockSignals(True)
+            for row in range(self.y_columns.count()):
+                other = self.y_columns.item(row)
+                if other is not item:
+                    other.setCheckState(Qt.CheckState.Unchecked)
+            self.y_columns.blockSignals(False)
+        self._suggest_error_columns()
+
+    def _separated_mode_changed(self, *_: Any) -> None:
+        if not self.separated_files.isChecked():
+            selected = [self.y_columns.item(row) for row in range(self.y_columns.count())
+                        if self.y_columns.item(row).checkState() == Qt.CheckState.Checked]
+            if selected:
+                self._y_selection_changed(selected[0])
+        self.spectra_editor.sync_shared()
+        self._update_mapping_controls()
+        if hasattr(self, "spectrum_preview"):
+            self.spectrum_preview.schedule()
+
+    def _update_mapping_controls(self, *_: Any) -> None:
+        multiple = len(self.inspection.columns) > 2
+        self.separated_files.setVisible(multiple)
+        separated = multiple and self.separated_files.isChecked()
+        self.spectra_editor.setVisible(separated)
+        shared = self.spectra_editor.structure.currentData() == "shared"
+        self.x_column.setEnabled(not separated or shared)
+        self.y_columns.setEnabled(not separated or shared)
+        self.select_all_y_button.setVisible(separated and shared)
+        self.deselect_all_y_button.setVisible(separated and shared)
+        for widget in (self.uncertainty_label, self.uncertainty_kind,
+                       self.uncertainty_column, self.asymmetric_error):
+            widget.setVisible(not separated)
+        self._update_error_mapping()
+
+    def _suggest_error_columns(self, *_: Any) -> None:
+        if self.separated_files.isChecked():
+            return
+        selected = [row for row in range(self.y_columns.count())
+                    if self.y_columns.item(row).checkState() == Qt.CheckState.Checked]
+        if not selected:
+            return
+        y = selected[0]
+        def adjacent(offset: int) -> str | None:
+            index = y + offset
+            return self.inspection.columns[index] if index < len(self.inspection.columns) else None
+        if self.asymmetric_error.isChecked():
+            self.error_plus_column.setCurrentIndex(max(0, self.error_plus_column.findData(adjacent(1))))
+            self.error_minus_column.setCurrentIndex(max(0, self.error_minus_column.findData(adjacent(2))))
+        elif self.uncertainty_kind.currentIndex() > 0:
+            self.uncertainty_column.setCurrentIndex(max(0, self.uncertainty_column.findData(adjacent(1))))
 
     def _update_error_mapping(self, *_: Any) -> None:
         asymmetric = self.asymmetric_error.isChecked()
+        separated = self.separated_files.isChecked()
         self.uncertainty_kind.setEnabled(not asymmetric)
         self.uncertainty_column.setEnabled(not asymmetric)
         for widget in (self.error_plus_column, self.error_minus_column,
                        self.error_plus_label, self.error_minus_label):
-            widget.setVisible(asymmetric)
-        confidence = asymmetric or self.uncertainty_kind.currentText() == self.tr("Y error (confidence interval)")
+            widget.setVisible(asymmetric and not separated)
+        confidence = not separated and (asymmetric or self.uncertainty_kind.currentText() == self.tr("Y error (confidence interval)"))
         self.error_confidence.setVisible(confidence)
         self.error_confidence_label.setVisible(confidence)
 
@@ -274,24 +363,35 @@ class ImportMappingDialog(QDialog):
                 self.preview.setItem(row, column, QTableWidgetItem(str(frame.iat[row, column])))
         self.preview.resizeColumnsToContents()
         previous_x = self.x_column.currentText()
+        previous_x_index = self.x_column.currentIndex()
+        previous_y_indices = {index for index in range(self.y_columns.count())
+                              if self.y_columns.item(index).checkState() == Qt.CheckState.Checked}
         previous_y = {
             self.y_columns.item(index).text()
             for index in range(self.y_columns.count())
             if self.y_columns.item(index).checkState() == Qt.CheckState.Checked
         }
         columns = [str(value) for value in frame.columns]
+        retain_positions = self.x_column.count() == len(columns)
+        self.x_column.blockSignals(True)
         self.x_column.clear()
         self.x_column.addItems(columns)
         if previous_x in columns:
             self.x_column.setCurrentText(previous_x)
+        elif retain_positions and previous_x_index >= 0:
+            self.x_column.setCurrentIndex(previous_x_index)
+        self.x_column.blockSignals(False)
+        self.y_columns.blockSignals(True)
         self.y_columns.clear()
         for index, column in enumerate(columns):
             item = QListWidgetItem(column)
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            checked = (index in previous_y_indices if retain_positions else column in previous_y)
             item.setCheckState(
-                Qt.CheckState.Checked if column in previous_y or (not previous_y and index == 1) else Qt.CheckState.Unchecked
+                Qt.CheckState.Checked if checked or (not previous_y and index == 1) else Qt.CheckState.Unchecked
             )
             self.y_columns.addItem(item)
+        self.y_columns.blockSignals(False)
         for combo in (self.sigma_x, self.uncertainty_column, self.error_plus_column, self.error_minus_column):
             old = combo.currentData()
             combo.clear()
@@ -300,6 +400,10 @@ class ImportMappingDialog(QDialog):
                 combo.addItem(column, column)
             selected = combo.findData(old)
             combo.setCurrentIndex(max(0, selected))
+        if len(columns) <= 2:
+            self.separated_files.setChecked(False)
+        self.spectra_editor.set_columns(columns)
+        self._update_mapping_controls()
 
     def _accept(self) -> None:
         name = self.series_name.text().strip()

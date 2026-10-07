@@ -54,7 +54,7 @@ class SpectrumImportPreview(QWidget):
         dialog = self.dialog
         try:
             mapping = dialog.mapping()
-            if not mapping.y:
+            if not mapping.y and not mapping.pairs and not mapping.spectra:
                 self.label.setText("Spectrum preview — select at least one Y column")
                 return
             config = dialog.config()
@@ -101,8 +101,9 @@ class SpectrumImportPreview(QWidget):
                 self.label.setText(f"Spectrum preview — {dialog.path.name}")
             else:
                 self.label.setText("Spectrum preview — no finite X/Y pairs")
-            self.graph.setLabel("bottom", str(mapping.x))
-            self.graph.setLabel("left", ", ".join(str(y) for y in mapping.y))
+            x_labels = list(dict.fromkeys(curve.x_label for curve in curves))
+            self.graph.setLabel("bottom", x_labels[0] if len(x_labels) == 1 else "X (per spectrum)")
+            self.graph.setLabel("left", ", ".join(curve.y_label for curve in curves))
         except Exception as exc:
             self.label.setText("Spectrum preview unavailable")
             self.label.setToolTip(str(exc))

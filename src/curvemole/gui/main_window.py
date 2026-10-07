@@ -1462,7 +1462,7 @@ class MainWindow(QMainWindow):
                 curves = import_file(path, shared_mapping, shared_config)
                 for curve in curves:
                     curve.colour = PALETTE[(len(self.project.curves) + len(series.curves)) % len(PALETTE)]
-                    if len(paths) > 1:
+                    if len(paths) > 1 and not (shared_mapping.as_separated_files or shared_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
                     series.add(curve)
             self.project.add_series(series)

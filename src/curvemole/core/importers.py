@@ -6,7 +6,7 @@ import csv
 import re
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -43,8 +43,16 @@ class ColumnMapping:
     error_y_plus: str | int | None = None
     error_y_minus: str | int | None = None
     error_confidence_level: float = 0.95
+    as_separated_files: bool = False
+    spectra: list[ColumnMapping] = field(default_factory=list)
 
     def validate(self) -> None:
+        if self.spectra:
+            for spectrum in self.spectra:
+                if spectrum.spectra or spectrum.pairs or len(spectrum.y) != 1:
+                    raise DataValidationError("Each spectrum must have one X and one Y column.")
+                spectrum.validate()
+            return
         if not self.pairs and (self.x is None or not self.y):
             raise DataValidationError(
                 "Choose an x column and at least one y column, or x-y pairs."
@@ -64,6 +72,43 @@ class ColumnMapping:
             raise DataValidationError(
                 "Choose one uncertainty type: sigma_y, asymmetric errors, weights, variance, or inverse variance."
             )
+
+
+def repeated_spectrum_mappings(
+    column_count: int,
+    *,
+    y_per_x: int = 1,
+    error_kind: str = "none",
+    first_column: int = 0,
+) -> list[ColumnMapping]:
+    """Expand an explicitly chosen positional pattern, without inspecting labels."""
+    error_fields = {
+        "none": (),
+        "sigma_y": ("sigma_y",),
+        "interval": ("error_y_plus",),
+        "asymmetric": ("error_y_plus", "error_y_minus"),
+        "weights": ("weights",),
+        "variance": ("variance",),
+        "inverse_variance": ("inverse_variance",),
+    }
+    if error_kind not in error_fields or y_per_x < 1 or first_column < 0:
+        raise DataValidationError("Invalid repeated column pattern.")
+    fields = error_fields[error_kind]
+    stride = 1 + len(fields)
+    group_width = 1 + y_per_x * stride
+    spectra = []
+    for x in range(first_column, column_count, group_width):
+        for offset in range(y_per_x):
+            y = x + 1 + offset * stride
+            if y + len(fields) >= column_count:
+                break
+            spectrum = ColumnMapping(x=x, y=[y])
+            for index, name in enumerate(fields, 1):
+                setattr(spectrum, name, y + index)
+            if error_kind == "interval":
+                spectrum.error_y_minus = spectrum.error_y_plus
+            spectra.append(spectrum)
+    return spectra
 
 
 @dataclass(slots=True)
@@ -193,33 +238,56 @@ class ImportPreview:
 
 def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportConfig,
                        frame: pd.DataFrame, warnings: list[str]) -> list[Curve]:
+    spectra = mapping.spectra or [
+        replace(mapping, x=x, y=[y], pairs=[])
+        for x, y in (mapping.pairs or [(mapping.x, y) for y in mapping.y])
+    ]
+    if mapping.as_separated_files or mapping.spectra:
+        axes = set()
+        y_columns = set()
+        for spectrum in spectra:
+            x_name = _column_name(frame, spectrum.x)
+            y_name = _column_name(frame, spectrum.y[0])
+            if x_name == y_name or y_name in y_columns:
+                raise DataValidationError("Each spectrum must have a distinct Y column, different from X.")
+            axes.update((x_name, y_name))
+            y_columns.add(y_name)
+        if any(_column_name(frame, spectrum.x) in y_columns for spectrum in spectra):
+            raise DataValidationError("A column cannot be assigned as both X and Y.")
+        for spectrum in spectra:
+            for name in ("sigma_x", "sigma_y", "weights", "variance", "inverse_variance",
+                         "error_y_plus", "error_y_minus"):
+                column = getattr(spectrum, name)
+                if column is not None and _column_name(frame, column) in axes:
+                    raise DataValidationError("An error/weight column is already assigned as X or Y.")
     numeric_columns = {f"c{i}": _numeric(frame[name], selected.decimal)
                        for i, name in enumerate(frame.columns, 1)}
     labels = {f"c{i}": str(name) for i, name in enumerate(frame.columns, 1)}
     column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
-    pairs = mapping.pairs or [(mapping.x, y) for y in mapping.y]
     curves: list[Curve] = []
-    for x_column, y_column in pairs:
+    for spectrum in spectra:
+        x_column, y_column = spectrum.x, spectrum.y[0]
         x_name = _column_name(frame, x_column)
         y_name = _column_name(frame, y_column)
         x = _numeric(frame[x_name], selected.decimal)
         y = _numeric(frame[y_name], selected.decimal)
-        sigma_x = _optional_numeric(frame, mapping.sigma_x, selected.decimal)
-        sigma_y = _optional_numeric(frame, mapping.sigma_y, selected.decimal)
-        weights = _optional_numeric(frame, mapping.weights, selected.decimal)
-        if mapping.variance is not None:
-            variance = _optional_numeric(frame, mapping.variance, selected.decimal)
+        sigma_x = _optional_numeric(frame, spectrum.sigma_x, selected.decimal)
+        sigma_y = _optional_numeric(frame, spectrum.sigma_y, selected.decimal)
+        weights = _optional_numeric(frame, spectrum.weights, selected.decimal)
+        if spectrum.variance is not None:
+            variance = _optional_numeric(frame, spectrum.variance, selected.decimal)
             assert variance is not None
             with np.errstate(invalid="ignore"):
                 sigma_y = np.sqrt(variance)
-        if mapping.inverse_variance is not None:
+        if spectrum.inverse_variance is not None:
             weights = _optional_numeric(
                 frame,
-                mapping.inverse_variance,
+                spectrum.inverse_variance,
                 selected.decimal,
             )
         curve = Curve(
-            name=source.stem,
+            name=(str(y_name) if selected.header else f"Y — column {frame.columns.get_loc(y_name) + 1}")
+            if mapping.as_separated_files or mapping.spectra else source.stem,
             original_x=x,
             original_y=y,
             original_columns=numeric_columns,
@@ -227,11 +295,11 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             column_axes={"x": column_keys[x_name], "y": column_keys[y_name]},
             sigma_x=sigma_x,
             sigma_y=sigma_y,
-            error_y_plus=_optional_numeric(frame, mapping.error_y_plus, selected.decimal),
-            error_y_minus=_optional_numeric(frame, mapping.error_y_minus, selected.decimal),
-            error_confidence_level=mapping.error_confidence_level,
+            error_y_plus=_optional_numeric(frame, spectrum.error_y_plus, selected.decimal),
+            error_y_minus=_optional_numeric(frame, spectrum.error_y_minus, selected.decimal),
+            error_confidence_level=spectrum.error_confidence_level,
             weights=weights,
-            weights_are_inverse_variance=mapping.weights is None,
+            weights_are_inverse_variance=spectrum.weights is None,
             x_label=str(x_name),
             y_label=str(y_name),
             source=str(source.resolve()),
@@ -244,9 +312,15 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                     "skip_rows": selected.skip_rows,
                     "x_column": str(x_name),
                     "y_column": str(y_name),
-                    "error_y_plus_column": mapping.error_y_plus,
-                    "error_y_minus_column": mapping.error_y_minus,
-                    "error_confidence_level": mapping.error_confidence_level,
+                    "sigma_x_column": spectrum.sigma_x,
+                    "sigma_y_column": spectrum.sigma_y,
+                    "weights_column": spectrum.weights,
+                    "variance_column": spectrum.variance,
+                    "inverse_variance_column": spectrum.inverse_variance,
+                    "error_y_plus_column": spectrum.error_y_plus,
+                    "error_y_minus_column": spectrum.error_y_minus,
+                    "error_confidence_level": spectrum.error_confidence_level,
+                    "as_separated_files": mapping.as_separated_files or bool(mapping.spectra),
                     "warnings": warnings,
                 }
             },

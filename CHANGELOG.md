@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Add an optional "as separated files" import mode for tables with more than two
+  columns. Map a shared X, explicit repeated XY/XYY groups, or custom X/Y pairs
+  to spectra named after their Y columns, with independent errors and confidence
+  levels. Error selectors initially use the column(s) immediately to the right
+  of Y; column names never infer the mapping.
+
+### Changed
+
+- Keep ordinary graphical imports on one active Y, retaining all source columns.
+
 ## [0.39.1] - 2026-10-07
 
 ### Changed

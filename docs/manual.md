@@ -709,10 +709,36 @@ when the quick preview is unavailable, then configured in the mapping dialog.
 
 ### 6.3 Column mapping
 
-Choose exactly one x column and one or more y columns. Each selected y column becomes
-a separate curve sharing the selected x column. Use **Select all Y columns** or
-**Deselect all Y columns** when importing tables with many signals. The Python API
-additionally supports explicit x-y column pairs.
+Ordinary imports select one X and one active Y. All original columns remain
+available in the imported curve. For files with more than two columns, the
+**as separated files** checkbox appears directly below the Y selection. Hover
+over it for an explanation. Enabling it imports independent spectra in the same
+series, named after their Y headers (or `Y - column N` without headers); it does
+not create files on disk.
+
+Choose the structure explicitly:
+
+- **Shared X:** check multiple Y columns, all using the selected X. **Select all
+  Y columns** selects every column except X; deselect any error or auxiliary
+  columns before importing.
+- **Repeated groups:** choose the first column, number of Ys per X, and error
+  type per Y, then click **Apply pattern**. One Y per X produces `XYXY...`; two
+  produces `XYYXYY...`. With symmetric errors these become `XYE...` or
+  `XYEYE...`; asymmetric errors use `YE+E-` for each Y. Review or edit the
+  resulting associations. Incomplete trailing spectra are excluded, and the
+  unassigned column numbers are shown below the table.
+- **Custom:** add or remove spectrum rows and choose any X/Y associations,
+  including nonadjacent columns and irregular groups. Switching from repeated
+  groups to Custom retains the generated rows for editing.
+
+Column names never infer the structure, axes, or error columns. Each table row
+has its own error/weight type, error columns, and confidence level. When an
+error type is enabled, its selector initially uses the column immediately
+to the right of Y; asymmetric errors select the next two columns as error +
+and error -, respectively. These defaults can be changed. Missing columns or
+errors overlapping an assigned X/Y must be resolved before importing. Error
+types initially remain **None**. The same adjacent-column defaults apply to
+ordinary imports when errors are enabled.
 
 Optional columns are:
 
@@ -724,7 +750,7 @@ Optional columns are:
 - inverse variance.
 
 Only one of `sigma_y`, confidence-interval errors, generic weight, variance, or inverse variance can be selected
-for a given import. Variance is converted to `sigma_y` by square root. `sigma_x` is
+for a given spectrum. Variance is converted to `sigma_y` by square root. `sigma_x` is
 stored in the project but is not used by the version 0.39.1 optimizer.
 
 For confidence intervals, choose **Y error (confidence interval)** and one symmetric
@@ -751,6 +777,10 @@ When importing multiple files, **Apply this mapping to all files in this batch**
 reuses the first file's parsing and column mapping. Enable it only if all files truly
 share a layout. CurveMole does not silently guess a new mapping for an incompatible
 file in the same batch.
+
+Separated-spectrum mappings reuse column positions, so files with the same
+layout can have different headers. Each spectrum keeps the Y name from its
+own file. Ordinary batch mappings continue to use the selected column names.
 
 Files are imported in natural filename order: `scan_2` precedes `scan_10`, regardless
 of the order returned by the file chooser.

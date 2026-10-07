@@ -362,11 +362,14 @@ def test_bulk_selection_controls(tmp_path) -> None:
     data = tmp_path / "multi.csv"
     data.write_text("x,y1,y2\n0,1,2\n1,2,3\n", encoding="utf-8")
     importer = ImportMappingDialog(data)
+    importer.separated_files.setChecked(True)
     importer.select_all_y_button.click()
+    assert importer.y_columns.item(0).checkState() == Qt.CheckState.Unchecked
     assert all(
         importer.y_columns.item(index).checkState() == Qt.CheckState.Checked
-        for index in range(importer.y_columns.count())
+        for index in range(1, importer.y_columns.count())
     )
+    assert len(importer.mapping().spectra) == 2
     importer.deselect_all_y_button.click()
     assert all(
         importer.y_columns.item(index).checkState() == Qt.CheckState.Unchecked
