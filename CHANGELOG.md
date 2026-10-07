@@ -5,6 +5,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Show Background and Initialize with points checkboxes below the Quick Add
+  function selector, retaining the choices for each function and applying them
+  to the next insertion. Finish Quick Add with right-click or Return/Enter,
+  including point-based insertion when the required points are present.
+
 ## [0.38.2] - 2026-10-06
 
 ### Fixed

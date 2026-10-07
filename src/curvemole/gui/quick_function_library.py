@@ -12,13 +12,16 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QInputDialog,
     QMessageBox,
     QToolBar,
+    QVBoxLayout,
+    QWidget,
 )
 
 from curvemole.core.functions import formula_definition
@@ -146,6 +149,7 @@ def _refresh_quick_function_selector(
         selector.setToolTip(selector.itemData(index, Qt.ItemDataRole.ToolTipRole) or "")
     finally:
         selector.blockSignals(False)
+    _sync_quick_add_options(window)
 
 
 def _remember_quick_function(window: MainWindow, function_id: str) -> None:
@@ -165,6 +169,7 @@ def _remember_quick_function(window: MainWindow, function_id: str) -> None:
             selector.blockSignals(True)
             selector.setCurrentIndex(index)
             selector.blockSignals(False)
+    _sync_quick_add_options(window, definition.identifier)
 
 
 def _selected_quick_function(window: MainWindow) -> str:
@@ -238,6 +243,42 @@ def _quick_add_option(window: MainWindow, function_id: str, option: str, default
     return bool(value)
 
 
+def _sync_quick_add_options(window: MainWindow, function_id: str | None = None) -> None:
+    background = getattr(window, "quick_add_background", None)
+    points = getattr(window, "quick_add_manual_points", None)
+    if background is None or points is None:
+        return
+    identifier = function_id or window.quick_function_selector.currentData()
+    background.setEnabled(bool(identifier))
+    points.setEnabled(bool(identifier))
+    if not identifier:
+        return
+    from curvemole.gui.manual_points import manual_points_default
+
+    definition = window.registry.get(str(identifier))
+    with QSignalBlocker(background), QSignalBlocker(points):
+        background.setChecked(_quick_add_option(window, str(identifier), "background", False))
+        points.setChecked(_quick_add_option(
+            window, str(identifier), "manual_points", manual_points_default(definition)))
+
+
+def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) -> None:
+    identifier = window.quick_function_selector.currentData()
+    if not identifier:
+        return
+    window.settings.setValue(f"quick_add/{identifier}/{option}", checked)
+    workspace = window.plot_workspace
+    if not getattr(workspace, "_quick_add_placement", False):
+        return
+    if option == "background":
+        if window._pending_component is not None:
+            window._pending_component.is_background = checked
+    else:
+        # Placement modes have different point requirements. Restart the pending
+        # insertion when that choice changes, retaining already completed peaks.
+        window.quick_peak()
+
+
 def _quick_add_function(window: MainWindow) -> None:
     if not window._ensure_editable():
         return
@@ -263,9 +304,11 @@ def _quick_add_function(window: MainWindow) -> None:
                 window.plot_workspace.begin_manual_point_placement(
                     definition.display_name, function_id, minimum_manual_points(component)
                 )
+                window.plot_workspace.mark_quick_add_placement()
                 window._notify(window.tr("Quick Add Function: select points on the graph, then press Finish."))
                 return
             window.plot_workspace.begin_peak_placement(definition.display_name)
+            window.plot_workspace.mark_quick_add_placement()
             window._notify(
                 window.tr(
                     "Quick Add Function: click the peak centre and drag horizontally to set its initial FWHM."
@@ -306,6 +349,7 @@ def _quick_add_function(window: MainWindow) -> None:
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
             window.plot_workspace.begin_spline_placement(definition.display_name)
+            window.plot_workspace.mark_quick_add_placement()
             window._notify(
                 window.tr(
                     "Quick Add Function: click spline points on the graph and finish after at least two points."
@@ -327,6 +371,7 @@ def _quick_add_function(window: MainWindow) -> None:
             window.plot_workspace.begin_manual_point_placement(
                 definition.display_name, function_id, minimum_manual_points(component)
             )
+            window.plot_workspace.mark_quick_add_placement()
             window._notify(
                 window.tr("Quick Add Function: select points on the graph, then press Finish.")
             )
@@ -536,15 +581,33 @@ def _install() -> None:
         toolbar = window.findChild(QToolBar, "Main_toolbar")
         if toolbar is None:
             return
-        selector = QComboBox(toolbar)
+        choices = QWidget(toolbar)
+        layout = QVBoxLayout(choices)
+        layout.setContentsMargins(0, 2, 0, 2)
+        layout.setSpacing(1)
+        selector = QComboBox(choices)
         selector.setObjectName("quick_function_selector")
         selector.setMinimumWidth(150)
         selector.setMaximumWidth(240)
         selector.setToolTip(window.tr("Function used by Quick Add Function"))
         window.quick_function_selector = selector
+        layout.addWidget(selector)
+        window.quick_add_background = QCheckBox(window.tr("Background"), choices)
+        window.quick_add_background.setObjectName("quick_add_background")
+        window.quick_add_background.setToolTip(window.tr("Mark the function added by Quick Add as background."))
+        layout.addWidget(window.quick_add_background)
+        window.quick_add_manual_points = QCheckBox(window.tr("Initialize with points"), choices)
+        window.quick_add_manual_points.setObjectName("quick_add_manual_points")
+        window.quick_add_manual_points.setToolTip(window.tr("Initialize Quick Add functions from selected graph points."))
+        layout.addWidget(window.quick_add_manual_points)
+        window.quick_add_options = choices
         _refresh_quick_function_selector(window)
         selector.currentIndexChanged.connect(lambda *_: _selector_changed(window))
-        toolbar.insertWidget(window._fit_toolbar_separator, selector)
+        window.quick_add_background.toggled.connect(
+            lambda checked: _quick_add_option_changed(window, "background", checked))
+        window.quick_add_manual_points.toggled.connect(
+            lambda checked: _quick_add_option_changed(window, "manual_points", checked))
+        toolbar.insertWidget(window._fit_toolbar_separator, choices)
 
     def connect_signals(window: MainWindow) -> None:
         original_connect_signals(window)

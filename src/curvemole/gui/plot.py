@@ -65,6 +65,7 @@ class MaskViewBox(pg.ViewBox):
         super().__init__(enableMenu=True)
         self.mask_mode = False
         self.interaction_mode: str | None = None
+        self.quick_add_placement = False
         self._context_menu_event = None
         self._context_menu_timer = QTimer(self)
         self._context_menu_timer.setSingleShot(True)
@@ -76,6 +77,14 @@ class MaskViewBox(pg.ViewBox):
             self.raiseContextMenu(event)
 
     def mouseClickEvent(self, event: Any) -> None:
+        if (
+            self.quick_add_placement
+            and self.interaction_mode is not None
+            and event.button() == Qt.MouseButton.RightButton
+        ):
+            self.placementFinishRequested.emit()
+            event.accept()
+            return
         if self.interaction_mode == "peak" and event.button() == Qt.MouseButton.LeftButton:
             point = self.mapSceneToView(event.scenePos())
             self.peakPlacementRequested.emit(float(point.x()), float(point.y()), 0.0)
@@ -206,6 +215,7 @@ class PlotWorkspace(QWidget):
         self._updating_handles = False
         self._view_locked = False
         self._placement_mode: str | None = None
+        self._quick_add_placement = False
         self._peak_preview: tuple[float, float, float] | None = None
         self._spline_points: list[tuple[float, float]] = []
         self._placement_items: list[Any] = []
@@ -406,6 +416,11 @@ class PlotWorkspace(QWidget):
         )
         self._cancel_shortcut = QShortcut(QKeySequence("Esc"), self)
         self._cancel_shortcut.activated.connect(self.cancel_placement)
+        self._quick_add_return = QShortcut(QKeySequence("Return"), self)
+        self._quick_add_enter = QShortcut(QKeySequence("Enter"), self)
+        for shortcut in (self._quick_add_return, self._quick_add_enter):
+            shortcut.setEnabled(False)
+            shortcut.activated.connect(lambda: self.finish_placement())
 
     def plot_appearance(self) -> dict[str, Any]:
         return dict(self._plot_appearance)
@@ -962,6 +977,19 @@ class PlotWorkspace(QWidget):
         self._update_interaction_state()
         self._sync_placement_mouse_targets()
 
+    def mark_quick_add_placement(self) -> None:
+        """Enable Quick Add finish gestures for the placement just started."""
+        if self._placement_mode is None:
+            return
+        self._quick_add_placement = True
+        self.view_box.quick_add_placement = True
+        self.view_box._context_menu_timer.stop()
+        self.view_box._context_menu_event = None
+        self._quick_add_return.setEnabled(True)
+        self._quick_add_enter.setEnabled(True)
+        if self._placement_mode == "spline":
+            self._update_spline_instruction()
+
     def cancel_placement(self) -> None:
         if self._placement_mode is None:
             return
@@ -1110,6 +1138,10 @@ class PlotWorkspace(QWidget):
     def _end_placement(self) -> None:
         self._clear_placement_items()
         self._placement_mode = None
+        self._quick_add_placement = False
+        self.view_box.quick_add_placement = False
+        self._quick_add_return.setEnabled(False)
+        self._quick_add_enter.setEnabled(False)
         self._placement_name = ""
         self._peak_preview = None
         self._spline_points = []
@@ -1162,6 +1194,22 @@ class PlotWorkspace(QWidget):
 
     def _update_spline_instruction(self) -> None:
         count = len(self._spline_points)
+        if self._quick_add_placement:
+            self.placement_label.setText(
+                self.tr(
+                    "Place spline nodes anywhere: left-click adds a point, "
+                    "left-drag pans, and the mouse wheel zooms. "
+                    "Adding points never changes the current zoom. The curve updates live. "
+                )
+                + f"{count} "
+                + self.tr(
+                    "point(s). Add at least two, then right-click, press Enter or Finish, "
+                    "or left double-click. Esc cancels."
+                )
+            )
+            self.undo_point_button.setEnabled(count > 0)
+            self.finish_placement_button.setEnabled(count >= 2)
+            return
         self.placement_label.setText(
             self.tr(
                 "Place spline nodes anywhere: left-click adds a point, right-click removes the nearest point, "

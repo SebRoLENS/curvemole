@@ -68,6 +68,9 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+          # CTracer can deadlock while tracing Qt callbacks and background saves.
+          # Keep branch measurement using the Python tracer for this GUI suite.
+          COVERAGE_CORE: pytrace
         run: |
           coverage=()
           if [[ "$RUNNER_OS" == Linux && "${{ matrix.python }}" == 3.12 ]]; then

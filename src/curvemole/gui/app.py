@@ -13,7 +13,7 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QCoreApplication, QEvent, QLocale, QObject, Qt, QTimer
-from PySide6.QtGui import QAction, QFileOpenEvent, QKeySequence, QShortcut
+from PySide6.QtGui import QAction, QFileOpenEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from curvemole.core.fitting import FitMode, FitResult
@@ -213,18 +213,6 @@ def _install_continuous_peak_placement() -> None:
         original_init(workspace, *args, **kwargs)
         workspace._continuous_peak_placement = False
         workspace._continuous_peak_done = False
-        workspace._continuous_peak_return = QShortcut(QKeySequence("Return"), workspace)
-        workspace._continuous_peak_enter = QShortcut(QKeySequence("Enter"), workspace)
-        workspace._continuous_peak_return.activated.connect(
-            lambda: workspace.finish_placement()
-            if getattr(workspace, "_continuous_peak_placement", False)
-            else None
-        )
-        workspace._continuous_peak_enter.activated.connect(
-            lambda: workspace.finish_placement()
-            if getattr(workspace, "_continuous_peak_placement", False)
-            else None
-        )
 
     def begin_continuous_peak_placement(workspace: PlotWorkspace, name: str) -> None:
         original_begin_peak(workspace, name)
@@ -236,9 +224,10 @@ def _install_continuous_peak_placement() -> None:
             workspace.tr("Quick Peak — ")
             + name
             + workspace.tr(
-                ": click/drag to add peaks repeatedly. Press Enter, Esc, or Finish when done."
+                ": click/drag to add peaks repeatedly. Right-click or press Enter, Esc, or Finish when done."
             )
         )
+        workspace.mark_quick_add_placement()
 
     def finish_peak(workspace: PlotWorkspace, x: float, y: float, fwhm: float) -> None:
         if not getattr(workspace, "_continuous_peak_placement", False):
@@ -350,7 +339,7 @@ class CurveMoleMainWindow(MainWindow):
         self.quick_peak_action.setToolTip(
             self.tr(
                 "Quick Add Function\nUse the function selected in the adjacent list. "
-                "Press Enter, Esc, or Finish to stop."
+                "Right-click or press Enter, Esc, or Finish to stop."
             )
         )
 
@@ -438,7 +427,7 @@ class CurveMoleMainWindow(MainWindow):
         self.plot_workspace.begin_continuous_peak_placement(definition.display_name)
         self._notify(
             self.tr(
-                "Quick Peak is active: add peaks repeatedly, then press Enter, Esc, or Finish."
+                "Quick Peak is active: add peaks repeatedly, then right-click or press Enter, Esc, or Finish."
             )
         )
 
