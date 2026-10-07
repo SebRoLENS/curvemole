@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.40.0] - 2026-10-07
+
 ### Added
 
 - Add an optional "as separated files" import mode for tables with more than two
