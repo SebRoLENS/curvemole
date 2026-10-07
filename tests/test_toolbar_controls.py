@@ -27,7 +27,7 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                window.plot_workspace.mask_action, window.import_action,
                window.open_action, window.save_action, window.undo_action,
                window.redo_action, window.calculator_action, window.notebook_action,
-               window.add_component_action, window.quick_peak_action,
+               window.add_component_action,
                window.fit_action, window.quick_fit_action, window.cancel_action,
                window.subtract_background_action)
     for action in actions:
@@ -37,6 +37,13 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
         button = toolbar.widgetForAction(action)
         assert isinstance(button, QToolButton)
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    assert window.quick_peak_action not in toolbar.actions()
+    assert window.quick_add_button.defaultAction() is window.quick_peak_action
+    assert window.quick_add_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert not window.quick_add_button.icon().isNull()
+    assert window.quick_add_group.isAncestorOf(window.quick_add_button)
+    quick_group_action = next(action for action in toolbar.actions()
+                              if toolbar.widgetForAction(action) is window.quick_add_group)
     ordered = toolbar.actions()
     assert ordered.index(window.auto_axes_action) < ordered.index(window.subtract_background_action)
     assert ordered.index(window.subtract_background_action) < ordered.index(window.background_subtracted_view_action)
@@ -46,6 +53,8 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     assert ordered[ordered.index(window.revert_background_action) + 1].isSeparator()
     assert ordered[ordered.index(window.plot_workspace.mask_action) + 1].isSeparator()
     assert ordered.index(window.add_component_action) < ordered.index(window.fit_action)
+    assert ordered.index(window.add_component_action) < ordered.index(quick_group_action)
+    assert ordered.index(quick_group_action) < ordered.index(window.fit_action)
     assert ordered.index(window.cancel_action) < ordered.index(window.calculator_action)
     assert ordered.index(window.calculator_action) + 1 == ordered.index(window.notebook_action)
     assert window.background_subtracted_view_action.isCheckable()

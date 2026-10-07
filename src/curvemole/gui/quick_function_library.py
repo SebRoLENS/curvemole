@@ -12,14 +12,18 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import QSignalBlocker, Qt
+from PySide6.QtCore import QSignalBlocker, QSize, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QFileDialog,
+    QFrame,
+    QHBoxLayout,
     QInputDialog,
+    QLabel,
     QMessageBox,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -235,9 +239,9 @@ def _load_user_function_library(window: MainWindow) -> None:
     _refresh_quick_function_selector(window)
 
 
-def _quick_add_option(window: MainWindow, function_id: str, option: str, default: bool) -> bool:
-    """Reuse the last accepted Add Function choice for the selected function."""
-    value = window.settings.value(f"quick_add/{function_id}/{option}", default)
+def _quick_add_option(window: MainWindow, function_id: str, option: str) -> bool:
+    """Recall only explicit choices from Quick Add; both options default off."""
+    value = window.settings.value(f"quick_add_controls/{function_id}/{option}", False)
     if isinstance(value, str):
         return value.lower() in {"true", "1", "yes"}
     return bool(value)
@@ -253,20 +257,16 @@ def _sync_quick_add_options(window: MainWindow, function_id: str | None = None) 
     points.setEnabled(bool(identifier))
     if not identifier:
         return
-    from curvemole.gui.manual_points import manual_points_default
-
-    definition = window.registry.get(str(identifier))
     with QSignalBlocker(background), QSignalBlocker(points):
-        background.setChecked(_quick_add_option(window, str(identifier), "background", False))
-        points.setChecked(_quick_add_option(
-            window, str(identifier), "manual_points", manual_points_default(definition)))
+        background.setChecked(_quick_add_option(window, str(identifier), "background"))
+        points.setChecked(_quick_add_option(window, str(identifier), "manual_points"))
 
 
 def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) -> None:
     identifier = window.quick_function_selector.currentData()
     if not identifier:
         return
-    window.settings.setValue(f"quick_add/{identifier}/{option}", checked)
+    window.settings.setValue(f"quick_add_controls/{identifier}/{option}", checked)
     workspace = window.plot_workspace
     if not getattr(workspace, "_quick_add_placement", False):
         return
@@ -294,12 +294,12 @@ def _quick_add_function(window: MainWindow) -> None:
 
         if definition.kind == "peak":
             component = Component.create(function_id, registry=window.registry)
-            component.is_background = _quick_add_option(window, function_id, "background", False)
+            component.is_background = _quick_add_option(window, function_id, "background")
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
-            from curvemole.gui.manual_points import manual_points_default, minimum_manual_points
+            from curvemole.gui.manual_points import minimum_manual_points
 
-            if _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
+            if _quick_add_option(window, function_id, "manual_points"):
                 window._pending_manual_points = True
                 window.plot_workspace.begin_manual_point_placement(
                     definition.display_name, function_id, minimum_manual_points(component)
@@ -324,10 +324,9 @@ def _quick_add_function(window: MainWindow) -> None:
                 name=definition.display_name,
                 parameters={},
             )
-            component.is_background = _quick_add_option(window, function_id, "background", False)
-            from curvemole.gui.manual_points import manual_points_default
+            component.is_background = _quick_add_option(window, function_id, "background")
 
-            if not _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
+            if not _quick_add_option(window, function_id, "manual_points"):
                 curve = window.project.dataset.curve(window.active_curve_id)
                 finite = np.isfinite(curve.x) & np.isfinite(curve.y)
                 if not np.any(finite):
@@ -343,7 +342,7 @@ def _quick_add_function(window: MainWindow) -> None:
                 )
                 for index, node in enumerate(nodes):
                     component.parameters[f"y{index}"].value = float(np.interp(node, xs[order], ys[order]))
-                component.is_background = _quick_add_option(window, function_id, "background", False)
+                component.is_background = _quick_add_option(window, function_id, "background")
                 window._commit_component(component, window.active_curve_id)
                 return
             window._pending_component = component
@@ -358,13 +357,10 @@ def _quick_add_function(window: MainWindow) -> None:
             return
 
         component = Component.create(function_id, registry=window.registry)
-        component.is_background = _quick_add_option(window, function_id, "background", False)
-        # Quick Add should use the same preferred placement as Add component.
-        # In particular, Linear is defined by two clicks on the plot, rather
-        # than silently inserting a line with default slope and intercept.
-        from curvemole.gui.manual_points import manual_points_default, minimum_manual_points
+        component.is_background = _quick_add_option(window, function_id, "background")
+        from curvemole.gui.manual_points import minimum_manual_points
 
-        if _quick_add_option(window, function_id, "manual_points", manual_points_default(definition)):
+        if _quick_add_option(window, function_id, "manual_points"):
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
             window._pending_manual_points = True
@@ -581,10 +577,45 @@ def _install() -> None:
         toolbar = window.findChild(QToolBar, "Main_toolbar")
         if toolbar is None:
             return
-        choices = QWidget(toolbar)
+        reference = toolbar.widgetForAction(window.add_component_action)
+        toolbar.removeAction(window.quick_peak_action)
+        group = QFrame(toolbar)
+        group.setObjectName("quick_add_group")
+        group.setFrameShape(QFrame.Shape.StyledPanel)
+        group.setStyleSheet(
+            "QFrame#quick_add_group { border: 1px solid palette(mid); border-radius: 4px; }"
+        )
+        if reference is not None:
+            group.setMaximumHeight(reference.sizeHint().height())
+        group_layout = QHBoxLayout(group)
+        group_layout.setContentsMargins(2, 0, 2, 0)
+        group_layout.setSpacing(2)
+        launch = QWidget(group)
+        launch_layout = QVBoxLayout(launch)
+        launch_layout.setContentsMargins(0, 0, 0, 0)
+        launch_layout.setSpacing(0)
+        title = QLabel(window.tr("Quick Add"), launch)
+        title_font = title.font()
+        title_font.setBold(True)
+        if title_font.pointSizeF() > 0:
+            title_font.setPointSizeF(max(8.0, title_font.pointSizeF() - 1.0))
+        title.setFont(title_font)
+        launch_layout.addWidget(title)
+        button = QToolButton(launch)
+        button.setObjectName("quick_add_button")
+        button.setDefaultAction(window.quick_peak_action)
+        button.setText(window.tr("Add"))
+        # Icon/theme updates propagate QAction's longer menu title to its
+        # buttons. Keep the compact label while sharing the canonical action.
+        window.quick_peak_action.changed.connect(lambda: button.setText(window.tr("Add")))
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        button.setIconSize(QSize(16, 16))
+        launch_layout.addWidget(button)
+        group_layout.addWidget(launch)
+        choices = QWidget(group)
         layout = QVBoxLayout(choices)
-        layout.setContentsMargins(0, 2, 0, 2)
-        layout.setSpacing(1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         selector = QComboBox(choices)
         selector.setObjectName("quick_function_selector")
         selector.setMinimumWidth(150)
@@ -595,11 +626,19 @@ def _install() -> None:
         window.quick_add_background = QCheckBox(window.tr("Background"), choices)
         window.quick_add_background.setObjectName("quick_add_background")
         window.quick_add_background.setToolTip(window.tr("Mark the function added by Quick Add as background."))
-        layout.addWidget(window.quick_add_background)
+        option_row = QHBoxLayout()
+        option_row.setContentsMargins(0, 0, 0, 0)
+        option_row.setSpacing(2)
+        option_row.addWidget(window.quick_add_background)
         window.quick_add_manual_points = QCheckBox(window.tr("Initialize with points"), choices)
         window.quick_add_manual_points.setObjectName("quick_add_manual_points")
         window.quick_add_manual_points.setToolTip(window.tr("Initialize Quick Add functions from selected graph points."))
-        layout.addWidget(window.quick_add_manual_points)
+        option_row.addWidget(window.quick_add_manual_points)
+        layout.addLayout(option_row)
+        group_layout.addWidget(choices)
+        window.quick_add_group = group
+        window.quick_add_button = button
+        window.quick_add_title = title
         window.quick_add_options = choices
         _refresh_quick_function_selector(window)
         selector.currentIndexChanged.connect(lambda *_: _selector_changed(window))
@@ -607,7 +646,7 @@ def _install() -> None:
             lambda checked: _quick_add_option_changed(window, "background", checked))
         window.quick_add_manual_points.toggled.connect(
             lambda checked: _quick_add_option_changed(window, "manual_points", checked))
-        toolbar.insertWidget(window._fit_toolbar_separator, choices)
+        toolbar.insertWidget(window._fit_toolbar_separator, group)
 
     def connect_signals(window: MainWindow) -> None:
         original_connect_signals(window)

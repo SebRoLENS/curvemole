@@ -161,6 +161,13 @@ def test_real_application_selector_controls_all_function_types(window, monkeypat
     selector.setCurrentIndex(selector.findData("gaussian"))
     assert window._pending_component.function_id == "gaussian"
     selector.setCurrentIndex(selector.findData("cubic_spline"))
+    assert window._pending_component is None
+    assert window.plot_workspace._placement_mode is None
+    spline = window.project.model_for(window.active_curve_id).components[-1]
+    assert spline.function_id == "cubic_spline"
+    assert all(not parameter.fixed for parameter in spline.parameters.values())
+    window.quick_add_manual_points.setChecked(True)
+    window.quick_peak_action.trigger()
     assert window._pending_component.function_id == "cubic_spline"
     assert window.plot_workspace._placement_mode == "spline"
     selector.setCurrentIndex(selector.findData("constant"))

@@ -61,6 +61,7 @@ def test_quick_add_can_add_a_generic_function() -> None:
     index = window.quick_function_selector.findData("linear")
     assert index >= 0
     window.quick_function_selector.setCurrentIndex(index)
+    window.quick_add_manual_points.setChecked(True)
     window.quick_peak()
 
     assert window.plot_workspace._placement_mode == "spline"

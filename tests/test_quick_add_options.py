@@ -4,7 +4,14 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtTest import QSignalSpy, QTest
-from PySide6.QtWidgets import QApplication, QCheckBox, QStyle, QStyleFactory, QStyleOptionButton
+from PySide6.QtWidgets import (
+    QApplication,
+    QCheckBox,
+    QStyle,
+    QStyleFactory,
+    QStyleOptionButton,
+    QToolBar,
+)
 
 from curvemole import Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
@@ -81,10 +88,11 @@ def test_visible_choices_configure_and_add_quick_peak(quick_window, background, 
     points_box = window.quick_add_manual_points
     assert selector.parent() is background_box.parent() is points_box.parent()
     assert selector.geometry().bottom() < background_box.geometry().top()
-    assert background_box.geometry().bottom() < points_box.geometry().top()
+    assert background_box.geometry().top() == points_box.geometry().top()
+    assert background_box.geometry().right() < points_box.geometry().left()
     set_checked(app, background_box, background)
     set_checked(app, points_box, points)
-    window.quick_add_function_action.trigger()
+    QTest.mouseClick(window.quick_add_button, Qt.MouseButton.LeftButton)
     workspace = window.plot_workspace
     assert window._pending_component.is_background == background
     assert workspace._quick_add_placement
@@ -116,8 +124,8 @@ def test_choices_follow_function_and_persist_on_reopening(quick_window):
     selector = window.quick_function_selector
     selector.setCurrentIndex(selector.findData("linear"))
     assert not window.quick_add_background.isChecked()
-    assert window.quick_add_manual_points.isChecked()
-    set_checked(app, window.quick_add_manual_points, False)
+    assert not window.quick_add_manual_points.isChecked()
+    set_checked(app, window.quick_add_manual_points, True)
     selector.setCurrentIndex(selector.findData("gaussian"))
     assert window.quick_add_background.isChecked()
     assert window.quick_add_manual_points.isChecked()
@@ -127,11 +135,56 @@ def test_choices_follow_function_and_persist_on_reopening(quick_window):
         assert other.quick_add_background.isChecked()
         assert other.quick_add_manual_points.isChecked()
         other.quick_function_selector.setCurrentIndex(other.quick_function_selector.findData("linear"))
-        assert not other.quick_add_manual_points.isChecked()
+        assert other.quick_add_manual_points.isChecked()
     finally:
         other.project.dirty = False
         other.close()
         app.processEvents()
+
+
+@pytest.mark.parametrize("function_id", ["gaussian", "linear", "cubic_spline"])
+def test_both_options_start_off_and_ignore_legacy_add_preferences(quick_window, function_id):
+    _app, window = quick_window
+    window.settings.setValue(f"quick_add/{function_id}/background", True)
+    window.settings.setValue(f"quick_add/{function_id}/manual_points", True)
+    window.quick_function_selector.setCurrentIndex(window.quick_function_selector.findData(function_id))
+    window._refresh_quick_function_selector()
+    assert not window.quick_add_background.isChecked()
+    assert not window.quick_add_manual_points.isChecked()
+    window.quick_peak()
+    if function_id == "gaussian":
+        assert not window._pending_component.is_background
+        assert window.plot_workspace._continuous_peak_placement
+    else:
+        component = window.project.model_for(window.project.curves[0].id).components[-1]
+        assert component.function_id == function_id
+        assert not component.is_background
+        assert all(not parameter.fixed for parameter in component.parameters.values())
+        assert window.plot_workspace._placement_mode is None
+
+
+@pytest.mark.parametrize("theme", ["light", "dark"])
+@pytest.mark.parametrize("width", [960, 1440])
+def test_quick_add_group_contains_button_and_does_not_raise_toolbar_height(quick_window, theme, width):
+    app, window = quick_window
+    window.apply_theme(theme)
+    window.resize(width, 700)
+    app.processEvents()
+    toolbar = window.findChild(QToolBar, "Main_toolbar")
+    group = window.quick_add_group
+    reference = toolbar.widgetForAction(window.add_component_action)
+    assert toolbar.widgetForAction(window.quick_peak_action) is None
+    assert group.isAncestorOf(window.quick_add_button)
+    assert group.isAncestorOf(window.quick_function_selector)
+    assert group.isAncestorOf(window.quick_add_background)
+    assert group.isAncestorOf(window.quick_add_manual_points)
+    assert window.quick_add_title.text() == "Quick Add"
+    assert window.quick_add_button.defaultAction() is window.quick_peak_action
+    assert not window.quick_add_button.icon().isNull()
+    assert window.quick_add_button.text() == "Add"
+    assert group.isVisible()
+    assert group.height() <= reference.sizeHint().height()
+    assert toolbar.height() <= reference.sizeHint().height() + 10
 
 
 def test_background_choice_updates_next_peak_in_active_quick_add(quick_window):

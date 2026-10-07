@@ -5,6 +5,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Group the Quick Add launch button, function selector and options in one compact
+  bordered toolbar control without increasing the height of neighboring buttons.
+  Default Background and Initialize with points to off for every function, and
+  remember only explicit Quick Add choices independently of the normal Add dialog.
+
 ## [0.39.0] - 2026-10-07
 
 ### Added

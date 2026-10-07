@@ -46,8 +46,8 @@ def _click_point(app, workspace, x, y, button=Qt.MouseButton.LeftButton):
 
 
 def _start_quick_add(app, main, function_id, *, manual_points=True):
-    main.settings.setValue(f"quick_add/{function_id}/manual_points", manual_points)
-    main.settings.setValue(f"quick_add/{function_id}/background", False)
+    main.settings.setValue(f"quick_add_controls/{function_id}/manual_points", manual_points)
+    main.settings.setValue(f"quick_add_controls/{function_id}/background", False)
     main.quick_function_selector.setCurrentIndex(main.quick_function_selector.findData(function_id))
     main.quick_peak()
     main.plot_workspace.graphics.setFocus()

@@ -604,7 +604,9 @@ reported. The complete copy is undoable.
 
 ### 5.5 Quick actions
 
-The main toolbar includes **Quick Add Function** and an adjacent function selector.
+The main toolbar includes a bordered **Quick Add** group with an **Add** button,
+a function selector and two options. Its compact layout keeps the toolbar at the
+same height as the other buttons.
 The selector contains the complete current registry: built-ins, project formulas,
 reusable user formulas, and loaded plugin functions. CurveMole remembers the last
 selection across sessions and also updates it when a function is added through the
@@ -612,10 +614,11 @@ ordinary Add dialog.
 
 The **Background** and **Initialize with points** checkboxes below the selector
 configure the next Quick Add insertion. The choices are remembered for each
-function and stay in sync with its last accepted Add component choices. Linear
-and Cubic spline default to manual points; normal peaks use centre/FWHM click-drag
-placement. Functions whose point initialization is off are otherwise added
-immediately. During Quick Add, right-click or press Return/Enter to finish, just
+function only after explicitly changing them here. Both start off, including
+for Linear and Cubic spline; the regular Add dialog's choices are independent.
+Normal peaks use centre/FWHM click-drag placement. Other functions whose point
+initialization is off are added immediately. During Quick Add, right-click or
+press Return/Enter to finish, just
 like **Finish**. Point placement still requires its minimum number of points.
 Section 8 describes point placement, initial locking and graphical controls.
 
@@ -1155,25 +1158,28 @@ masked measurements do not contribute to the objective function.
 
 ### 8.4 Quick Add Function
 
-Choose a registered function from the selector beside **Quick Add Function** in the
-main toolbar. The list includes built-in peaks and backgrounds, generic functions,
+Choose a registered function from the selector inside the **Quick Add** toolbar
+group and press its **Add** button. The list includes built-in peaks and backgrounds, generic functions,
 project-contained formulas, reusable formulas, and trusted plugin functions. The last
 choice is remembered. Below the selector, check **Background** to mark the added
 function as background and **Initialize with points** to initialize it from graph
-points. Clearing the latter uses the function's normal insertion mode.
+points. Both options default to off. Clearing point initialization uses the
+function's normal insertion mode.
 
 - a peak with manual-point initialization off allows repeated centre/FWHM
   click-drags until **Finish**, right-click or Return/Enter ends Quick Add;
-- a cubic spline normally opens point-by-point node placement;
-- Linear normally opens manual-point placement; other functions can use it when
+- a cubic spline with **Initialize with points** enabled opens point-by-point
+  node placement;
+- Linear and other functions use manual-point placement only when explicitly
   enabled using **Initialize with points**;
 - functions with point initialization off are added with their initial parameters;
   a spline in this mode uses an initial node grid with free y parameters.
 
 Quick Add therefore uses the same registry and initialization logic as the normal Add
 dialog. Selecting a function in the normal Add dialog also makes it the next Quick Add
-choice. The manual-point and background options chosen in Add component are also
-remembered for Quick Add separately for each function.
+choice. Quick Add remembers its own manual-point and background options separately
+for each function. It does not inherit options from the normal Add dialog or its
+older shared preferences.
 In Quick Add point placement, right-click and Return/Enter commit the same points
 as **Finish**, provided the minimum has been reached; otherwise placement stays
 active. **Undo point** removes the most recent point. In the regular Add dialog's
