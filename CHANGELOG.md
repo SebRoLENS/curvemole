@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.39.0] - 2026-10-07
+
 ### Added
 
 - Show Background and Initialize with points checkboxes below the Quick Add

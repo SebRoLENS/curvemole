@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.38.2}
+\ohead{Version 0.39.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.38.2\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.39.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.38.2}
+\subtitle{Preview 0.39.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.38.2}
+\date{Updated for CurveMole 0.39.0}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.38.2 Preview. The Markdown file is the authoritative source.
+CurveMole 0.39.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.38.2 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.39.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.38.2
-describes CurveMole 0.38.2.
+an independent document version. For example, a manual marked 0.39.0
+describes CurveMole 0.39.0.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.38.2{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.38.2{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.39.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.39.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.38.2{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.39.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.38.2{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.39.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{39}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.38.2{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.39.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{38}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{39}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1205,12 +1205,15 @@ functions. CurveMole remembers the last selection across sessions and
 also updates it when a function is added through the ordinary Add
 dialog.
 
-Quick Add uses the insertion choice last confirmed for that function in
-Add component. Linear and Cubic spline default to manual points; normal
-peaks use centre/FWHM click-drag placement. Functions whose point
-initialization is off are otherwise added immediately. Click Quick Add
-again to add another function. Section 8 describes point placement,
-initial locking and graphical controls.
+The \textbf{Background} and \textbf{Initialize with points} checkboxes
+below the selector configure the next Quick Add insertion. The choices
+are remembered for each function and stay in sync with its last accepted
+Add component choices. Linear and Cubic spline default to manual points;
+normal peaks use centre/FWHM click-drag placement. Functions whose point
+initialization is off are otherwise added immediately. During Quick Add,
+right-click or press Return/Enter to finish, just like \textbf{Finish}.
+Point placement still requires its minimum number of points. Section 8
+describes point placement, initial locking and graphical controls.
 
 The toolbar also provides the most common project, model, fitting,
 background, and calculator actions as icons. Hover over an icon to see
@@ -1376,7 +1379,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 import. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.38.2 optimizer.
+version 0.39.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -1968,18 +1971,22 @@ Choose a registered function from the selector beside \textbf{Quick Add
 Function} in the main toolbar. The list includes built-in peaks and
 backgrounds, generic functions, project-contained formulas, reusable
 formulas, and trusted plugin functions. The last choice is remembered.
+Below the selector, check \textbf{Background} to mark the added function
+as background and \textbf{Initialize with points} to initialize it from
+graph points. Clearing the latter uses the function's normal insertion
+mode.
 
 \begin{itemize}
 \tightlist
 \item
-  a peak with manual-point initialization off opens centre/FWHM
-  placement and finishes after one click-drag; click Quick Add again for
-  another peak;
+  a peak with manual-point initialization off allows repeated
+  centre/FWHM click-drags until \textbf{Finish}, right-click or
+  Return/Enter ends Quick Add;
 \item
   a cubic spline normally opens point-by-point node placement;
 \item
   Linear normally opens manual-point placement; other functions can use
-  it when enabled in the Add dialog;
+  it when enabled using \textbf{Initialize with points};
 \item
   functions with point initialization off are added with their initial
   parameters; a spline in this mode uses an initial node grid with free
@@ -1990,7 +1997,11 @@ Quick Add therefore uses the same registry and initialization logic as
 the normal Add dialog. Selecting a function in the normal Add dialog
 also makes it the next Quick Add choice. The manual-point and background
 options chosen in Add component are also remembered for Quick Add
-separately for each function.
+separately for each function. In Quick Add point placement, right-click
+and Return/Enter commit the same points as \textbf{Finish}, provided the
+minimum has been reached; otherwise placement stays active. \textbf{Undo
+point} removes the most recent point. In the regular Add dialog's point
+placement, right-click continues to remove the nearest point.
 
 \hypertarget{adding-a-peak-with-the-pointer}{%
 \section{8.5 Adding a peak with the
@@ -2894,7 +2905,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.38.2 does not yet provide a single comprehensive on-screen
+Preview 0.39.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -4627,8 +4638,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.38.2) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.38.2
+(Version 0.39.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.39.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -4856,9 +4867,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.38.2-limitations}{%
-\chapter{Appendix D. Preview 0.38.2
-limitations}\label{appendix-d.-preview-0.38.2-limitations}}
+\hypertarget{appendix-d.-preview-0.39.0-limitations}{%
+\chapter{Appendix D. Preview 0.39.0
+limitations}\label{appendix-d.-preview-0.39.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 
