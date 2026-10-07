@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.39.1] - 2026-10-07
+
 ### Changed
 
 - Group the Quick Add launch button, function selector and options in one compact
