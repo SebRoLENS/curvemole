@@ -1,19 +1,24 @@
 # Cosmic-ray removal
 
 An interactive CurveMole panel for finding and selectively repairing narrow,
-positive cosmic-ray spikes in one-dimensional spectra. The original and cleaned
-preview are overlaid before anything is changed. Every candidate has its own
+positive cosmic-ray spikes in one-dimensional spectra. Correction segments and
+candidate markers appear directly on CurveMole's main graph before anything is
+changed. Every candidate has its own
 **Apply** checkbox, so a suspicious correction on top of a real band can be
 rejected while the other corrections are retained.
 
 ## Use
 
 1. Select a spectrum and choose a detection method.
-2. Press **Detect automatically**. Review the overlay and candidate table.
+2. Press **Detect automatically**. Review the main graph and candidate table.
+   Teal segments preview accepted corrections. Click a coloured marker or select
+   its table row to highlight the affected interval and enlarge its marker.
 3. Uncheck corrections that should not be applied. **Select all** and **Select
    none** are available for convenience.
 4. To add a missed event, enable **Detect manually** and click it in the
-   embedded plot. `Grow candidate` controls the number of neighbouring points.
+   main graph. `Grow candidate` controls the number of neighbouring points.
+   Right-drag pans and the wheel zooms. **Done/Esc** ends manual detection;
+   switching to another editing tool also ends point selection.
 5. Press **Accept modifications**. This replaces only the accepted intervals in
    the selected spectrum and creates one normal CurveMole undo step.
 
@@ -28,15 +33,19 @@ refreshes its preview and clears detection candidates that refer to the old data
 Deletion removes measured rows, keeping errors and other columns aligned; it does
 not interpolate a replacement. At least two points must remain.
 
+The panel contains controls and a candidate table; it does not create a second
+spectrum plot. Native axes, zoom, errors, models, masks, background subtraction
+and Waterfall display remain available. Closing or hiding the panel removes its
+annotations and stops point selection. Reopening it restores unchanged candidates;
+changing the active spectrum or its data clears stale candidates.
+
 The panel opens automatically and remains a normal dockable CurveMole panel.
 Accepted intervals and detection settings are stored in spectrum metadata.
 On current CurveMole versions, preview refreshes check only the active spectrum
 and copy its data only when it changes. Repeated-spectrum detection copies only
-the selected acquisitions. Hidden panels pause preview polling. Version 0.4.0
-keeps compatibility fallbacks for older hosts: detection and accepted repairs
-remain available, while **Remove manually** is disabled when the host does not
-provide the native point-editing plugin service. **Remove manually requires
-CurveMole 0.41.1 or later.**
+the selected acquisitions. Hidden panels pause preview polling.
+Version 0.5.0 uses CurveMole's generic plugin plot service; older hosts show an
+upgrade message before offering these controls.
 
 ## Detection methods
 

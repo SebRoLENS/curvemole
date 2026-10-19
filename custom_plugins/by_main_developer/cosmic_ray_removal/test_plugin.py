@@ -10,6 +10,28 @@ from curvemole.core.plugins import PluginManager
 from curvemole.gui.plugin_host import PluginContext
 
 
+def preview_session():
+    from PySide6.QtCore import QObject, Signal
+
+    class Preview(QObject):
+        sampleClicked = Signal(int)
+        markerClicked = Signal(int)
+        pickingChanged = Signal(bool)
+        invalidated = Signal()
+        closed = False
+
+        def set_preview(self, **kwargs):
+            self.preview = kwargs
+
+        def set_picking(self, enabled, **kwargs):
+            self.pickingChanged.emit(enabled)
+
+        def close(self):
+            self.closed = True
+
+    return Preview()
+
+
 def smooth_spectrum():
     x = np.linspace(100.0, 1200.0, 1400)
     y = 30 + 0.01 * x + 400 * np.exp(-0.5 * ((x - 620) / 22) ** 2)
@@ -131,6 +153,12 @@ def test_panel_previews_and_commits_only_checked_candidates():
     class Services:
         values = None
         metadata = None
+        preview = None
+
+        def plot_session(self, curve_id):
+            if self.preview is None or self.preview.closed:
+                self.preview = preview_session()
+            return self.preview
 
         def snapshot(self):
             return PluginContext(deepcopy(project), curve.id, (curve.id,), cosmic.OWNER)
@@ -284,6 +312,110 @@ def test_remove_manually_uses_native_editor_and_refreshes_after_move_delete_and_
         app.processEvents()
 
 
+def test_main_graph_detection_review_accept_undo_and_panel_lifecycle(tmp_path, monkeypatch):
+    import pyqtgraph as pg
+    from PySide6.QtCore import QPointF, QSettings, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.core.extensions import Contribution
+    from curvemole.gui.app import CurveMoleMainWindow
+    from curvemole.gui.plugin_services import PluginServices
+
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.Format.IniFormat)
+    monkeypatch.setattr('curvemole.gui.main_window.QSettings', lambda *args: settings)
+    monkeypatch.setenv('CURVEMOLE_DISABLE_PLUGINS', '1')
+    x, clean = smooth_spectrum()
+    measured = clean.copy()
+    measured[900] += 900
+    project = Project('Main graph corrections')
+    curve = Curve('Measured', x, measured)
+    project.add_curve(curve)
+    main = CurveMoleMainWindow(project)
+    main.resize(1400, 900)
+    main.show()
+    app.processEvents()
+    monkeypatch.setattr(extensions, 'entries', {
+        cosmic.OWNER: Contribution(cosmic.OWNER, cosmic.OWNER, 'Cosmic', 'panels', lambda ctx: None)
+    })
+    services = PluginServices(main.plugin_host, cosmic.OWNER)
+    panel = cosmic.cosmic_ray_panel(services.spectrum_snapshot())
+    panel.timer.stop()
+    panel.show()
+
+    def click_sample(index):
+        app.processEvents()
+        ws = main.plot_workspace
+        scene = ws.view_box.mapViewToScene(QPointF(curve.x[index], curve.y[index]))
+        QTest.mouseClick(ws.graphics.viewport(), Qt.MouseButton.LeftButton,
+                        pos=ws.graphics.mapFromScene(scene))
+        app.processEvents()
+
+    try:
+        assert not panel.findChildren(pg.PlotWidget)
+        panel.detect()
+        session = panel._plot_session
+        assert len(panel.candidates) == 1
+        assert len(session._segments) == len(session._markers) == 1
+        assert all(item in main.plot_workspace.plot.items for item in session._items)
+        click_sample(900)
+        assert panel.table.currentRow() == 0
+        assert session._interval == (panel.candidates[0].start, panel.candidates[0].end)
+        np.testing.assert_array_equal(curve.y, measured)
+        assert main.undo_stack.count() == 0
+        panel.manual.setChecked(True)
+        assert session.picking
+        panel.hide()
+        app.processEvents()
+        assert session.closed and not panel.manual.isChecked()
+        assert not main.plot_workspace._plugin_plot_sessions
+        assert len(panel.candidates) == 1
+        panel.show()
+        app.processEvents()
+        assert panel._plot_session is not session and not panel._plot_session.closed
+        panel.set_all(False)
+        assert not panel._plot_session._segments and len(panel._plot_session._markers) == 1
+        panel.set_all(True)
+        panel.apply()
+        assert main.undo_stack.count() == 1 and not panel.candidates
+        assert not main.plot_workspace._plugin_plot_sessions
+        assert abs(curve.y[900] - clean[900]) < 0.1
+        main.undo_stack.undo()
+        panel.refresh()
+        np.testing.assert_array_equal(curve.y, measured)
+        panel.manual.setChecked(True)
+        click_sample(900)
+        assert len(panel.candidates) == 1 and panel.candidates[0].source == 'Manual'
+        np.testing.assert_array_equal(curve.y, measured)
+        session = panel._plot_session
+        extensions.entries.clear()
+        session._poll()
+        assert session.closed and not panel.candidates and not panel.manual.isChecked()
+    finally:
+        panel.close()
+        panel.deleteLater()
+        main.project.dirty = False
+        main.close()
+        main.deleteLater()
+        app.processEvents()
+
+
+def test_old_host_shows_upgrade_requirement_without_an_embedded_graph():
+    import pyqtgraph as pg
+    from PySide6.QtWidgets import QApplication, QLabel
+
+    app = QApplication.instance() or QApplication([])
+    panel = cosmic.cosmic_ray_panel(PluginContext(project=Project('Old host'), services=object(),
+                                                 active_curve_id=None, selected_curve_ids=[], owner=cosmic.OWNER))
+    try:
+        assert not panel.findChildren(pg.PlotWidget)
+        assert any('0.42.0' in label.text() for label in panel.findChildren(QLabel))
+    finally:
+        panel.deleteLater()
+        app.processEvents()
+
+
 def test_large_project_panel_polls_without_copying_unrelated_spectra(monkeypatch):
     from types import SimpleNamespace
 
@@ -328,6 +460,7 @@ def test_large_project_panel_polls_without_copying_unrelated_spectra(monkeypatch
         return original(include_selected=include_selected)
 
     monkeypatch.setattr(services, "spectrum_snapshot", snapshot)
+    monkeypatch.setattr(services, "plot_session", lambda curve_id: preview_session())
     context = PluginContext(project, curves[0].id, (), cosmic.OWNER, services=services)
     panel = cosmic.cosmic_ray_panel(context)
     panel.timer.stop()

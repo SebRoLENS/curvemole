@@ -65,6 +65,7 @@ class MaskViewBox(pg.ViewBox):
         super().__init__(enableMenu=True)
         self.mask_mode = False
         self.interaction_mode: str | None = None
+        self.plugin_marker_callback = lambda scene_position: False
         self.quick_add_placement = False
         self._context_menu_event = None
         self._context_menu_timer = QTimer(self)
@@ -77,6 +78,15 @@ class MaskViewBox(pg.ViewBox):
             self.raiseContextMenu(event)
 
     def mouseClickEvent(self, event: Any) -> None:
+        if self.interaction_mode == 'plugin_points' and event.button() == Qt.MouseButton.LeftButton:
+            self.plugin_session.pick(event.scenePos())
+            event.accept()
+            return
+        if (self.interaction_mode is None and not self.mask_mode
+                and event.button() == Qt.MouseButton.LeftButton
+                and self.plugin_marker_callback(event.scenePos())):
+            event.accept()
+            return
         if self.interaction_mode == "data_points" and event.button() == Qt.MouseButton.LeftButton:
             self.point_editor.select_at(event.scenePos())
             event.accept()
@@ -141,6 +151,9 @@ class MaskViewBox(pg.ViewBox):
         super().mouseClickEvent(event)
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:
+        if self.interaction_mode == 'plugin_points' and event.button() == Qt.MouseButton.LeftButton:
+            event.accept()
+            return
         if self.interaction_mode == "data_points" and event.button() == Qt.MouseButton.LeftButton:
             if event.isStart():
                 self.point_editor.begin_drag(event.buttonDownScenePos())
@@ -179,7 +192,7 @@ class MaskViewBox(pg.ViewBox):
                     self.unmaskRangeRequested.emit(float(start.x()), float(end.x()))
             event.accept()
             return
-        if self.interaction_mode in {None, "data_points"} and event.button() == Qt.MouseButton.RightButton:
+        if self.interaction_mode in {None, "data_points", "plugin_points"} and event.button() == Qt.MouseButton.RightButton:
             self._context_menu_timer.stop()
             self._context_menu_event = None
             event.accept()
@@ -437,6 +450,16 @@ class PlotWorkspace(QWidget):
         from curvemole.gui.data_point_editor import DataPointEditor
         self.point_editor = DataPointEditor(self)
         layout.insertWidget(layout.indexOf(self.graphics), self.point_editor)
+        self._plugin_plot_sessions = {}
+        self.view_box.plugin_marker_callback = self._plugin_marker_clicked
+
+    def _plugin_marker_clicked(self, scene_position):
+        for session in reversed(list(self._plugin_plot_sessions.values())):
+            marker = session.marker_at(scene_position)
+            if marker is not None:
+                session.markerClicked.emit(marker)
+                return True
+        return False
 
     def plot_appearance(self) -> dict[str, Any]:
         return dict(self._plot_appearance)
@@ -514,6 +537,8 @@ class PlotWorkspace(QWidget):
         project_changed = project is not self._project
         active_curve_changed = active_curve_id != self._active_curve_id
         if project_changed or active_curve_changed:
+            for session in list(self._plugin_plot_sessions.values()):
+                session._invalidate()
             self.point_editor.finish()
         self._project = project
         self._active_curve_id = active_curve_id
@@ -605,6 +630,8 @@ class PlotWorkspace(QWidget):
         self._placement_items.clear()
         project = self._project
         if project is None or not project.curves:
+            for session in list(self._plugin_plot_sessions.values()):
+                session._invalidate()
             self.plot.setTitle(self.tr("Import data to begin"))
             return
         appearance = self._plot_appearance
@@ -784,6 +811,8 @@ class PlotWorkspace(QWidget):
         self._layout_component_labels()
         self._render_placement_preview()
         self.point_editor.refresh()
+        for session in list(self._plugin_plot_sessions.values()):
+            session.refresh()
         self._sync_placement_mouse_targets()
         self.plot.setTitle("")
         if initial_view:
@@ -1010,6 +1039,9 @@ class PlotWorkspace(QWidget):
             self._update_spline_instruction()
 
     def cancel_placement(self) -> None:
+        for session in list(self._plugin_plot_sessions.values()):
+            if session.picking:
+                session.set_picking(False)
         if self.point_editor.active:
             self.point_editor.finish()
         if self._placement_mode is None:
@@ -1175,7 +1207,8 @@ class PlotWorkspace(QWidget):
 
     def _sync_placement_mouse_targets(self) -> None:
         """Let placement clicks pass through plot symbols, curves and handles."""
-        if self._placement_mode is None and not self.point_editor.active:
+        if (self._placement_mode is None and not self.point_editor.active
+                and self.view_box.interaction_mode != 'plugin_points'):
             for item, (buttons, enabled) in self._placement_mouse_targets.items():
                 if isValid(item):
                     item.setAcceptedMouseButtons(buttons)

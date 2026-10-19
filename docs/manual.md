@@ -2875,6 +2875,20 @@ A panel may open automatically when its plugin is enabled; monitoring still requ
 an explicit start. Closing a monitor panel does not stop acquisition. Read each
 plugin's own README for its scientific assumptions, controls and dependencies.
 
+Plugins can also preview corrections, mark candidates and select measured points
+directly in the main graph, using the spectrum's normal axes, masks and display
+settings. Previews leave measured data unchanged until the plugin's explicit
+accept action. Point selection ends with Done/Esc or when another editing tool
+is activated. Closing or hiding the panel removes its annotations.
+
+Cosmic-ray removal 0.5.0 uses this shared graph for automatic detection, manual
+detection and candidate review. Select a candidate in its table or click its
+coloured marker to highlight the affected interval; teal segments show accepted
+corrections before **Accept modifications**. **Detect manually** adds candidates
+by clicking measured samples. **Remove manually** opens the native point editor;
+its drags and deletions take effect immediately with Undo/Redo. This plugin
+version requires CurveMole 0.42.0 or later.
+
 ## 19. Troubleshooting
 
 ### 19.1 The application does not start on Linux

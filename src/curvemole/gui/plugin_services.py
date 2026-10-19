@@ -160,6 +160,25 @@ class PluginServices:
         editor.axes.setCurrentIndex(editor.axes.findData(axes))
         workspace.graphics.setFocus()
 
+    def plot_session(self, curve_id):
+        """Create/reuse an owner-scoped main-plot preview and sample-selection session."""
+        from curvemole.gui.plugin_plot import PluginPlotSession
+
+        window = self._window()
+        if curve_id is None or curve_id != window.active_curve_id:
+            raise ValueError("Select the active spectrum before opening a plot session.")
+        workspace = window.plot_workspace
+        if not any(c.id == curve_id for c in workspace.displayed_curves()):
+            raise ValueError("Show the active spectrum in the main graph first.")
+        session = workspace._plugin_plot_sessions.get(self.owner)
+        if session is not None and session._curve() is None:
+            session._invalidate()
+            session = None
+        if session is None:
+            session = PluginPlotSession(window, self.owner, curve_id)
+            workspace._plugin_plot_sessions[self.owner] = session
+        return session
+
     def select_masks(self, masks):
         """Select existing editable masks without changing fit data or fit state."""
         window = self._window()

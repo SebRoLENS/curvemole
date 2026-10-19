@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Give all GUI plugins an owner-scoped main-graph service for non-mutating
+  preview segments, clickable markers, interval highlights and measured-sample
+  selection. Previews follow log axes, masks, background subtraction and Waterfall
+  offsets; sessions expire when their spectrum or plugin becomes unavailable.
+- Move Cosmic-ray removal 0.5.0 detection, preview and candidate review into the
+  main graph. The panel keeps its controls and table, highlights selected
+  candidates, and removes annotations when hidden. Scientific detection and
+  correction logic remain entirely in the plugin; this version requires
+  CurveMole 0.42.0 or later.
+
 ## [0.41.1] - 2026-10-19
 
 ### Added

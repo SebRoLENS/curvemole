@@ -3,7 +3,7 @@
   "name": "cosmic_ray_removal",
   "description": "Detect and review cosmic-ray spikes, or manually edit and remove individual spectrum points.",
   "author": "CurveMole contributors",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "api_compatibility": "1",
   "licence": "MIT",
   "capabilities": ["panels"],

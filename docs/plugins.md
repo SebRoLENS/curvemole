@@ -349,6 +349,41 @@ errors/columns. Use this service from an explicit panel action and explain that
 individual gestures take effect immediately. It rejects stale spectrum IDs,
 hidden spectra, running calculations and read-only projects. Older hosts may
 not provide it; feature-detect it before offering the action.
+
+`plot_session(curve_id)` (CurveMole 0.42.0+) creates or reuses an owner-scoped
+preview on the active, visible spectrum in the main graph. This generic service
+does not modify data, fit results, Undo history or the view range. For example:
+
+```python
+session = context.services.plot_session(curve.id)
+session.set_preview(
+    segments=[{"indices": [10, 11, 12], "y": [4.0, 4.5, 5.0], "colour": "#008080"}],
+    markers=[{"index": 11, "colour": "#ff9900", "symbol": "o", "selected": True}],
+    selected_interval=(10, 12),
+)
+session.sampleClicked.connect(on_sample)  # current measured row index
+session.markerClicked.connect(on_marker)  # position in the supplied markers list
+session.set_picking(True, instruction="Click a measured sample. Esc finishes.")
+```
+
+Each segment supplies current row indices and matching finite Y values; each
+marker supplies a current row index, optional colour, symbol (`o`, `x`, `+`, `s`,
+`d` or `t`) and selection state. Colours and scientific meaning belong to the
+plugin. Coordinates follow native log axes, background subtraction, Waterfall
+offsets and masks. Only the supplied segments and markers are drawn; the native
+spectrum remains available with its errors, models and navigation. Normal clicks
+on markers emit `markerClicked`. In picking mode, left clicks within 12 screen
+pixels of a measured sample emit `sampleClicked`; right-drag and wheel navigation
+remain available. Done/Esc, another editing tool or a running calculation ends
+picking; `pickingChanged(bool)` allows a panel to synchronize its controls.
+
+`set_preview()` clears annotations; `set_picking(False)` stops picking;
+`close()` removes the session. Hide/close the session when its panel is hidden,
+and recreate it when appropriate. A session expires on data, project, active
+spectrum, visibility or plugin-availability changes, emits `invalidated()`, and
+sets `closed=True`. Subsequent preview/picking requests on it are rejected.
+Feature-detect `plot_session` to show a clear upgrade message on older hosts.
+
 Services reject disabled plugins; settings writes reject read-only projects and
 running fits. A settings-only action sets `context.settings_only = True` so the
 host commits only its owner-scoped `context.data`, preserving fitted states.

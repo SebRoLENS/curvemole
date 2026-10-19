@@ -254,7 +254,6 @@ def cleaned_values(y, candidates):
 
 
 def cosmic_ray_panel(context):
-    import pyqtgraph as pg
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtGui import QColor
     from PySide6.QtWidgets import (
@@ -275,6 +274,13 @@ def cosmic_ray_panel(context):
 
     services = context.services
     project_id = context.project.id
+    if not callable(getattr(services, "plot_session", None)):
+        panel = QWidget()
+        layout = QVBoxLayout(panel)
+        label = QLabel("This plugin requires CurveMole 0.42.0 or later. Update CurveMole to use its main graph.")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        return panel
 
     class CosmicRayPanel(QWidget):
         def __init__(self):
@@ -285,6 +291,7 @@ def cosmic_ray_panel(context):
             self.base_x = self.base_y = None
             self.candidates = []
             self._updating = False
+            self._plot_session = None
             layout = QVBoxLayout(self)
             self.title = QLabel("Select a spectrum, then detect or mark cosmic rays.")
             self.title.setWordWrap(True)
@@ -347,8 +354,9 @@ def cosmic_ray_panel(context):
             self.manual = QPushButton("Detect manually")
             self.manual.setCheckable(True)
             self.manual.setToolTip(
-                "Enable this mode, then click the plot to add a correction candidate manually."
+                "Enable this mode, then click a measured point in the main graph to add a candidate."
             )
+            self.manual.toggled.connect(lambda enabled: self.guard(lambda: self.set_manual_detection(enabled)))
             row.addWidget(detect)
             row.addWidget(self.manual)
             self.remove_manual = QPushButton("Remove manually")
@@ -363,13 +371,13 @@ def cosmic_ray_panel(context):
             self.remove_manual.clicked.connect(lambda: self.guard(self.remove_manually))
             row.addWidget(self.remove_manual)
             layout.addLayout(row)
-            self.plot = pg.PlotWidget()
-            self.plot.setMinimumHeight(230)
-            self.plot.setLabel("bottom", "x")
-            self.plot.setLabel("left", "Intensity")
-            self.plot.addLegend()
-            self.plot.scene().sigMouseClicked.connect(self.plot_clicked)
-            layout.addWidget(self.plot)
+            instructions = QLabel(
+                "Review candidates in CurveMole's main graph: coloured markers show confidence, "
+                "and teal segments preview accepted corrections. Select a table row or a marker "
+                "to highlight its interval. Detection changes nothing until Accept modifications."
+            )
+            instructions.setWordWrap(True)
+            layout.addWidget(instructions)
             self.table = QTableWidget(0, 7)
             self.table.setHorizontalHeaderLabels(
                 ["Apply", "Confidence", "x range", "Points", "Peak width", "Score", "Source"]
@@ -377,6 +385,7 @@ def cosmic_ray_panel(context):
             self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
             self.table.itemChanged.connect(self.table_changed)
+            self.table.itemSelectionChanged.connect(self.update_plot)
             layout.addWidget(self.table)
             row = QHBoxLayout()
             safe_button = QPushButton("Select safe only")
@@ -440,6 +449,57 @@ def cosmic_ray_panel(context):
         def showEvent(self, event):
             super().showEvent(event)
             self.refresh()
+            self.update_plot()
+
+        def hideEvent(self, event):
+            self.close_plot_session()
+            super().hideEvent(event)
+
+        def close_plot_session(self):
+            session, self._plot_session = self._plot_session, None
+            if session is not None and not session.closed:
+                session.close()
+            self.manual.blockSignals(True)
+            self.manual.setChecked(False)
+            self.manual.blockSignals(False)
+
+        def session(self):
+            if self._plot_session is None or self._plot_session.closed:
+                session = services.plot_session(self.curve_id)
+                self._plot_session = session
+                session.sampleClicked.connect(self.sample_clicked)
+                session.markerClicked.connect(self.table.selectRow)
+                session.pickingChanged.connect(self.picking_changed)
+                session.invalidated.connect(self.plot_invalidated)
+            return self._plot_session
+
+        def picking_changed(self, enabled):
+            self.manual.blockSignals(True)
+            self.manual.setChecked(enabled)
+            self.manual.blockSignals(False)
+
+        def plot_invalidated(self):
+            self._plot_session = None
+            self.picking_changed(False)
+            self.candidates = []
+            self.update_table()
+            self.accept.setEnabled(False)
+
+        def set_manual_detection(self, enabled):
+            if not enabled:
+                if self._plot_session is not None and not self._plot_session.closed:
+                    self._plot_session.set_picking(False)
+                return
+            try:
+                self.refresh()
+                self.session().set_picking(True, instruction=(
+                    "Detect manually: click a measured point to mark a correction candidate. "
+                    "Right-drag pans; the wheel zooms. Done or Esc ends detection."
+                ))
+                self.status.setText("Click cosmic-ray samples in the main graph, then review and accept candidates.")
+            except Exception:
+                self.picking_changed(False)
+                raise
 
         def refresh(self):
             self.remove_manual.setEnabled(False)
@@ -461,6 +521,7 @@ def cosmic_ray_panel(context):
                 curve = self.current(snapshot)
                 new_id = curve.id if curve else None
                 if snapshot.project.id != self.project_id or new_id != self.curve_id:
+                    self.close_plot_session()
                     self.project_id, self.curve_id = snapshot.project.id, new_id
                     self.curve_hash = curve.content_hash if curve else None
                     self.candidates = []
@@ -473,6 +534,7 @@ def cosmic_ray_panel(context):
                     self.update_table()
                     self.update_plot()
                 elif curve is not None and curve.content_hash != self.curve_hash:
+                    self.close_plot_session()
                     self.curve_hash = curve.content_hash
                     self.candidates = []
                     self.base_x, self.base_y = curve.x.copy(), curve.y.copy()
@@ -527,15 +589,9 @@ def cosmic_ray_panel(context):
             self.update_plot()
             self.status.setText(self.candidate_summary())
 
-        def plot_clicked(self, event):
-            if (
-                not self.manual.isChecked()
-                or self.base_x is None
-                or event.button() != Qt.MouseButton.LeftButton
-            ):
+        def sample_clicked(self, index):
+            if not self.manual.isChecked() or self.base_x is None:
                 return
-            point = self.plot.plotItem.vb.mapSceneToView(event.scenePos())
-            index = int(np.argmin(np.abs(self.base_x - point.x())))
             half = self.grow.value()
             start, end = max(0, index - half), min(len(self.base_y) - 1, index + half)
             try:
@@ -635,33 +691,31 @@ def cosmic_ray_panel(context):
                 self.update_plot()
 
         def update_plot(self):
-            self.accept.setEnabled(any(candidate.accepted for candidate in self.candidates))
-            self.plot.clear()
-            if self.base_x is None:
+            if self._updating:
                 return
-            self.plot.plot(
-                self.base_x, self.base_y, pen=pg.mkPen("#64748b", width=1), name="Original"
-            )
+            self.accept.setEnabled(any(candidate.accepted for candidate in self.candidates))
+            if self.base_x is None or not self.candidates:
+                if self._plot_session is not None and not self._plot_session.closed:
+                    self._plot_session.set_preview()
+                return
             preview = cleaned_values(self.base_y, self.candidates)
-            self.plot.plot(
-                self.base_x, preview, pen=pg.mkPen("#0ea5a4", width=2), name="Cleaned preview"
-            )
-            for confidence, colour in CONFIDENCE_COLOURS.items():
-                matching = [c for c in self.candidates if c.confidence == confidence]
-                if not matching:
-                    continue
-                centers = [(self.base_x[c.start] + self.base_x[c.end]) / 2 for c in matching]
-                values = [self.base_y[(c.start + c.end) // 2] for c in matching]
-                self.plot.plot(
-                    centers,
-                    values,
-                    pen=None,
-                    symbol="o" if confidence == "Safe" else "x",
-                    symbolPen=colour,
-                    symbolBrush=colour if confidence == "Safe" else None,
-                    symbolSize=10,
-                    name=confidence,
-                )
+            segments, markers = [], []
+            selected = self.table.currentRow()
+            for row, candidate in enumerate(self.candidates):
+                if candidate.accepted:
+                    indices = np.arange(max(0, candidate.start-1), min(len(preview), candidate.end+2))
+                    indices = indices[np.isfinite(self.base_x[indices]) & np.isfinite(preview[indices])]
+                    if len(indices):
+                        segments.append({'indices': indices, 'y': preview[indices], 'colour': '#0ea5a4'})
+                peak = candidate.start + int(np.nanargmax(self.base_y[candidate.start:candidate.end+1]))
+                markers.append({'index': peak, 'colour': CONFIDENCE_COLOURS[candidate.confidence],
+                                'symbol': 'o' if candidate.confidence == 'Safe' else 'x',
+                                'selected': row == selected})
+            interval = None
+            if 0 <= selected < len(self.candidates):
+                candidate = self.candidates[selected]
+                interval = (candidate.start, candidate.end)
+            self.session().set_preview(segments=segments, markers=markers, selected_interval=interval)
 
         def apply(self):
             snapshot = self.snapshot()
