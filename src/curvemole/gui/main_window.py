@@ -703,6 +703,8 @@ class MainWindow(QMainWindow):
     _TASK_CANCEL_GRACE_SECONDS = 5
 
     def __init__(self, project: Project | None = None) -> None:
+        from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
+        ensure_gui_garbage_collection()
         super().__init__()
         self.registry = default_registry()
         self.project = project or Project()

@@ -39,6 +39,8 @@ class _ReadPreview(QRunnable):
 
 class ImportFileDialog(QFileDialog):
     def __init__(self, parent=None):
+        from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
+        ensure_gui_garbage_collection()
         super().__init__(parent, self.tr("Import one-dimensional curves"))
         self.setOption(QFileDialog.Option.DontUseNativeDialog, True)
         self.setFileMode(QFileDialog.FileMode.ExistingFiles)

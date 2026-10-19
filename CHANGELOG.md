@@ -15,6 +15,12 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   and is stored as a reversible transformation. Deletion keeps errors, weights,
   masks and retained source columns aligned; originals remain available.
 
+### Fixed
+
+- Run cyclic garbage collection on the GUI thread to prevent Qt objects from
+  being destroyed by background import and save workers, which can cause crashes
+  or hangs on macOS.
+
 ## [0.40.0] - 2026-10-07
 
 ### Added
