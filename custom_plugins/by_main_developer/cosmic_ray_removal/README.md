@@ -35,7 +35,8 @@ and copy its data only when it changes. Repeated-spectrum detection copies only
 the selected acquisitions. Hidden panels pause preview polling. Version 0.4.0
 keeps compatibility fallbacks for older hosts: detection and accepted repairs
 remain available, while **Remove manually** is disabled when the host does not
-provide the native point-editing plugin service.
+provide the native point-editing plugin service. **Remove manually requires
+CurveMole 0.41.1 or later.**
 
 ## Detection methods
 
