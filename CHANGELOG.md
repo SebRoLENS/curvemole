@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.41.1] - 2026-10-19
+
 ### Added
 
 - Add **Remove manually** beside Cosmic-ray removal's automatic/manual detection
