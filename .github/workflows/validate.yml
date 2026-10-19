@@ -49,7 +49,7 @@ jobs:
       cancel-in-progress: ${{ github.event_name == 'pull_request' }}
       queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: ${{ matrix.os == 'macos-14' && 15 || 10 }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -63,7 +63,8 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --no-default-groups --group test
       - name: Tests
-        timeout-minutes: 8
+        # The macOS offscreen GUI suite continues progressing beyond eight minutes.
+        timeout-minutes: ${{ matrix.os == 'macos-14' && 12 || 8 }}
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
