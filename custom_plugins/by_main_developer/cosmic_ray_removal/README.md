@@ -12,17 +12,30 @@ rejected while the other corrections are retained.
 2. Press **Detect automatically**. Review the overlay and candidate table.
 3. Uncheck corrections that should not be applied. **Select all** and **Select
    none** are available for convenience.
-4. To add a missed event, enable **Indicate manually** and click it in the
+4. To add a missed event, enable **Detect manually** and click it in the
    embedded plot. `Grow candidate` controls the number of neighbouring points.
 5. Press **Accept modifications**. This replaces only the accepted intervals in
    the selected spectrum and creates one normal CurveMole undo step.
+
+For direct corrections, press **Remove manually**, next to the detection buttons.
+This opens **Data > Edit data points...** in CurveMole's main graph with movement
+initially constrained to **Y**. Drag a spike's individual points to adjust their
+intensities, or select a point and press **Delete/Backspace** (or **Delete selected
+point**) to remove it. The native editor also supports **X/XY**, **Undo/Redo** and
+**Done/Esc**. These edits take effect immediately, independently of **Accept
+modifications**; original data remain recoverable. After a change, the plugin
+refreshes its preview and clears detection candidates that refer to the old data.
+Deletion removes measured rows, keeping errors and other columns aligned; it does
+not interpolate a replacement. At least two points must remain.
 
 The panel opens automatically and remains a normal dockable CurveMole panel.
 Accepted intervals and detection settings are stored in spectrum metadata.
 On current CurveMole versions, preview refreshes check only the active spectrum
 and copy its data only when it changes. Repeated-spectrum detection copies only
-the selected acquisitions. Hidden panels pause preview polling. Version 0.3.0
-keeps a compatibility fallback for older hosts without these lightweight services.
+the selected acquisitions. Hidden panels pause preview polling. Version 0.4.0
+keeps compatibility fallbacks for older hosts: detection and accepted repairs
+remain available, while **Remove manually** is disabled when the host does not
+provide the native point-editing plugin service.
 
 ## Detection methods
 
@@ -40,7 +53,7 @@ grid, robustly aligned in intensity, and combined with a median. A feature uniqu
 to one exposure is then compared with the repeated-spectrum reference. Do not
 combine spectra from different samples or experimental conditions.
 
-Repairs preserve the x grid. Single-spectrum repairs use shape-preserving PCHIP
+Candidate-based repairs preserve the x grid. Single-spectrum repairs use shape-preserving PCHIP
 interpolation from adjacent unaffected points; repeated-spectrum repairs use the
 aligned median reference. No correction is committed during preview.
 

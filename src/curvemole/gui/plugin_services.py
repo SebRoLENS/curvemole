@@ -140,6 +140,26 @@ class PluginServices:
 
         window._push_change(str(description), redo, undo, modified_curve_ids={curve_id})
 
+    def edit_data_points(self, curve_id, *, axes="xy"):
+        """Open the native point editor for the active spectrum without changing data."""
+        window = self._window()
+        if axes not in {"x", "y", "xy"}:
+            raise ValueError("Choose x, y or xy for point editing.")
+        if window._thread is not None or window.project.read_only:
+            raise ValueError("Wait for the calculation to finish, or use an editable project.")
+        if curve_id is None or curve_id != window.active_curve_id:
+            raise ValueError("The selected spectrum changed; select it again before editing.")
+        curve = window.project.dataset.curve(curve_id)
+        workspace = window.plot_workspace
+        if not any(item.id == curve.id for item in workspace.displayed_curves()):
+            raise ValueError("Show the active spectrum in the main graph before editing its points.")
+        window.edit_data_points_action.setChecked(True)
+        editor = workspace.point_editor
+        if not editor.active:
+            raise ValueError("The data-point editor could not be opened.")
+        editor.axes.setCurrentIndex(editor.axes.findData(axes))
+        workspace.graphics.setFocus()
+
     def select_masks(self, masks):
         """Select existing editable masks without changing fit data or fit state."""
         window = self._window()

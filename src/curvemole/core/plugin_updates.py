@@ -10,7 +10,7 @@ import shutil
 import stat
 import tempfile
 import zipfile
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Any
 
@@ -22,6 +22,10 @@ DOWNLOAD_ROOT = "https://github.com/SebRoLENS/curvemole/releases/download/commun
 CATALOG_URL = DOWNLOAD_ROOT + "/catalog.json"
 MAX_ARCHIVE_BYTES = 20 * 1024 * 1024
 MAX_EXTRACTED_BYTES = 80 * 1024 * 1024
+
+
+class PluginUpdateLocationError(CurveMoleError):
+    """The user must choose another permanent plugin directory."""
 
 
 def version(value: str) -> tuple[int, ...] | None:
@@ -165,8 +169,111 @@ def _unpack(archive: bytes, root: Path, update: PluginUpdate) -> Path:
     return folder
 
 
-def stage_update(manager: PluginManager, update: PluginUpdate, archive: bytes) -> None:
-    """Atomically switch the next-startup record; running code and source stay intact."""
+@dataclass
+class _SourceReplacement:
+    target: Path
+    temporary: Path
+
+    def rollback(self):
+        self.target.rename(self.temporary / "rejected")
+        previous = self.temporary / "previous"
+        if previous.exists():
+            previous.rename(self.target)
+        self.finish()
+
+    def finish(self):
+        shutil.rmtree(self.temporary, ignore_errors=True)
+
+
+def _replace_source(record: dict, folder: Path, metadata: PluginMetadata):
+    """Prepare a complete replacement beside the source, retaining unrelated files."""
+    original = Path(record["reference"])
+    target = original.parent
+    temporary = None
+    try:
+        if target.is_symlink() or original.is_symlink():
+            return None
+        manifests = list(target.rglob("*.curvemole-plugin.json"))
+        if len(manifests) != 1 or manifests[0].resolve() != original.resolve():
+            # A flat/shared plugin directory must not be replaced as a whole.
+            return None
+        previous = PluginMetadata.from_mapping(
+            json.loads(original.read_text(encoding="utf-8")), source=str(original))
+        if (previous.identifier != metadata.identifier
+                or (version(previous.version) or ()) > (version(metadata.version) or ())):
+            return None
+        temporary = Path(tempfile.mkdtemp(prefix=".curvemole-plugin-update-", dir=target.parent))
+        replacement = temporary / "replacement"
+        shutil.copytree(target, replacement, symlinks=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"))
+        new_files = {p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()}
+        old_files = set(record.get("files", [])) | {original.name, previous.module or ""}
+        for name in old_files - new_files:
+            path = PurePosixPath(name)
+            if (not name or path.is_absolute() or "\\" in name
+                    or any(part in (".", "..") or ":" in part for part in path.parts)):
+                continue
+            old = replacement.joinpath(*path.parts)
+            if any(parent.is_symlink() for parent in old.parents if parent != replacement
+                   and replacement in parent.parents):
+                continue
+            if old.is_file() or old.is_symlink():
+                old.unlink()
+        for source in folder.rglob("*"):
+            destination = replacement / source.relative_to(folder)
+            if any(parent.is_symlink() for parent in destination.parents
+                   if parent != replacement and replacement in parent.parents):
+                raise OSError("Plugin payload overlaps a symbolic-link directory.")
+            if source.is_dir():
+                if destination.is_symlink():
+                    raise OSError("Plugin payload overlaps a symbolic-link directory.")
+                destination.mkdir(parents=True, exist_ok=True)
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                if destination.is_file() or destination.is_symlink():
+                    destination.unlink()
+                shutil.copy2(source, destination)
+        target.rename(temporary / "previous")
+    except (OSError, ValueError, CurveMoleError):
+        if temporary is not None:
+            shutil.rmtree(temporary, ignore_errors=True)
+        return None
+    try:
+        replacement.rename(target)
+    except OSError:
+        # Restore the untouched directory before choosing persistent fallback storage.
+        (temporary / "previous").rename(target)
+        shutil.rmtree(temporary, ignore_errors=True)
+        return None
+    return _SourceReplacement(target, temporary)
+
+
+def _relocate_source(record: dict, folder: Path, metadata: PluginMetadata, destination: str | Path):
+    """Retain the update only in a directory explicitly chosen by the user."""
+    root = Path(destination).expanduser().resolve()
+    if not root.is_dir():
+        raise PluginUpdateLocationError("Choose an existing writable folder for plugin updates.")
+    target = root / folder.name
+    if target.exists():
+        manifests = list(target.glob("*.curvemole-plugin.json"))
+        if len(manifests) == 1:
+            replacement = _replace_source({**record, "reference": str(manifests[0])}, folder, metadata)
+            if replacement:
+                return replacement
+        raise PluginUpdateLocationError(f"The chosen plugin destination cannot be replaced: {target}")
+    temporary = Path(tempfile.mkdtemp(prefix=".curvemole-plugin-update-", dir=root))
+    try:
+        shutil.copytree(folder, temporary / "replacement")
+        (temporary / "replacement").rename(target)
+    except OSError:
+        shutil.rmtree(temporary, ignore_errors=True)
+        raise
+    return _SourceReplacement(target, temporary)
+
+
+def stage_update(manager: PluginManager, update: PluginUpdate, archive: bytes,
+                 *, destination: str | Path | None = None) -> None:
+    """Replace plugin files in their directory or a user-selected alternative."""
     current = manager.loaded.get(update.identifier)
     record = manager.installed.get(update.identifier)
     if (current is None or current.version != update.current or not record
@@ -180,11 +287,13 @@ def stage_update(manager: PluginManager, update: PluginUpdate, archive: bytes) -
         raise CurveMoleError("This plugin version is already installed or newer.")
     if manager.storage is None:
         raise CurveMoleError("Persistent plugin storage is unavailable.")
-    staging = manager.storage / "updates"
-    staging.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix="plugin-", dir=staging))
+    internal = manager.storage.resolve()
+    if destination is not None and Path(destination).expanduser().resolve().is_relative_to(internal):
+        raise PluginUpdateLocationError("Choose a plugin folder outside CurveMole's internal storage.")
+    temporary = Path(tempfile.mkdtemp(prefix="curvemole-plugin-download-"))
     original = copy.deepcopy(record)
     committed = False
+    replacement = None
     try:
         folder = _unpack(archive, temporary, update)
         manifests = list(folder.glob("*.curvemole-plugin.json"))
@@ -199,21 +308,32 @@ def stage_update(manager: PluginManager, update: PluginUpdate, archive: bytes) -
                 or not re.fullmatch(r"[a-zA-Z0-9_]+\.py", metadata.module or "")
                 or not (folder / metadata.module).is_file()):
             raise CurveMoleError("Plugin manifest does not match the validated catalog.")
-        candidate = PluginCandidate(metadata, str(manifest), "local")
+        if destination is not None:
+            replacement = _relocate_source(record, folder, metadata, destination)
+        elif not Path(record["reference"]).resolve().is_relative_to(internal):
+            replacement = _replace_source(record, folder, metadata)
+        if replacement is None:
+            raise PluginUpdateLocationError(
+                "The installed plugin folder cannot be replaced. Choose another writable folder "
+                "to retain this update.")
+        retained_manifest = replacement.target / manifest.name
+        metadata = replace(metadata, source=str(retained_manifest))
+        candidate = PluginCandidate(metadata, str(retained_manifest), "local")
         manager.installed[update.identifier] = {
-            "metadata": asdict(metadata), "reference": str(manifest), "kind": "local",
+            "metadata": asdict(metadata), "reference": str(retained_manifest), "kind": "local",
             "fingerprint": manager._fingerprint(candidate), "enabled": True,
             "symbol": manager.symbol(update.identifier),
+            "files": [p.relative_to(folder).as_posix() for p in folder.rglob("*") if p.is_file()],
         }
-        try:
-            manager._save()
-        except Exception:
-            manager.installed[update.identifier] = original
-            raise
+        manager._save()
         committed = True
+        replacement.finish()
     finally:
         if not committed:
-            shutil.rmtree(temporary, ignore_errors=True)
+            manager.installed[update.identifier] = original
+            if replacement:
+                replacement.rollback()
+        shutil.rmtree(temporary, ignore_errors=True)
 
 
 def install_community_plugin(

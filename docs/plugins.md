@@ -18,8 +18,15 @@ Updating downloads and trusts the selected versions. CurveMole verifies the arch
 against the catalog and checks plugin identity and API compatibility before switching
 the saved installation. Save your project and reopen CurveMole to activate updates.
 Current panels, fits and folder monitoring continue with the running version until
-then. Original plugin folders and project settings are preserved; the updated copy,
-including its own README/manual, is kept in CurveMole's plugin storage.
+then. Updates replace the plugin's files in its existing user-selected folder,
+including its README/manual, while retaining unrelated user files. Obsolete files
+tracked as part of the previous update and old bytecode caches are removed.
+If the folder is protected or shared by several plugins, CurveMole asks you to
+choose another permanent storage folder. Cancelling keeps the previous installation.
+Only the installation register is kept internally; plugin code is retained in a
+user-selected location. The saved updated version remains selected when a plugin is
+disabled, the application is closed and the plugin is enabled again, even if a
+scan also finds an older copy elsewhere. Project settings are preserved.
 
 Unloaded or disabled plugins are not checked or installed. Plugins absent from the
 community catalog, package entry points and nonstandard versions are reported as
@@ -334,6 +341,14 @@ through `start_monitor`, `stop_monitor`, `monitor_status` and `set_follow`.
 metadata=...)` validates and commits one finite, full-length Y array as an
 ordinary undoable transformation; it preserves the x grid and invalidates stale
 fit results. Use it only after an explicit user confirmation in a panel.
+`edit_data_points(curve_id, axes="xy")` opens the native point editor for the
+currently active, visible spectrum; `axes` may be `"x"`, `"y"` or `"xy"`.
+Opening the editor does not alter data. Subsequent drags and deletions use the
+ordinary core transformations and Undo/Redo, preserving originals and aligned
+errors/columns. Use this service from an explicit panel action and explain that
+individual gestures take effect immediately. It rejects stale spectrum IDs,
+hidden spectra, running calculations and read-only projects. Older hosts may
+not provide it; feature-detect it before offering the action.
 Services reject disabled plugins; settings writes reject read-only projects and
 running fits. A settings-only action sets `context.settings_only = True` so the
 host commits only its owner-scoped `context.data`, preserving fitted states.

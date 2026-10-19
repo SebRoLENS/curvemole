@@ -28,6 +28,7 @@ from curvemole.core.plugin_updates import (
     MAX_ARCHIVE_BYTES,
     CommunityPlugin,
     PluginUpdate,
+    PluginUpdateLocationError,
     available_updates,
     community_plugins,
     install_community_plugin,
@@ -483,7 +484,18 @@ class PluginUpdateController(QObject):
         try:
             if error:
                 raise ValueError(error)
-            stage_update(self.plugins, update, data)
+            try:
+                stage_update(self.plugins, update, data)
+            except PluginUpdateLocationError:
+                destination = QFileDialog.getExistingDirectory(
+                    self.dialog or self.window,
+                    "Choose a writable folder for the updated plugin",
+                    self.settings.value("community_plugins/folder", "", type=str),
+                )
+                if not destination:
+                    raise ValueError("Plugin update cancelled; the previous installation was retained.") from None
+                stage_update(self.plugins, update, data, destination=destination)
+                self.settings.setValue("community_plugins/folder", destination)
             self.updates = [u for u in self.updates if u.identifier != update.identifier]
         except Exception as exc:
             message = f"{update.identifier}: {exc}"

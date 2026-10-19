@@ -1240,10 +1240,7 @@ class PluginManagerDialog(QDialog):
             self.scan()
 
     def scan(self) -> None:
-        candidates = self.manager.installed_candidates() + self.manager.discover_local(self.directory.text())
-        # A freshly discovered manifest takes precedence when re-approving an update.
-        self.candidates = list({c.metadata.identifier: c for c in candidates}.values())
-        self.candidates.extend(self.manager.discover_entry_points())
+        self.candidates = self.manager.discover_candidates(self.directory.text())
         self.list.clear()
         for candidate in self.candidates:
             self.list.addItem(

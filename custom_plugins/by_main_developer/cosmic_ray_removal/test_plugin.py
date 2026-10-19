@@ -157,9 +157,11 @@ def test_panel_previews_and_commits_only_checked_candidates():
             panel.max_width,
             panel.grow,
             panel.manual,
+            panel.remove_manual,
             panel.accept,
         ):
             assert control.toolTip()
+        assert not panel.remove_manual.isEnabled()  # Older hosts keep detection available.
         panel.detect()
         assert panel.table.rowCount() == 2
         assert panel.table.item(0, 1).text() == "Safe"
@@ -178,6 +180,107 @@ def test_panel_previews_and_commits_only_checked_candidates():
     finally:
         panel.close()
         panel.deleteLater()
+        app.processEvents()
+
+
+def test_remove_manually_uses_native_editor_and_refreshes_after_move_delete_and_undo(tmp_path, monkeypatch):
+    from PySide6.QtCore import QPointF, QSettings, Qt
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.core.data import CurveState
+    from curvemole.core.extensions import Contribution
+    from curvemole.gui.app import CurveMoleMainWindow
+    from curvemole.gui.plugin_services import PluginServices
+
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / 'settings.ini'), QSettings.Format.IniFormat)
+    monkeypatch.setattr('curvemole.gui.main_window.QSettings', lambda *args: settings)
+    monkeypatch.setenv('CURVEMOLE_DISABLE_PLUGINS', '1')
+    x, clean = smooth_spectrum()
+    measured = clean.copy()
+    measured[900] += 900
+    project = Project('Manual cosmic-ray removal')
+    curve = Curve('Measured', x, measured, sigma_y=np.full(len(x), 0.2))
+    project.add_curve(curve)
+    main = CurveMoleMainWindow(project)
+    main.resize(1400, 900)
+    main.show()
+    app.processEvents()
+    monkeypatch.setattr(extensions, 'entries', {
+        cosmic.OWNER: Contribution(cosmic.OWNER, cosmic.OWNER, 'Cosmic', 'panels', lambda ctx: None)
+    })
+    services = PluginServices(main.plugin_host, cosmic.OWNER)
+    panel = cosmic.cosmic_ray_panel(services.spectrum_snapshot())
+    panel.timer.stop()
+    try:
+        panel.detect()
+        assert len(panel.candidates) == 1
+        panel.manual.setChecked(True)
+        curve.state = CurveState.FITTED
+        assert panel.manual.text() == 'Detect manually'
+        assert panel.remove_manual.text() == 'Remove manually'
+        assert panel.remove_manual.isEnabled()
+        QTest.mouseClick(panel.remove_manual, Qt.MouseButton.LeftButton)
+        editor = main.plot_workspace.point_editor
+        assert editor.active and editor.axes.currentData() == 'y'
+        assert not panel.manual.isChecked()
+        assert 'main graph' in panel.status.text()
+        assert 'immediately' in panel.status.text()
+        assert main.undo_stack.count() == 0
+        assert curve.state == CurveState.FITTED
+        assert len(panel.candidates) == 1  # Opening the editor has not changed any data.
+
+        workspace = main.plot_workspace
+        start = workspace.view_box.mapViewToScene(QPointF(x[900], measured[900]))
+        target = workspace.view_box.mapViewToScene(QPointF(x[901], clean[900]))
+        assert editor.begin_drag(start)
+        editor.end_drag(target)
+        panel.refresh()
+        assert curve.x[900] == x[900]  # Cosmic-ray cleanup initially preserves X.
+        assert curve.y[900] == pytest.approx(clean[900])
+        assert main.undo_stack.count() == 1
+        assert curve.state == CurveState.MODIFIED
+        assert not panel.candidates and not panel.accept.isEnabled()
+        np.testing.assert_array_equal(panel.base_y, curve.y)
+        editor.delete_button.click()
+        panel.refresh()
+        assert len(curve) == len(x) - 1
+        assert len(curve.current_sigma_y) == len(curve)
+        assert len(panel.base_x) == len(curve)
+        assert main.undo_stack.count() == 2
+        main.undo_stack.undo()
+        main.undo_stack.undo()
+        panel.refresh()
+        np.testing.assert_array_equal(curve.y, measured)
+        np.testing.assert_array_equal(curve.original_y, measured)
+        np.testing.assert_array_equal(panel.base_y, measured)
+        assert curve.state == CurveState.FITTED
+        main.undo_stack.redo()
+        main.undo_stack.redo()
+        panel.refresh()
+        assert len(panel.base_y) == len(x) - 1
+        editor.done_button.click()
+        assert not editor.active
+        other = Curve('Other spectrum', x, clean)
+        main.project.add_curve(other)
+        main.active_curve_id = other.id
+        main.refresh_all()
+        # The button must target today's selection even before the next preview poll.
+        QTest.mouseClick(panel.remove_manual, Qt.MouseButton.LeftButton)
+        assert editor.active and panel.curve_id == other.id
+        assert workspace._active_curve_id == other.id
+        np.testing.assert_array_equal(other.y, clean)
+        editor.done_button.click()
+        main.active_curve_id = None
+        panel.refresh()
+        assert not panel.remove_manual.isEnabled()
+    finally:
+        panel.close()
+        panel.deleteLater()
+        main.project.dirty = False
+        main.close()
+        main.deleteLater()
         app.processEvents()
 
 

@@ -5,6 +5,21 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Add **Remove manually** beside Cosmic-ray removal's automatic/manual detection
+  controls. It opens the native data-point editor in the main graph with Y movement
+  selected, enabling direct dragging/deletion with Undo/Redo. Plugin version 0.4.0
+  refreshes its preview after edits and disables the shortcut on older hosts.
+- Expose native point editing to plugin panels through `edit_data_points`.
+
+### Fixed
+
+- Replace updated plugin files in their user-selected folder, asking for another
+  folder if replacement is unavailable. Preserve the updated installation across
+  disable/restart/re-enable and prevent an older scanned copy from overriding it.
+  Roll back filesystem and registry changes together if installation fails.
+
 ## [0.41.0] - 2026-10-19
 
 ### Added

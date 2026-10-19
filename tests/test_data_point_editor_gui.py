@@ -43,6 +43,53 @@ def begin(app, main):
     return editor
 
 
+def test_plugin_point_editor_service_checks_live_context_before_opening(point_window, monkeypatch):
+    from curvemole.core.extensions import Contribution, extensions
+    from curvemole.gui.plugin_services import PluginServices
+
+    _, main, curve = point_window
+    owner = 'test.point_editor'
+    monkeypatch.setattr(extensions, 'entries', {
+        owner: Contribution(owner, owner, 'Edit points', 'panels', lambda ctx: None)
+    })
+    service = PluginServices(main.plugin_host, owner)
+    editor = main.plot_workspace.point_editor
+    for axes in ('invalid', ''):
+        with pytest.raises(ValueError, match='x, y or xy'):
+            service.edit_data_points(curve.id, axes=axes)
+    for curve_id in (None, 'stale-spectrum'):
+        with pytest.raises(ValueError, match='selected spectrum changed'):
+            service.edit_data_points(curve_id)
+    main.project.read_only = True
+    with pytest.raises(ValueError, match='editable project'):
+        service.edit_data_points(curve.id)
+    main.project.read_only = False
+    main._thread = object()
+    try:
+        with pytest.raises(ValueError, match='calculation to finish'):
+            service.edit_data_points(curve.id)
+    finally:
+        main._thread = None
+    main.plot_workspace.display_mode.setCurrentIndex(1)
+    curve.visible = False
+    main.refresh_all()
+    with pytest.raises(ValueError, match='Show the active spectrum'):
+        service.edit_data_points(curve.id)
+    assert not editor.active and main.undo_stack.count() == 0
+    curve.visible = True
+    main.refresh_all()
+    for axes in ('x', 'xy', 'y'):
+        service.edit_data_points(curve.id, axes=axes)
+        assert editor.active and editor.axes.currentData() == axes
+        assert main.edit_data_points_action.isChecked()
+        assert main.undo_stack.count() == 0
+    editor.finish()
+    monkeypatch.setattr(extensions, 'entries', {})
+    with pytest.raises(ValueError, match='disabled or unloaded'):
+        service.edit_data_points(curve.id)
+    assert not editor.active
+
+
 def scene(workspace, x, y):
     return workspace.view_box.mapViewToScene(QPointF(x, y))
 

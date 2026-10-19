@@ -11,6 +11,7 @@ import pytest
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.extensions import extensions
 from curvemole.core.plugin_updates import (
+    PluginUpdateLocationError,
     available_updates,
     community_plugins,
     install_community_plugin,
@@ -73,8 +74,9 @@ def test_stage_preserves_running_code_and_loads_update_next_start(update_case):
     stage_update(manager, update, data)
     assert manager.loaded[update.identifier].version == "1.0.0"
     assert extensions.entries["test.plugin:test"].callback is callback
-    assert json.loads((original / "plugin.curvemole-plugin.json").read_text())["version"] == "1.0.0"
+    assert json.loads((original / "plugin.curvemole-plugin.json").read_text())["version"] == "1.1.0"
     installed_path = Path(manager.installed[update.identifier]["reference"])
+    assert installed_path.parent == original
     assert (installed_path.parent / "README.md").read_text() == "Plugin-specific manual"
     assert available_updates(manager, catalog)[0] == []
     symbol = manager.symbol(update.identifier)
@@ -86,9 +88,161 @@ def test_stage_preserves_running_code_and_loads_update_next_start(update_case):
     assert "Updated" in extensions.entries["test.plugin:test"].label
 
 
+def test_update_replaces_owned_files_and_preserves_unrelated_user_files(update_case):
+    manager, _, update, data, original = update_case
+    (original / 'obsolete.py').write_text('old implementation')
+    (original / 'notes.txt').write_text('user notes')
+    (original / '__pycache__').mkdir(exist_ok=True)
+    (original / '__pycache__' / 'stale.pyc').write_bytes(b'old bytecode')
+    manager.installed[update.identifier]['files'] = ['plugin.py', 'obsolete.py']
+    stage_update(manager, update, data)
+    assert not (original / 'obsolete.py').exists()
+    assert not (original / '__pycache__').exists()
+    assert (original / 'notes.txt').read_text() == 'user notes'
+    assert (original / 'LICENSE').read_text() == 'MIT'
+    assert not list(original.parent.glob('.curvemole-plugin-update-*'))
+    assert not list(manager.storage.rglob('*.py'))
+
+
+@pytest.mark.parametrize('relocate', [False, True])
+def test_disable_restart_and_manager_scan_keep_the_updated_version(
+    update_case, tmp_path, monkeypatch, relocate
+):
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.gui.dialogs import PluginManagerDialog
+
+    app = QApplication.instance() or QApplication([])
+    manager, _, update, data, original = update_case
+    selected = tmp_path / 'chosen-plugin-folder'
+    selected.mkdir()
+    if relocate:
+        rename = Path.rename
+
+        def protected(path, target):
+            if path == original:
+                raise PermissionError('Original plugin directory is protected')
+            return rename(path, target)
+
+        monkeypatch.setattr(Path, 'rename', protected)
+        with pytest.raises(PluginUpdateLocationError, match='another writable folder'):
+            stage_update(manager, update, data)
+        assert manager.installed[update.identifier]['metadata']['version'] == '1.0.0'
+        stage_update(manager, update, data, destination=selected)
+        assert json.loads((original / 'plugin.curvemole-plugin.json').read_text())['version'] == '1.0.0'
+    else:
+        stage_update(manager, update, data)
+    installed = Path(manager.installed[update.identifier]['reference'])
+    assert installed.parent == (selected / update.folder if relocate else original)
+    assert manager.installed[update.identifier]['metadata']['source'] == str(installed)
+    files = manager.installed[update.identifier]['files']
+    manager.disable(update.identifier)
+    restarted = PluginManager(FunctionRegistry(), storage=manager.storage)
+    assert restarted.autoload() == set() and not restarted.loaded
+    monkeypatch.setattr(restarted, 'discover_entry_points', lambda: [])
+    dialog = PluginManagerDialog(restarted, original)
+    try:
+        candidate = dialog.candidates[0]
+        assert candidate.metadata.version == update.latest
+        assert Path(candidate.reference) == installed
+        restarted.load(candidate, trust=True)
+        assert restarted.loaded[update.identifier].version == update.latest
+        assert extensions.entries['test.plugin:test'].label.endswith('Updated')
+        assert restarted.installed[update.identifier]['files'] == files
+        assert not list(manager.storage.rglob('*.py'))
+    finally:
+        restarted.disable(update.identifier)
+        dialog.close()
+        dialog.deleteLater()
+        app.processEvents()
+
+
+def test_failed_directory_swap_restores_original_before_requesting_a_new_location(update_case, monkeypatch):
+    manager, _, update, data, original = update_case
+    before = copy.deepcopy(manager.installed)
+    rename = Path.rename
+
+    def fail_replacement(path, target):
+        if path.name == 'replacement' and Path(target) == original:
+            raise PermissionError('Cannot install replacement')
+        return rename(path, target)
+
+    monkeypatch.setattr(Path, 'rename', fail_replacement)
+    with pytest.raises(PluginUpdateLocationError):
+        stage_update(manager, update, data)
+    assert manager.installed == before
+    assert json.loads((original / 'plugin.curvemole-plugin.json').read_text())['version'] == '1.0.0'
+    assert not list(original.parent.glob('.curvemole-plugin-update-*'))
+
+
+def test_failed_relocated_install_does_not_leave_an_unregistered_copy(update_case, tmp_path, monkeypatch):
+    manager, _, update, data, original = update_case
+    destination = tmp_path / 'chosen'
+    destination.mkdir()
+    before = copy.deepcopy(manager.installed)
+
+    def fail():
+        raise OSError('Disk full')
+
+    monkeypatch.setattr(manager, '_save', fail)
+    with pytest.raises(OSError, match='Disk full'):
+        stage_update(manager, update, data, destination=destination)
+    assert manager.installed == before
+    assert not list(destination.iterdir())
+    assert json.loads((original / 'plugin.curvemole-plugin.json').read_text())['version'] == '1.0.0'
+
+
+def test_shared_plugin_folder_requires_a_user_selected_destination(update_case, tmp_path):
+    manager, _, update, data, original = update_case
+    other = original / 'another.curvemole-plugin.json'
+    other.write_text('{"identifier":"another.plugin"}')
+    with pytest.raises(PluginUpdateLocationError):
+        stage_update(manager, update, data)
+    assert other.read_text() == '{"identifier":"another.plugin"}'
+    destination = tmp_path / 'chosen'
+    destination.mkdir()
+    stage_update(manager, update, data, destination=destination)
+    assert Path(manager.installed[update.identifier]['reference']).parent == destination / update.folder
+    assert other.exists()
+
+
+def test_legacy_internal_installation_must_move_to_a_user_selected_folder(update_case, tmp_path):
+    import shutil
+
+    manager, _, update, data, original = update_case
+    manager.disable(update.identifier)
+    legacy = manager.storage / 'updates' / 'legacy'
+    shutil.copytree(original, legacy)
+    manager.load(manager.discover_local(legacy)[0], trust=True)
+    before = copy.deepcopy(manager.installed)
+    with pytest.raises(PluginUpdateLocationError):
+        stage_update(manager, update, data)
+    with pytest.raises(PluginUpdateLocationError, match='outside CurveMole'):
+        stage_update(manager, update, data, destination=manager.storage)
+    assert manager.installed == before
+    destination = tmp_path / 'chosen'
+    destination.mkdir()
+    stage_update(manager, update, data, destination=destination)
+    assert Path(manager.installed[update.identifier]['reference']).parent == destination / update.folder
+
+
+def test_scanning_still_allows_a_newer_manually_downloaded_plugin(update_case, tmp_path):
+    manager, _, update, data, original = update_case
+    destination = tmp_path / 'chosen'
+    destination.mkdir()
+    stage_update(manager, update, data, destination=destination)
+    path = original / 'plugin.curvemole-plugin.json'
+    manifest = json.loads(path.read_text())
+    manifest['version'] = '1.2.0'
+    path.write_text(json.dumps(manifest))
+    candidate = manager.discover_candidates(original)[0]
+    assert candidate.metadata.version == '1.2.0'
+    assert Path(candidate.reference) == path
+
+
 @pytest.mark.parametrize("fault", ["checksum", "identity", "api", "disabled", "save", "truncated"])
 def test_failed_update_retains_previous_installation(update_case, monkeypatch, fault):
-    manager, _, update, data, _ = update_case
+    manager, _, update, data, original = update_case
     if fault == "disabled":
         manager.disable(update.identifier)
     before = copy.deepcopy(manager.installed)
@@ -110,6 +264,8 @@ def test_failed_update_retains_previous_installation(update_case, monkeypatch, f
     assert manager.installed == before
     assert (manager.storage / "installed.json").read_bytes() == persisted
     assert not list((manager.storage / "updates").glob("plugin-*"))
+    assert json.loads((original / 'plugin.curvemole-plugin.json').read_text())['version'] == '1.0.0'
+    assert not (original / 'README.md').exists()
 
 
 @pytest.mark.parametrize("name", ["../escape.py", "test_plugin/../../escape.py",
@@ -255,6 +411,46 @@ def test_controller_does_not_install_plugin_disabled_during_download(controller_
     requests.pop()[1](archive, "")
     assert "no longer loaded" in controller.message
     assert controller.plugins.installed[update.identifier]["metadata"]["version"] == update.current
+
+
+@pytest.mark.parametrize('choose_folder', [True, False])
+def test_controller_requests_user_storage_when_source_is_not_writable(
+    controller_case, tmp_path, monkeypatch, choose_folder
+):
+    from PySide6.QtWidgets import QFileDialog
+
+    _, controller, requests, catalog, update, archive = controller_case
+    original = Path(controller.plugins.installed[update.identifier]['reference']).parent
+    selected = tmp_path / 'user-chosen-plugins'
+    selected.mkdir()
+    rename = Path.rename
+    choices = []
+
+    def protected(path, target):
+        if path == original:
+            raise PermissionError('Original folder is not writable')
+        return rename(path, target)
+
+    def choose(*args):
+        choices.append(args)
+        return str(selected) if choose_folder else ''
+
+    monkeypatch.setattr(Path, 'rename', protected)
+    monkeypatch.setattr(QFileDialog, 'getExistingDirectory', choose)
+    requests.pop()[1](json.dumps(catalog).encode(), '')
+    controller.install_selected()
+    requests.pop()[1](archive, '')
+    assert len(choices) == 1
+    record = controller.plugins.installed[update.identifier]
+    assert record['metadata']['version'] == (update.latest if choose_folder else update.current)
+    assert Path(record['reference']).parent == (selected / update.folder if choose_folder else original)
+    assert not list(controller.plugins.storage.rglob('*.py'))
+    assert controller.plugins.loaded[update.identifier].version == update.current
+    if choose_folder:
+        assert controller.settings.value('community_plugins/folder') == str(selected)
+    else:
+        assert 'cancelled' in controller.message
+        assert not list(selected.iterdir())
 
 
 def test_browse_catalog_installs_selected_plugin_in_chosen_folder(

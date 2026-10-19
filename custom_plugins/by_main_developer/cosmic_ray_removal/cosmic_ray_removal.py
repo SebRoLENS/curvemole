@@ -344,13 +344,24 @@ def cosmic_ray_panel(context):
                 "Run detection with the current parameters. No spectrum data are changed."
             )
             detect.clicked.connect(lambda: self.guard(self.detect))
-            self.manual = QPushButton("Indicate manually")
+            self.manual = QPushButton("Detect manually")
             self.manual.setCheckable(True)
             self.manual.setToolTip(
                 "Enable this mode, then click the plot to add a correction candidate manually."
             )
             row.addWidget(detect)
             row.addWidget(self.manual)
+            self.remove_manual = QPushButton("Remove manually")
+            self.remove_manual.setObjectName("remove_manually")
+            self.remove_manual.setToolTip(
+                "Open CurveMole's data-point editor in the main graph. Drag points in Y "
+                "or delete selected points; each change supports Undo/Redo and is applied "
+                "immediately, without Accept modifications."
+                if callable(getattr(services, "edit_data_points", None)) else
+                "Requires an updated CurveMole host with the native point-editing plugin service."
+            )
+            self.remove_manual.clicked.connect(lambda: self.guard(self.remove_manually))
+            row.addWidget(self.remove_manual)
             layout.addLayout(row)
             self.plot = pg.PlotWidget()
             self.plot.setMinimumHeight(230)
@@ -431,6 +442,7 @@ def cosmic_ray_panel(context):
             self.refresh()
 
         def refresh(self):
+            self.remove_manual.setEnabled(False)
             try:
                 if hasattr(services, "active_spectrum_state"):
                     project_id, new_id, content_hash, name = services.active_spectrum_state()
@@ -440,6 +452,9 @@ def cosmic_ray_panel(context):
                         self.title.setText(name or "No spectrum selected")
                         self.accept.setEnabled(
                             bool(self.candidates and any(c.accepted for c in self.candidates))
+                        )
+                        self.remove_manual.setEnabled(
+                            new_id is not None and callable(getattr(services, "edit_data_points", None))
                         )
                         return
                 snapshot = self.snapshot()
@@ -467,9 +482,26 @@ def cosmic_ray_panel(context):
                 self.accept.setEnabled(
                     bool(self.candidates and any(c.accepted for c in self.candidates))
                 )
+                self.remove_manual.setEnabled(
+                    self.curve_id is not None and callable(getattr(services, "edit_data_points", None))
+                )
             except Exception as exc:
                 self.status.setText(str(exc))
                 self.accept.setEnabled(False)
+
+        def remove_manually(self):
+            self.refresh()
+            if self.curve_id is None:
+                raise ValueError("Select a spectrum first.")
+            if not callable(getattr(services, "edit_data_points", None)):
+                raise ValueError("Update CurveMole to use native manual point removal.")
+            services.edit_data_points(self.curve_id, axes="y")
+            self.manual.setChecked(False)
+            self.status.setText(
+                "Manual removal is active in the main graph. Drag a point in Y or select it "
+                "and press Delete. The editor also offers X/XY movement. Changes are applied "
+                "immediately with Undo/Redo; use Done or Esc to finish."
+            )
 
         def detect(self):
             snapshot = self.snapshot(include_selected=self.method.currentIndex() == 1)

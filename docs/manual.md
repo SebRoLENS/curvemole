@@ -2778,6 +2778,12 @@ in the manager or click the badge, then choose **Update selected**. **Help > Che
 for updates** checks both CurveMole and loaded plugins. Checking for an update does
 not install it automatically. Disabled plugins are not checked; local-only plugins
 without a catalog entry need manual updates. Manual ZIP download remains an alternative.
+Updates replace files in the plugin's existing user-selected folder. If that
+location cannot be replaced, CurveMole asks for another permanent folder; it does
+not retain plugin code in an internal application folder. Cancelling leaves the
+previous installation in place. The saved updated copy remains selected after
+disabling, restarting and re-enabling the plugin, even if the original folder
+still contains an older copy. Running plugin code is replaced on the next load.
 Set `CURVEMOLE_DISABLE_PLUGINS=1` to skip
 automatic loading manually. This is failure recovery, not a sandbox for Python code.
 

@@ -7,6 +7,7 @@ import importlib.metadata
 import importlib.util
 import json
 import os
+import re
 import uuid
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
@@ -161,6 +162,21 @@ class PluginManager:
                 continue
         return result
 
+    def discover_candidates(self, directory: str | Path) -> list[PluginCandidate]:
+        """Merge discovery without replacing a retained update with an older copy."""
+        candidates = {c.metadata.identifier: c for c in self.installed_candidates()}
+        for candidate in self.discover_local(directory):
+            previous = candidates.get(candidate.metadata.identifier)
+            if previous and previous.kind == "local" and (
+                Path(previous.reference).resolve() != Path(candidate.reference).resolve()
+            ):
+                versions = [c.metadata.version for c in (previous, candidate)]
+                if (all(re.fullmatch(r"\d+\.\d+\.\d+", value) for value in versions)
+                        and tuple(map(int, versions[0].split('.'))) >= tuple(map(int, versions[1].split('.')))):
+                    continue
+            candidates[candidate.metadata.identifier] = candidate
+        return list(candidates.values()) + self.discover_entry_points()
+
     def autoload(self) -> set[str]:
         failed: set[str] = set()
         if os.environ.get("CURVEMOLE_DISABLE_PLUGINS") == "1":
@@ -236,6 +252,8 @@ class PluginManager:
         # folder.  Scanning that parent must find the manifests as well as a
         # manifest placed directly in the selected directory.
         for manifest in sorted(root.rglob("*.curvemole-plugin.json")):
+            if any(part.startswith(".curvemole-plugin-") for part in manifest.relative_to(root).parts):
+                continue
             try:
                 metadata = PluginMetadata.from_mapping(
                     json.loads(manifest.read_text(encoding="utf-8")), source=str(manifest.resolve())
@@ -298,12 +316,16 @@ class PluginManager:
             raise CurveMoleError(f"Plugin loading failed: {exc}") from exc
         self.trusted_identifiers.add(metadata.identifier)
         self.loaded[metadata.identifier] = metadata
-        self.installed[metadata.identifier] = {
+        previous = self.installed.get(metadata.identifier, {})
+        record = {
             "metadata": asdict(metadata), "reference": str(Path(candidate.reference).resolve())
             if candidate.kind == "local" else candidate.reference,
             "kind": candidate.kind, "fingerprint": fingerprint, "enabled": True,
             "symbol": self.symbol(metadata.identifier),
         }
+        if previous.get("reference") == record["reference"] and "files" in previous:
+            record["files"] = previous["files"]
+        self.installed[metadata.identifier] = record
         self._save()
         return metadata
 
