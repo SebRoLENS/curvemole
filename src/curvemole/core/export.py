@@ -124,7 +124,7 @@ def wide_dataframe(
     registry = registry or default_registry()
     columns: dict[str, Any] = {}
     if selection.original_x:
-        columns[f"{curve.x_label} original"] = curve.original_x
+        columns[f"{curve.x_label} original"] = curve.original_x[curve.row_indices]
     if selection.x:
         columns[_label(curve.x_label, curve.x_unit)] = curve.x
     if selection.y:
@@ -157,8 +157,8 @@ def wide_dataframe(
         columns["error_y_minus"] = curve.current_error_y_minus
         columns["error_y_plus"] = curve.current_error_y_plus
         columns["error_confidence_percent"] = curve.error_confidence_level * 100
-    if selection.weights and curve.weights is not None:
-        columns["weight"] = curve.weights
+    if selection.weights and curve.current_weights is not None:
+        columns["weight"] = curve.current_weights
     if selection.mask_flag:
         columns["masked"] = curve.effective_mask
     return pd.DataFrame(columns)

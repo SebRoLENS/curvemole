@@ -1022,6 +1022,35 @@ The Worksheet is a read-only inspection view. It shows up to 100,000 rows for th
 active curve with columns for x, y, `sigma_y`, weight, and mask state. It is not a
 spreadsheet editor and does not modify source arrays.
 
+### 7.9 Editing individual data points
+
+Choose **Data > Edit data points...** to edit measured points directly in the graph.
+The editing controls appear above the plot. Only the active, displayed dataset is
+edited; the original source coordinates remain immutable.
+
+1. Click a point to select it. Its current X/Y coordinates appear in the editing bar.
+2. Choose **X**, **Y**, or **XY** to constrain the data coordinates that may change.
+3. Drag the point and release to commit one undoable move. During dragging, the
+   graph previews the new position without changing the saved dataset.
+4. Use **Delete selected point**, **Delete**, or **Backspace** to remove it. At least
+   two points must remain. Deletion removes the row from current data, fitting,
+   worksheets and numeric exports, keeping associated errors, weights, masks and
+   auxiliary columns aligned.
+5. Choose **Done** or press **Esc** to leave editing. Esc also discards an unfinished
+   drag; previously completed moves and deletions remain applied.
+
+Right-drag pans and the wheel zooms while editing. Point selection uses the actual
+samples, including in dense plots. Logarithmic axes, Waterfall offsets and visual
+background subtraction are accounted for; the editing bar shows the underlying
+data coordinates. X/Y constraints refer to those data coordinates.
+
+Moves and deletions use the global **Undo/Redo** commands. They are stored in the
+project as reversible transformations and can also be removed with **Restore
+original data** in the Data Calculator. A changed fitted dataset is marked as
+modified, so refit it to update results and uncertainties. Entering function
+placement, changing the active dataset or starting a calculation ends point
+editing. Read-only projects cannot be edited.
+
 ## 8. Building models
 
 All entries in the function library are fitting functions. Constant, linear, polynomial,

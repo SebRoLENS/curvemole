@@ -62,7 +62,7 @@ def _project_arrays(project: Project | ProjectSaveSnapshot) -> Iterator[tuple[st
         for index, array in enumerate(curve.original_columns.values()):
             yield f"{prefix}/columns/{index}.npy", array
         for mask in curve.masks.values():
-            yield f"{prefix}/masks/{mask.id}.npy", mask.excluded
+            yield f"{prefix}/masks/{mask.id}.npy", curve.original_mask(mask)
         for stack_name, transformations in (
             ("transformations", curve.transformations), ("redo_transformations", curve.redo_transformations),
         ):

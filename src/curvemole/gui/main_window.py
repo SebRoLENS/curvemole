@@ -1045,6 +1045,14 @@ class MainWindow(QMainWindow):
         self.calculator_action = self._tool_action(self.calculator_dock, self.tr("Data Calculator"))
         self.calculator_action.setIcon(_resource_icon("calculator.svg"))
         self.calculator_action.setToolTip(self.tr("Data Calculator"))
+        self.edit_data_points_action = QAction(self.tr("Edit data points…"), self, checkable=True)
+        self.edit_data_points_action.setToolTip(self.tr(
+            "Select, drag or delete individual points of the active dataset. Changes support Undo/Redo."))
+        self.edit_data_points_action.toggled.connect(self._set_data_point_edit_mode)
+        editor = self.plot_workspace.point_editor
+        editor.activeChanged.connect(self._data_point_edit_mode_changed)
+        editor.moveRequested.connect(self._move_data_point)
+        editor.deleteRequested.connect(self._delete_data_point)
         self.worksheet_action = self._tool_action(self.worksheet_dock, self.tr("Worksheet"))
         self.function_action = self._tool_action(self.function_dock, self.tr("Function Builder"))
         self.uncertainty_action = self._tool_action(
@@ -1180,6 +1188,7 @@ class MainWindow(QMainWindow):
         data_menu.addActions(
             [
                 self.import_action,
+                self.edit_data_points_action,
                 self.subtract_background_action,
                 self.calculator_action,
                 self.worksheet_action,
@@ -3080,6 +3089,68 @@ class MainWindow(QMainWindow):
         assign(0)
         self._push_change(text, lambda: assign(1), lambda: assign(0))
 
+    def _set_data_point_edit_mode(self, enabled: bool) -> None:
+        editor = self.plot_workspace.point_editor
+        if not enabled:
+            editor.finish()
+            return
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the current calculation before editing data points."))
+            self._data_point_edit_mode_changed(False)
+            return
+        if not self._ensure_editable():
+            self._data_point_edit_mode_changed(False)
+            return
+        if not editor.begin():
+            self._notify(self.tr("Show an active dataset in the graph before editing its points."))
+            self._data_point_edit_mode_changed(False)
+
+    def _data_point_edit_mode_changed(self, enabled: bool) -> None:
+        self.edit_data_points_action.blockSignals(True)
+        self.edit_data_points_action.setChecked(enabled)
+        self.edit_data_points_action.blockSignals(False)
+
+    def _move_data_point(self, curve_id: str, row: int, x: float, y: float) -> None:
+        self._apply_data_point_edit(curve_id, row, (x, y))
+
+    def _delete_data_point(self, curve_id: str, row: int) -> None:
+        self._apply_data_point_edit(curve_id, row, None)
+
+    def _apply_data_point_edit(self, curve_id: str, row: int, coordinates) -> None:
+        if self._thread is not None or not self._ensure_editable():
+            return
+        if curve_id != self.active_curve_id or not self.plot_workspace.point_editor.active:
+            return
+        try:
+            curve = self.project.dataset.curve(curve_id)
+            matches = np.flatnonzero(curve.row_indices == row)
+            if not len(matches):
+                return
+            index = int(matches[0])
+            before = copy.deepcopy((curve.transformations, curve.redo_transformations, curve.state))
+            # Replay into detached current arrays while sharing immutable source
+            # columns; a single-point edit must not duplicate a dense input file.
+            trial = copy.copy(curve)
+            trial.transformations = list(curve.transformations)
+            trial.redo_transformations = list(curve.redo_transformations)
+            trial.masks = copy.deepcopy(curve.masks)
+            if coordinates is None:
+                trial.delete_points([index])
+                title = self.tr("Delete data point")
+            else:
+                trial.move_points([index], x=[coordinates[0]], y=[coordinates[1]])
+                title = self.tr("Move data point")
+            after = copy.deepcopy((trial.transformations, trial.redo_transformations, trial.state))
+
+            def restore(state):
+                curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(state)
+                curve._recompute()
+
+            self._push_change(title, lambda: restore(after), lambda: restore(before),
+                              modified_curve_ids={curve_id}, preserve_curve_ids={curve_id})
+        except Exception as exc:
+            self._notify(self.tr("Edit data points: ") + str(exc), warning=True)
+
     def apply_calculator(self, request: dict[str, Any]) -> None:
         if not self._ensure_editable():
             return
@@ -3931,6 +4002,7 @@ class MainWindow(QMainWindow):
         if self._thread is not None:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
+        self.plot_workspace.point_editor.finish()
         if self._cancellation is None:
             self._cancellation = CancellationToken()
         self._worker = Worker(operation, streaming=partial is not None)

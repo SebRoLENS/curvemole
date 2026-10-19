@@ -77,6 +77,10 @@ class MaskViewBox(pg.ViewBox):
             self.raiseContextMenu(event)
 
     def mouseClickEvent(self, event: Any) -> None:
+        if self.interaction_mode == "data_points" and event.button() == Qt.MouseButton.LeftButton:
+            self.point_editor.select_at(event.scenePos())
+            event.accept()
+            return
         if (
             self.quick_add_placement
             and self.interaction_mode is not None
@@ -137,6 +141,15 @@ class MaskViewBox(pg.ViewBox):
         super().mouseClickEvent(event)
 
     def mouseDragEvent(self, event: Any, axis: int | None = None) -> None:
+        if self.interaction_mode == "data_points" and event.button() == Qt.MouseButton.LeftButton:
+            if event.isStart():
+                self.point_editor.begin_drag(event.buttonDownScenePos())
+            if event.isFinish():
+                self.point_editor.end_drag(event.scenePos())
+            else:
+                self.point_editor.update_drag(event.scenePos())
+            event.accept()
+            return
         if self.interaction_mode == "peak" and event.button() == Qt.MouseButton.LeftButton:
             start = self.mapSceneToView(event.buttonDownScenePos())
             end = self.mapSceneToView(event.scenePos())
@@ -166,7 +179,7 @@ class MaskViewBox(pg.ViewBox):
                     self.unmaskRangeRequested.emit(float(start.x()), float(end.x()))
             event.accept()
             return
-        if self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
+        if self.interaction_mode in {None, "data_points"} and event.button() == Qt.MouseButton.RightButton:
             self._context_menu_timer.stop()
             self._context_menu_event = None
             event.accept()
@@ -421,6 +434,9 @@ class PlotWorkspace(QWidget):
         for shortcut in (self._quick_add_return, self._quick_add_enter):
             shortcut.setEnabled(False)
             shortcut.activated.connect(lambda: self.finish_placement())
+        from curvemole.gui.data_point_editor import DataPointEditor
+        self.point_editor = DataPointEditor(self)
+        layout.insertWidget(layout.indexOf(self.graphics), self.point_editor)
 
     def plot_appearance(self) -> dict[str, Any]:
         return dict(self._plot_appearance)
@@ -497,6 +513,8 @@ class PlotWorkspace(QWidget):
     ) -> None:
         project_changed = project is not self._project
         active_curve_changed = active_curve_id != self._active_curve_id
+        if project_changed or active_curve_changed:
+            self.point_editor.finish()
         self._project = project
         self._active_curve_id = active_curve_id
         if project is not None:
@@ -765,6 +783,7 @@ class PlotWorkspace(QWidget):
         self._apply_grid_appearance()
         self._layout_component_labels()
         self._render_placement_preview()
+        self.point_editor.refresh()
         self._sync_placement_mouse_targets()
         self.plot.setTitle("")
         if initial_view:
@@ -991,6 +1010,8 @@ class PlotWorkspace(QWidget):
             self._update_spline_instruction()
 
     def cancel_placement(self) -> None:
+        if self.point_editor.active:
+            self.point_editor.finish()
         if self._placement_mode is None:
             return
         self._end_placement()
@@ -1154,7 +1175,7 @@ class PlotWorkspace(QWidget):
 
     def _sync_placement_mouse_targets(self) -> None:
         """Let placement clicks pass through plot symbols, curves and handles."""
-        if self._placement_mode is None:
+        if self._placement_mode is None and not self.point_editor.active:
             for item, (buttons, enabled) in self._placement_mouse_targets.items():
                 if isValid(item):
                     item.setAcceptedMouseButtons(buttons)

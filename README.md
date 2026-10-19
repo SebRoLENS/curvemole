@@ -156,6 +156,8 @@ to releases.
 - local least-squares methods, differential evolution with local refinement,
   Nelder-Mead, Powell, L-BFGS-B, and explicit solver-specific controls
 - reversible transformations and graphical masks with immutable original data
+- **Data > Edit data points...** to drag individual measured points in X, Y or
+  both axes, or delete them, with Undo/Redo and preserved original data
 - function-aware Quick Add, selectable automatic peak shapes, click-drag peak
   placement, live spline backgrounds, and direct right-drag interval masking
 - project-wide function editing with **Select all** / **Select all except backgrounds**

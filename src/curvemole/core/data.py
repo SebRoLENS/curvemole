@@ -202,6 +202,9 @@ class Curve:
     _error_y_minus_current: np.ndarray | None = field(init=False, repr=False)
     _error_y_plus_current: np.ndarray | None = field(init=False, repr=False)
     _sigma_x_current: np.ndarray | None = field(init=False, repr=False)
+    _weights_current: np.ndarray | None = field(init=False, repr=False)
+    _row_indices: np.ndarray = field(init=False, repr=False)
+    _mask_original_excluded: dict[str, np.ndarray] = field(init=False, default_factory=dict, repr=False)
 
     def __post_init__(self) -> None:
         self.original_x = _array(self.original_x)  # type: ignore[assignment]
@@ -236,15 +239,40 @@ class Curve:
                 error.setflags(write=False)
         if self.weights is not None:
             self.weights.setflags(write=False)
+        if hasattr(self, "_row_indices"):
+            for mask in self.masks.values():
+                if len(mask.excluded) != len(self.original_x) and len(mask.excluded) == len(self._row_indices):
+                    expanded = self.original_mask(mask)
+                    if len(expanded) == len(self.original_x):
+                        mask.excluded = expanded
+        self._row_indices = np.arange(len(self.original_x))
+        self._mask_original_excluded = {}
         if not self.masks:
-            self.masks[self.active_mask] = Mask(self.active_mask, np.zeros(len(self), dtype=bool))
+            self.masks[self.active_mask] = Mask(self.active_mask, np.zeros(len(self.original_x), dtype=bool))
         for mask in self.masks.values():
-            if len(mask.excluded) != len(self):
+            if len(mask.excluded) != len(self.original_x):
                 raise DataValidationError(f"Mask '{mask.name}' length does not match curve '{self.name}'.")
         self._recompute()
 
     def __len__(self) -> int:
-        return len(self.original_x)
+        return len(getattr(self, "_x", self.original_x))
+
+    @property
+    def row_indices(self) -> np.ndarray:
+        """Original row identities of the current points, including after deletions."""
+        view = self._row_indices.view()
+        view.setflags(write=False)
+        return view
+
+    @property
+    def current_weights(self) -> np.ndarray | None:
+        return self._readonly_error(self._weights_current)
+
+    def original_mask(self, mask: Mask) -> np.ndarray:
+        """Expand a current mask without losing flags on temporarily deleted rows."""
+        full = self._mask_original_excluded.get(mask.id, np.zeros(len(self.original_x), dtype=bool)).copy()
+        full[self._row_indices] = mask.excluded
+        return full
 
     @property
     def x(self) -> np.ndarray:
@@ -283,8 +311,8 @@ class Curve:
         for error in (self._sigma_y_current, self._error_y_minus_current, self._error_y_plus_current):
             if error is not None:
                 invalid |= ~np.isfinite(error) | (error <= 0)
-        if self.weights is not None:
-            invalid |= ~np.isfinite(self.weights) | (self.weights < 0)
+        if self._weights_current is not None:
+            invalid |= ~np.isfinite(self._weights_current) | (self._weights_current < 0)
         return invalid
 
     @property
@@ -325,8 +353,8 @@ class Curve:
         if scales is not None:
             minus, plus = scales
             return 1 / np.where(fitted >= self._y[indices], plus[indices], minus[indices])
-        if self.weights is not None:
-            values = self.weights[indices]
+        if self._weights_current is not None:
+            values = self._weights_current[indices]
             return np.sqrt(values) if self.weights_are_inverse_variance else values
         return None
 
@@ -347,7 +375,7 @@ class Curve:
     def content_hash(self) -> str:
         digest = hashlib.sha256()
         for array in (self._x, self._y, self.effective_mask, self._sigma_y_current,
-                      self._error_y_minus_current, self._error_y_plus_current, self.weights):
+                      self._error_y_minus_current, self._error_y_plus_current, self._weights_current):
             digest.update(b"none" if array is None else np.ascontiguousarray(array).tobytes())
         digest.update(repr((self.error_confidence_level, self.weights_are_inverse_variance)).encode())
         return digest.hexdigest()
@@ -371,8 +399,8 @@ class Curve:
         weight_scale: np.ndarray | None = None
         if use_data_errors and self._sigma_y_current is not None:
             weight_scale = 1.0 / self._sigma_y_current[keep]
-        elif use_data_errors and self.weights is not None:
-            values = self.weights[keep]
+        elif use_data_errors and self._weights_current is not None:
+            values = self._weights_current[keep]
             weight_scale = np.sqrt(values) if self.weights_are_inverse_variance else values
         return self._x[keep], self._y[keep], weight_scale, np.flatnonzero(keep)
 
@@ -456,6 +484,36 @@ class Curve:
         self._mark_modified()
         return int(np.count_nonzero(applied))
 
+    def move_points(self, indices: Iterable[int], *, x: Iterable[float] | None = None,
+                    y: Iterable[float] | None = None) -> None:
+        """Move current points while recording stable original row identities."""
+        rows = self._point_rows(indices)
+        if x is None and y is None:
+            raise DataValidationError("Choose X, Y or both to move data points.")
+        parameters: dict[str, Any] = {"indices": self._row_indices[rows].tolist()}
+        for axis, values in (("x", x), ("y", y)):
+            if values is not None:
+                array = _array(values, length=len(rows))
+                if not np.all(np.isfinite(array)):
+                    raise DataValidationError("Point coordinates must be finite.")
+                parameters[axis] = array.tolist()
+        self.apply_transformation(Transformation("move_points", parameters, "Move data points"))
+
+    def delete_points(self, indices: Iterable[int]) -> None:
+        rows = self._point_rows(indices)
+        self.apply_transformation(Transformation(
+            "delete_points", {"indices": self._row_indices[rows].tolist()}, "Delete data points"))
+
+    def _point_rows(self, indices: Iterable[int]) -> np.ndarray:
+        values = list(indices)
+        if (not values or any(isinstance(row, (bool, np.bool_))
+                              or not isinstance(row, (int, np.integer)) for row in values)):
+            raise DataValidationError("Select data point row indices.")
+        rows = np.asarray(values, dtype=int)
+        if len(np.unique(rows)) != len(rows) or np.any(rows < 0) or np.any(rows >= len(self)):
+            raise DataValidationError("Data point indices must be distinct and inside the dataset.")
+        return rows
+
     def apply_transformation(self, transformation: Transformation) -> None:
         self.transformations.append(transformation)
         try:
@@ -496,11 +554,46 @@ class Curve:
         sigma_x = None if self.sigma_x is None else self.sigma_x.copy()
         minus = None if self.error_y_minus is None else self.error_y_minus.copy()
         plus = None if self.error_y_plus is None else self.error_y_plus.copy()
+        weights = None if self.weights is None else self.weights.copy()
+        rows = np.arange(len(x))
+        original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
         from curvemole.core.columns import evaluate_columns
 
         columns = {key: value.copy() for key, value in self.original_columns.items()}
         for transformation in self.transformations:
             op, p = transformation.operation, transformation.parameters
+            if op in {"move_points", "delete_points"}:
+                requested = p.get("indices", [])
+                if (not isinstance(requested, list) or not requested
+                        or any(isinstance(row, bool) or not isinstance(row, int) for row in requested)):
+                    raise DataValidationError("Point edits require original row indices.")
+                positions = np.searchsorted(rows, requested)
+                if (len(set(requested)) != len(requested) or np.any(positions >= len(rows))
+                        or np.any(rows[positions] != requested)):
+                    raise DataValidationError("Point edit refers to missing or duplicate rows.")
+                if op == "move_points":
+                    if not any(axis in p for axis in ("x", "y")):
+                        raise DataValidationError("Point edits require new coordinates.")
+                    for axis, values in (("x", x), ("y", y)):
+                        if axis in p:
+                            coordinates = _array(p[axis], length=len(positions))
+                            if not np.all(np.isfinite(coordinates)):
+                                raise DataValidationError("Point coordinates must be finite.")
+                            values[positions] = coordinates
+                else:
+                    keep = np.ones(len(rows), dtype=bool)
+                    keep[positions] = False
+                    if np.count_nonzero(keep) < 2:
+                        raise DataValidationError("Keep at least two data points in the dataset.")
+                    rows, x, y = rows[keep], x[keep], y[keep]
+                    sigma, sigma_x, minus, plus, weights = (
+                        None if value is None else value[keep]
+                        for value in (sigma, sigma_x, minus, plus, weights))
+                    columns = {key: value[keep] for key, value in columns.items()}
+                for axis, values in (("x", x), ("y", y)):
+                    if axis in self.column_axes:
+                        columns[self.column_axes[axis]] = values.copy()
+                continue
             derivative = None
             target = p.get("axis") if op == "custom_formula" else p.get("target")
             if op in {"custom_formula", "column_formula"}:
@@ -569,6 +662,11 @@ class Curve:
         self._x, self._y, self._sigma_y_current = x, y, sigma
         self._error_y_minus_current, self._error_y_plus_current = minus, plus
         self._sigma_x_current = sigma_x
+        self._weights_current = weights
+        self._row_indices = rows
+        self._mask_original_excluded = original_masks
+        for mask in self.masks.values():
+            mask.excluded = original_masks[mask.id][rows].copy()
 
     def _mask(self, name: str | None) -> Mask:
         key = name or self.active_mask

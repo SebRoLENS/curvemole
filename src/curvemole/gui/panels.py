@@ -834,7 +834,7 @@ class WorksheetPanel(QWidget):
                 *([minus[row], plus[row],
                    curve.error_confidence_level * 100] if asymmetric else
                   [sigma[row] if sigma is not None else None]),
-                curve.weights[row] if curve.weights is not None else None,
+                curve.current_weights[row] if curve.current_weights is not None else None,
                 bool(excluded[row]),
             ]
             for column, value in enumerate(values):

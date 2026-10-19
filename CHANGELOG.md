@@ -5,6 +5,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Add **Data > Edit data points...** for selecting, dragging and deleting individual
+  measured points directly in the graph, with X/Y/XY constraints, coordinate
+  previews, Delete/Backspace and Done/Esc. Each completed gesture supports Undo/Redo
+  and is stored as a reversible transformation. Deletion keeps errors, weights,
+  masks and retained source columns aligned; originals remain available.
+
 ## [0.40.0] - 2026-10-07
 
 ### Added

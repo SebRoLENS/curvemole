@@ -320,6 +320,8 @@ def _resample_trial_body(
                          else np.asarray(curve.current_sigma_y).copy())
         trial.error_y_minus = curve.current_error_y_minus
         trial.error_y_plus = curve.current_error_y_plus
+        trial.weights = curve.current_weights
+        trial.original_columns = {key: value.copy() for key, value in curve.columns.items()}
         trial.transformations = []
         trial.redo_transformations = []
         trial.__post_init__()
