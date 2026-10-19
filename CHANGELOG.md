@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.41.0] - 2026-10-19
+
 ### Added
 
 - Add **Data > Edit data points...** for selecting, dragging and deleting individual
