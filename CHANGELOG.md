@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.42.0] - 2026-10-19
+
 ### Added
 
 - Give all GUI plugins an owner-scoped main-graph service for non-mutating
