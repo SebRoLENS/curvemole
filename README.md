@@ -25,6 +25,10 @@ line, and reproducible YAML workflows.
 > **Status:** Version **0.40.0 Preview**. The scientific core and desktop workflow
 > are usable, but this is not yet the validated 1.0 Stable release.
 
+**AI-assisted development:** CurveMole is developed with extensive use of AI tools,
+under human direction. The software undergoes extensive hands-on human testing,
+complemented by automated tests. The author remains responsible for its scientific
+design and development decisions.
 
 ## Download
 
