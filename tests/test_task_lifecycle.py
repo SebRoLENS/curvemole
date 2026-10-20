@@ -175,12 +175,20 @@ def test_unresponsive_uncertainty_can_be_saved_cancelled_and_replaced(task_windo
 
 def test_retired_task_does_not_prevent_closing_the_window(task_window):
     app, window, _ = task_window
-    release = threading.Event()
+    entered, release = threading.Event(), threading.Event()
+
+    def operation(progress):
+        entered.set()
+        # Keep the task alive until the assertion, even when closing a Qt
+        # window takes longer than five seconds on a busy CI runner.
+        release.wait()
+
     window._task_snapshot_safe = True
     window._cancellation = CancellationToken()
-    window._run_background(lambda progress: release.wait(5), lambda result: None, "Test")
+    window._run_background(operation, lambda result: None, "Test")
     runner = window._thread
     try:
+        wait_for(app, entered.is_set)
         window.cancel_task()
         wait_for(app, lambda: window._thread is None)
         window.project.dirty = False
