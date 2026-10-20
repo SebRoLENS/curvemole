@@ -221,7 +221,7 @@ def _install_continuous_peak_placement() -> None:
         workspace.finish_placement_button.show()
         workspace.finish_placement_button.setEnabled(True)
         workspace.placement_label.setText(
-            workspace.tr("Quick Peak — ")
+            workspace.tr("Add peaks — ")
             + name
             + workspace.tr(
                 ": click/drag to add peaks repeatedly. Right-click or press Enter, Esc, or Finish when done."
@@ -338,7 +338,7 @@ class CurveMoleMainWindow(MainWindow):
                     QTimer.singleShot(750, self._offer_linux_desktop_integration)
         self.quick_peak_action.setToolTip(
             self.tr(
-                "Quick Add Function\nUse the function selected in the adjacent list. "
+                "Add function\nUse the function selected in the Functions group. "
                 "With Initialize with points checked, place peaks by click and drag; "
                 "otherwise each Add click inserts one automatically estimated peak. "
                 "Right-click or press Enter, Esc, or Finish to stop placement."
@@ -429,7 +429,7 @@ class CurveMoleMainWindow(MainWindow):
         self.plot_workspace.begin_continuous_peak_placement(definition.display_name)
         self._notify(
             self.tr(
-                "Quick Peak is active: add peaks repeatedly, then right-click or press Enter, Esc, or Finish."
+                "Add peaks: click and drag to place peaks, then right-click or press Enter, Esc, or Finish."
             )
         )
 
@@ -460,7 +460,7 @@ class CurveMoleMainWindow(MainWindow):
             self._pending_component = None
             self._pending_component_curve_id = None
             self._continuous_quick_peak_function_id = None
-            self._notify(self.tr("Quick Peak finished."))
+            self._notify(self.tr("Peak placement finished."))
             return
         self._continuous_quick_peak_function_id = None
         super()._graphical_placement_cancelled()

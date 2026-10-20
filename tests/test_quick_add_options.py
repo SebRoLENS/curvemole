@@ -170,18 +170,21 @@ def test_quick_add_group_contains_button_and_does_not_raise_toolbar_height(quick
     app.processEvents()
     toolbar = window.findChild(QToolBar, "Main_toolbar")
     group = window.quick_add_group
-    reference = toolbar.widgetForAction(window.function_info_action)
+    reference = toolbar.widgetForAction(window.open_action)
     assert toolbar.widgetForAction(window.quick_peak_action) is None
     assert group.isAncestorOf(window.quick_add_button)
     assert group.isAncestorOf(window.quick_function_selector)
     assert group.isAncestorOf(window.quick_add_background)
     assert group.isAncestorOf(window.quick_add_manual_points)
-    assert window.quick_add_title.text() == "Quick Add"
+    assert group.isAncestorOf(window.function_info_button)
+    assert window.quick_add_title.text() == "Functions"
     assert window.quick_add_button.defaultAction() is window.quick_peak_action
     assert not window.quick_add_button.icon().isNull()
-    assert window.quick_add_button.text() == "Add"
-    assert group.height() <= reference.sizeHint().height()
-    assert toolbar.height() <= reference.sizeHint().height() + 10
+    assert window.quick_add_button.text() == "Add function"
+    assert window.quick_add_button.iconSize() == reference.iconSize()
+    assert window.quick_add_button.sizeHint().height() == reference.sizeHint().height()
+    assert group.height() <= reference.sizeHint().height() + 4
+    assert toolbar.height() <= reference.sizeHint().height() + 14
     if not group.isVisible():
         # Native fonts and DPI can put the group in the toolbar's overflow.
         # Measure the collapsed toolbar above, then verify access there too.
@@ -318,13 +321,20 @@ def test_function_details_follow_selector_copy_formula_and_keep_advanced_add(qui
     window.function_info_action.trigger()
     dialog = window._function_info_dialog
     assert dialog.isVisible()
+    assert dialog.function_selector.currentData() == "gaussian"
+    assert {dialog.function_selector.itemData(i) for i in range(dialog.function_selector.count())} == set(window.registry.identifiers())
     assert "sigma" in dialog.browser.toPlainText()
     assert "FWHM" in dialog.browser.toPlainText()
     window.quick_function_selector.setCurrentIndex(window.quick_function_selector.findData("linear"))
     assert "f(x) = intercept + slope*x" in dialog.browser.toPlainText()
     assert "slope*x" in window.function_info_action.toolTip()
+    assert dialog.function_selector.currentData() == "linear"
+    dialog.function_selector.setCurrentIndex(dialog.function_selector.findData("constant"))
+    assert window.quick_function_selector.currentData() == "constant"
+    assert window.settings.value("last_quick_function") == "constant"
+    assert "f(x) = offset" in dialog.browser.toPlainText()
     QTest.mouseClick(dialog.copy_button, Qt.MouseButton.LeftButton)
-    assert app.clipboard().text() == "f(x) = intercept + slope*x"
+    assert app.clipboard().text() == "f(x) = offset"
     assert not window.project.model_for(window.active_curve_id).components
     from curvemole.gui.dialogs import AddComponentDialog
     selected = []
@@ -335,9 +345,9 @@ def test_function_details_follow_selector_copy_formula_and_keep_advanced_add(qui
     monkeypatch.setattr(AddComponentDialog, "exec", accept)
     assert dialog.add_button.text() == "Add function…"
     QTest.mouseClick(dialog.add_button, Qt.MouseButton.LeftButton)
-    assert selected == ["linear"]
+    assert selected == ["constant"]
     assert not dialog.isVisible()
-    assert window.project.model_for(window.active_curve_id).components[-1].function_id == "linear"
+    assert window.project.model_for(window.active_curve_id).components[-1].function_id == "constant"
     window.undo_action.trigger()
     assert not window.project.model_for(window.active_curve_id).components
     assert window.add_component_action.shortcut().toString() == "Ctrl++"
@@ -357,3 +367,30 @@ def test_function_details_handle_custom_formulas_and_plugins(quick_window):
     assert "not supplied a formula" in dialog.browser.toPlainText()
     assert "External" in dialog.browser.toPlainText()
     assert not dialog.copy_button.isEnabled()
+    late = formula_definition("late_info", "New plugin function", "b*x")
+    late.custom_metadata.update(plugin_owner="external", plugin_name="External")
+    window.registry.register(late)
+    window._refresh_quick_function_selector()
+    index = dialog.function_selector.findData("late_info")
+    assert index >= 0
+    dialog.function_selector.setCurrentIndex(index)
+    assert window.quick_function_selector.currentData() == "late_info"
+    assert "f(x) = b*x" in dialog.browser.toPlainText()
+
+
+def test_browsing_function_details_cancels_pending_placement_without_inserting(quick_window):
+    app, window = quick_window
+    set_checked(app, window.quick_add_manual_points, True)
+    window.quick_peak()
+    window.plot_workspace._finish_peak_placement(0., 1., 1.)
+    model = window.project.model_for(window.active_curve_id)
+    undo_count = window.undo_stack.count()
+    window.function_info_action.trigger()
+    selector = window._function_info_dialog.function_selector
+    for identifier in ("cubic_spline", "polynomial", "gaussian"):
+        selector.setCurrentIndex(selector.findData(identifier))
+        assert window.quick_function_selector.currentData() == identifier
+        assert len(model.components) == 1
+        assert window.undo_stack.count() == undo_count
+        assert window.plot_workspace._placement_mode is None
+        assert window._pending_component is None

@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Label View options as display only, with explicit notices in its menu and preview
+  banner that data are not modified and operations are not undone. Clarify preview
+  presets, operation tooltips and controls for closing previews.
+- Add a function selector inside Function details, synchronized with the toolbar selector.
+  Browse all built-ins, formulas and loaded plugin functions before adding one;
+  browsing does not insert components or restart graphical placement.
+- Rename the complete insertion block to Functions. Keep Add function, the
+  selector, initialization options and Function details together inside one
+  titled frame, with both icon buttons matching the other toolbar icons in size.
+
 ## [0.43.0] - 2026-10-20
 
 ### Added

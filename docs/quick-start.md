@@ -68,12 +68,14 @@ There are two distinct workflows:
   or exports. Choose **As stored** to restore the normal display. When fitting in this mode,
   the background functions remain part of the model and the fit still uses the
   original spectrum.
-- The same **View options** menu can show the **Original data**, undo background
-  subtraction only in the view, or exclude recorded operations. Choose **Current
+- The same **View options (display only)** menu can preview the original data,
+  show data before background subtraction, or hide the effects of recorded operations.
+  **Data are not modified and operations are not undone.** Choose **Current
   spectrum** for individual operations or **All spectra** for types with counts
   such as **Y multiplication — 3/5 spectra**. Missing types are unaffected; repeated
   operations of the selected type are all excluded. Reconstructed views hide fit
-  overlays, and editing/fitting returns to stored data.
+  overlays, and editing/fitting uses stored data. **Close all previews** returns
+  to the stored display without changing the data or processing history.
 - **Data → Subtract background...** performs a real, reversible subtraction. Select
   the spline (and any other background functions to combine), leave **Apply to all
   spectra** off for this example, and confirm. CurveMole subtracts the current
@@ -92,10 +94,12 @@ minus the current model. With it checked, press **Add**, click a peak centre and
 drag horizontally to either half-height edge; the highlighted width is the complete
 initial FWHM. Continue placing peaks, then press **Finish**, Return/Enter or
 right-click to stop. The parameters remain free for fitting in either mode.
-Quick Add remembers its own options for each function.
+The **Functions** group remembers its options for each function.
 
-The adjacent **Function details** button shows the selected function's formula,
-parameter defaults and bounds, and initialization instructions. It also offers
+The **Function details** button inside the same bordered Functions group shows the selected function's formula,
+parameter defaults and bounds, and initialization instructions. Its **Function**
+selector lets you choose other functions and stays synchronized with the toolbar.
+Changing the selection does not add a function. The dialog also offers
 **Copy formula** and **Add function** for advanced component setup.
 
 Built-in peaks use signed integrated area:

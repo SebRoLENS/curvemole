@@ -2,7 +2,7 @@
 
 This module intentionally follows CurveMole's established GUI compatibility-patch
 pattern. It keeps the existing public action/method names for backwards
-compatibility while presenting the feature as Quick Add Function in the UI.
+compatibility while presenting the complete Functions group in the UI.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import QSignalBlocker, QSize, Qt
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QInputDialog,
     QLabel,
     QMessageBox,
+    QSizePolicy,
     QToolBar,
     QToolButton,
     QVBoxLayout,
@@ -340,7 +341,7 @@ def _quick_add_function(window: MainWindow) -> None:
             if not _quick_add_option(window, function_id, "manual_points"):
                 initialise_peak_component(component, _guess_quick_peak(window), registry=window.registry)
                 window._commit_component(component, window.active_curve_id)
-                window._notify(window.tr("Quick Add Function: estimated and added ") + definition.display_name + ".")
+                window._notify(window.tr("Add function: estimated and added ") + definition.display_name + ".")
                 return
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
@@ -348,7 +349,7 @@ def _quick_add_function(window: MainWindow) -> None:
             window.plot_workspace.mark_quick_add_placement()
             window._notify(
                 window.tr(
-                    "Quick Add Function: click the peak centre and drag horizontally to set its initial FWHM."
+                    "Add function: click the peak centre and drag horizontally to set its initial FWHM."
                 )
             )
             return
@@ -388,7 +389,7 @@ def _quick_add_function(window: MainWindow) -> None:
             window.plot_workspace.mark_quick_add_placement()
             window._notify(
                 window.tr(
-                    "Quick Add Function: click spline points on the graph and finish after at least two points."
+                    "Add function: click spline points on the graph and finish after at least two points."
                 )
             )
             return
@@ -406,13 +407,13 @@ def _quick_add_function(window: MainWindow) -> None:
             )
             window.plot_workspace.mark_quick_add_placement()
             window._notify(
-                window.tr("Quick Add Function: select points on the graph, then press Finish.")
+                window.tr("Add function: select points on the graph, then press Finish.")
             )
             return
         window._commit_component(component, window.active_curve_id)
-        window._notify(window.tr("Quick Add Function: added ") + definition.display_name + ".")
+        window._notify(window.tr("Add function: added ") + definition.display_name + ".")
     except Exception as exc:
-        window._show_error(window.tr("Quick Add Function"), exc)
+        window._show_error(window.tr("Add function"), exc)
 
 
 def _find_peaks(window: MainWindow) -> None:
@@ -601,10 +602,10 @@ def _install() -> None:
 
     def build_actions(window: MainWindow) -> None:
         original_build_actions(window)
-        window.quick_peak_action.setText(window.tr("Quick Add Function"))
+        window.quick_peak_action.setText(window.tr("Add function"))
         window.quick_peak_action.setToolTip(
             window.tr(
-                "Quick Add Function\nReplaces Quick Peak and adds the function selected in the adjacent list."
+                "Add function\nAdd the function selected in the Functions group, using its Background and Initialize with points options."
             )
         )
         window.quick_add_function_action = window.quick_peak_action
@@ -618,56 +619,53 @@ def _install() -> None:
             return
         reference = toolbar.widgetForAction(window.add_component_action)
         reference_height = reference.sizeHint().height() if reference is not None else None
-        toolbar.insertAction(window.add_component_action, window.function_info_action)
         toolbar.removeAction(window.add_component_action)
         toolbar.removeAction(window.quick_peak_action)
         group = QFrame(toolbar)
         group.setObjectName("quick_add_group")
+        group.setAccessibleName(window.tr("Functions"))
+        group.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         group.setFrameShape(QFrame.Shape.StyledPanel)
         group.setStyleSheet(
             "QFrame#quick_add_group { border: 1px solid palette(mid); border-radius: 4px; }"
         )
         if reference_height is not None:
-            group.setMaximumHeight(reference_height)
+            group.setMaximumHeight(reference_height + 4)
         group_layout = QHBoxLayout(group)
-        group_layout.setContentsMargins(2, 0, 2, 0)
-        group_layout.setSpacing(2)
-        launch = QWidget(group)
-        launch_layout = QVBoxLayout(launch)
-        launch_layout.setContentsMargins(0, 0, 0, 0)
-        launch_layout.setSpacing(0)
-        title = QLabel(window.tr("Quick Add"), launch)
+        group_layout.setContentsMargins(3, 1, 3, 1)
+        group_layout.setSpacing(4)
+        button = QToolButton(group)
+        button.setObjectName("quick_add_button")
+        button.setDefaultAction(window.quick_peak_action)
+        button.setAutoRaise(True)
+        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        button.setIconSize(toolbar.iconSize())
+        group_layout.addWidget(button)
+        choices = QWidget(group)
+        layout = QVBoxLayout(choices)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        heading = QHBoxLayout()
+        heading.setContentsMargins(0, 0, 0, 0)
+        heading.setSpacing(4)
+        title = QLabel(window.tr("Functions"), choices)
         title_font = title.font()
         title_font.setBold(True)
         if title_font.pointSizeF() > 0:
             title_font.setPointSizeF(max(8.0, title_font.pointSizeF() - 1.0))
         title.setFont(title_font)
-        launch_layout.addWidget(title)
-        button = QToolButton(launch)
-        button.setObjectName("quick_add_button")
-        button.setDefaultAction(window.quick_peak_action)
-        button.setText(window.tr("Add"))
-        # Icon/theme updates propagate QAction's longer menu title to its
-        # buttons. Keep the compact label while sharing the canonical action.
-        window.quick_peak_action.changed.connect(lambda: button.setText(window.tr("Add")))
-        button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-        button.setIconSize(QSize(16, 16))
-        launch_layout.addWidget(button)
-        group_layout.addWidget(launch)
-        choices = QWidget(group)
-        layout = QVBoxLayout(choices)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        heading.addWidget(title)
         selector = QComboBox(choices)
         selector.setObjectName("quick_function_selector")
         selector.setMinimumWidth(150)
         selector.setMaximumWidth(240)
-        selector.setToolTip(window.tr("Function used by Quick Add Function"))
+        selector.setToolTip(window.tr("Function to inspect or add"))
         window.quick_function_selector = selector
-        layout.addWidget(selector)
+        heading.addWidget(selector, 1)
+        layout.addLayout(heading)
         window.quick_add_background = QCheckBox(window.tr("Background"), choices)
         window.quick_add_background.setObjectName("quick_add_background")
-        window.quick_add_background.setToolTip(window.tr("Mark the function added by Quick Add as background."))
+        window.quick_add_background.setToolTip(window.tr("Mark the added function as background."))
         option_row = QHBoxLayout()
         option_row.setContentsMargins(0, 0, 0, 0)
         option_row.setSpacing(2)
@@ -681,6 +679,18 @@ def _install() -> None:
         option_row.addWidget(window.quick_add_manual_points)
         layout.addLayout(option_row)
         group_layout.addWidget(choices)
+        info_button = QToolButton(group)
+        info_button.setObjectName("function_info_button")
+        info_button.setDefaultAction(window.function_info_action)
+        info_button.setAutoRaise(True)
+        info_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        info_button.setIconSize(toolbar.iconSize())
+        group_layout.addWidget(info_button)
+        toolbar.iconSizeChanged.connect(button.setIconSize)
+        toolbar.iconSizeChanged.connect(info_button.setIconSize)
+        window.functions_group = group
+        window.add_function_button = button
+        window.function_info_button = info_button
         window.quick_add_group = group
         window.quick_add_button = button
         window.quick_add_title = title

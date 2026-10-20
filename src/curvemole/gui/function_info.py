@@ -1,13 +1,16 @@
-"""Formula and parameter reference for the current Quick Add function."""
+"""Formula and parameter reference for the selected function."""
 
 from __future__ import annotations
 
 from html import escape
 
+from PySide6.QtCore import QSignalBlocker, Qt
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFormLayout,
     QPushButton,
     QTextBrowser,
     QVBoxLayout,
@@ -88,7 +91,7 @@ def function_info_html(definition: FunctionDefinition) -> str:
             parts.append("</table>")
     if definition.derived:
         parts.append("<p>Derived quantities: " + escape(", ".join(definition.derived)) + "</p>")
-    parts.append("<h3>Quick Add initialization</h3>")
+    parts.append("<h3>Initialization</h3>")
     if definition.kind == "peak":
         parts.append(
             "<p><b>Initialize with points checked:</b> click the centre and drag horizontally to set the initial FWHM. Parameters remain free for fitting.</p><p><b>Unchecked:</b> each Add click inserts one peak estimated from the finite, unmasked data minus the current model. The most prominent positive or negative residual peak is used. Estimates remain editable.</p>"
@@ -110,6 +113,13 @@ class FunctionInfoDialog(QDialog):
         self.setWindowTitle(self.tr("Function details"))
         self.resize(700, 600)
         layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self.function_selector = QComboBox(self)
+        self.function_selector.setObjectName("function_info_selector")
+        self.function_selector.setToolTip(self.tr("Choose a function to inspect or add."))
+        self.function_selector.currentIndexChanged.connect(self._function_selected)
+        form.addRow(self.tr("Function:"), self.function_selector)
+        layout.addLayout(form)
         self.browser = QTextBrowser(self)
         self.browser.setOpenLinks(False)
         layout.addWidget(self.browser)
@@ -131,11 +141,33 @@ class FunctionInfoDialog(QDialog):
         self.close()
         window.add_component()
 
+    def _function_selected(self, index):
+        identifier = self.function_selector.itemData(index)
+        if not identifier:
+            return
+        window = self.parentWidget()
+        # Browsing functions must not restart placement or insert a spline as
+        # the toolbar's placement-aware selection handler can do.
+        window.plot_workspace.cancel_placement()
+        window._remember_quick_function(str(identifier))
+
     def set_function(self, definition):
+        window = self.parentWidget()
+        definitions = window.registry.values()
+        identifiers = [item.identifier for item in definitions]
+        with QSignalBlocker(self.function_selector):
+            if identifiers != [self.function_selector.itemData(i) for i in range(self.function_selector.count())]:
+                self.function_selector.clear()
+                for item in definitions:
+                    self.function_selector.addItem(item.display_name, item.identifier)
+            for index, item in enumerate(definitions):
+                self.function_selector.setItemText(index, item.display_name)
+                self.function_selector.setItemData(index, function_tooltip(item), Qt.ItemDataRole.ToolTipRole)
+            self.function_selector.setCurrentIndex(self.function_selector.findData(definition.identifier))
+        self.function_selector.setToolTip(function_tooltip(definition) or self.tr("Choose a function to inspect or add."))
         self.formula = function_formula(definition)
         self.browser.setHtml(function_info_html(definition))
         self.copy_button.setEnabled(bool(self.formula))
-        window = self.parentWidget()
         self.add_button.setEnabled(
             bool(window.active_curve_id)
             and not window.project.read_only

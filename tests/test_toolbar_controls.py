@@ -27,7 +27,6 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                window.plot_workspace.mask_action, window.import_action,
                window.open_action, window.save_action, window.undo_action,
                window.redo_action, window.calculator_action, window.notebook_action,
-               window.function_info_action,
                window.fit_action, window.quick_fit_action, window.cancel_action,
                window.subtract_background_action)
     for action in actions:
@@ -38,10 +37,15 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
         assert isinstance(button, QToolButton)
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
     assert window.quick_peak_action not in toolbar.actions()
+    assert window.function_info_action not in toolbar.actions()
     assert window.quick_add_button.defaultAction() is window.quick_peak_action
-    assert window.quick_add_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextBesideIcon
+    assert window.quick_add_button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonIconOnly
+    assert window.quick_add_button.iconSize() == toolbar.iconSize()
     assert not window.quick_add_button.icon().isNull()
     assert window.quick_add_group.isAncestorOf(window.quick_add_button)
+    assert window.quick_add_group.isAncestorOf(window.function_info_button)
+    assert window.function_info_button.defaultAction() is window.function_info_action
+    assert window.function_info_button.iconSize() == toolbar.iconSize()
     quick_group_action = next(action for action in toolbar.actions()
                               if toolbar.widgetForAction(action) is window.quick_add_group)
     ordered = toolbar.actions()
@@ -50,11 +54,9 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     assert ordered.index(window.revert_background_action) < ordered.index(window.view_options_action)
     assert ordered.index(window.view_options_action) < ordered.index(window.plot_workspace.mask_action)
     assert ordered.index(window.revert_background_action) < ordered.index(window.plot_workspace.mask_action)
-    assert ordered.index(window.plot_workspace.mask_action) < ordered.index(window.function_info_action)
+    assert ordered.index(window.plot_workspace.mask_action) < ordered.index(quick_group_action)
     assert ordered[ordered.index(window.revert_background_action) + 1].isSeparator()
     assert ordered[ordered.index(window.plot_workspace.mask_action) + 1].isSeparator()
-    assert ordered.index(window.function_info_action) < ordered.index(window.fit_action)
-    assert ordered.index(window.function_info_action) < ordered.index(quick_group_action)
     assert ordered.index(quick_group_action) < ordered.index(window.fit_action)
     assert ordered.index(window.cancel_action) < ordered.index(window.calculator_action)
     assert ordered.index(window.calculator_action) + 1 == ordered.index(window.notebook_action)

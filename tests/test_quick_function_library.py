@@ -47,7 +47,7 @@ def test_quick_add_selector_lists_the_complete_registry() -> None:
         for index in range(window.quick_function_selector.count())
     }
     assert identifiers == set(window.registry.identifiers())
-    assert window.quick_peak_action.text() == "Quick Add Function"
+    assert window.quick_peak_action.text() == "Add function"
 
     window.close()
     app.processEvents()

@@ -71,7 +71,7 @@ def test_quick_toolbar_actions_use_bundled_icons_and_text_tooltips() -> None:
         window.calculator_action: "Data Calculator",
         window.subtract_background_action: "Subtract background",
         window.add_component_action: "Add component",
-        window.quick_peak_action: "Quick Add Function",
+        window.quick_peak_action: "Add function",
         window.function_info_action: "Function details",
         window.fit_action: "Fit",
         window.quick_fit_action: "Quick Fit",

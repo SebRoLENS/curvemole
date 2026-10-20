@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QToolBar,
     QToolButton,
     QWidget,
+    QWidgetAction,
 )
 
 from curvemole.core.display import DisplayOptions, display_curve, operation_keys
@@ -57,12 +58,14 @@ class ViewOptionsController(QObject):
         self._groups = []
         self.menu.setToolTipsVisible(True)
         self.menu.aboutToShow.connect(self.rebuild_menu)
-        self.action = QAction(_resource_icon("view-options.svg"), self.tr("View options"), window)
+        self.action = QAction(_resource_icon("view-options.svg"), self.tr("View options (display only)"), window)
         self.action.setObjectName("view_options_action")
         self.action.setCheckable(True)
         self.action.setMenu(self.menu)
         self.action.setToolTip(self.tr(
-            "View options\nPreview original data, include or exclude recorded operations, "
+            "View options (display only)\nChanges only what is shown on the graph. "
+            "Data are not modified and operations are not undone.\n"
+            "Preview original data, include or exclude recorded operations in the preview, "
             "or change background display for the current spectrum or all spectra."
         ))
         window.view_options_action = self.action
@@ -88,7 +91,8 @@ class ViewOptionsController(QObject):
         self.label = QLabel()
         self.label.setWordWrap(True)
         row.addWidget(self.label, 1)
-        reset = QPushButton(self.tr("Reset all views"))
+        reset = QPushButton(self.tr("Close all previews"))
+        reset.setToolTip(self.tr("Return every spectrum to its stored display. Data and recorded operations stay unchanged."))
         reset.clicked.connect(lambda: self.apply({c.id: DisplayOptions() for c in window.project.curves}))
         row.addWidget(reset)
         layout = self.workspace.layout()
@@ -127,7 +131,7 @@ class ViewOptionsController(QObject):
                 self.options.pop(curve.id, None)
                 self._cache[curve.id] = curve
                 self.sync_ui()
-                self.window.statusBar().showMessage(self.tr("Display reset: ") + str(exc), 10000)
+                self.window.statusBar().showMessage(self.tr("Display preview closed: ") + str(exc), 10000)
         return self._cache[curve.id]
 
     def replays(self, curve):
@@ -153,12 +157,13 @@ class ViewOptionsController(QObject):
         )
         summary = self.tr("Original data") if raw and raw == len(changed) else self.tr("Custom display")
         if legacy or changed and all(self.for_curve(c.id).background == "subtract" and not self.replays(c) for c in changed):
-            summary = self.tr("Fitted background removed")
-        self.label.setText(self.tr("Display preview: ") + summary
+            summary = self.tr("Fitted background hidden")
+        self.label.setText(self.tr("Display only: ") + summary
                            + f" · {len(curves) if legacy else len(changed)}/{len(curves)} "
                            + self.tr("visible spectra")
+                           + self.tr(". Data unchanged; no operations undone.")
                            + (self.tr(" · Models and residuals hidden for reconstructed data. "
-                                      "Editing or fitting returns to stored data.") if replay else ""))
+                                      "Editing or fitting uses stored data.") if replay else ""))
 
     def apply(self, updates):
         curves = {c.id: c for c in self.window.project.curves}
@@ -194,7 +199,9 @@ class ViewOptionsController(QObject):
                    for c in self.window.project.curves if self.replays(c)}
         if updates:
             self.apply(updates)
-            self.window.statusBar().showMessage(self.tr("Stored data restored for editing or fitting."), 5000)
+            self.window.statusBar().showMessage(self.tr(
+                "Display preview closed for editing or fitting. Data and recorded operations stay unchanged."
+            ), 5000)
 
     def _legacy_changed(self, enabled):
         if enabled:
@@ -243,7 +250,15 @@ class ViewOptionsController(QObject):
         for group in self._groups:
             group.deleteLater()
         self._groups.clear()
-        self.menu.addSection(self.tr("Apply display changes to"))
+        self.menu.addSection(self.tr("Display only"))
+        notice = QLabel(self.tr("Data are not modified.\nOperations are not undone.\nThese options change only what is shown on the graph."), self.menu)
+        notice.setWordWrap(True)
+        notice.setContentsMargins(12, 4, 12, 8)
+        notice.setMaximumWidth(420)
+        notice_action = QWidgetAction(self.menu)
+        notice_action.setDefaultWidget(notice)
+        self.menu.addAction(notice_action)
+        self.menu.addSection(self.tr("Apply preview to"))
         scope = QActionGroup(self.menu)
         for name, text in (("current", self.tr("Current spectrum")), ("all", self.tr("All spectra"))):
             self._radio(scope, text, "view_scope_" + name, self.scope == name,
@@ -253,9 +268,9 @@ class ViewOptionsController(QObject):
         enabled = bool(curves)
         self.menu.addSection(self.tr("Data"))
         presets = QActionGroup(self.menu)
-        self._radio(presets, self.tr("Stored data — all operations included"), "view_stored",
+        self._radio(presets, self.tr("Preview stored data — all operations included"), "view_stored",
                     enabled and all(o == DisplayOptions() for o in options), lambda: self._preset(False), enabled)
-        self._radio(presets, self.tr("Original data — no operations or masks"), "view_original",
+        self._radio(presets, self.tr("Preview original data — without processing or masks"), "view_original",
                     enabled and all(o.original for o in options), lambda: self._preset(True), enabled)
         self.menu.addSection(self.tr("Background"))
         backgrounds = QActionGroup(self.menu)
@@ -268,7 +283,7 @@ class ViewOptionsController(QObject):
             self._radio(backgrounds, text, "view_background_" + mode,
                         enabled and all(not o.original and o.background == mode for o in options),
                         lambda checked=False, target=mode: self._background(target), available)
-        self.menu.addSection(self.tr("Included operations") + (self.tr(" — by type") if self.scope == "all" else ""))
+        self.menu.addSection(self.tr("Operations included in preview") + (self.tr(" — by type") if self.scope == "all" else ""))
         if len(set(options)) > 1:
             self.menu.addAction(self.tr("Mixed display settings; changes apply to this scope.")).setEnabled(False)
         pairs = [(c, key, item) for c in curves
@@ -295,13 +310,15 @@ class ViewOptionsController(QObject):
             action.setEnabled(not options or not all(o.original for o in options))
             details = [f"{c.name}: {t.description or t.operation} "
                        + json.dumps(t.parameters, ensure_ascii=False)[:400] for c, _, t in entries]
-            action.setToolTip(self.tr("Checked operations are included in the display, in recorded order.\n")
+            action.setToolTip(self.tr("Checked operations are shown in the preview, in recorded order. "
+                                     "Unchecking hides their effect only in this view; it does not undo them or modify data.\n")
                               + "\n".join(details))
             action.triggered.connect(lambda checked, targets=entries: self._operation(targets, checked))
         if not pairs:
             self.menu.addAction(self.tr("No recorded operations")).setEnabled(False)
         self.menu.addSeparator()
-        reset = self.menu.addAction(self.tr("Reset display for this scope"))
+        reset = self.menu.addAction(self.tr("Close preview for this scope"))
+        reset.setToolTip(self.tr("Return to the stored display without changing data or undoing operations."))
         reset.setEnabled(enabled)
         reset.triggered.connect(lambda: self._preset(False))
 
