@@ -9,3 +9,4 @@ release-request=0.38.1-manual-alignment
 release-request=0.38.2-validation-retry
 release-request=0.39.0-checkbox-validation-retry
 release-request=0.41.0-macos-validation-time-budget
+release-request=0.42.1-portable-help-tests

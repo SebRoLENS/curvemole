@@ -52,7 +52,7 @@ def test_reader_renders_markdown_and_navigates_local_links(help_window, tmp_path
     assert 'Caffè and λ.' in dialog.browser.toPlainText()
     assert dialog.back.isEnabled()
     dialog.back.click()
-    assert dialog.browser.source().toLocalFile() == str(path)
+    assert Path(dialog.browser.source().toLocalFile()) == path
     assert dialog.forward.isEnabled()
     dialog.forward.click()
     dialog.search.setText('Caffè')
@@ -92,7 +92,9 @@ def test_help_menu_tracks_active_plugins_and_multiple_manuals(help_window, tmp_p
     assert 'First' in actions[0].text()
     assert not actions[1].isEnabled()
     submenu = actions[2].menu()
-    assert [action.text() for action in submenu.actions()] == ['README.md', 'docs/usage.md']
+    assert [action.text() for action in submenu.actions()] == [
+        'README.md', str(Path('docs') / 'usage.md')
+    ]
     opened = []
     monkeypatch.setattr('curvemole.gui.plugin_host.show_markdown_document',
                         lambda parent, path, title: opened.append(path))
