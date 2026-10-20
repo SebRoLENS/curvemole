@@ -489,7 +489,7 @@ class CurveTree(QTreeWidget):
         warning = uncertainty_warning(self._project, curve.id, self._uncertainty_method)
         dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
         item.setForeground(2, QColor("#ffd166" if dark else "#9b6500") if warning else _state_colour(curve.state))
-        item.setIcon(1, self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning) if warning else QIcon())
+        item.setIcon(2, self.style().standardIcon(QStyle.StandardPixmap.SP_MessageBoxWarning) if warning else QIcon())
 
     def _style_curve_visibility(self, item: QTreeWidgetItem) -> None:
         visible = item.checkState(0) == Qt.CheckState.Checked
@@ -1741,27 +1741,18 @@ class MainWindow(QMainWindow):
             return
         try:
             curve = self.project.dataset.curve(curve_id)
-            finite = np.isfinite(curve.x) & np.isfinite(curve.y) & ~curve.effective_mask
+            from curvemole.gui.function_composition import insertion_signal, normalize_kernel
+            residual = insertion_signal(self, curve, component.operator)
+            finite = np.isfinite(curve.x) & np.isfinite(curve.y) & np.isfinite(residual) & ~curve.effective_mask
             if not np.any(finite):
                 raise ValueError(self.tr("The active curve has no usable points."))
             indices = np.flatnonzero(finite)
             point_index = int(indices[np.argmin(np.abs(curve.x[finite] - centre))])
-            model = self.project.model_for(curve_id)
-            existing = np.asarray(
-                model.evaluate(
-                    curve.x,
-                    curve_id=curve_id,
-                    values=self.project.resolved_parameter_values(),
-                    registry=self.registry,
-                ),
-                dtype=float,
-            )
-            residual = curve.y - existing
-            residual_offset = float(np.nanmedian(residual[finite]))
+            residual_offset = float(np.nanmedian(residual[finite])) if component.operator in {"add", "subtract"} else 0.0
             height = float(residual[point_index] - residual_offset)
             scale = float(np.ptp(curve.y[finite]))
             minimum_height = max(scale * 0.02, np.finfo(float).eps)
-            if not math.isfinite(height) or height <= 0:
+            if not math.isfinite(height) or abs(height) <= np.finfo(float).eps:
                 height = minimum_height
             width = max(float(fwhm), np.finfo(float).eps)
             suggestion = PeakSuggestion(
@@ -1769,9 +1760,10 @@ class MainWindow(QMainWindow):
                 height=height,
                 fwhm=width,
                 prominence=height,
-                sign=1,
+                sign=1 if height >= 0 else -1,
             )
             initialise_peak_component(component, suggestion, registry=self.registry)
+            normalize_kernel(component)
             self._commit_component(component, curve_id)
         except Exception as exc:
             self._show_error(self.tr("Place peak"), exc)

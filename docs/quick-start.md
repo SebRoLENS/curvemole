@@ -94,12 +94,15 @@ minus the current model. With it checked, press **Add**, click a peak centre and
 drag horizontally to either half-height edge; the highlighted width is the complete
 initial FWHM. Continue placing peaks, then press **Finish**, Return/Enter or
 right-click to stop. The parameters remain free for fitting in either mode.
-The **Functions** group remembers its options for each function.
+The arrow on **Add** chooses Add, Subtract, Multiply, Divide or Convolve; the
+orange icon symbol shows the selection. Use Add for this workflow. The Functions
+group remembers its initialization and background options for each function.
 
 The **Function details** button inside the same bordered Functions group shows the selected function's formula,
 parameter defaults and bounds, and initialization instructions. Its **Function**
 selector lets you choose other functions and stays synchronized with the toolbar.
-Changing the selection does not add a function. The dialog also offers
+Changing the selection does not add a function. Its Composition selector stays
+synchronized with the Add button. The dialog also offers
 **Copy formula** and **Add function** for advanced component setup.
 
 Built-in peaks use signed integrated area:

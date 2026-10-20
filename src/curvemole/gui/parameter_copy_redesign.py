@@ -65,7 +65,7 @@ class CopyParameterDialog(QDialog):
         self.window = window
         self._source_ref = _normalise_source(refs_or_source, current_ref)
         self._all_refs = _all_component_refs(window)
-        self.setWindowTitle(self.tr("Copy parameter"))
+        self.setWindowTitle(self.tr("Copy parameters"))
         self.resize(620, 540)
 
         layout = QVBoxLayout(self)
@@ -78,6 +78,7 @@ class CopyParameterDialog(QDialog):
         source_component = window.project.model_for(source_curve_id).component(source_component_id)
         for name in source_component.parameters:
             self.parameter.addItem(name, name)
+        self.parameter.addItem(self.tr("All"), None)
         if current_parameter:
             index = self.parameter.findData(current_parameter)
             if index >= 0:
@@ -116,7 +117,8 @@ class CopyParameterDialog(QDialog):
         note = QLabel(
             self.tr(
                 "Select at least one field to copy. Unchecked fields keep their target values. "
-                "Functions without the selected parameter cannot be chosen."
+                "All copies every source parameter using the fields selected below. "
+                "Targets must contain every selected parameter; extra target parameters stay unchanged."
             )
         )
         note.setWordWrap(True)
@@ -147,9 +149,17 @@ class CopyParameterDialog(QDialog):
     def source_ref(self) -> tuple[str, str]:
         return self._source_ref
 
-    def parameter_name(self) -> str:
+    def parameter_name(self) -> str | None:
         value = self.parameter.currentData()
-        return "" if value is None else str(value)
+        return None if value is None else str(value)
+
+    def parameter_names(self) -> list[str]:
+        if self.parameter.currentIndex() < 0:
+            return []
+        curve_id, component_id = self._source_ref
+        component = self.window.project.model_for(curve_id).component(component_id)
+        name = self.parameter_name()
+        return list(component.parameters) if name is None else [name]
 
     def target_refs(self) -> list[tuple[str, str]]:
         result: list[tuple[str, str]] = []
@@ -169,11 +179,12 @@ class CopyParameterDialog(QDialog):
 
     def _refresh_source_summary(self) -> None:
         name = self.parameter_name()
-        if not name:
-            self.source_summary.clear()
-            return
         curve_id, component_id = self._source_ref
         component = self.window.project.model_for(curve_id).component(component_id)
+        if name is None:
+            self.source_summary.setText(self.tr("All parameters of function '") + component.name
+                + "' (" + str(len(component.parameters)) + self.tr(") can be copied to:"))
+            return
         parameter = component.parameters[name]
         self.source_summary.setText(
             self.tr("Parameter '")
@@ -187,10 +198,9 @@ class CopyParameterDialog(QDialog):
 
     def _refresh_targets(self, *, preserve: bool) -> None:
         selected = set(self.target_refs()) if preserve else set()
-        name = self.parameter_name()
+        names = self.parameter_names()
         source_curve_id, source_component_id = self._source_ref
         source = self.window.project.model_for(source_curve_id).component(source_component_id)
-        source_parameter = source.parameters.get(name) if name else None
 
         self.targets.blockSignals(True)
         try:
@@ -200,23 +210,22 @@ class CopyParameterDialog(QDialog):
                     continue
                 curve_id, component_id = ref
                 component = self.window.project.model_for(curve_id).component(component_id)
-                target = component.parameters.get(name) if name else None
+                missing = [name for name in names if name not in component.parameters]
+                pairs = [(source.parameters[name], component.parameters[name]) for name in names if name not in missing]
                 label = _legacy._component_label(self.window, ref)
-                available = target is not None and source_parameter is not None
-                if target is None:
-                    label += self.tr("  — parameter unavailable")
+                available = bool(names) and not missing
+                if missing or not names:
+                    label += self.tr("  — parameters unavailable") + (": " + ", ".join(missing) if missing else "")
                 elif (
-                    source_parameter is not None
-                    and self.copy_value.isChecked()
+                    self.copy_value.isChecked()
                     and not self.copy_bounds.isChecked()
-                    and not target.minimum <= source_parameter.value <= target.maximum
+                    and any(not target.minimum <= source_parameter.value <= target.maximum for source_parameter, target in pairs)
                 ):
                     available = False
                     label += self.tr("  — value outside current bounds")
                 elif (
-                    source_parameter is not None and target is not None
-                    and self.copy_bounds.isChecked() and not self.copy_value.isChecked()
-                    and not source_parameter.minimum <= target.value <= source_parameter.maximum
+                    self.copy_bounds.isChecked() and not self.copy_value.isChecked()
+                    and any(not source_parameter.minimum <= target.value <= source_parameter.maximum for source_parameter, target in pairs)
                 ):
                     available = False
                     label += self.tr("  — current value outside copied bounds")
@@ -261,7 +270,7 @@ class CopyParameterDialog(QDialog):
         count = len(self.target_refs())
         chosen = any(box.isChecked() for box in
             (self.copy_value, self.copy_fixed, self.copy_bounds, self.copy_link))
-        self.copy_button.setEnabled(bool(self.parameter_name()) and count > 0 and chosen)
+        self.copy_button.setEnabled(bool(self.parameter_names()) and count > 0 and chosen)
         if count:
             self.summary.setText(str(count) + " " + self.tr("target function(s) selected."))
             self.copy_button.setText(
@@ -303,7 +312,9 @@ def _update_button(panel: ModelPanel) -> None:
     remembered_source = getattr(panel, "_parameter_copy_source_ref", None)
     remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
     button.setEnabled(True)
-    if remembered_source == source_ref and remembered_parameter:
+    if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
+        button.setText(panel.tr("Copy all parameters from ") + _component_name(panel, source_ref) + "…")
+    elif remembered_source == source_ref and remembered_parameter:
         button.setText(
             panel.tr("Copy '")
             + str(remembered_parameter)
@@ -338,6 +349,8 @@ def _copy_selected(panel: ModelPanel) -> None:
     remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
     parameter_hint = remembered_parameter if remembered_source == source_ref else None
     dialog = CopyParameterDialog(window, source_ref, current_parameter=parameter_hint)
+    if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
+        dialog.parameter.setCurrentIndex(dialog.parameter.findData(None))
     if dialog.exec() != dialog.DialogCode.Accepted:
         return
     try:
@@ -354,6 +367,10 @@ def _copy_selected(panel: ModelPanel) -> None:
     except Exception as exc:
         window._show_error(window.tr("Copy parameter"), exc)
         return
+    panel._parameter_copy_source_ref = source_ref
+    panel._parameter_copy_parameter_name = dialog.parameter_name()
+    panel._parameter_copy_all_parameters = dialog.parameter_name() is None
+    panel._update_copy_parameter_button()
     _legacy._show_copy_result(window, result, dialog.parameter_name())
 
 

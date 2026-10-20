@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Component, Curve, Project
+from curvemole.core.errors import ConstraintError
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.parameter_copy import CopyParameterDialog, copy_parameter_to_refs
 
@@ -276,6 +277,156 @@ def test_copy_button_requires_exactly_one_source_function() -> None:
     assert not panel.copy_parameter_button.isEnabled()
     assert panel.copy_parameter_button.text() == "Select a single source function"
 
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_all_parameters_copy_selected_fields_as_one_undoable_edit():
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    extra = Component.create("voigt")
+    window.project.model_for(second.id).add(extra)
+    gamma = extra.parameters["gamma"].to_dict()
+    for index, parameter in enumerate(source.parameters.values()):
+        parameter.value = index + 2.
+        parameter.minimum, parameter.maximum = -10., 10.
+        parameter.fixed = True
+    for parameter in target.parameters.values():
+        parameter.standard_error = .2
+        parameter.ci_low, parameter.ci_high = .1, .5
+    before = window.project.model_for(second.id).to_dict()
+    source_before = source.to_dict()
+    count = window.undo_stack.count()
+    result = copy_parameter_to_refs(
+        window, (first.id, source.id), [(second.id, target.id), (second.id, extra.id)], None,
+        copy_value=True, copy_fixed=True, copy_bounds=True,
+    )
+    assert result.copied == 2
+    assert window.undo_stack.count() == count + 1
+    after = window.project.model_for(second.id).to_dict()
+    for component_id in (target.id, extra.id):
+        copied = window.project.model_for(second.id).component(component_id)
+        for name, parameter in source.parameters.items():
+            assert copied.parameters[name].value == parameter.value
+            assert copied.parameters[name].fixed
+            assert copied.parameters[name].minimum == -10.
+            assert copied.parameters[name].maximum == 10.
+            assert copied.parameters[name].standard_error is None
+            assert copied.parameters[name].ci_low is None
+            assert copied.parameters[name].ci_high is None
+    assert window.project.model_for(second.id).component(extra.id).parameters["gamma"].to_dict() == gamma
+    assert window.project.model_for(first.id).component(source.id).to_dict() == source_before
+    window.undo_stack.undo()
+    assert window.project.model_for(second.id).to_dict() == before
+    window.undo_stack.redo()
+    assert window.project.model_for(second.id).to_dict() == after
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_all_parameters_skips_whole_target_when_any_name_or_bounds_are_incompatible():
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    source.parameters["area"].value = 25.
+    source.parameters["center"].value = 3.
+    target.parameters["center"].maximum = 1.
+    lorentzian = Component.create("lorentzian")
+    window.project.model_for(second.id).add(lorentzian)
+    before = window.project.model_for(second.id).to_dict()
+    count = window.undo_stack.count()
+    result = copy_parameter_to_refs(
+        window, (first.id, source.id), [(second.id, target.id), (second.id, lorentzian.id)], None,
+        copy_value=True,
+    )
+    assert result.copied == 0
+    assert result.incompatible_bounds == [(second.id, target.id)]
+    assert result.missing_parameter == [(second.id, lorentzian.id)]
+    assert window.project.model_for(second.id).to_dict() == before
+    assert window.undo_stack.count() == count
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_all_parameters_rolls_back_entire_edit_if_a_copied_link_is_cyclic():
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    source.parameters["area"].value = 25.
+    source.parameters["center"].link = f"${{{second.id}.{target.id}.center}}"
+    source.parameters["center"].link_scope = "absolute"
+    before = window.project.model_for(second.id).to_dict()
+    count = window.undo_stack.count()
+    with pytest.raises(ConstraintError, match="cycle"):
+        copy_parameter_to_refs(
+            window, (first.id, source.id), [(second.id, target.id)], None,
+            copy_value=True, copy_link=True,
+        )
+    assert window.project.model_for(second.id).to_dict() == before
+    assert window.undo_stack.count() == count
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_copy_dialog_all_selects_every_parameter_and_checks_compatibility():
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    source.parameters["center"].value = 3.
+    target.parameters["center"].maximum = 1.
+    lorentzian = Component.create("lorentzian")
+    window.project.model_for(second.id).add(lorentzian)
+    dialog = CopyParameterDialog(window, (first.id, source.id), current_parameter="area")
+    index = dialog.parameter.findText("All")
+    assert index >= 0
+    dialog.parameter.setCurrentIndex(index)
+    assert dialog.parameter_name() is None
+    assert dialog.parameter_names() == list(source.parameters)
+    assert "All parameters" in dialog.source_summary.text()
+    dialog.copy_value.setChecked(True)
+    assert not _target_item(dialog, (second.id, target.id)).flags() & Qt.ItemFlag.ItemIsEnabled
+    assert not _target_item(dialog, (second.id, lorentzian.id)).flags() & Qt.ItemFlag.ItemIsEnabled
+    dialog.copy_bounds.setChecked(True)
+    item = _target_item(dialog, (second.id, target.id))
+    assert item.flags() & Qt.ItemFlag.ItemIsEnabled
+    item.setCheckState(Qt.CheckState.Checked)
+    assert dialog.copy_button.isEnabled()
+    assert dialog.target_refs() == [(second.id, target.id)]
+    dialog.close()
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_copy_button_executes_all_and_remembers_it_until_a_parameter_is_selected(monkeypatch):
+    from curvemole.gui import parameter_copy, parameter_copy_redesign
+
+    app, window, first, second, source, _anchor, target = _window_with_two_curves()
+    source.parameters["area"].value = 12.
+    source.parameters["center"].value = 2.
+    source.parameters["sigma"].value = .4
+    messages = []
+    monkeypatch.setattr(parameter_copy, "_show_copy_result", lambda *args: messages.append(args[2]))
+    initial_choices = []
+
+    def choose_all(dialog):
+        initial_choices.append(dialog.parameter.currentText())
+        dialog.parameter.setCurrentIndex(dialog.parameter.findText("All"))
+        dialog.copy_value.setChecked(True)
+        _target_item(dialog, (second.id, target.id)).setCheckState(Qt.CheckState.Checked)
+        return dialog.DialogCode.Accepted
+
+    monkeypatch.setattr(parameter_copy_redesign.CopyParameterDialog, "exec", choose_all)
+    panel = window.model_panel
+    panel.copy_parameter_button.click()
+    copied = window.project.model_for(second.id).component(target.id)
+    assert {name: p.value for name, p in copied.parameters.items()} == {
+        name: p.value for name, p in source.parameters.items()
+    }
+    assert messages == [None]
+    assert "all parameters" in panel.copy_parameter_button.text()
+    panel.copy_parameter_button.click()
+    assert initial_choices[-1] == "All"
+    _select_parameter_row(window, "center")
+    assert not panel._parameter_copy_all_parameters
+    assert "'center'" in panel.copy_parameter_button.text()
     window.project.dirty = False
     window.close()
     app.processEvents()

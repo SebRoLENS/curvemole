@@ -79,7 +79,7 @@ def test_delete_selected_method_everywhere_updates_tags_and_supports_undo(manage
     assert "block_bootstrap" in project.results["uncertainty_reports_by_curve"][first.id]
     assert "Uncertainty analysed" in item(window).text(2)
     assert item(window, 1).text(2) == "Fitted"
-    assert item(window, 1).icon(1).isNull()
+    assert item(window, 1).icon(2).isNull()
     assert window.model_panel.display_method.current_method == "block_bootstrap"
     assert window.uncertainty_panel.method.currentData() == "block_bootstrap"
     assert window.uncertainty_panel.delete_button.isEnabled()
@@ -107,7 +107,7 @@ def test_adaptive_warning_colour_and_icon_follow_method_and_survive_reopen(manag
     choose(window, "residual_bootstrap")
     window._uncertainty_finished([(first.id, baselines[0], result(baselines[0], converged=converged))])
     assert ("⚠" in item(window).text(2)) is not converged
-    assert item(window).icon(1).isNull() is converged
+    assert item(window).icon(2).isNull() is converged
     assert window.uncertainty_panel.results.warning.isHidden() is converged
     if not converged:
         assert item(window).foreground(2).color().name() != "#009e73"
@@ -115,7 +115,7 @@ def test_adaptive_warning_colour_and_icon_follow_method_and_survive_reopen(manag
         assert "7/7 attempts" in item(window).toolTip(2)
     choose(window, "monte_carlo")
     assert "⚠" not in item(window).text(2)
-    assert item(window).icon(1).isNull()
+    assert item(window).icon(2).isNull()
     assert item(window).foreground(2).color().name() == "#009e73"
     choose(window, "residual_bootstrap")
     assert ("⚠" in item(window).text(2)) is not converged
@@ -124,7 +124,7 @@ def test_adaptive_warning_colour_and_icon_follow_method_and_survive_reopen(manag
     try:
         choose(other, "residual_bootstrap")
         assert ("⚠" in item(other).text(2)) is not converged
-        assert item(other).icon(1).isNull() is converged
+        assert item(other).icon(2).isNull() is converged
         assert other.uncertainty_panel.results.warning.isHidden() is converged
     finally:
         saved.dirty = False
@@ -143,13 +143,13 @@ def test_timeout_warns_without_replacing_previous_result_and_delete_clears_it(ma
     monkeypatch.setattr(window, "_show_error", lambda *args: None)
     window._task_failed("Uncertainty replica timeout: test", "test timeout")
     assert "⚠" in item(window).text(2) and "timeout" in item(window).text(2)
-    assert not item(window).icon(1).isNull()
+    assert not item(window).icon(2).isNull()
     assert item(window).foreground(2).color().name() != "#009e73"
     assert "Timeout" in window.uncertainty_panel.results.warning.text()
     assert window.project.results["uncertainty_by_curve"][first.id]["residual_bootstrap"] is previous
     window.uncertainty_panel.delete_button.click()
     assert item(window).text(2) == "Fitted"
-    assert item(window).icon(1).isNull()
+    assert item(window).icon(2).isNull()
     assert window.uncertainty_panel.results.warning.isHidden()
 
 
@@ -223,7 +223,7 @@ def test_one_failed_replica_warns_globally_without_flagging_valid_parameter(mana
     assert "1 replica(s) failed out of 5000 attempts" in results.warning.text()
     assert "4999 successful" in results.warning.text()
     assert "⚠" in item(window).text(2)
-    assert not item(window).icon(1).isNull()
+    assert not item(window).icon(2).isNull()
     assert item(window).foreground(2).color().name() != "#009e73"
     saved = load_project(save_project(window.project, tmp_path / "one-failure.fitproj"))
     other = MainWindow(saved)
@@ -234,7 +234,7 @@ def test_one_failed_replica_warns_globally_without_flagging_valid_parameter(mana
         assert "⚠" in item(other).text(2)
         choose(other, "monte_carlo")
         assert other.uncertainty_panel.results.warning.isHidden()
-        assert item(other).icon(1).isNull()
+        assert item(other).icon(2).isNull()
     finally:
         saved.dirty = False
         other.close()
@@ -293,7 +293,7 @@ def test_both_method_controls_update_errors_reports_and_warning_tags(
     assert not run_requests and window._thread is None
     assert not window.uncertainty_panel.results.warning.isHidden()
     assert "⚠" in item(window).text(2)
-    assert not item(window).icon(1).isNull()
+    assert not item(window).icon(2).isNull()
     assert item(window).foreground(2).color().name() != "#009e73"
     assert item(window) is previous_item
     assert window.curve_tree.selected_curve_ids() == selected
@@ -307,7 +307,7 @@ def test_both_method_controls_update_errors_reports_and_warning_tags(
     assert window.uncertainty_panel.results.method == "residual_bootstrap"
     assert window.uncertainty_panel.results.warning.isHidden()
     assert "⚠" not in item(window).text(2)
-    assert item(window).icon(1).isNull()
+    assert item(window).icon(2).isNull()
 
 
 def test_uncomputed_method_stays_linked_after_reopen(management_window, tmp_path):
@@ -330,6 +330,36 @@ def test_uncomputed_method_stays_linked_after_reopen(management_window, tmp_path
         assert other.model_panel.parameters.item(0, 3).text() == "—"
         assert "No recorded result" in other.uncertainty_panel.results.summary.text()
         assert item(other).text(2) == "Fitted"
+    finally:
+        saved.dirty = False
+        other.close()
+        other.deleteLater()
+        app.processEvents()
+
+
+def test_spectrum_note_survives_warning_updates_and_reopening(management_window, tmp_path):
+    from curvemole.gui.note_indicators import NOTE_ROLE
+
+    app, window, baselines = management_window
+    curve = window.project.curves[0]
+    window.project.notebook.set_description(window.project, "spectrum", curve.id, "Calibration note")
+    window.refresh_all()
+    choose(window, "residual_bootstrap")
+    window._uncertainty_finished([(curve.id, baselines[0], result(baselines[0], converged=False))])
+    assert not item(window).icon(1).isNull()
+    assert item(window).data(1, NOTE_ROLE) == ("spectrum", curve.id, "")
+    assert not item(window).icon(2).isNull()
+    assert item(window, 1).icon(1).isNull()
+    choose(window, "monte_carlo")
+    assert not item(window).icon(1).isNull()
+    assert item(window).icon(2).isNull()
+    saved = load_project(save_project(window.project, tmp_path / "noted.fitproj"))
+    other = MainWindow(saved)
+    try:
+        choose(other, "residual_bootstrap")
+        assert not item(other).icon(1).isNull()
+        assert not item(other).icon(2).isNull()
+        assert item(other).data(1, NOTE_ROLE) == ("spectrum", curve.id, "")
     finally:
         saved.dirty = False
         other.close()

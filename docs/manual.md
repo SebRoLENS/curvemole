@@ -602,7 +602,10 @@ and explicitly check the target functions. The window shows the source spectrum,
 function, parameter, and numeric value. By default only the value is copied; optional
 controls also copy bounds, fixed/free state, and the parameter link/relation. Targets
 without the parameter or whose retained bounds reject the source value are skipped and
-reported. The complete copy is undoable.
+reported. Choose **All** in the parameter list to copy every source parameter in one edit,
+using the selected value, bounds, fixed/free and link fields. A target must contain
+every source parameter; extra target parameters stay unchanged. A missing parameter
+or a bounds conflict skips the entire target function. The complete copy is undoable.
 
 ### 5.5 Quick actions
 
@@ -1279,6 +1282,19 @@ points. Both options default to off.
   enabled using **Initialize with points**;
 - non-peak functions with point initialization off are added with their initial parameters;
   a spline in this mode uses an initial node grid with free y parameters.
+
+The arrow beside **Add function** chooses how the new function combines with the
+existing model: **Add (+)**, **Subtract (-)**, **Multiply (x)**, **Divide (/)**, or
+**Convolve (*)**. The orange symbol on the insertion icon shows the current choice;
+clicking the main part of the button inserts with that composition. The same choice
+is available in Function details and the advanced Add dialog and is remembered.
+Multiplication, division and convolution require an existing enabled function.
+Background marking is available for Add and Subtract only.
+For automatic or graphical peak initialization, Add uses data minus the existing
+model, Subtract uses model minus data, Multiply uses data/model, and Divide uses
+model/data. Non-finite ratios are excluded. Automatic convolution inserts a kernel
+centred on the sampled domain; built-in area-normalized peaks start with unit area.
+All initial estimates remain editable.
 
 The Functions group uses the shared function registry and peak parameter roles, including
 roles supplied by user formulas and plugins. Selecting a function in the normal Add dialog also makes it the next toolbar
@@ -3144,7 +3160,9 @@ unavailable while a background task runs; a paused sequence allows editing norma
 
 Series headers are bold and blue, with colors adapted to light and dark themes.
 A note icon beside a series, spectrum, or fit function opens its description
-directly. Clearing the description removes its icon and notebook entry.
+directly. Spectrum notes appear beside the spectrum name, independently of the
+series note. Uncertainty warnings appear in the State column, allowing both icons
+to remain visible. Clearing the description removes its icon and notebook entry.
 
 ### 20.2 Local processing and privacy
 

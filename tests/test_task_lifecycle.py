@@ -9,7 +9,7 @@ import time
 
 import numpy as np
 import pytest
-from PySide6.QtCore import QSettings, QTimer
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Component, Curve, Fitter, Project
@@ -18,6 +18,10 @@ from curvemole.core.recovery import RecoveryManager
 from curvemole.core.serialization import load_project
 from curvemole.core.uncertainty import ResamplingResult, UncertaintyAnalyzer
 from curvemole.gui.main_window import MainWindow
+
+# Workers are released explicitly by each test. This bound only prevents a
+# regression from hanging the suite; normal CI painting/saving can exceed 5 s.
+_STALLED_TASK_TIMEOUT = 30
 
 
 def wait_for(app, predicate, timeout=5):
@@ -116,6 +120,7 @@ def test_unresponsive_uncertainty_can_be_saved_cancelled_and_replaced(task_windo
     curve = project.curves[0]
     model = project.model_for(curve.id)
     entered, release = threading.Event(), threading.Event()
+    next_release = threading.Event()
     inputs = []
 
     def unresponsive(self, baseline, plan, curves, models, **kwargs):
@@ -124,15 +129,11 @@ def test_unresponsive_uncertainty_can_be_saved_cancelled_and_replaced(task_windo
         # Pretend a solver ignores cancellation even after reporting all replicas.
         kwargs["progress"](1, "Replicas completed")
         entered.set()
-        assert release.wait(5)
+        assert release.wait(_STALLED_TASK_TIMEOUT), "Simulated task was not explicitly released"
         return ResamplingResult("residual_bootstrap", 5, 5, 0, 1, paths,
                                 np.ones((5, len(paths))), {path: (.5, 1.5) for path in paths}, .95, {})
 
     monkeypatch.setattr(UncertaintyAnalyzer, "residual_bootstrap", unresponsive)
-    watchdog_release = QTimer(window)
-    watchdog_release.setSingleShot(True)
-    watchdog_release.timeout.connect(release.set)
-    watchdog_release.start(4000)  # Prevent a regression from hanging the test suite.
     window.start_uncertainty("residual_bootstrap", 5, None)
     old_runner = window._thread
     try:
@@ -155,9 +156,8 @@ def test_unresponsive_uncertainty_can_be_saved_cancelled_and_replaced(task_windo
         assert window.fit_action.isEnabled()
         assert window._cancellation is None
 
-        next_release = threading.Event()
         window._cancellation = CancellationToken()
-        window._run_background(lambda progress: next_release.wait(3), lambda result: None, "Next task")
+        window._run_background(lambda progress: next_release.wait(_STALLED_TASK_TIMEOUT), lambda result: None, "Next task")
         next_runner = window._thread
         release.set()
         wait_for(app, lambda: not old_runner.isRunning())
@@ -168,7 +168,7 @@ def test_unresponsive_uncertainty_can_be_saved_cancelled_and_replaced(task_windo
         wait_for(app, lambda: window._thread is None)
         assert errors == []
     finally:
-        watchdog_release.stop()
+        next_release.set()
         release.set()
         old_runner.wait(5000)
 
@@ -218,7 +218,7 @@ def test_unresponsive_fit_cannot_mutate_saved_project_or_deliver_late_results(
         models[curve.id].components[0].parameters["offset"].value = 999
         kwargs["progress"](1, "Fit completed")
         entered.set()
-        assert release.wait(5)
+        assert release.wait(_STALLED_TASK_TIMEOUT), "Simulated task was not explicitly released"
         baseline.mode = mode
         for estimate in baseline.parameters.values():
             estimate.value = 999
@@ -227,10 +227,6 @@ def test_unresponsive_fit_cannot_mutate_saved_project_or_deliver_late_results(
     monkeypatch.setattr(Fitter, "fit", unresponsive)
     window._run_fit(FitPlan([curve.id], mode))
     runner = window._thread
-    guard = QTimer(window)
-    guard.setSingleShot(True)
-    guard.timeout.connect(release.set)
-    guard.start(4000)
     try:
         wait_for(app, entered.is_set)
         assert parameter.value == pytest.approx(1)
@@ -248,7 +244,6 @@ def test_unresponsive_fit_cannot_mutate_saved_project_or_deliver_late_results(
         assert project.results["last_fit"].parameters[next(iter(baseline.parameters))].value == pytest.approx(1)
         assert errors == []
     finally:
-        guard.stop()
         release.set()
         runner.wait(5000)
 

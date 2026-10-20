@@ -18,6 +18,12 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.functions import FunctionDefinition
 from curvemole.core.plugin_identity import function_tooltip
+from curvemole.gui.function_composition import (
+    OPERATORS,
+    operator_available,
+    selected_operator,
+    set_operator,
+)
 
 _FORMULAS = {
     "gaussian": "f(x) = area / (sigma * sqrt(2*pi)) * exp(-(x-center)^2 / (2*sigma^2))",
@@ -94,12 +100,15 @@ def function_info_html(definition: FunctionDefinition) -> str:
     parts.append("<h3>Initialization</h3>")
     if definition.kind == "peak":
         parts.append(
-            "<p><b>Initialize with points checked:</b> click the centre and drag horizontally to set the initial FWHM. Parameters remain free for fitting.</p><p><b>Unchecked:</b> each Add click inserts one peak estimated from the finite, unmasked data minus the current model. The most prominent positive or negative residual peak is used. Estimates remain editable.</p>"
+            "<p><b>Initialize with points checked:</b> click the centre and drag horizontally to set the initial FWHM. Parameters remain free for fitting.</p><p><b>Unchecked:</b> insert one initial estimate per click. Add/Subtract use the data residual; Multiply/Divide use signal ratios. Convolve starts with a centred kernel estimate; built-in peaks use unit area. Estimates remain editable.</p>"
         )
     else:
         parts.append(
             "<p><b>Initialize with points checked:</b> select graph points and press Finish. Point-initialized parameters start fixed.</p><p><b>Unchecked:</b> insert the normal initial parameters; spline nodes are estimated from the data.</p>"
         )
+    parts.append(
+        "<p>Composition combines this function with the whole existing model. Multiplication, division and convolution require an enabled model function first.</p>"
+    )
     parts.append(
         "<p>Defaults above describe the function definition; data-based estimates can differ. Background marks the added component as background. Use Add function to add this function with advanced options, or Model → Add component (Ctrl++).</p>"
     )
@@ -119,6 +128,12 @@ class FunctionInfoDialog(QDialog):
         self.function_selector.setToolTip(self.tr("Choose a function to inspect or add."))
         self.function_selector.currentIndexChanged.connect(self._function_selected)
         form.addRow(self.tr("Function:"), self.function_selector)
+        self.composition_selector = QComboBox(self)
+        self.composition_selector.setObjectName("function_info_composition")
+        for identifier, symbol, label in OPERATORS:
+            self.composition_selector.addItem(symbol + " " + self.tr(label), identifier)
+        self.composition_selector.currentIndexChanged.connect(self._composition_selected)
+        form.addRow(self.tr("Composition:"), self.composition_selector)
         layout.addLayout(form)
         self.browser = QTextBrowser(self)
         self.browser.setOpenLinks(False)
@@ -151,6 +166,18 @@ class FunctionInfoDialog(QDialog):
         window.plot_workspace.cancel_placement()
         window._remember_quick_function(str(identifier))
 
+    def _composition_selected(self, index):
+        operator = self.composition_selector.itemData(index)
+        if operator:
+            set_operator(self.parentWidget(), str(operator))
+
+    def sync_composition(self):
+        window = self.parentWidget()
+        with QSignalBlocker(self.composition_selector):
+            for index, (identifier, _, _) in enumerate(OPERATORS):
+                self.composition_selector.model().item(index).setEnabled(operator_available(window, identifier))
+            self.composition_selector.setCurrentIndex(self.composition_selector.findData(selected_operator(window)))
+
     def set_function(self, definition):
         window = self.parentWidget()
         definitions = window.registry.values()
@@ -168,6 +195,7 @@ class FunctionInfoDialog(QDialog):
         self.formula = function_formula(definition)
         self.browser.setHtml(function_info_html(definition))
         self.copy_button.setEnabled(bool(self.formula))
+        self.sync_composition()
         self.add_button.setEnabled(
             bool(window.active_curve_id)
             and not window.project.read_only

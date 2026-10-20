@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 
+import pytest
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMenu, QToolBar, QTreeWidgetItemIterator
 
@@ -130,7 +131,8 @@ def test_notebook_deleted_descriptions_edit_export_and_read_only(tmp_path, monke
     export_dialog.close()
 
 
-def test_click_note_icon_and_remove_empty_description():
+@pytest.mark.parametrize("kind", ["series", "spectrum"])
+def test_click_note_icon_and_remove_empty_description(kind):
     from PySide6.QtTest import QTest
 
     from curvemole.gui.note_indicators import NOTE_ROLE
@@ -139,13 +141,19 @@ def test_click_note_icon_and_remove_empty_description():
     project = Project()
     series = Series("Series", [Curve("A", [0., 1.], [0., 1.])])
     project.add_series(series)
-    project.notebook.set_description(project, "series", series.id, "Open this note")
+    object_id = series.id if kind == "series" else series.curves[0].id
+    project.notebook.set_description(project, kind, object_id, "Open this note")
     window = CurveMoleMainWindow(project)
     window.show()
     app.processEvents()
     tree = window.curve_tree
     item = tree.topLevelItem(0)
     assert item.font(1).bold()
+    if kind == "spectrum":
+        assert item.icon(1).isNull()
+        item = item.child(0)
+    assert not item.icon(1).isNull()
+    assert item.data(1, NOTE_ROLE) == (kind, object_id, "")
     index = tree.indexFromItem(item, 1)
     rect = tree.itemDelegate().note_rect(index)
     assert rect.isValid()
@@ -162,7 +170,11 @@ def test_click_note_icon_and_remove_empty_description():
     QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=rect.center())
     assert seen == ["Open this note"]
     assert not project.notebook.descriptions
-    assert not tree.topLevelItem(0).data(1, NOTE_ROLE)
+    refreshed = tree.topLevelItem(0)
+    if kind == "spectrum":
+        refreshed = refreshed.child(0)
+    assert not refreshed.data(1, NOTE_ROLE)
+    assert refreshed.icon(1).isNull()
     assert "Empty description" not in project.notebook.as_text(project)
     project.dirty = False
     window.close()

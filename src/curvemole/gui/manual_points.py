@@ -360,6 +360,23 @@ def _install_main_window() -> None:
         curve = window.project.dataset.curve(window.active_curve_id)
         window.plot_workspace.cancel_placement()
         dialog = AddComponentDialog(window.registry, curve, window)
+        from curvemole.gui.function_composition import (
+            OPERATORS,
+            operator_available,
+            selected_operator,
+            set_operator,
+        )
+        for index, (operator, _, _) in enumerate(OPERATORS):
+            dialog.operator.model().item(index).setEnabled(operator_available(window, operator))
+        current_operator = selected_operator(window)
+        dialog.operator.setCurrentText(current_operator if operator_available(window, current_operator) else "add")
+        def update_background_option():
+            allowed = dialog.operator.currentText() in {"add", "subtract"}
+            dialog.add_as_background.setEnabled(allowed)
+            if not allowed:
+                dialog.add_as_background.setChecked(False)
+        dialog.operator.currentIndexChanged.connect(lambda *_: update_background_option())
+        update_background_option()
         selector = getattr(window, "quick_function_selector", None)
         if selector is not None:
             index = dialog.function.findData(selector.currentData())
@@ -369,6 +386,7 @@ def _install_main_window() -> None:
             return
         try:
             component = dialog.component()
+            set_operator(window, component.operator)
             definition = window.registry.get(component.function_id)
             use_points = bool(dialog.use_manual_points())
             if definition.kind == "peak":

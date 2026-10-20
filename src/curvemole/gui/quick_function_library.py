@@ -40,6 +40,14 @@ from curvemole.core.initialization import (
 from curvemole.core.models import Component, Model
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
+from curvemole.gui.function_composition import (
+    ensure_insertion_operator,
+    insertion_signal,
+    install_composition_menu,
+    normalize_kernel,
+    selected_operator,
+    sync_composition,
+)
 from curvemole.gui.function_info import show_function_info, sync_function_info
 from curvemole.gui.main_window import MainWindow, _resource_icon
 from curvemole.gui.panels import FunctionBuilderPanel
@@ -249,6 +257,8 @@ def _load_user_function_library(window: MainWindow) -> None:
 
 def _quick_add_option(window: MainWindow, function_id: str, option: str) -> bool:
     """Recall only explicit choices from Quick Add; both options default off."""
+    if option == "background" and selected_operator(window) not in {"add", "subtract"}:
+        return False
     value = window.settings.value(f"quick_add_controls/{function_id}/{option}", False)
     if isinstance(value, str):
         return value.lower() in {"true", "1", "yes"}
@@ -269,6 +279,7 @@ def _sync_quick_add_options(window: MainWindow, function_id: str | None = None) 
         background.setChecked(_quick_add_option(window, str(identifier), "background"))
         points.setChecked(_quick_add_option(window, str(identifier), "manual_points"))
     sync_function_info(window, str(identifier))
+    sync_composition(window)
 
 
 def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) -> None:
@@ -295,14 +306,13 @@ def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) ->
 def _guess_quick_peak(window: MainWindow) -> PeakSuggestion:
     """Estimate one peak from finite, unmasked residual data in physical coordinates."""
     curve = window.project.dataset.curve(window.active_curve_id)
-    keep = np.isfinite(curve.x) & np.isfinite(curve.y) & ~curve.effective_mask
+    operator = selected_operator(window)
+    signal = insertion_signal(window, curve, operator)
+    keep = np.isfinite(curve.x) & np.isfinite(curve.y) & np.isfinite(signal) & ~curve.effective_mask
     if not np.any(keep):
         raise ValueError(window.tr("The active curve has no usable points."))
     x, y = curve.x[keep], curve.y[keep]
-    model = window.project.model_for(curve.id)
-    residual = y - model.evaluate(
-        x, curve_id=curve.id, values=window.project.resolved_parameter_values(), registry=window.registry
-    )
+    residual = signal[keep]
     if not np.all(np.isfinite(residual)):
         raise ValueError(window.tr("The current model has non-finite values on the active curve."))
     order = np.argsort(x)
@@ -311,15 +321,22 @@ def _guess_quick_peak(window: MainWindow) -> PeakSuggestion:
         residual_curve = Curve("Quick Add residual", x[order], residual[order])
         suggestions = find_peak_suggestions(residual_curve, sign="both", max_peaks=1)
     if suggestions:
-        return suggestions[0]
+        suggestion = suggestions[0]
+        if operator in {"multiply", "divide"}:
+            height = float(residual[np.argmin(np.abs(x - suggestion.x))])
+            suggestion = PeakSuggestion(suggestion.x, height, suggestion.fwhm, suggestion.prominence, 1 if height >= 0 else -1)
+        if operator == "convolve":
+            suggestion = PeakSuggestion(float((np.min(x) + np.max(x))/2), suggestion.height, suggestion.fwhm, suggestion.prominence, suggestion.sign)
+        return suggestion
     # Short, flat or monotonic data still get a finite, editable initial estimate.
     centred = residual - np.median(residual)
     index = int(np.argmax(np.abs(centred)))
-    height = float(centred[index])
+    height = float(residual[index] if operator in {"multiply", "divide"} else centred[index])
     if height == 0:
         height = max(float(np.ptp(y)) * .02, np.finfo(float).eps)
     width = max(float(np.ptp(x)) / 10, np.finfo(float).eps)
-    return PeakSuggestion(float(x[index]), height, width, abs(height), 1 if height > 0 else -1)
+    centre = float((np.min(x) + np.max(x))/2) if operator == "convolve" else float(x[index])
+    return PeakSuggestion(centre, height, width, abs(height), 1 if height > 0 else -1)
 
 
 def _quick_add_function(window: MainWindow) -> None:
@@ -334,12 +351,16 @@ def _quick_add_function(window: MainWindow) -> None:
         function_id = _selected_quick_function(window)
         definition = window.registry.get(function_id)
         _remember_quick_function(window, function_id)
+        if not ensure_insertion_operator(window):
+            return
+        operator = selected_operator(window)
 
         if definition.kind == "peak":
-            component = Component.create(function_id, registry=window.registry)
+            component = Component.create(function_id, registry=window.registry, operator=operator)
             component.is_background = _quick_add_option(window, function_id, "background")
             if not _quick_add_option(window, function_id, "manual_points"):
                 initialise_peak_component(component, _guess_quick_peak(window), registry=window.registry)
+                normalize_kernel(component)
                 window._commit_component(component, window.active_curve_id)
                 window._notify(window.tr("Add function: estimated and added ") + definition.display_name + ".")
                 return
@@ -361,6 +382,7 @@ def _quick_add_function(window: MainWindow) -> None:
                 function_id=function_id,
                 name=definition.display_name,
                 parameters={},
+                operator=operator,
             )
             component.is_background = _quick_add_option(window, function_id, "background")
 
@@ -376,7 +398,7 @@ def _quick_add_function(window: MainWindow) -> None:
                     raise ValueError(window.tr("The spline needs at least two distinct x values."))
                 order = np.argsort(xs)
                 component = Component.create(
-                    function_id, registry=window.registry, metadata={"x_nodes": nodes}
+                    function_id, registry=window.registry, metadata={"x_nodes": nodes}, operator=operator
                 )
                 for index, node in enumerate(nodes):
                     component.parameters[f"y{index}"].value = float(np.interp(node, xs[order], ys[order]))
@@ -394,7 +416,7 @@ def _quick_add_function(window: MainWindow) -> None:
             )
             return
 
-        component = Component.create(function_id, registry=window.registry)
+        component = Component.create(function_id, registry=window.registry, operator=operator)
         component.is_background = _quick_add_option(window, function_id, "background")
         from curvemole.gui.manual_points import minimum_manual_points
 
@@ -695,6 +717,7 @@ def _install() -> None:
         window.quick_add_button = button
         window.quick_add_title = title
         window.quick_add_options = choices
+        install_composition_menu(window, button)
         _refresh_quick_function_selector(window)
         selector.currentIndexChanged.connect(lambda *_: _selector_changed(window))
         window.quick_add_background.toggled.connect(

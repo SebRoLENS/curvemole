@@ -336,14 +336,8 @@ class CurveMoleMainWindow(MainWindow):
                     and os.environ.get("CURVEMOLE_SMOKE_TEST") != "1"
                 ):
                     QTimer.singleShot(750, self._offer_linux_desktop_integration)
-        self.quick_peak_action.setToolTip(
-            self.tr(
-                "Add function\nUse the function selected in the Functions group. "
-                "With Initialize with points checked, place peaks by click and drag; "
-                "otherwise each Add click inserts one automatically estimated peak. "
-                "Right-click or press Enter, Esc, or Finish to stop placement."
-            )
-        )
+        from curvemole.gui.function_composition import sync_composition
+        sync_composition(self)
 
     def _offer_linux_desktop_integration(self) -> None:
         """Offer AppImage integration once, while keeping the menu action available."""
@@ -416,6 +410,9 @@ class CurveMoleMainWindow(MainWindow):
         from curvemole.gui.quick_function_library import _quick_add_option, _selected_quick_function
 
         definition = self.registry.get(_selected_quick_function(self))
+        from curvemole.gui.function_composition import ensure_insertion_operator
+        if not ensure_insertion_operator(self):
+            return
         if definition.kind != "peak" or not _quick_add_option(
             self, definition.identifier, "manual_points"
         ):
@@ -437,7 +434,8 @@ class CurveMoleMainWindow(MainWindow):
         function_id = self._continuous_quick_peak_function_id
         if not function_id or not self.active_curve_id:
             return
-        self._pending_component = Component.create(function_id, registry=self.registry)
+        from curvemole.gui.function_composition import selected_operator
+        self._pending_component = Component.create(function_id, registry=self.registry, operator=selected_operator(self))
         from curvemole.gui.quick_function_library import _quick_add_option
 
         self._pending_component.is_background = _quick_add_option(

@@ -19,6 +19,23 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   selector, initialization options and Function details together inside one
   titled frame, with both icon buttons matching the other toolbar icons in size.
 
+### Added
+
+- Restore insertion composition in the Functions group through the Add button's
+  arrow: Add, Subtract, Multiply, Divide or Convolve, with the chosen symbol on
+  the icon and a shared selection in Function details and the advanced Add dialog.
+  Peak initialization follows the selected composition.
+- Add All to Copy parameters, copying every source parameter with the selected
+  fields in one undoable edit. Incompatible targets are skipped in full.
+
+### Fixed
+
+- Preserve the notebook icon beside spectra with descriptions. Keep uncertainty
+  warning icons in the State column so both indicators remain visible and notes
+  stay directly accessible after analysis updates and reopening a project.
+- Synchronize stalled-worker lifecycle tests explicitly instead of releasing their
+  simulated workers on timers that can expire during slow CI saves or closes.
+
 ## [0.43.0] - 2026-10-20
 
 ### Added
