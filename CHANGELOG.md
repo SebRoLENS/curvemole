@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.43.1] - 2026-10-20
+
 ### Changed
 
 - Label View options as display only, with explicit notices in its menu and preview

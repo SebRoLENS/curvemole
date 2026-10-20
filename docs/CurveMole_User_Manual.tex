@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.43.0}
+\ohead{Version 0.43.1}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.43.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.43.1\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.43.0}
+\subtitle{Preview 0.43.1}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.43.0}
+\date{Updated for CurveMole 0.43.1}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.43.0 Preview. The Markdown file is the authoritative source.
+CurveMole 0.43.1 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.43.0 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.43.1 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.43.0
-describes CurveMole 0.43.0.
+an independent document version. For example, a manual marked 0.43.1
+describes CurveMole 0.43.1.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.43.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.43.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.43.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.43.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.43.1{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.43.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.43.1{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -985,10 +985,11 @@ residual plot. Controls above it provide:
   \textbf{Plot style:} draw imported data as Lines, Points, or Lines +
   points;
 \item
-  \textbf{View options:} a separate toolbar group between background
-  commands and Mask. Open its menu to inspect original data, change
-  background display, or include/exclude recorded operations for the
-  current spectrum or all spectra.
+  \textbf{View options (display only):} a separate toolbar group between
+  background commands and Mask. Open its menu to inspect original data,
+  change background display, or include/exclude recorded operations in
+  the preview for the current spectrum or all spectra. It changes only
+  the graph: data are not modified and operations are not undone.
 \end{itemize}
 
 Choose \textbf{View \textgreater{} Plot appearance\ldots{}} for separate
@@ -1046,12 +1047,11 @@ when dock resizing narrows the plot. Axes always retain the original
 data units. Numeric tick labels switch to scientific notation only when
 their decimal representation is too wide for the available space; this
 never changes spectrum values or adds an SI unit prefix. The mouse wheel
-remains available during Quick Add peak placement, spline placement,
-Quick Fit, and live fit refreshes. A refresh preserves the current
-viewport instead of resetting a zoom chosen by the user. When the plot
-has keyboard focus, Up and Down activate the previous or next checked
-spectrum in project order. Up/Down in the curve tree also skips
-unchecked spectra.
+remains available during peak placement, spline placement, Quick Fit,
+and live fit refreshes. A refresh preserves the current viewport instead
+of resetting a zoom chosen by the user. When the plot has keyboard
+focus, Up and Down activate the previous or next checked spectrum in
+project order. Up/Down in the curve tree also skips unchecked spectra.
 
 Use \textbf{View \textgreater{} Axes} for:
 
@@ -1200,24 +1200,27 @@ undoable.
 \hypertarget{quick-actions}{%
 \section{5.5 Quick actions}\label{quick-actions}}
 
-The main toolbar includes a bordered \textbf{Quick Add} group with an
-\textbf{Add} button, a function selector and two options. Its compact
-layout keeps the toolbar at the same height as the other buttons. The
-selector contains the complete current registry: built-ins, project
-formulas, reusable user formulas, and loaded plugin functions. CurveMole
-remembers the last selection across sessions and also updates it when a
-function is added through the ordinary Add dialog.
+The main toolbar includes a bordered \textbf{Functions} group with a
+shared title, a full-size \textbf{Add function} icon button, a function
+selector, the \textbf{Background} and \textbf{Initialize with points}
+options, and a full-size \textbf{Function details} button. All these
+controls sit inside the same frame. Both icon buttons use the same icon
+size as the other toolbar buttons; the two-row controls keep the group
+compact. The selector contains the complete current registry: built-ins,
+project formulas, reusable user formulas, and loaded plugin functions.
+CurveMole remembers the last selection across sessions and also updates
+it when a function is added through the ordinary Add dialog.
 
 The \textbf{Background} and \textbf{Initialize with points} checkboxes
-below the selector configure the next Quick Add insertion. The choices
+below the selector configure the next function insertion. The choices
 are remembered for each function only after explicitly changing them
 here. Both start off, including for Linear and Cubic spline; the regular
 Add dialog's choices are independent. With \textbf{Initialize with
 points} checked, peaks use centre/FWHM click-drag placement. With it
 cleared, each \textbf{Add} click inserts one automatically estimated
 peak. Other functions whose point initialization is off are added
-immediately. During Quick Add, right-click or press Return/Enter to
-finish, just like \textbf{Finish}. Point placement still requires its
+immediately. During point placement, right-click or press Return/Enter
+to finish, just like \textbf{Finish}. Point placement still requires its
 minimum number of points. Section 8 describes point placement, initial
 locking and graphical controls.
 
@@ -1420,7 +1423,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.43.0 optimizer.
+version 0.43.1 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -1899,34 +1902,38 @@ background in this view} instead removes the enabled marked background
 only from the plot; it never changes curve arrays, fit inputs, or
 exported values.
 
-The \textbf{View options} toolbar button opens a menu with
-\textbf{Current spectrum} and \textbf{All spectra} scopes. Scope selects
-the targets for the next display change; it does not change views by
-itself. All spectra includes hidden spectra, which use the chosen view
-when displayed later. Per-spectrum choices follow spectrum navigation.
+The \textbf{View options (display only)} toolbar button opens a menu
+with \textbf{Current spectrum} and \textbf{All spectra} scopes. The menu
+explicitly states that data are not modified and operations are not
+undone. Scope selects the targets for the next display change; it does
+not change views by itself. All spectra includes hidden spectra, which
+use the chosen view when displayed later. Per-spectrum choices follow
+spectrum navigation.
 
 \begin{itemize}
 \tightlist
 \item
-  \textbf{Stored data - all operations included} resets display filters
-  for the scope.
+  \textbf{Preview stored data - all operations included} closes display
+  filters for the scope.
 \item
-  \textbf{Original data - no operations or masks} shows the imported X/Y
-  values, restores visually deleted points and ignores masks and
-  processing.
+  \textbf{Preview original data - without processing or masks} shows the
+  imported X/Y values, including visually deleted points, without
+  displaying the effects of masks or processing. The stored data, masks
+  and processing history remain unchanged.
 \item
   \textbf{Show data before background subtraction} omits recorded
   background subtractions and replays the remaining operations in order.
   It also works after the background functions have been disabled by a
   real subtraction.
 \item
-  \textbf{Included operations} allows individual exclusions on the
-  current spectrum. In All spectra scope, entries are grouped by
-  operation type with a count such as \textbf{Y multiplication - 3/5
-  spectra}. Unchecking a type excludes every occurrence on spectra that
-  contain it; spectra without that type are unaffected. Different
-  numeric parameters do not prevent grouping. Mixed inclusion states are
-  labelled.
+  \textbf{Operations included in preview} allows individual display
+  exclusions on the current spectrum. In All spectra scope, entries are
+  grouped by operation type with a count such as \textbf{Y
+  multiplication - 3/5 spectra}. Unchecking a type excludes every
+  occurrence on spectra that contain it; spectra without that type are
+  unaffected. Different numeric parameters do not prevent grouping.
+  Mixed inclusion states are labelled. Unchecking an operation only
+  hides its effect in the preview; it does not undo it.
 \end{itemize}
 
 All exclusions replay the retained recorded operations in their original
@@ -1938,10 +1945,13 @@ replacements when replayed.
 
 Models, residuals and plugin annotations are hidden for
 reconstructed/original data because their fits refer to the stored
-processed data. Error bars and framing use the displayed arrays. A
-preview banner provides \textbf{Reset all views}; starting an edit, mask
-operation, graphical placement or fit restores the stored processing
-before the tool runs. Background-only visual subtraction remains
+processed data. Error bars and framing use the displayed arrays. The
+banner always states \textbf{Display only} and \textbf{Data unchanged;
+no operations undone}. \textbf{Close all previews} returns every
+spectrum to its stored display; \textbf{Close preview for this scope}
+affects only the chosen scope. Starting an edit, mask operation,
+graphical placement or fit closes reconstructed previews and uses the
+stored data and processing. Background-only visual subtraction remains
 compatible with the normal fit overlay. These preview choices are
 temporary and do not modify processing history, Undo/Redo, exports or
 the saved project's scientific data.
@@ -2106,23 +2116,25 @@ selected function. The spline remains continuous through masked
 intervals even though masked measurements do not contribute to the
 objective function.
 
-\hypertarget{quick-add-function}{%
-\section{8.4 Quick Add Function}\label{quick-add-function}}
+\hypertarget{functions-selection-insertion-and-details}{%
+\section{8.4 Functions: selection, insertion and
+details}\label{functions-selection-insertion-and-details}}
 
-Choose a registered function from the selector inside the \textbf{Quick
-Add} toolbar group and press its \textbf{Add} button. The list includes
-built-in peaks and backgrounds, generic functions, project-contained
-formulas, reusable formulas, and trusted plugin functions. The last
-choice is remembered. Below the selector, check \textbf{Background} to
-mark the added function as background and \textbf{Initialize with
-points} to initialize it from graph points. Both options default to off.
+Choose a registered function from the selector inside the
+\textbf{Functions} toolbar group and press its \textbf{Add} button. The
+list includes built-in peaks and backgrounds, generic functions,
+project-contained formulas, reusable formulas, and trusted plugin
+functions. The last choice is remembered. Below the selector, check
+\textbf{Background} to mark the added function as background and
+\textbf{Initialize with points} to initialize it from graph points. Both
+options default to off.
 
 \begin{itemize}
 \tightlist
 \item
   a peak with \textbf{Initialize with points} checked allows repeated
   centre/FWHM click-drags until \textbf{Finish}, right-click or
-  Return/Enter ends Quick Add; its parameters remain free for fitting;
+  Return/Enter ends placement; its parameters remain free for fitting;
 \item
   a peak with that option cleared is added immediately, one per
   \textbf{Add} click. CurveMole estimates centre, height and width from
@@ -2142,31 +2154,37 @@ points} to initialize it from graph points. Both options default to off.
   with free y parameters.
 \end{itemize}
 
-Quick Add uses the shared function registry and peak parameter roles,
-including roles supplied by user formulas and plugins. Selecting a
-function in the normal Add dialog also makes it the next Quick Add
-choice. Quick Add remembers its own manual-point and background options
-separately for each function. It does not inherit options from the
-normal Add dialog or its older shared preferences. Changing the point
-option during peak placement cancels the pending peak without adding
-anything; already completed peaks remain. Switching to an automatic peak
-in the selector also waits for the next \textbf{Add} click.
+The Functions group uses the shared function registry and peak parameter
+roles, including roles supplied by user formulas and plugins. Selecting
+a function in the normal Add dialog also makes it the next toolbar
+choice. The Functions group remembers its own manual-point and
+background options separately for each function. It does not inherit
+options from the normal Add dialog or its older shared preferences.
+Changing the point option during peak placement cancels the pending peak
+without adding anything; already completed peaks remain. Switching to an
+automatic peak in the selector also waits for the next \textbf{Add}
+click.
 
 The \textbf{Function details} button (a function card with a curve and
-formula), beside Quick Add, replaces the old toolbar Add component
-button. It follows the selected function and opens a reference with its
-formula, description, default parameters, bounds, units, derived
-quantities and initialization instructions. \textbf{Copy formula} copies
-the displayed expression; \textbf{Add function} opens the advanced Add
-component dialog with that function selected. The Model menu and Ctrl++
-still open that dialog directly. Plugin formulas are displayed when
-supplied by the provider.
+formula), inside the Functions group, replaces the old toolbar Add
+component button. It follows the selected function and opens a reference
+with its formula, description, default parameters, bounds, units,
+derived quantities and initialization instructions. Its
+\textbf{Function} selector also lets you choose any other registered
+function, including formulas and plugin functions. This selector and the
+toolbar selector stay synchronized; the reference updates immediately.
+Browsing does not add a component and cancels unfinished graphical
+placement without removing components already added. \textbf{Copy
+formula} copies the displayed expression; \textbf{Add function} opens
+the advanced Add component dialog with that function selected. The Model
+menu and Ctrl++ still open that dialog directly. Plugin formulas are
+displayed when supplied by the provider.
 
-In Quick Add point placement, right-click and Return/Enter commit the
-same points as \textbf{Finish}, provided the minimum has been reached;
-otherwise placement stays active. \textbf{Undo point} removes the most
-recent point. In the regular Add dialog's point placement, right-click
-continues to remove the nearest point.
+In the Functions group's point placement, right-click and Return/Enter
+commit the same points as \textbf{Finish}, provided the minimum has been
+reached; otherwise placement stays active. \textbf{Undo point} removes
+the most recent point. In the regular Add dialog's point placement,
+right-click continues to remove the nearest point.
 
 \hypertarget{adding-a-peak-with-the-pointer}{%
 \section{8.5 Adding a peak with the
@@ -2281,8 +2299,8 @@ suggestions}\label{automatic-peak-suggestions}}
 Choose \textbf{Model \textgreater{} Find positive peaks\ldots{}}.
 Despite the menu label, the first dialog can search positive, negative,
 or both signs. The next dialog selects any registered function
-classified as a peak, initially preferring the current Quick Add peak.
-CurveMole then:
+classified as a peak, initially preferring the peak selected in the
+Functions group. CurveMole then:
 
 \begin{itemize}
 \tightlist
@@ -3070,7 +3088,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.43.0 does not yet provide a single comprehensive on-screen
+Preview 0.43.1 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -4322,10 +4340,10 @@ together.
 
 CurveMole remembers the selected folder and loads every valid function
 from it at each startup. Reusable functions therefore appear in the
-normal Add dialog, Quick Add selector, and automatic peak-shape selector
-without requiring a particular project to be open. Copy the folder
-between computers to move a personal function library; open that folder
-when CurveMole asks for the library location.
+normal Add dialog, the Functions group selector, and automatic
+peak-shape selector without requiring a particular project to be open.
+Copy the folder between computers to move a personal function library;
+open that folder when CurveMole asks for the library location.
 
 Project-contained definitions remain portable. When a project reopens,
 CurveMole reconstructs and validates each restricted expression. A
@@ -4550,7 +4568,7 @@ segments show accepted corrections before \textbf{Accept modifications}.
 \textbf{Detect manually} adds candidates by clicking measured samples.
 \textbf{Remove manually} opens the native point editor; its drags and
 deletions take effect immediately with Undo/Redo. This plugin version
-requires CurveMole 0.43.0 or later.
+requires CurveMole 0.43.1 or later.
 
 \hypertarget{troubleshooting}{%
 \chapter{19. Troubleshooting}\label{troubleshooting}}
@@ -4841,8 +4859,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.43.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.43.0
+(Version 0.43.1) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.43.1
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -5070,9 +5088,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.43.0-limitations}{%
-\chapter{Appendix D. Preview 0.43.0
-limitations}\label{appendix-d.-preview-0.43.0-limitations}}
+\hypertarget{appendix-d.-preview-0.43.1-limitations}{%
+\chapter{Appendix D. Preview 0.43.1
+limitations}\label{appendix-d.-preview-0.43.1-limitations}}
 
 The following boundaries are important when evaluating this release:
 
