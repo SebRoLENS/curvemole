@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.42.1] - 2026-10-20
+
 ### Fixed
 
 - Use the folder selected in Plugin Manager when installing new catalog plugins.
