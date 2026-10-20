@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
@@ -20,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.extensions import extensions
 from curvemole.core.plugin_identity import contribution_tooltip
+from curvemole.gui.documentation import plugin_manuals, show_markdown_document
 
 
 def _plugin_recovery_problems(
@@ -65,6 +67,11 @@ class PluginHost:
                      "panels": "View", "plot_layers": "View"}
         self.menus = {kind: menus[location].addMenu("Plugins: " + kind.replace("_", " ").title())
                       for kind, location in locations.items()}
+        help_menu = getattr(window, "help_menu", menus.get("Help"))
+        if help_menu is None:
+            help_menu = window.menuBar().addMenu("Help")
+        self.help_menu = help_menu.addMenu("Plugin help")
+        self.help_menu.aboutToShow.connect(self._refresh_help)
         self.refresh()
 
     def context(self, owner: str, path: str | None = None, *, with_services: bool = False) -> PluginContext:
@@ -76,6 +83,7 @@ class PluginHost:
                              services=PluginServices(self, owner) if with_services else None)
 
     def refresh(self) -> None:
+        self._refresh_help()
         self._auto_opened.intersection_update(extensions.entries)
         for identifier, dialog in list(self.dialogs.items()):
             entry = extensions.entries.get(identifier)
@@ -98,6 +106,30 @@ class PluginHost:
                 action.triggered.connect(lambda checked=False, item=entry: self.run(item))
         if self._startup_complete:
             self._open_automatic_panels()
+
+    def _refresh_help(self) -> None:
+        self.help_menu.clear()
+        manager = self.window.plugin_manager
+        for identifier, metadata in sorted(manager.loaded.items(),
+                                           key=lambda item: manager.plugin_name(item[0]).casefold()):
+            if identifier in manager.errors or not manager.installed.get(identifier, {}).get("enabled"):
+                continue
+            label = f"{manager.symbol(identifier)} {manager.plugin_name(identifier)}"
+            manuals = plugin_manuals(metadata.source)
+            if not manuals:
+                action = self.help_menu.addAction(label + " — manual unavailable")
+                action.setEnabled(False)
+                continue
+            menu = self.help_menu.addMenu(label) if len(manuals) > 1 else self.help_menu
+            for path in manuals:
+                action = menu.addAction(str(path.relative_to(Path(metadata.source).parent))
+                                        if len(manuals) > 1 else label)
+                action.setToolTip(str(path))
+                action.triggered.connect(
+                    lambda checked=False, target=path, title=label:
+                    show_markdown_document(self.window, target, title)
+                )
+        self.help_menu.setEnabled(bool(self.help_menu.actions()))
 
     def finish_startup(self) -> None:
         """Create automatic docks before MainWindow restores its saved state.

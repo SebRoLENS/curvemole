@@ -5,6 +5,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Use the folder selected in Plugin Manager when installing new catalog plugins.
+  Reject empty paths and CurveMole's internal storage, and retain the confirmed
+  destination throughout downloads even if the folder field changes.
+- Render CurveMole and plugin manuals in an internal Markdown reader with search,
+  zoom and local navigation. List active plugin manuals under Help > Plugin help.
+
 ## [0.42.0] - 2026-10-19
 
 ### Added

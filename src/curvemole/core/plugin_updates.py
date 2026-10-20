@@ -336,6 +336,18 @@ def stage_update(manager: PluginManager, update: PluginUpdate, archive: bytes,
         shutil.rmtree(temporary, ignore_errors=True)
 
 
+def plugin_installation_root(manager: PluginManager, destination: str | Path) -> Path:
+    """Require an explicit permanent folder outside the host's internal storage."""
+    if not str(destination).strip():
+        raise CurveMoleError("Choose an existing storage folder for downloaded plugins first.")
+    root = Path(destination).expanduser().resolve()
+    if not root.is_dir():
+        raise CurveMoleError("Choose an existing storage folder for downloaded plugins first.")
+    if manager.storage is not None and root.is_relative_to(manager.storage.resolve()):
+        raise CurveMoleError("Choose a plugin folder outside CurveMole's internal storage.")
+    return root
+
+
 def install_community_plugin(
     manager: PluginManager, plugin: CommunityPlugin, archive: bytes, destination: str | Path
 ) -> PluginMetadata:
@@ -344,11 +356,14 @@ def install_community_plugin(
         raise CurveMoleError("This plugin is already installed; use Plugin updates instead.")
     if not plugin.compatible:
         raise CurveMoleError("Update CurveMole first: this plugin requires a different plugin API.")
-    root = Path(destination).expanduser().resolve()
-    if not root.is_dir():
-        raise CurveMoleError("Choose an existing folder for downloaded plugins.")
+    root = plugin_installation_root(manager, destination)
     category_root = root / plugin.category
     final = category_root / plugin.folder
+    resolved = final.resolve()
+    if (not resolved.is_relative_to(root) or manager.storage is not None
+            and resolved.is_relative_to(manager.storage.resolve())):
+        raise CurveMoleError("Plugin destination must stay inside the selected folder "
+                             "and outside CurveMole's internal storage.")
     if final.exists():
         raise CurveMoleError(f"Destination already exists: {final}")
     category_root.mkdir(exist_ok=True)

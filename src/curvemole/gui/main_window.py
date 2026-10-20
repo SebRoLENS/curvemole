@@ -3423,13 +3423,15 @@ class MainWindow(QMainWindow):
             self._open_external(release_url)
 
     def open_documentation(self, name: str) -> None:
+        from curvemole.gui.documentation import show_markdown_document
+
         source_tree = Path(__file__).resolve().parents[3] / "docs" / name
         if source_tree.exists():
-            self._open_external(source_tree)
+            show_markdown_document(self, source_tree, self.tr("CurveMole help"))
             return
         packaged = _resource_path(f"docs/{name}")
         if packaged and packaged.exists():
-            self._open_external(packaged)
+            show_markdown_document(self, packaged, self.tr("CurveMole help"))
             return
         self._open_external("https://github.com/SebRoLENS/curvemole/tree/main/docs")
 

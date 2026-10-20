@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QFont
@@ -32,6 +31,7 @@ from curvemole.core.plugin_updates import (
     available_updates,
     community_plugins,
     install_community_plugin,
+    plugin_installation_root,
     stage_update,
 )
 from curvemole.gui.updates import CHECK_INTERVAL_MS, UpdateController, semantic_version, update_kind
@@ -57,6 +57,7 @@ class PluginUpdateController(QObject):
         self.catalog_entries = []
         self.catalog_busy = False
         self.catalog_queue = []
+        self.catalog_destination = None
         self.catalog_errors = []
         self.message = "Check for updates to loaded plugins."
         self.badge = QToolButton(window)
@@ -261,7 +262,7 @@ class PluginUpdateController(QObject):
         self.busy = True
         self._download_next()
 
-    def browse(self):
+    def browse(self, *, directory=None):
         if self.catalog_dialog is None:
             dialog = QDialog(secondary_window_parent(self.window))
             self.catalog_dialog = dialog
@@ -279,8 +280,10 @@ class PluginUpdateController(QObject):
             folder_row = QHBoxLayout()
             self.catalog_folder = QLineEdit(
                 self.settings.value("community_plugins/folder", "", type=str)
+                or self.settings.value("plugin_directory", "", type=str)
             )
             choose = QPushButton("Choose storage folder…")
+            self.catalog_choose = choose
             choose.clicked.connect(self._choose_catalog_folder)
             folder_row.addWidget(QLabel("Plugin storage"))
             folder_row.addWidget(self.catalog_folder, 1)
@@ -307,6 +310,8 @@ class PluginUpdateController(QObject):
             for button in (self.catalog_check, self.catalog_install, close):
                 buttons.addWidget(button)
             layout.addLayout(buttons)
+        if directory and directory.strip() and self.catalog_destination is None:
+            self.catalog_folder.setText(directory)
         self._refresh_catalog()
         if self.catalog_dialog.parent() is not self.window and self.catalog_dialog.parent().isModal():
             QTimer.singleShot(0, self.check_catalog)
@@ -352,6 +357,8 @@ class PluginUpdateController(QObject):
         if self.catalog_dialog is None:
             return
         self.catalog_check.setEnabled(not self.catalog_busy)
+        self.catalog_folder.setEnabled(not self.catalog_busy)
+        self.catalog_choose.setEnabled(not self.catalog_busy)
         available = False
         self.catalog_table.setRowCount(0)
         for category, heading in (("by_main_developer", "by main developer"),
@@ -400,10 +407,13 @@ class PluginUpdateController(QObject):
         self.catalog_install.setEnabled(not self.catalog_busy and available)
 
     def install_catalog_selected(self):
-        folder = Path(self.catalog_folder.text()).expanduser()
-        if not folder.is_dir():
+        if self.catalog_busy:
+            return
+        try:
+            folder = plugin_installation_root(self.plugins, self.catalog_folder.text())
+        except Exception as exc:
             QMessageBox.warning(
-                self.catalog_dialog, "Community plugins", "Choose an existing storage folder first."
+                self.catalog_dialog, "Community plugins", str(exc)
             )
             return
         selected = {
@@ -428,7 +438,8 @@ class PluginUpdateController(QObject):
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
-        self.settings.setValue("community_plugins/folder", str(folder.resolve()))
+        self.catalog_destination = folder
+        self.settings.setValue("community_plugins/folder", str(folder))
         self.catalog_errors = []
         self.catalog_busy = True
         self._download_catalog_next()
@@ -436,6 +447,7 @@ class PluginUpdateController(QObject):
     def _download_catalog_next(self):
         if not self.catalog_queue:
             self.catalog_busy = False
+            self.catalog_destination = None
             self.catalog_status.setText(
                 "\n".join(self.catalog_errors)
                 if self.catalog_errors
@@ -459,7 +471,7 @@ class PluginUpdateController(QObject):
             if error:
                 raise ValueError(error)
             install_community_plugin(
-                self.plugins, plugin, data, self.catalog_folder.text()
+                self.plugins, plugin, data, self.catalog_destination
             )
         except Exception as exc:
             message = f"{plugin.identifier}: {exc}"

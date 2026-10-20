@@ -27,7 +27,7 @@ def panel_windows(monkeypatch):
         window.project = SimpleNamespace(ui_state={})
         window.active_curve_id = None
         window.curve_tree = SimpleNamespace(selected_curve_ids=lambda: [])
-        window.plugin_manager = SimpleNamespace(errors={})
+        window.plugin_manager = SimpleNamespace(errors={}, loaded={}, installed={})
         window._thread = None
         window._notify = lambda message: None
         anchor = QDockWidget("Anchor", window)

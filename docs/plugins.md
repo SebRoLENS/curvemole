@@ -35,11 +35,20 @@ first. Failed or interrupted downloads leave the previous installation in place.
 
 ## Install, enable, disable and remove
 
+**Help > Plugin help** lists the manuals of active plugins. CurveMole opens these,
+Quick Start and its user manual in an internal Markdown reader with search, zoom,
+and Back/Forward navigation. Local Markdown links stay in the reader; web links
+open in your browser. Plugin documentation can use `README.md`, `manual.md`,
+`help.md`, or Markdown files in a `docs` subfolder beside the plugin manifest.
+
 For validated community plugins, open **File > Plugin Manager > Browse validated
 plugins…**. CurveMole downloads the online catalog, shows every validated plugin
 with its version and description, and installs only the entries you select. Choose
 an existing permanent storage folder first; CurveMole remembers it for later
-downloads. Archives are size-limited, path-checked and verified against the catalog
+downloads. The catalog starts with the folder currently selected in Plugin Manager.
+Plugins are retained below that folder as `<category>/<plugin>/`; an empty path or
+CurveMole's internal storage cannot be used. The confirmed destination applies to
+the whole download batch. Archives are size-limited, path-checked and verified against the catalog
 SHA-256 before loading. Already installed plugins are shown but cannot be installed
 twice; update them through **Plugin updates…**.
 

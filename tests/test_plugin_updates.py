@@ -343,6 +343,38 @@ def test_catalog_install_rejects_existing_destination(update_case, tmp_path):
         install_community_plugin(manager, plugin, archive, tmp_path)
 
 
+@pytest.mark.parametrize('destination', ['', '   ', 'internal', 'internal-child'])
+def test_catalog_install_rejects_implicit_or_internal_storage(
+    update_case, tmp_path, monkeypatch, destination
+):
+    monkeypatch.chdir(tmp_path)
+    manager, catalog, _, archive, _ = update_case
+    manager.disable('test.plugin')
+    manager.remove('test.plugin')
+    if destination.startswith('internal'):
+        destination = manager.storage if destination == 'internal' else manager.storage / 'plugins'
+        destination.mkdir(exist_ok=True)
+    with pytest.raises(CurveMoleError, match='folder'):
+        install_community_plugin(manager, community_plugins(catalog)[0], archive, destination)
+    assert not list(manager.storage.rglob('plugin.py'))
+    assert 'test.plugin' not in manager.installed
+
+
+def test_catalog_install_does_not_follow_a_category_link_to_internal_storage(update_case, tmp_path):
+    manager, catalog, _, archive, _ = update_case
+    manager.disable('test.plugin')
+    manager.remove('test.plugin')
+    destination = tmp_path / 'chosen'
+    destination.mkdir()
+    try:
+        (destination / 'by_community').symlink_to(manager.storage, target_is_directory=True)
+    except OSError:
+        pytest.skip('Directory symlinks are unavailable')
+    with pytest.raises(CurveMoleError, match='inside the selected folder'):
+        install_community_plugin(manager, community_plugins(catalog)[0], archive, destination)
+    assert not list(manager.storage.rglob('plugin.py'))
+
+
 @pytest.fixture
 def controller_case(update_case, tmp_path, monkeypatch):
     from PySide6.QtCore import QCoreApplication, QEvent, QSettings
@@ -477,10 +509,74 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     controller.catalog_table.item(1, 0).setCheckState(Qt.CheckState.Checked)
     controller.install_catalog_selected()
     assert requests[-1][0].endswith("/test_plugin.zip")
+    assert not controller.catalog_folder.isEnabled()
+    assert not controller.catalog_choose.isEnabled()
+    queued_requests = len(requests)
+    controller.install_catalog_selected()
+    assert len(requests) == queued_requests
+    controller.catalog_folder.setText(str(controller.plugins.storage))
     requests[-1][1](archive, "")
     assert update.identifier in controller.plugins.loaded
     assert (destination / "by_community" / "test_plugin" / "plugin.py").is_file()
     assert "installed and loaded" in controller.catalog_status.text().lower()
+    assert controller.catalog_folder.isEnabled()
+    assert controller.catalog_destination is None
+
+
+@pytest.mark.parametrize('destination', ['', '   ', 'internal'])
+def test_catalog_controller_rejects_missing_or_internal_folder(
+    controller_case, monkeypatch, destination
+):
+    from PySide6.QtWidgets import QMessageBox
+
+    _, controller, requests, catalog, update, _ = controller_case
+    controller.plugins.disable(update.identifier)
+    controller.plugins.remove(update.identifier)
+    controller.browse()
+    requests.pop()[1](json.dumps(catalog).encode(), '')
+    requests.clear()
+    warnings = []
+    monkeypatch.setattr(QMessageBox, 'warning', lambda *args: warnings.append(args))
+    if destination == 'internal':
+        destination = str(controller.plugins.storage)
+    controller.catalog_folder.setText(destination)
+    controller.install_catalog_selected()
+    assert len(warnings) == 1
+    assert not requests
+    assert not controller.catalog_busy
+
+
+def test_catalog_uses_saved_plugin_manager_folder(controller_case, tmp_path):
+    _, controller, _, _, _, _ = controller_case
+    controller.settings.setValue('plugin_directory', str(tmp_path))
+    controller.browse()
+    assert controller.catalog_folder.text() == str(tmp_path)
+
+
+def test_catalog_uses_current_plugin_manager_folder(controller_case, tmp_path):
+    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtWidgets import QPushButton
+
+    from curvemole.gui.dialogs import PluginManagerDialog
+
+    _, controller, _, _, _, _ = controller_case
+    controller.window.plugin_update_controller = controller
+    controller.settings.setValue('community_plugins/folder', str(controller.plugins.storage))
+    dialog = PluginManagerDialog(controller.plugins, tmp_path, controller.window)
+    dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+    dialog.show()
+    observed = []
+
+    def inspect():
+        observed.append(controller.catalog_folder.text())
+        controller.catalog_dialog.accept()
+
+    QTimer.singleShot(0, inspect)
+    button = next(button for button in dialog.findChildren(QPushButton)
+                  if button.text() == 'Browse validated plugins…')
+    button.click()
+    assert observed == [str(tmp_path)]
+    dialog.close()
 
 
 def test_catalog_groups_developer_and_community_plugins(controller_case):

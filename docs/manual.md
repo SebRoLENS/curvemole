@@ -2842,6 +2842,18 @@ For private use, **Choose plugin folder...** installs it on your computer only;
 loading a plugin does not publish its source. **Browse validated plugins** opens
 the downloads that have passed the checks.
 
+The catalog starts with the folder selected in Plugin Manager. Choose an existing
+permanent folder outside CurveMole's internal storage; each download is retained
+there under `<category>/<plugin>/`. An empty folder field cannot start an
+installation, and the confirmed destination applies throughout the download batch.
+
+Open **Help > Plugin help** for the manuals of active plugins. These manuals,
+**Help > Quick Start** and **Help > User manual** open in CurveMole's internal
+Markdown reader, with formatted headings, tables and images, search, zoom and
+Back/Forward navigation. Links to local Markdown files stay in the reader;
+web links open in your browser. Disabled or failed plugins are omitted from
+the plugin help menu.
+
 The repository's [custom_plugins folder](../custom_plugins/README.md) contains the
 submission guide and downloadable plugins, including a TSV exporter, Fityk project
 importer, cosmic-ray removal, x-axis calibration and ruby fluorescence pressure
