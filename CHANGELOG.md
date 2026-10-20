@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.43.0] - 2026-10-20
+
 ### Added
 
 - Replace the Visual only toolbar button with a separate View options menu between
