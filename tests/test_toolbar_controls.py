@@ -23,11 +23,11 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     assert any(window.export_action in action.menu().actions()
                for action in window.menuBar().actions() if action.menu())
     actions = (window.auto_axes_action, window.plot_workspace.view_active_action,
-               window.background_subtracted_view_action, window.revert_background_action,
+               window.view_options_action, window.revert_background_action,
                window.plot_workspace.mask_action, window.import_action,
                window.open_action, window.save_action, window.undo_action,
                window.redo_action, window.calculator_action, window.notebook_action,
-               window.add_component_action,
+               window.function_info_action,
                window.fit_action, window.quick_fit_action, window.cancel_action,
                window.subtract_background_action)
     for action in actions:
@@ -46,18 +46,19 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                               if toolbar.widgetForAction(action) is window.quick_add_group)
     ordered = toolbar.actions()
     assert ordered.index(window.auto_axes_action) < ordered.index(window.subtract_background_action)
-    assert ordered.index(window.subtract_background_action) < ordered.index(window.background_subtracted_view_action)
-    assert ordered.index(window.background_subtracted_view_action) < ordered.index(window.revert_background_action)
+    assert ordered.index(window.subtract_background_action) < ordered.index(window.revert_background_action)
+    assert ordered.index(window.revert_background_action) < ordered.index(window.view_options_action)
+    assert ordered.index(window.view_options_action) < ordered.index(window.plot_workspace.mask_action)
     assert ordered.index(window.revert_background_action) < ordered.index(window.plot_workspace.mask_action)
-    assert ordered.index(window.plot_workspace.mask_action) < ordered.index(window.add_component_action)
+    assert ordered.index(window.plot_workspace.mask_action) < ordered.index(window.function_info_action)
     assert ordered[ordered.index(window.revert_background_action) + 1].isSeparator()
     assert ordered[ordered.index(window.plot_workspace.mask_action) + 1].isSeparator()
-    assert ordered.index(window.add_component_action) < ordered.index(window.fit_action)
-    assert ordered.index(window.add_component_action) < ordered.index(quick_group_action)
+    assert ordered.index(window.function_info_action) < ordered.index(window.fit_action)
+    assert ordered.index(window.function_info_action) < ordered.index(quick_group_action)
     assert ordered.index(quick_group_action) < ordered.index(window.fit_action)
     assert ordered.index(window.cancel_action) < ordered.index(window.calculator_action)
     assert ordered.index(window.calculator_action) + 1 == ordered.index(window.notebook_action)
-    assert window.background_subtracted_view_action.isCheckable()
+    assert window.view_options_action.isCheckable()
     original_palette = app.palette()
     light_palette = QPalette(original_palette)
     light_palette.setColor(QPalette.ColorRole.Button, Qt.GlobalColor.white)

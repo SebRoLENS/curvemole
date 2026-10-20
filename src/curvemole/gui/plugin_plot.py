@@ -109,6 +109,8 @@ class PluginPlotSession(QObject):
             return
         self._remove_items()
         ws = self._workspace
+        if ws.display_replays(curve):
+            return
         dx, dy = ws._active_display_offsets()
 
         def add(item, z):
@@ -162,7 +164,7 @@ class PluginPlotSession(QObject):
 
     def marker_at(self, scene_position):
         curve = self._curve()
-        if curve is None or not self._markers:
+        if curve is None or self._workspace.display_replays(curve) or not self._markers:
             return None
         indices = np.array([m[0] for m in self._markers])
         distances = self._distances(curve, scene_position, indices)
@@ -190,6 +192,7 @@ class PluginPlotSession(QObject):
     def set_picking(self, enabled, *, instruction="Select a data point in the main graph. Esc ends selection."):
         ws = self._workspace
         if enabled:
+            ws.restore_data_view_for_editing()
             self._require_curve()
             if self._window._thread is not None:
                 raise ValueError("Wait for the current calculation before selecting data points.")

@@ -5,6 +5,25 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Replace the Visual only toolbar button with a separate View options menu between
+  background and mask controls. Preview original data, restore visually subtracted
+  backgrounds, or exclude individual recorded operations. All-spectra scope groups
+  operation types with counts and handles different processing histories without
+  changing stored data, fit inputs, exports or Undo/Redo.
+
+### Changed
+
+- Make Quick Add peak initialization match the visible point option: checked uses
+  centre/FWHM click-drag placement; unchecked inserts one automatically estimated
+  peak per Add click, using the unmasked residual of the current model. Non-peak
+  function behavior is retained, and changing the option never inserts a peak.
+- Replace the toolbar Add component button with Function details for the selected
+  Quick Add function: formula, parameter defaults and bounds, derived quantities,
+  initialization guidance, formula copying and an explicit Add function button
+  for advanced component setup. Quick Add uses the former peak-and-plus icon.
+
 ## [0.42.1] - 2026-10-20
 
 ### Fixed

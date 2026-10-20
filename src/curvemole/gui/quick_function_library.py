@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QSignalBlocker, QSize, Qt
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -28,12 +29,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.data import Curve
 from curvemole.core.functions import formula_definition
-from curvemole.core.initialization import find_peak_suggestions, initialise_peak_component
+from curvemole.core.initialization import (
+    PeakSuggestion,
+    find_peak_suggestions,
+    initialise_peak_component,
+)
 from curvemole.core.models import Component, Model
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
-from curvemole.gui.main_window import MainWindow
+from curvemole.gui.function_info import show_function_info, sync_function_info
+from curvemole.gui.main_window import MainWindow, _resource_icon
 from curvemole.gui.panels import FunctionBuilderPanel
 
 _LIBRARY_FOLDER_NAME = "my_curvemole_functions"
@@ -222,7 +229,7 @@ def _selector_changed(window: MainWindow, *_: Any) -> None:
         if window.plot_workspace._placement_mode is not None:
             window.plot_workspace.cancel_placement()
             definition = window.registry.get(identifier)
-            if definition.kind == "peak" or identifier == "cubic_spline":
+            if (definition.kind == "peak" and _quick_add_option(window, identifier, "manual_points")) or identifier == "cubic_spline":
                 window.quick_peak()
 
 
@@ -260,6 +267,7 @@ def _sync_quick_add_options(window: MainWindow, function_id: str | None = None) 
     with QSignalBlocker(background), QSignalBlocker(points):
         background.setChecked(_quick_add_option(window, str(identifier), "background"))
         points.setChecked(_quick_add_option(window, str(identifier), "manual_points"))
+    sync_function_info(window, str(identifier))
 
 
 def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) -> None:
@@ -274,9 +282,43 @@ def _quick_add_option_changed(window: MainWindow, option: str, checked: bool) ->
         if window._pending_component is not None:
             window._pending_component.is_background = checked
     else:
+        if window.registry.get(str(identifier)).kind == "peak" and not checked:
+            # Changing a preference must not add an automatically guessed peak.
+            workspace.cancel_placement()
+            return
         # Placement modes have different point requirements. Restart the pending
         # insertion when that choice changes, retaining already completed peaks.
         window.quick_peak()
+
+
+def _guess_quick_peak(window: MainWindow) -> PeakSuggestion:
+    """Estimate one peak from finite, unmasked residual data in physical coordinates."""
+    curve = window.project.dataset.curve(window.active_curve_id)
+    keep = np.isfinite(curve.x) & np.isfinite(curve.y) & ~curve.effective_mask
+    if not np.any(keep):
+        raise ValueError(window.tr("The active curve has no usable points."))
+    x, y = curve.x[keep], curve.y[keep]
+    model = window.project.model_for(curve.id)
+    residual = y - model.evaluate(
+        x, curve_id=curve.id, values=window.project.resolved_parameter_values(), registry=window.registry
+    )
+    if not np.all(np.isfinite(residual)):
+        raise ValueError(window.tr("The current model has non-finite values on the active curve."))
+    order = np.argsort(x)
+    suggestions = []
+    if len(x) >= 3:
+        residual_curve = Curve("Quick Add residual", x[order], residual[order])
+        suggestions = find_peak_suggestions(residual_curve, sign="both", max_peaks=1)
+    if suggestions:
+        return suggestions[0]
+    # Short, flat or monotonic data still get a finite, editable initial estimate.
+    centred = residual - np.median(residual)
+    index = int(np.argmax(np.abs(centred)))
+    height = float(centred[index])
+    if height == 0:
+        height = max(float(np.ptp(y)) * .02, np.finfo(float).eps)
+    width = max(float(np.ptp(x)) / 10, np.finfo(float).eps)
+    return PeakSuggestion(float(x[index]), height, width, abs(height), 1 if height > 0 else -1)
 
 
 def _quick_add_function(window: MainWindow) -> None:
@@ -295,18 +337,13 @@ def _quick_add_function(window: MainWindow) -> None:
         if definition.kind == "peak":
             component = Component.create(function_id, registry=window.registry)
             component.is_background = _quick_add_option(window, function_id, "background")
+            if not _quick_add_option(window, function_id, "manual_points"):
+                initialise_peak_component(component, _guess_quick_peak(window), registry=window.registry)
+                window._commit_component(component, window.active_curve_id)
+                window._notify(window.tr("Quick Add Function: estimated and added ") + definition.display_name + ".")
+                return
             window._pending_component = component
             window._pending_component_curve_id = window.active_curve_id
-            from curvemole.gui.manual_points import minimum_manual_points
-
-            if _quick_add_option(window, function_id, "manual_points"):
-                window._pending_manual_points = True
-                window.plot_workspace.begin_manual_point_placement(
-                    definition.display_name, function_id, minimum_manual_points(component)
-                )
-                window.plot_workspace.mark_quick_add_placement()
-                window._notify(window.tr("Quick Add Function: select points on the graph, then press Finish."))
-                return
             window.plot_workspace.begin_peak_placement(definition.display_name)
             window.plot_workspace.mark_quick_add_placement()
             window._notify(
@@ -571,6 +608,8 @@ def _install() -> None:
             )
         )
         window.quick_add_function_action = window.quick_peak_action
+        window.function_info_action = QAction(_resource_icon("function-info.svg"), window.tr("Function details…"), window)
+        window.function_info_action.triggered.connect(lambda: show_function_info(window))
 
     def build_toolbar(window: MainWindow) -> None:
         original_build_toolbar(window)
@@ -578,6 +617,9 @@ def _install() -> None:
         if toolbar is None:
             return
         reference = toolbar.widgetForAction(window.add_component_action)
+        reference_height = reference.sizeHint().height() if reference is not None else None
+        toolbar.insertAction(window.add_component_action, window.function_info_action)
+        toolbar.removeAction(window.add_component_action)
         toolbar.removeAction(window.quick_peak_action)
         group = QFrame(toolbar)
         group.setObjectName("quick_add_group")
@@ -585,8 +627,8 @@ def _install() -> None:
         group.setStyleSheet(
             "QFrame#quick_add_group { border: 1px solid palette(mid); border-radius: 4px; }"
         )
-        if reference is not None:
-            group.setMaximumHeight(reference.sizeHint().height())
+        if reference_height is not None:
+            group.setMaximumHeight(reference_height)
         group_layout = QHBoxLayout(group)
         group_layout.setContentsMargins(2, 0, 2, 0)
         group_layout.setSpacing(2)
@@ -632,7 +674,10 @@ def _install() -> None:
         option_row.addWidget(window.quick_add_background)
         window.quick_add_manual_points = QCheckBox(window.tr("Initialize with points"), choices)
         window.quick_add_manual_points.setObjectName("quick_add_manual_points")
-        window.quick_add_manual_points.setToolTip(window.tr("Initialize Quick Add functions from selected graph points."))
+        window.quick_add_manual_points.setToolTip(window.tr(
+            "Checked: click and drag to place peaks; select graph points for other functions. "
+            "Unchecked: each Add click inserts one peak estimated from the data, or a non-peak with its normal initial parameters."
+        ))
         option_row.addWidget(window.quick_add_manual_points)
         layout.addLayout(option_row)
         group_layout.addWidget(choices)

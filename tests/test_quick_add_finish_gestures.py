@@ -75,7 +75,7 @@ def _assert_gestures_inactive(workspace):
 
 
 @pytest.mark.parametrize("gesture", ["right-click", "return", "numpad-enter"])
-@pytest.mark.parametrize("function_id", ["linear", "gaussian", "cubic_spline"])
+@pytest.mark.parametrize("function_id", ["linear", "cubic_spline"])
 def test_finish_gesture_commits_quick_add_points(window, function_id, gesture):
     app, main, curve = window
     workspace = main.plot_workspace
@@ -94,7 +94,7 @@ def test_finish_gesture_commits_quick_add_points(window, function_id, gesture):
 
 
 @pytest.mark.parametrize("gesture", ["right-click", "return", "numpad-enter"])
-@pytest.mark.parametrize("function_id", ["linear", "gaussian", "cubic_spline"])
+@pytest.mark.parametrize("function_id", ["linear", "cubic_spline"])
 def test_finish_gesture_with_too_few_points_keeps_quick_add_active(window, function_id, gesture):
     app, main, curve = window
     workspace = main.plot_workspace
@@ -118,7 +118,7 @@ def test_finish_gesture_with_too_few_points_keeps_quick_add_active(window, funct
 def test_finish_gesture_stops_continuous_quick_peak_and_keeps_added_peaks(window, gesture):
     app, main, curve = window
     workspace = main.plot_workspace
-    _start_quick_add(app, main, "gaussian", manual_points=False)
+    _start_quick_add(app, main, "gaussian", manual_points=True)
     _click_point(app, workspace, 2, 3)
     _click_point(app, workspace, 6, 2)
     assert workspace._continuous_peak_placement
@@ -157,7 +157,7 @@ def test_regular_point_placement_keeps_right_click_point_removal(window, manual_
 def test_idle_right_click_opens_normal_plot_menu_after_quick_add_finishes(window):
     app, main, _ = window
     workspace = main.plot_workspace
-    _start_quick_add(app, main, "gaussian", manual_points=False)
+    _start_quick_add(app, main, "gaussian", manual_points=True)
     _finish_gesture(app, workspace, "return")
     _assert_gestures_inactive(workspace)
     menu = workspace.view_box.getMenu(None)
@@ -195,7 +195,7 @@ def test_idle_right_click_masks_a_point_after_quick_add_cancels(window):
 def test_enter_reaches_focused_control_after_quick_add_ends(window, gesture):
     app, main, _ = window
     workspace = main.plot_workspace
-    _start_quick_add(app, main, "gaussian", manual_points=False)
+    _start_quick_add(app, main, "gaussian", manual_points=True)
     _finish_gesture(app, workspace, gesture)
     field = QLineEdit(workspace)
     workspace.layout().addWidget(field)

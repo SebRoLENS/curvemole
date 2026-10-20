@@ -616,6 +616,19 @@ class PlotWorkspace(QWidget):
             curves = series.curves if series is not None else []
         return [curve for curve in curves if curve.visible and (not self.scope_selected.isChecked() or curve.id in self._selected_curve_ids)]
 
+    def curve_for_display(self, curve):
+        controller = getattr(self, "view_options_controller", None)
+        return controller.curve(curve) if controller is not None else curve
+
+    def display_replays(self, curve) -> bool:
+        controller = getattr(self, "view_options_controller", None)
+        return controller is not None and controller.replays(curve)
+
+    def restore_data_view_for_editing(self):
+        controller = getattr(self, "view_options_controller", None)
+        if controller is not None:
+            controller.restore_for_editing()
+
     def refresh(self, *_: Any) -> None:
         initial_view = not self._data_items
         self.plot.clear()
@@ -636,7 +649,7 @@ class PlotWorkspace(QWidget):
             return
         appearance = self._plot_appearance
         mode = self.display_mode.currentText()
-        curves = self.displayed_curves()
+        curves = [self.curve_for_display(curve) for curve in self.displayed_curves()]
         x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
         y_step = self.y_offset.value() if mode == self.tr("Waterfall") else 0.0
         try:
@@ -670,10 +683,13 @@ class PlotWorkspace(QWidget):
             item.curve_id = curve.id
             self._data_items[curve.id] = item
             if self.error_bars_toggle.isChecked():
-                from curvemole.gui.background_navigation import _background_array
+                from curvemole.gui.background_navigation import (
+                    _background_array,
+                    background_removed,
+                )
                 from curvemole.gui.data_errors import error_bar_item
                 bar_y = y
-                if getattr(self, "_background_subtracted_view", False):
+                if background_removed(self, curve.id):
                     bar_y = y - _background_array(self, curve)
                 errors = error_bar_item(curve, x, bar_y, unmasked,
                     colour_with_opacity(curve.colour, int(appearance["data_opacity"])))
@@ -692,7 +708,7 @@ class PlotWorkspace(QWidget):
                     )
                     region.setZValue(-20)
                     self.plot.addItem(region)
-            model = project.models.get(curve.id)
+            model = None if self.display_replays(curve) else project.models.get(curve.id)
             if model and model.components:
                 try:
                     values = global_values
@@ -986,6 +1002,7 @@ class PlotWorkspace(QWidget):
         )
 
     def begin_peak_placement(self, name: str) -> None:
+        self.restore_data_view_for_editing()
         self.cancel_placement()
         self._placement_mode = "peak"
         self._placement_name = name
@@ -1006,6 +1023,7 @@ class PlotWorkspace(QWidget):
         self._sync_placement_mouse_targets()
 
     def begin_spline_placement(self, name: str) -> None:
+        self.restore_data_view_for_editing()
         self.cancel_placement()
         self._placement_mode = "spline"
         self._placement_name = name
@@ -1320,6 +1338,7 @@ class PlotWorkspace(QWidget):
 
     def _set_mask_mode(self, enabled: bool) -> None:
         if enabled:
+            self.restore_data_view_for_editing()
             if self._project is None or not self._active_curve_id:
                 self.mask_toggle.setChecked(False)
                 self.mask_action.setChecked(False)
@@ -1373,7 +1392,11 @@ class PlotWorkspace(QWidget):
     def _fit_experimental_data(self, *, active_only: bool) -> None:
         # Never use scene/item bounds: adaptive rendering clips those to the
         # current viewport, while model extrapolation can dwarf the actual data.
-        from curvemole.gui.background_navigation import _background_array, _displayed_curves
+        from curvemole.gui.background_navigation import (
+            _background_array,
+            _displayed_curves,
+            background_removed,
+        )
 
         curves, x_step, y_step = _displayed_curves(self)
         log_x, log_y = self.plot.ctrl.logXCheck.isChecked(), self.plot.ctrl.logYCheck.isChecked()
@@ -1381,7 +1404,7 @@ class PlotWorkspace(QWidget):
         for index, curve in enumerate(curves):
             x = np.asarray(curve.x, dtype=float) + index * x_step
             y = np.asarray(curve.y, dtype=float)
-            if getattr(self, "_background_subtracted_view", False):
+            if background_removed(self, curve.id):
                 y = y - _background_array(self, curve)
             y = y + index * y_step
             valid = np.isfinite(x) & np.isfinite(y)

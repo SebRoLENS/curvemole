@@ -154,7 +154,10 @@ def test_real_application_selector_controls_all_function_types(window, monkeypat
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args: pytest.fail("Obsolete function chooser opened"))
     selector = window.quick_function_selector
     assert {selector.itemData(i) for i in range(selector.count())} == {d.identifier for d in window.registry.values()}
+    window.settings.setValue("quick_add_controls/gaussian/manual_points", True)
+    window.settings.setValue("quick_add_controls/cubic_spline/manual_points", False)
     selector.setCurrentIndex(selector.findData("lorentzian"))
+    window.quick_add_manual_points.setChecked(True)
     window.quick_peak_action.trigger()
     assert window._pending_component.function_id == "lorentzian"
     assert window.plot_workspace._continuous_peak_placement

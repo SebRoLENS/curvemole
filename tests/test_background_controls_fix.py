@@ -219,9 +219,9 @@ def test_old_standalone_global_button_is_removed_and_revert_button_is_present() 
     assert toolbar is not None
     assert window.subtract_all_backgrounds_action not in toolbar.actions()
     assert window.revert_background_action in toolbar.actions()
-    assert window.background_subtracted_view_action in toolbar.actions()
-    assert toolbar.actions().index(window.background_subtracted_view_action) < toolbar.actions().index(window.revert_background_action)
-    assert window.background_subtracted_view_action.isCheckable()
+    assert window.view_options_action in toolbar.actions()
+    assert toolbar.actions().index(window.revert_background_action) < toolbar.actions().index(window.view_options_action)
+    assert window.view_options_action.isCheckable()
 
     project.dirty = False
     window.close()

@@ -77,6 +77,7 @@ class DataPointEditor(QWidget):
 
     def begin(self) -> bool:
         workspace = self.workspace
+        workspace.restore_data_view_for_editing()
         curve = self._curve()
         if (curve is None or workspace._project.read_only
                 or not any(item.id == curve.id for item in workspace.displayed_curves())):
@@ -153,8 +154,10 @@ class DataPointEditor(QWidget):
         self._update_selection()
 
     def _background(self, x):
+        from curvemole.gui.background_navigation import background_removed
+
         workspace = self.workspace
-        if not getattr(workspace, "_background_subtracted_view", False):
+        if not background_removed(workspace, workspace._active_curve_id):
             return np.zeros_like(x, dtype=float)
         curve = self._curve()
         model = workspace._project.models.get(curve.id)

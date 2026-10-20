@@ -1071,7 +1071,7 @@ class MainWindow(QMainWindow):
         self.add_component_action.setShortcut("Ctrl++")
         self.add_component_action.triggered.connect(self.add_component)
         self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
-        self.quick_peak_action.setIcon(_resource_icon("quick-add-peak.svg"))
+        self.quick_peak_action.setIcon(_resource_icon("add-peak.svg"))
         self.quick_peak_action.setToolTip(
             self.tr("Quick Peak\nAdd the last selected peak function without reopening the component dialog.")
         )
@@ -4305,6 +4305,7 @@ class MainWindow(QMainWindow):
 
     def _ensure_editable(self) -> bool:
         if not self.project.read_only:
+            self.plot_workspace.restore_data_view_for_editing()
             return True
         QMessageBox.information(
             self,

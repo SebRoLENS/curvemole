@@ -469,8 +469,9 @@ Controls above it provide:
 - **Autoscale:** automatically frame the experimental data when the active spectrum changes;
 - **All points / Unmasked points:** choose whether automatic framing includes masked data;
 - **Plot style:** draw imported data as Lines, Points, or Lines + points;
-- **Visual only - background-subtracted:** preview subtraction of marked background
-  functions without changing data or fit inputs.
+- **View options:** a separate toolbar group between background commands and Mask.
+  Open its menu to inspect original data, change background display, or include/exclude
+  recorded operations for the current spectrum or all spectra.
 
 Choose **View > Plot appearance…** for separate data, function and residual styles,
 line widths, symbols, colours and grid settings. These display settings are stored
@@ -616,8 +617,9 @@ The **Background** and **Initialize with points** checkboxes below the selector
 configure the next Quick Add insertion. The choices are remembered for each
 function only after explicitly changing them here. Both start off, including
 for Linear and Cubic spline; the regular Add dialog's choices are independent.
-Normal peaks use centre/FWHM click-drag placement. Other functions whose point
-initialization is off are added immediately. During Quick Add, right-click or
+With **Initialize with points** checked, peaks use centre/FWHM click-drag
+placement. With it cleared, each **Add** click inserts one automatically estimated
+peak. Other functions whose point initialization is off are added immediately. During Quick Add, right-click or
 press Return/Enter to finish, just
 like **Finish**. Point placement still requires its minimum number of points.
 Section 8 describes point placement, initial locking and graphical controls.
@@ -1083,9 +1085,40 @@ removes the subtraction, so **Not subtracted** is then the expected status.
 The same dialog can apply the operation to every eligible spectrum, using the enabled
 functions already marked as background in each model. **Data > Revert background...**
 lists only spectra changed by this dedicated subtraction command and restores the
-selected ones, including the relevant function states. **Visual only -
-background-subtracted** instead removes the enabled marked background only from the
-plot; it never changes curve arrays, fit inputs, or exported values.
+selected ones, including the relevant function states. **View options > Background >
+Remove fitted background in this view** instead removes the enabled marked background
+only from the plot; it never changes curve arrays, fit inputs, or exported values.
+
+The **View options** toolbar button opens a menu with **Current spectrum** and
+**All spectra** scopes. Scope selects the targets for the next display change;
+it does not change views by itself. All spectra includes hidden spectra, which use
+the chosen view when displayed later. Per-spectrum choices follow spectrum navigation.
+
+- **Stored data - all operations included** resets display filters for the scope.
+- **Original data - no operations or masks** shows the imported X/Y values, restores
+  visually deleted points and ignores masks and processing.
+- **Show data before background subtraction** omits recorded background subtractions
+  and replays the remaining operations in order. It also works after the background
+  functions have been disabled by a real subtraction.
+- **Included operations** allows individual exclusions on the current spectrum.
+  In All spectra scope, entries are grouped by operation type with a count such as
+  **Y multiplication - 3/5 spectra**. Unchecking a type excludes every occurrence
+  on spectra that contain it; spectra without that type are unaffected. Different
+  numeric parameters do not prevent grouping. Mixed inclusion states are labelled.
+
+All exclusions replay the retained recorded operations in their original order,
+using their recorded parameters and array operands. A later operation can depend
+on rows removed by an earlier one. An incompatible combination is rejected for
+the entire scope, with an explanation; the last valid view remains visible.
+Recorded Y replacements remain absolute replacements when replayed.
+
+Models, residuals and plugin annotations are hidden for reconstructed/original data
+because their fits refer to the stored processed data. Error bars and framing use
+the displayed arrays. A preview banner provides **Reset all views**; starting an
+edit, mask operation, graphical placement or fit restores the stored processing
+before the tool runs. Background-only visual subtraction remains compatible with
+the normal fit overlay. These preview choices are temporary and do not modify
+processing history, Undo/Redo, exports or the saved project's scientific data.
 
 During graphical cubic-spline placement, nodes may be placed anywhere in plot
 coordinates, including outside the x/y extent of the measured data. Adding nodes does
@@ -1222,23 +1255,40 @@ group and press its **Add** button. The list includes built-in peaks and backgro
 project-contained formulas, reusable formulas, and trusted plugin functions. The last
 choice is remembered. Below the selector, check **Background** to mark the added
 function as background and **Initialize with points** to initialize it from graph
-points. Both options default to off. Clearing point initialization uses the
-function's normal insertion mode.
+points. Both options default to off.
 
-- a peak with manual-point initialization off allows repeated centre/FWHM
+- a peak with **Initialize with points** checked allows repeated centre/FWHM
   click-drags until **Finish**, right-click or Return/Enter ends Quick Add;
+  its parameters remain free for fitting;
+- a peak with that option cleared is added immediately, one per **Add** click.
+  CurveMole estimates centre, height and width from the most prominent positive
+  or negative peak in the finite, unmasked data minus the current model. Repeated
+  clicks estimate the remaining residual peaks. Short or flat data use a finite
+  fallback estimate; all estimates can be edited before fitting;
 - a cubic spline with **Initialize with points** enabled opens point-by-point
   node placement;
 - Linear and other functions use manual-point placement only when explicitly
   enabled using **Initialize with points**;
-- functions with point initialization off are added with their initial parameters;
+- non-peak functions with point initialization off are added with their initial parameters;
   a spline in this mode uses an initial node grid with free y parameters.
 
-Quick Add therefore uses the same registry and initialization logic as the normal Add
-dialog. Selecting a function in the normal Add dialog also makes it the next Quick Add
+Quick Add uses the shared function registry and peak parameter roles, including
+roles supplied by user formulas and plugins. Selecting a function in the normal Add dialog also makes it the next Quick Add
 choice. Quick Add remembers its own manual-point and background options separately
 for each function. It does not inherit options from the normal Add dialog or its
 older shared preferences.
+Changing the point option during peak placement cancels the pending peak without
+adding anything; already completed peaks remain. Switching to an automatic peak
+in the selector also waits for the next **Add** click.
+
+The **Function details** button (a function card with a curve and formula), beside Quick Add,
+replaces the old toolbar Add component button. It follows the selected function
+and opens a reference with its formula, description, default parameters, bounds,
+units, derived quantities and initialization instructions. **Copy formula** copies
+the displayed expression; **Add function** opens the advanced Add component
+dialog with that function selected. The Model menu and Ctrl++ still open that
+dialog directly. Plugin formulas are displayed when supplied by the provider.
+
 In Quick Add point placement, right-click and Return/Enter commit the same points
 as **Finish**, provided the minimum has been reached; otherwise placement stays
 active. **Undo point** removes the most recent point. In the regular Add dialog's

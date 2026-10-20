@@ -43,10 +43,10 @@ its project-wide selection instead.
 Activate the curve in the left panel. For a graphical spline background:
 
 1. choose **Cubic spline** in the toolbar selector;
-2. press **Quick Add Function**;
+2. enable **Initialize with points** and **Background**, then press **Add**;
 3. left-click successive points that follow the experimental background;
 4. inspect the live preview, then double-click or press **Finish** after at least
-   two points; right-click removes the nearest point;
+   two points; right-click or Return/Enter also finishes;
 5. select the new spline in **Model and parameters** and enable **Mark as
    background**.
 
@@ -63,11 +63,17 @@ functions must remain unmarked.
 
 There are two distinct workflows:
 
-- **Visual only - background-subtracted** removes the enabled marked background from
+- **View options → Background → Remove fitted background in this view** removes the enabled marked background from
   the displayed spectrum. It does not modify the data, the fit, the project arrays,
-  or exports. Turn it off to restore the normal display. When fitting in this mode,
+  or exports. Choose **As stored** to restore the normal display. When fitting in this mode,
   the background functions remain part of the model and the fit still uses the
   original spectrum.
+- The same **View options** menu can show the **Original data**, undo background
+  subtraction only in the view, or exclude recorded operations. Choose **Current
+  spectrum** for individual operations or **All spectra** for types with counts
+  such as **Y multiplication — 3/5 spectra**. Missing types are unaffected; repeated
+  operations of the selected type are all excluded. Reconstructed views hide fit
+  overlays, and editing/fitting returns to stored data.
 - **Data → Subtract background...** performs a real, reversible subtraction. Select
   the spline (and any other background functions to combine), leave **Apply to all
   spectra** off for this example, and confirm. CurveMole subtracts the current
@@ -80,11 +86,17 @@ background...** later. The imported original data remain retained.
 
 ## 4. Add the peaks
 
-Choose a peak shape in the toolbar selector and press **Quick Add Function** once.
-With manual-point initialization off, click its centre and drag horizontally to
-either half-height edge; the highlighted width is the complete initial FWHM.
-Placement finishes after that peak. Press Quick Add again for another peak.
-The selected function and its Add dialog initialization options are remembered.
+Choose a peak shape in the toolbar selector. With **Initialize with points**
+cleared, each **Add** click immediately inserts one peak estimated from the data
+minus the current model. With it checked, press **Add**, click a peak centre and
+drag horizontally to either half-height edge; the highlighted width is the complete
+initial FWHM. Continue placing peaks, then press **Finish**, Return/Enter or
+right-click to stop. The parameters remain free for fitting in either mode.
+Quick Add remembers its own options for each function.
+
+The adjacent **Function details** button shows the selected function's formula,
+parameter defaults and bounds, and initialization instructions. It also offers
+**Copy formula** and **Add function** for advanced component setup.
 
 Built-in peaks use signed integrated area:
 

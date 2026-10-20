@@ -25,12 +25,23 @@ from curvemole.gui.plot_appearance import (
 )
 
 
+def background_removed(workspace: PlotWorkspace, curve_id: str | None) -> bool:
+    controller = getattr(workspace, "view_options_controller", None)
+    if controller is not None:
+        options = controller.for_curve(curve_id)
+        if options.original:
+            return False
+        if options.background != "stored":
+            return options.background == "subtract"
+    return bool(getattr(workspace, "_background_subtracted_view", False))
+
+
 def _displayed_curves(workspace: PlotWorkspace) -> tuple[list[Curve], float, float]:
     project = workspace._project
     if project is None or not project.curves:
         return [], 0.0, 0.0
     mode = workspace.display_mode.currentText()
-    curves = workspace.displayed_curves()
+    curves = [workspace.curve_for_display(curve) for curve in workspace.displayed_curves()]
     x_step = workspace.x_offset.value() if mode == workspace.tr("Waterfall") else 0.0
     y_step = workspace.y_offset.value() if mode == workspace.tr("Waterfall") else 0.0
     return curves, x_step, y_step
@@ -85,12 +96,12 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
     curves, x_step, y_step = _displayed_curves(workspace)
     if not curves:
         return
-    subtract = bool(getattr(workspace, "_background_subtracted_view", False))
     cache = getattr(workspace, "_curvemole_background_cache", {})
     appearance = workspace.plot_appearance()
     draw_lines, draw_points = plot_mode_flags(str(appearance["data_style"]))
 
     for index, curve in enumerate(curves):
+        subtract = background_removed(workspace, curve.id)
         x = np.asarray(curve.x, dtype=float) + index * x_step
         y = np.asarray(curve.y, dtype=float)
         if subtract:
@@ -193,12 +204,14 @@ def _shift_selected_peak_handle(
     backgrounds: dict[str, np.ndarray],
     y_step: float,
 ) -> None:
-    if bool(getattr(workspace, "_background_subtracted_view", False)):
+    if background_removed(workspace, workspace._active_curve_id):
         return
     project = workspace._project
     curve_id = workspace._active_curve_id
     component_id = workspace._selected_component_id
     if project is None or not curve_id or not component_id:
+        return
+    if workspace.display_replays(project.dataset.curve(curve_id)):
         return
     model = project.models.get(curve_id)
     if model is None:
@@ -237,10 +250,10 @@ def _apply_background_aware_display(
     curves, x_step, y_step = _displayed_curves(workspace)
     if project is None or not curves:
         return
-    subtract = bool(getattr(workspace, "_background_subtracted_view", False))
 
     # Data traces.
     for index, curve in enumerate(curves):
+        subtract = background_removed(workspace, curve.id)
         item = workspace._data_items.get(curve.id)
         if item is None:
             continue
@@ -266,6 +279,7 @@ def _apply_background_aware_display(
     ]
     used_sum_items: set[int] = set()
     for curve in curves:
+        subtract = background_removed(workspace, curve.id)
         model = project.models.get(curve.id)
         if model is None or not model.components:
             continue
@@ -296,6 +310,7 @@ def _apply_background_aware_display(
     # Individual model functions: normal view sits additive peaks on their
     # background baseline; visual subtraction returns them to zero baseline.
     for index, curve in enumerate(curves):
+        subtract = background_removed(workspace, curve.id)
         model = project.models.get(curve.id)
         if model is None:
             continue
@@ -328,6 +343,7 @@ def _apply_background_aware_display(
         label_index = 0
         specs: list[tuple[Any, float, float]] = []
         for curve in curves:
+            subtract = background_removed(workspace, curve.id)
             model = project.models.get(curve.id)
             if model is None:
                 continue
@@ -366,7 +382,7 @@ def _set_background_subtracted_view(workspace: PlotWorkspace, enabled: bool) -> 
 
 
 def _background_at_x(workspace: PlotWorkspace, component_id: str, x_value: float) -> float:
-    if bool(getattr(workspace, "_background_subtracted_view", False)):
+    if background_removed(workspace, workspace._active_curve_id):
         return 0.0
     project = workspace._project
     curve_id = workspace._active_curve_id
@@ -405,6 +421,9 @@ def _install_plot_display() -> None:
     original_emit_peak = PlotWorkspace._emit_peak
 
     def refresh(workspace: PlotWorkspace, *args: Any) -> None:
+        controller = getattr(workspace, "view_options_controller", None)
+        if controller is not None:
+            controller.prepare()
         backgrounds = _background_cache(workspace)
         workspace._curvemole_background_cache = backgrounds
         try:

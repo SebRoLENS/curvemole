@@ -40,9 +40,8 @@ def test_add_choices_do_not_change_quick_add_options(monkeypatch, tmp_path) -> N
         assert not window.quick_add_manual_points.isChecked()
         window.plot_workspace.cancel_placement()
         window.quick_peak()
-        assert not window._pending_component.is_background
+        assert window._pending_component is None
         assert not window._pending_manual_points
-        window._graphical_peak_placed(0.0, 1.0, 1.0)
         assert not project.model_for(curve.id).components[-1].is_background
         window.plot_workspace.cancel_placement()
 
@@ -64,7 +63,8 @@ def test_add_choices_do_not_change_quick_add_options(monkeypatch, tmp_path) -> N
         window.plot_workspace.cancel_placement()
         window.quick_peak()
         assert window._pending_component.is_background
-        assert window._pending_manual_points
+        assert not window._pending_manual_points
+        assert window.plot_workspace._placement_mode == "peak"
     finally:
         window.plot_workspace.cancel_placement()
         project.dirty = False

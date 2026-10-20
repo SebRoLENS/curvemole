@@ -339,7 +339,9 @@ class CurveMoleMainWindow(MainWindow):
         self.quick_peak_action.setToolTip(
             self.tr(
                 "Quick Add Function\nUse the function selected in the adjacent list. "
-                "Right-click or press Enter, Esc, or Finish to stop."
+                "With Initialize with points checked, place peaks by click and drag; "
+                "otherwise each Add click inserts one automatically estimated peak. "
+                "Right-click or press Enter, Esc, or Finish to stop placement."
             )
         )
 
@@ -414,13 +416,14 @@ class CurveMoleMainWindow(MainWindow):
         from curvemole.gui.quick_function_library import _quick_add_option, _selected_quick_function
 
         definition = self.registry.get(_selected_quick_function(self))
-        if definition.kind != "peak" or _quick_add_option(
+        if definition.kind != "peak" or not _quick_add_option(
             self, definition.identifier, "manual_points"
         ):
             self._continuous_quick_peak_function_id = None
             super().quick_peak()
             return
         self._remember_quick_function(definition.identifier)
+        self._pending_manual_points = False
         self._continuous_quick_peak_function_id = definition.identifier
         self._prepare_next_quick_peak()
         self.plot_workspace.begin_continuous_peak_placement(definition.display_name)
@@ -470,8 +473,8 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
         "save-project.svg": window.save_action,
         "calculator.png": window.calculator_action,
         "subtract-background.png": window.subtract_background_action,
-        "add-peak.svg": window.add_component_action,
-        "quick-add-peak.svg": window.quick_peak_action,
+        "function-info.svg": window.function_info_action,
+        "add-peak.svg": window.quick_peak_action,
         "fit.svg": window.fit_action,
         "quick-fit.svg": window.quick_fit_action,
     }

@@ -116,3 +116,6 @@ from curvemole.gui import (  # noqa: F401,E402
 # Install after all fit-completion wrappers so snapshots include pause/resume state.
 # isort: split
 from curvemole.gui import fit_undo as _fit_undo  # noqa: F401,E402
+
+# Provide scope-aware, non-mutating spectrum display options after toolbar setup.
+from curvemole.gui import view_options as _view_options  # noqa: F401,E402

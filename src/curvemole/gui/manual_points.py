@@ -360,6 +360,11 @@ def _install_main_window() -> None:
         curve = window.project.dataset.curve(window.active_curve_id)
         window.plot_workspace.cancel_placement()
         dialog = AddComponentDialog(window.registry, curve, window)
+        selector = getattr(window, "quick_function_selector", None)
+        if selector is not None:
+            index = dialog.function.findData(selector.currentData())
+            if index >= 0:
+                dialog.function.setCurrentIndex(index)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
         try:
