@@ -1,10 +1,11 @@
 """Compact native plot controls with a restrained light/dark appearance."""
 
 from importlib import resources
+from math import ceil
 
-from PySide6.QtCore import QEvent, QObject, QSize, Qt
-from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy
+from PySide6.QtCore import QEvent, QObject, QPointF, QSize, Qt
+from PySide6.QtGui import QPainter, QPalette, QTextLayout, QTextOption
+from PySide6.QtWidgets import QApplication, QFrame, QLabel, QSizePolicy
 
 
 class CoordinateReadout(QLabel):
@@ -20,7 +21,9 @@ class CoordinateReadout(QLabel):
         self.setObjectName("plotCoordinates")
         self.setTextFormat(Qt.TextFormat.PlainText)
         self.setWordWrap(True)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        policy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        policy.setHeightForWidth(True)
+        self.setSizePolicy(policy)
         self._update_reading()
 
     def text(self):
@@ -38,18 +41,56 @@ class CoordinateReadout(QLabel):
         self.updateGeometry()
 
     def sizeHint(self):
-        size = super().sizeHint()
         margins = self.contentsMargins()
-        width = self.fontMetrics().horizontalAdvance(self._RESERVED_READING)
+        metrics = self.fontMetrics()
+        width = max(metrics.horizontalAdvance(self._RESERVED_READING),
+                    metrics.horizontalAdvance(QLabel.text(self)))
         width += margins.left() + margins.right() + 2 * self.margin() + 2
-        return QSize(max(size.width(), width), size.height())
+        return QSize(width, self.heightForWidth(width))
 
     def minimumSizeHint(self):
-        size = super().minimumSizeHint()
         margins = self.contentsMargins()
-        width = self.fontMetrics().horizontalAdvance("x:\N{NO-BREAK SPACE}-1.2345678e-308")
+        width = self.fontMetrics().horizontalAdvance("x:")
         width += margins.left() + margins.right() + 2 * self.margin() + 2
-        return QSize(width, size.height())
+        height = self.fontMetrics().height() + margins.top() + margins.bottom() + 2 * self.margin()
+        return QSize(width, height)
+
+    def _text_layout(self, width):
+        layout = QTextLayout(QLabel.text(self), self.font(), self)
+        option = QTextOption()
+        option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+        option.setTextDirection(Qt.LayoutDirection.LeftToRight)
+        layout.setTextOption(option)
+        layout.beginLayout()
+        height = 0.0
+        while True:
+            line = layout.createLine()
+            if not line.isValid():
+                break
+            line.setLineWidth(max(1, width))
+            line.setPosition(QPointF(0, height))
+            height += line.height()
+        layout.endLayout()
+        return layout, ceil(max(height, self.fontMetrics().height()))
+
+    def heightForWidth(self, width):
+        margins = self.contentsMargins()
+        text_width = width - margins.left() - margins.right() - 2 * self.margin()
+        _, height = self._text_layout(text_width)
+        return height + margins.top() + margins.bottom() + 2 * self.margin()
+
+    def paintEvent(self, event):
+        # QLabel's word wrap can still clip a single long scientific value.
+        # Use the same text layout for measurement and painting, allowing a
+        # character break only when even one complete axis cannot fit.
+        QFrame.paintEvent(self, event)
+        painter = QPainter(self)
+        painter.setPen(self.palette().color(self.foregroundRole()))
+        rect = self.contentsRect().adjusted(self.margin(), self.margin(),
+                                           -self.margin(), -self.margin())
+        layout, height = self._text_layout(rect.width())
+        painter.setClipRect(rect)
+        layout.draw(painter, QPointF(rect.x(), rect.y() + max(0, (rect.height() - height) / 2)))
 
 
 class PlotControlStyle(QObject):

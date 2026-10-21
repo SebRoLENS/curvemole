@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QTextLayout, QTextOption
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -17,6 +18,22 @@ from curvemole import Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.scientific_axis import ScientificAxisItem
+
+
+def _coordinate_text_bounds(label):
+    """Measure every displayed glyph, allowing an oversized number to wrap."""
+    layout = QTextLayout(QLabel.text(label), label.font(), label)
+    option = QTextOption()
+    option.setWrapMode(QTextOption.WrapMode.WrapAtWordBoundaryOrAnywhere)
+    layout.setTextOption(option)
+    layout.beginLayout()
+    top = 0.
+    while (line := layout.createLine()).isValid():
+        line.setLineWidth(label.contentsRect().width())
+        line.setPosition(QPointF(0., top))
+        top += line.height()
+    layout.endLayout()
+    return layout.boundingRect()
 
 
 @pytest.fixture
@@ -202,10 +219,7 @@ def test_plot_control_text_fits_native_content_rects(style_name, enlarged_font, 
             assert "…" not in painted
             assert label.toolTip() == reading
             contents = label.contentsRect()
-            flags = int(label.alignment())
-            if label.wordWrap():
-                flags |= int(Qt.TextFlag.TextWordWrap)
-            bounds = label.fontMetrics().boundingRect(contents, flags, painted)
+            bounds = _coordinate_text_bounds(label)
             assert bounds.width() <= contents.width()
             assert bounds.height() <= contents.height()
             assert workspace.view_controls.rect().contains(label.geometry())
@@ -217,12 +231,16 @@ def test_plot_control_text_fits_native_content_rects(style_name, enlarged_font, 
         app.processEvents()
 
 
-def test_mouse_coordinate_readout_wraps_inside_narrow_main_window(window):
+@pytest.mark.parametrize("font_points", [14, 20, 24])
+def test_mouse_coordinate_readout_wraps_inside_narrow_main_window(window, font_points):
     app, main = window
     workspace = main.plot_workspace
     workspace.setFixedWidth(320)
     label = workspace.coordinate_label
-    label.setStyleSheet("font-size: 14pt;")
+    # Native font/DPI changes affect the complete toolbar. Larger adjacent
+    # controls also expose a Fixed vertical policy clamping a multiline label.
+    for control in (workspace.plot_style_mode, workspace.autoscale_mode, label):
+        control.setStyleSheet(f"font-size: {font_points}pt;")
     reading = "x: -1.2345678e+123   y: 9.8765432e-123   |   Spectrum: (0, 1)"
     try:
         for theme in ("light", "dark", "light"):
@@ -237,11 +255,10 @@ def test_mouse_coordinate_readout_wraps_inside_narrow_main_window(window):
             assert label.toolTip() == reading
             assert label.wordWrap()
             contents = label.contentsRect()
-            bounds = label.fontMetrics().boundingRect(
-                contents, int(label.alignment()) | int(Qt.TextFlag.TextWordWrap), painted,
-            )
+            bounds = _coordinate_text_bounds(label)
             assert bounds.width() <= contents.width()
             assert bounds.height() <= contents.height()
+            assert label.height() >= label.heightForWidth(label.width())
             assert label.height() > label.fontMetrics().height()
     finally:
         main.apply_theme("system")
