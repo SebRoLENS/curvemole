@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.45.1] - 2026-10-21
+
 ### Fixed
 
 - Size plot-style and autoscale selectors to their text and native font metrics,
