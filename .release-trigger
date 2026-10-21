@@ -12,3 +12,4 @@ release-request=0.41.0-macos-validation-time-budget
 release-request=0.42.1-portable-help-tests
 release-request=0.43.1-deterministic-task-close-check
 release-request=0.43.1-composition-copy-all-spectrum-notes
+release-request=0.44.0-dispose-finished-test-windows
