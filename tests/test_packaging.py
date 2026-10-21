@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import yaml
@@ -27,6 +28,25 @@ def test_linux_release_includes_a_detached_sigstore_signature() -> None:
     assert ".sigstore.json" in workflow
     assert "gh attestation verify" in readme
     assert readme.index("## Download") < readme.index("## Why CurveMole?")
+
+
+def test_all_desktop_builds_explicitly_collect_dynamic_svg_renderer() -> None:
+    # savefig resolves backend_svg by name at runtime. PyInstaller's automatic
+    # backend choice may select Agg, QtAgg or MacOSX and omit SVG entirely.
+    spec = ast.parse((ROOT / "packaging" / "curvemole.spec").read_text(encoding="utf-8"))
+    analysis = next(node for node in ast.walk(spec)
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                    and node.func.id == "Analysis")
+    imports = ast.literal_eval(next(keyword.value for keyword in analysis.keywords
+                                    if keyword.arg == "hiddenimports"))
+    assert "matplotlib.backends.backend_svg" in imports
+
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "build-desktop.yml").read_text(encoding="utf-8")
+    )
+    windows = workflow["jobs"]["windows"]["steps"]
+    build = next(step["run"] for step in windows if step.get("name") == "Build standalone executable")
+    assert '"--hidden-import", "matplotlib.backends.backend_svg"' in build
 
 
 def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:

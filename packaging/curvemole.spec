@@ -30,6 +30,7 @@ a = Analysis(
         "scipy.interpolate",
         "pandas",
         "matplotlib.backends.backend_agg",
+        "matplotlib.backends.backend_svg",
     ],
     hookspath=[],
     hooksconfig={},
