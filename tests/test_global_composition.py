@@ -1,3 +1,5 @@
+import json
+import zipfile
 from itertools import permutations
 
 import numpy as np
@@ -5,7 +7,6 @@ import pytest
 from scipy.signal import fftconvolve
 
 from curvemole import Component, Curve, Fitter, Project
-from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Model
 from curvemole.core.serialization import load_project, save_project
 
@@ -75,20 +76,89 @@ def test_a_single_function_does_not_need_an_insertion_predecessor(operator, expe
     model.validate_composition()
 
 
-def test_old_models_preserve_ordered_evaluation_and_can_explicitly_switch():
+@pytest.mark.parametrize("saved_mode", [None, "ordered", "global"])
+def test_all_saved_models_use_the_same_global_roles(saved_mode):
     original = Model(components=[constant(2), constant(4, "multiply"), constant(3)])
     old = original.to_dict()
-    old.pop("composition_mode")
+    if saved_mode is None:
+        old.pop("composition_mode")
+    else:
+        old["composition_mode"] = saved_mode
     old.pop("operation_order")
-    legacy = Model.from_dict(old)
-    assert legacy.composition_mode == "ordered"
-    np.testing.assert_allclose(legacy.evaluate(np.arange(3.)), 11.)
-    legacy.composition_mode = "global"
-    np.testing.assert_allclose(legacy.evaluate(np.arange(3.)), 20.)
-    legacy.composition_mode = "ordered"
-    with pytest.raises(DataValidationError):
-        legacy.set_component_operator(legacy.components[0].id, "multiply")
-    assert legacy.components[0].operator == "add"
+    restored = Model.from_dict(old)
+    assert restored.composition_mode == "global"
+    np.testing.assert_allclose(restored.evaluate(np.arange(3.)), 20.)
+    restored.set_component_operator(restored.components[0].id, "multiply")
+    np.testing.assert_allclose(restored.evaluate(np.arange(3.)), 24.)
+    assert restored.to_dict()["composition_mode"] == "global"
+
+
+@pytest.mark.parametrize("schema", [1, 2, 3])
+def test_project_schemas_load_with_identical_global_calculation(tmp_path, schema):
+    project = Project()
+    curve = Curve("Measured", np.arange(5.), np.ones(5))
+    project.add_curve(curve)
+    model = Model(components=[constant(2), constant(4, "multiply"), constant(3)])
+    project.models[curve.id] = model
+    saved = save_project(project, tmp_path / "current.fitproj")
+    destination = tmp_path / "input.fitproj"
+    with zipfile.ZipFile(saved) as source, zipfile.ZipFile(destination, "w") as target:
+        for entry in source.infolist():
+            payload = source.read(entry.filename)
+            if entry.filename == "manifest.json":
+                metadata = json.loads(payload)
+                metadata["schema_version"] = schema
+                saved_model = metadata["project"]["models"][curve.id]
+                if schema == 1:
+                    saved_model.pop("composition_mode")
+                else:
+                    saved_model["composition_mode"] = "ordered"
+                payload = json.dumps(metadata).encode()
+            target.writestr(entry, payload)
+    restored = load_project(destination).model_for(curve.id)
+    assert restored.composition_mode == "global"
+    np.testing.assert_allclose(restored.evaluate(curve.x), 20.)
+    restored.set_component_operator(restored.components[0].id, "multiply")
+    np.testing.assert_allclose(restored.evaluate(curve.x), 24.)
+
+
+@pytest.mark.parametrize("schema", [1, 2])
+def test_model_file_schemas_load_with_identical_global_calculation(tmp_path, schema):
+    from curvemole.core.serialization import load_fitmodel, save_fitmodel
+
+    model = Model(components=[constant(2), constant(4, "multiply"), constant(3)])
+    path = save_fitmodel(model, tmp_path / "input.fitmodel")
+    payload = json.loads(path.read_text())
+    payload["schema_version"] = schema
+    payload["model"]["composition_mode"] = "ordered"
+    path.write_text(json.dumps(payload))
+    restored, _ = load_fitmodel(path)
+    assert restored.composition_mode == "global"
+    np.testing.assert_allclose(restored.evaluate(np.arange(5.)), 20.)
+
+
+@pytest.mark.parametrize("schema", [1, 2])
+def test_workflow_schemas_load_with_identical_global_calculation(tmp_path, schema):
+    import yaml
+
+    from curvemole.core.workflow import dump_workflow, run_workflow
+
+    project = Project()
+    x = np.arange(5.)
+    csv = tmp_path / "input.csv"
+    np.savetxt(csv, np.column_stack([x, np.ones_like(x)]))
+    curve = Curve("Measured", x, np.ones_like(x), source=str(csv))
+    project.add_curve(curve)
+    project.models[curve.id] = Model(components=[constant(2), constant(4, "multiply"), constant(3)])
+    path = dump_workflow(project, tmp_path / "input.yaml")
+    payload = yaml.safe_load(path.read_text())
+    payload["schema_version"] = schema
+    payload["models"][0]["composition_mode"] = "ordered"
+    path.write_text(yaml.safe_dump(payload))
+    outcome = run_workflow(path)
+    restored = outcome.project.model_for(outcome.project.curves[0].id)
+    assert restored.composition_mode == "global"
+    np.testing.assert_allclose(restored.evaluate(x), 20.)
 
 
 def test_mode_and_explicit_order_survive_project_round_trip(tmp_path):

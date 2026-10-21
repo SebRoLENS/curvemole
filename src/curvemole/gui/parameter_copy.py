@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
+from curvemole.core.errors import ConstraintError
 from curvemole.core.models import Model
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.model_multiselect import _current_ref
@@ -95,6 +96,17 @@ def copy_parameter_to_refs(
         ):
             incompatible_bounds.append((curve_id, component_id))
             continue
+        if copy_fixed or copy_link:
+            for name in names:
+                source = source_component.parameters[name]
+                target = component.parameters[name]
+                fixed = source.fixed if copy_fixed else target.fixed
+                linked = source if copy_link else target
+                if fixed and linked.link and linked.link_relation == "equal":
+                    raise ConstraintError(window.tr(
+                        "{parameter} cannot be both fixed and controlled by an equality link. "
+                        "Remove the link in the Link column first, or clear Fixed before copying the link."
+                    ).format(parameter=f"{component.name}.{name}"))
         compatible.append((curve_id, component_id))
 
     if not compatible:

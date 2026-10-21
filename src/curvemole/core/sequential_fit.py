@@ -117,13 +117,8 @@ def _merge_selected_components(propagated: Model, existing: Model, copied_ids: s
     present = {item.id for item in result.components}
     additions = [item for item in propagated.components if item.id in copied_ids and item.id not in present]
     if not result.components:
-        result.composition_mode = propagated.composition_mode
         result.operation_order = list(propagated.operation_order)
-    elif result.composition_mode != propagated.composition_mode and any(
-        component.operator not in {"add", "subtract"} for component in additions
-    ):
-        raise FitError("Source and target use different composition modes. Choose compatible Calculation order settings before copying factors or convolutions.")
-    elif result.composition_mode == "global":
+    else:
         added_ids = {component.id for component in additions}
         result.operation_order = [component.id for component in result.ordered_operations] + [
             component.id for component in propagated.ordered_operations if component.id in added_ids]

@@ -5,6 +5,22 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Use global function roles for every model, including projects, model files and
+  workflows saved by earlier previews. Remove saved ordered composition and its
+  first-function restriction. Add/Subtract form the starting sum; Multiply,
+  Divide and Convolve follow Calculation order, independent of list order.
+  Recalculating an earlier ordered model can change its result; review the
+  expression and refit after opening it.
+
+### Fixed
+
+- Explain and reject attempts to fix equality-linked parameters, including Lock
+  all and parameter copying. Show Linked instead of a misleading fixed lock and
+  require unlocking before adding an equality link, with the same rules in every
+  project.
+
 ## [0.45.1] - 2026-10-21
 
 ### Fixed

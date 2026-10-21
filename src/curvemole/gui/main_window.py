@@ -1995,10 +1995,24 @@ class MainWindow(QMainWindow):
             modified_curve_ids={curve_id},
         )
 
+    def _can_fix_parameter(self, curve_id: str, component_id: str, name: str) -> bool:
+        component = self.project.model_for(curve_id).component(component_id)
+        parameter = component.parameters[name]
+        if not parameter.link or parameter.link_relation != "equal":
+            return True
+        self._show_error(self.tr("Cannot fix linked parameter"), ValueError(self.tr(
+            "{parameter} is controlled by an equality link and cannot be fixed to a value. "
+            "Remove the link in the Link column first, then set the value and select Fixed."
+        ).format(parameter=f"{component.name}.{name}")))
+        self.model_panel.refresh_parameters()
+        return False
+
     def change_parameter(self, component_id: str, name: str, field: str, value: Any) -> None:
         if not self.active_curve_id:
             return
         curve_id = self.active_curve_id
+        if field == "fixed" and value and not self._can_fix_parameter(curve_id, component_id, name):
+            return
         parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
         old = getattr(parameter, field)
         try:
@@ -2026,6 +2040,9 @@ class MainWindow(QMainWindow):
             return
         curve_id = self.active_curve_id
         component = self.project.model_for(curve_id).component(component_id)
+        if fixed and any(not self._can_fix_parameter(curve_id, component_id, name)
+                         for name in component.parameters):
+            return
         before = {name: parameter.fixed for name, parameter in component.parameters.items()}
         after = {name: bool(fixed) for name in component.parameters}
         if before == after:
@@ -2072,6 +2089,12 @@ class MainWindow(QMainWindow):
                              tolerance_mode: str = "absolute") -> None:
         """Apply the expression and its copy behavior as one validated undoable edit."""
         parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
+        if link and relation == "equal" and parameter.fixed:
+            self._show_error(self.tr("Cannot link fixed parameter"), ValueError(self.tr(
+                "This parameter is fixed. Clear Fixed before adding an equality link, "
+                "which determines the value from another parameter."
+            )))
+            return
         before = (parameter.link, parameter.link_scope, list(parameter.link_reference_scopes),
                   parameter.link_relation, parameter.link_tolerance, parameter.link_tolerance_mode,
                   parameter.value)
@@ -2116,10 +2139,10 @@ class MainWindow(QMainWindow):
         with transient_widget(CalculationOrderDialog(model, self.project.dataset.curve(curve_id).name, self)) as dialog:
             if dialog.exec() != dialog.DialogCode.Accepted:
                 return
-            mode, order = dialog.choices()
+            order = dialog.choices()
             before = copy.deepcopy(model.to_dict())
             candidate = model.clone()
-            candidate.composition_mode, candidate.operation_order = mode, order
+            candidate.operation_order = order
             try:
                 candidate.validate_composition()
             except Exception as exc:
@@ -2463,7 +2486,6 @@ class MainWindow(QMainWindow):
                     components.append(component)
                 current.components = components
                 current.display_order = list(saved.display_order)
-                current.composition_mode = saved.composition_mode
                 current.operation_order = list(saved.operation_order)
             self._fit_finished(result)
 

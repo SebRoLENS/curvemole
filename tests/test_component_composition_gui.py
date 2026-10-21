@@ -85,7 +85,7 @@ def test_calculation_order_dialog_changes_expression_result_and_is_undoable(comp
         assert dialog.operations.item(0).data(Qt.ItemDataRole.UserRole) == factor.id
         dialog.operations.setCurrentRow(0)
         dialog._move(1)
-        assert dialog.choices()[1] == [kernel.id, factor.id]
+        assert dialog.choices() == [kernel.id, factor.id]
         assert 'convolve' in dialog.preview.text()
         return dialog.DialogCode.Accepted
     monkeypatch.setattr(CalculationOrderDialog, 'exec', choose)
@@ -100,23 +100,22 @@ def test_calculation_order_dialog_changes_expression_result_and_is_undoable(comp
     assert window.project.model_for(curve.id).operation_order == [kernel.id, factor.id]
 
 
-def test_legacy_conversion_is_explicit_and_cancel_keeps_calculation(composition_editor, monkeypatch):
+def test_saved_model_has_global_roles_and_cancel_keeps_calculation(composition_editor, monkeypatch):
     _, window, first, _ = composition_editor
     curve = window.project.curves[0]
     model = window.project.model_for(curve.id)
-    model.composition_mode = 'ordered'
+    from curvemole.core.models import Model
+
+    saved = model.to_dict()
+    saved['composition_mode'] = 'ordered'
+    window.project.models[curve.id] = model = Model.from_dict(saved)
     old = copy.deepcopy(model.to_dict())
     def cancel(dialog):
-        dialog.mode.setCurrentIndex(dialog.mode.findData('global'))
+        assert not hasattr(dialog, 'mode')
         return dialog.DialogCode.Rejected
     monkeypatch.setattr(CalculationOrderDialog, 'exec', cancel)
     window.edit_calculation_order(curve.id)
     assert window.project.model_for(curve.id).to_dict() == old
-    def accept(dialog):
-        dialog.mode.setCurrentIndex(dialog.mode.findData('global'))
-        return dialog.DialogCode.Accepted
-    monkeypatch.setattr(CalculationOrderDialog, 'exec', accept)
-    window.edit_calculation_order(curve.id)
     assert window.project.model_for(curve.id).composition_mode == 'global'
     window.set_component_operator(curve.id, first.id, 'multiply')
     assert window.project.model_for(curve.id).component(first.id).operator == 'multiply'

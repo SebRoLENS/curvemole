@@ -5,7 +5,6 @@ import pytest
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from curvemole import Component, Curve, Project
-from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Model
 from curvemole.gui.app import CurveMoleMainWindow
 
@@ -37,14 +36,12 @@ def close(window, app):
 def test_delete_initial_add_keeps_remaining_model_visible_and_undo_restores_composition(monkeypatch, operator):
     app = QApplication.instance() or QApplication([])
     project, curve, base, factor, other = example(operator)
-    project.model_for(curve.id).composition_mode = "ordered"
     before = project.model_for(curve.id).to_dict()
     original_y = curve.y.copy()
     original_fit = project.model_for(curve.id).evaluate(curve.x, curve_id=curve.id)
-    broken = Model.from_dict(before)
-    broken.remove(base.id)
-    with pytest.raises(DataValidationError, match="First enabled component"):
-        broken.evaluate(curve.x, curve_id=curve.id)
+    remaining = Model.from_dict(before)
+    remaining.remove(base.id)
+    expected = remaining.evaluate(curve.x, curve_id=curve.id)
 
     window = CurveMoleMainWindow(project)
     before = project.model_for(curve.id).to_dict()
@@ -59,13 +56,13 @@ def test_delete_initial_add_keeps_remaining_model_visible_and_undo_restores_comp
         window.delete_component(base.id)
         model = project.model_for(curve.id)
         assert [component.id for component in model.components] == [factor.id, other.id]
-        assert model.component(factor.id).operator == "add"
-        assert "using Add" in questions[0]
+        assert model.component(factor.id).operator == operator
+        assert "using Add" not in questions[0]
         assert set(window.plot_workspace._component_items) == {(curve.id, factor.id), (curve.id, other.id)}
         assert set(window.plot_workspace._data_items) == {curve.id}
         remaining_fit = model.evaluate(curve.x, curve_id=curve.id)
         assert np.all(np.isfinite(remaining_fit))
-        np.testing.assert_allclose(remaining_fit, 2. + Model(components=[other]).evaluate(curve.x))
+        np.testing.assert_allclose(remaining_fit, expected)
         np.testing.assert_array_equal(curve.y, original_y)
         window.undo_stack.undo()
         assert project.model_for(curve.id).to_dict() == before
