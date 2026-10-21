@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QComboBox, QFileDialog, QHBoxLayout, QLabel, QVBox
 
 from curvemole.core.importers import ImportPreview, _numeric, detect_config
 from curvemole.gui.rendering import _optimise_plot_data_item
+from curvemole.gui.windowing import transient_widget
 
 
 class _Signals(QObject):
@@ -158,7 +159,7 @@ class ImportFileDialog(QFileDialog):
 
 
 def choose_import_files(parent):
-    dialog = ImportFileDialog(parent)
-    if dialog.exec() != QFileDialog.DialogCode.Accepted:
-        return [], {}
-    return dialog.selectedFiles(), dict(dialog.column_choices)
+    with transient_widget(ImportFileDialog(parent)) as dialog:
+        if dialog.exec() != QFileDialog.DialogCode.Accepted:
+            return [], {}
+        return dialog.selectedFiles(), dict(dialog.column_choices)

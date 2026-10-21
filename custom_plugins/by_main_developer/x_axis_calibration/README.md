@@ -3,6 +3,11 @@
 A standalone CurveMole plugin for reference-peak calibration. **No CurveMole core
 changes and no automatic import interception.** Tested with CurveMole 0.28.4.
 
+Version 1.0.1 reads settings directly on hosts that provide `services.settings()`;
+older hosts retain the existing snapshot fallback. The panel no longer retains
+its initial project snapshot. Calibration Undo also uses compact, shared project
+snapshots when the host provides them, preserving full data and result history.
+
 ## Workflow
 
 1. Enable this plugin in the Plugin Manager. Its dock opens automatically and can

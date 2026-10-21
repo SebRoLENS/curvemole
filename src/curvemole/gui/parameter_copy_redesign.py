@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from curvemole.gui import parameter_copy as _legacy
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import ModelPanel
+from curvemole.gui.windowing import transient_widget
 
 
 def _all_component_refs(window: MainWindow) -> list[tuple[str, str]]:
@@ -348,30 +349,30 @@ def _copy_selected(panel: ModelPanel) -> None:
     remembered_source = getattr(panel, "_parameter_copy_source_ref", None)
     remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
     parameter_hint = remembered_parameter if remembered_source == source_ref else None
-    dialog = CopyParameterDialog(window, source_ref, current_parameter=parameter_hint)
-    if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
-        dialog.parameter.setCurrentIndex(dialog.parameter.findData(None))
-    if dialog.exec() != dialog.DialogCode.Accepted:
-        return
-    try:
-        result = _legacy.copy_parameter_to_refs(
-            window,
-            dialog.source_ref(),
-            dialog.target_refs(),
-            dialog.parameter_name(),
-            copy_value=dialog.copy_value.isChecked(),
-            copy_fixed=dialog.copy_fixed.isChecked(),
-            copy_bounds=dialog.copy_bounds.isChecked(),
-            copy_link=dialog.copy_link.isChecked(),
-        )
-    except Exception as exc:
-        window._show_error(window.tr("Copy parameter"), exc)
-        return
-    panel._parameter_copy_source_ref = source_ref
-    panel._parameter_copy_parameter_name = dialog.parameter_name()
-    panel._parameter_copy_all_parameters = dialog.parameter_name() is None
-    panel._update_copy_parameter_button()
-    _legacy._show_copy_result(window, result, dialog.parameter_name())
+    with transient_widget(CopyParameterDialog(window, source_ref, current_parameter=parameter_hint)) as dialog:
+        if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
+            dialog.parameter.setCurrentIndex(dialog.parameter.findData(None))
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        try:
+            result = _legacy.copy_parameter_to_refs(
+                window,
+                dialog.source_ref(),
+                dialog.target_refs(),
+                dialog.parameter_name(),
+                copy_value=dialog.copy_value.isChecked(),
+                copy_fixed=dialog.copy_fixed.isChecked(),
+                copy_bounds=dialog.copy_bounds.isChecked(),
+                copy_link=dialog.copy_link.isChecked(),
+            )
+        except Exception as exc:
+            window._show_error(window.tr("Copy parameter"), exc)
+            return
+        panel._parameter_copy_source_ref = source_ref
+        panel._parameter_copy_parameter_name = dialog.parameter_name()
+        panel._parameter_copy_all_parameters = dialog.parameter_name() is None
+        panel._update_copy_parameter_button()
+        _legacy._show_copy_result(window, result, dialog.parameter_name())
 
 
 def _install() -> None:

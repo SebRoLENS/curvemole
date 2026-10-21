@@ -177,9 +177,15 @@ project changes; reconnecting arbitrary internal Qt methods is outside this API.
 
 ### Project context and safe edits
 
-Callbacks receive a detached deep copy of the current project, not the main window.
+Callbacks receive a detached snapshot of the current project, not the main window.
+Its data is captured at invocation and expanded on first access to
+`context.project`. Keeping a context does not require a second expanded project
+in RAM. Compressed snapshot buffers and Undo states are process-local;
+project archives never contain them.
 
 - `context.project`: a `curvemole.core.project.Project` snapshot.
+- `context.project_id`: project identity without expanding the snapshot
+  (feature-detect on older hosts).
 - `context.active_curve_id`: active spectrum ID, or `None` in an empty project.
 - `context.selected_curve_ids`: tuple of selected spectrum IDs.
 - `context.path`: import/export path, otherwise `None`.
@@ -346,6 +352,10 @@ and read-only hooks/analysis do not. A service returns detached `snapshot()` val
 provides undoable JSON `save_settings(data, metadata_key=..., curve_metadata=...)`
 without invalidating fits, and controls only the owner's single import processor
 through `start_monitor`, `stop_monitor`, `monitor_status` and `set_follow`.
+On newer hosts, `settings()` returns only a detached copy of this owner's
+settings, avoiding a full project snapshot. Feature-detect it and fall back to
+`snapshot().data` on older hosts. Retain only the services and values a panel
+needs, rather than closing over its initial context in its widget methods.
 `apply_y_replacement(curve_id, values, description=..., metadata_key=...,
 metadata=...)` validates and commits one finite, full-length Y array as an
 ordinary undoable transformation; it preserves the x grid and invalidates stale
@@ -406,8 +416,14 @@ the project: it returns `(project_id, curve_id, content_hash, curve_name)` and
 does not copy spectrum arrays. On a change, request `spectrum_snapshot()` for a
 detached context containing only the active spectrum, or
 `spectrum_snapshot(include_selected=True)` for the active and selected spectra.
-These lightweight contexts omit models, fit results, history and plugin settings;
-use the full `snapshot()` when those are needed. Pause preview polling while the
+These lightweight contexts omit models, fit results, history and plugin settings
+by default. Newer hosts accept `include_models=True` and `include_settings=True`.
+The models option copies all models to preserve parameter links to other spectra;
+the settings option copies only this owner's settings. `active_model_snapshot()`
+is a feature-detectable shortcut for those two options with only the active
+spectrum. It omits fit outputs, uncertainty samples and history, making it useful
+for periodically displaying derived values from model parameters. Use the full
+`snapshot()` when fit outputs or history are needed. Pause preview polling while the
 panel is hidden.
 
 Panel contributions can pass `auto_show=True` to `api.add("panels", ...)` to open

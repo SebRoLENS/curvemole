@@ -219,6 +219,7 @@ class PlotWorkspace(QWidget):
     widthDragged = Signal(str, float, bool)
     splineNodeDragged = Signal(str, int, float, bool)
     componentSelected = Signal(str)
+    componentOnCurveSelected = Signal(str, str)
     peakPlacementFinished = Signal(float, float, float)
     splinePlacementFinished = Signal(object)
     placementCancelled = Signal()
@@ -232,8 +233,10 @@ class PlotWorkspace(QWidget):
         self._selected_component_id: str | None = None
         self._data_items: dict[str, pg.PlotDataItem] = {}
         self._error_items: dict[str, pg.PlotDataItem] = {}
-        self._component_items: dict[str, pg.PlotDataItem] = {}
+        self._component_items: dict[tuple[str, str], pg.PlotDataItem] = {}
+        self._sum_items: dict[str, pg.PlotDataItem] = {}
         self._component_labels: list[pg.TextItem] = []
+        self._component_labels_by_key: dict[tuple[str, str], pg.TextItem] = {}
         self._component_label_specs: list[tuple[pg.TextItem, float, float]] = []
         self._show_component_labels = True
         self._laying_out_labels = False
@@ -631,13 +634,18 @@ class PlotWorkspace(QWidget):
 
     def refresh(self, *_: Any) -> None:
         initial_view = not self._data_items
+        # Placement may span many refreshes; do not retain removed scene items
+        # (and their complete data arrays) in the mouse-state snapshot.
+        self._restore_placement_mouse_targets()
         self.plot.clear()
         self.plot.setToolTip("")
         self.residual_plot.clear()
         self._data_items.clear()
         self._error_items.clear()
         self._component_items.clear()
+        self._sum_items.clear()
         self._component_labels.clear()
+        self._component_labels_by_key.clear()
         self._component_label_specs.clear()
         self._handles.clear()
         self._placement_items.clear()
@@ -745,6 +753,7 @@ class PlotWorkspace(QWidget):
                     ),
                 )
                 sum_item.curve_id = curve.id
+                self._sum_items[curve.id] = sum_item
                 residual = curve.y - (total - index * y_step)
                 self.residual_plot.plot(
                     x[unmasked],
@@ -800,13 +809,16 @@ class PlotWorkspace(QWidget):
                         ),
                     )
                     component_item.sigClicked.connect(
-                        lambda item, event, component_id=component.id: (
-                            self.componentSelected.emit(component_id)
+                        lambda item, event, curve_id=curve.id, component_id=component.id: (
+                            self.componentOnCurveSelected.emit(curve_id, component_id)
                         )
                     )
-                    self._component_items[component.id] = component_item
+                    key = (curve.id, component.id)
+                    self._component_items[key] = component_item
                     if self._show_component_labels:
-                        self._add_component_label(component.name, x, component_y)
+                        label = self._add_component_label(component.name, x, component_y)
+                        if label is not None:
+                            self._component_labels_by_key[key] = label
                 if curve.id == self._active_curve_id and self._selected_component_id:
                     self._add_component_handles(
                         curve,
@@ -842,7 +854,7 @@ class PlotWorkspace(QWidget):
             self.component_labels_action.blockSignals(False)
         self.refresh()
 
-    def _add_component_label(self, name: str, x: np.ndarray, y: np.ndarray) -> None:
+    def _add_component_label(self, name: str, x: np.ndarray, y: np.ndarray) -> pg.TextItem | None:
         finite = np.isfinite(x) & np.isfinite(y)
         if not np.any(finite):
             return
@@ -866,6 +878,7 @@ class PlotWorkspace(QWidget):
         label.setPos(x_position, y_position)
         self._component_labels.append(label)
         self._component_label_specs.append((label, x_position, y_position))
+        return label
 
     def _layout_component_labels(self, *_: Any) -> None:
         if self._laying_out_labels or not self._component_label_specs:
@@ -1223,15 +1236,18 @@ class PlotWorkspace(QWidget):
         self._update_interaction_state()
         self._sync_placement_mouse_targets()
 
+    def _restore_placement_mouse_targets(self) -> None:
+        for item, (buttons, enabled) in self._placement_mouse_targets.items():
+            if isValid(item):
+                item.setAcceptedMouseButtons(buttons)
+                item.setEnabled(enabled)
+        self._placement_mouse_targets.clear()
+
     def _sync_placement_mouse_targets(self) -> None:
         """Let placement clicks pass through plot symbols, curves and handles."""
         if (self._placement_mode is None and not self.point_editor.active
                 and self.view_box.interaction_mode != 'plugin_points'):
-            for item, (buttons, enabled) in self._placement_mouse_targets.items():
-                if isValid(item):
-                    item.setAcceptedMouseButtons(buttons)
-                    item.setEnabled(enabled)
-            self._placement_mouse_targets.clear()
+            self._restore_placement_mouse_targets()
             return
 
         no_button = Qt.MouseButton.NoButton

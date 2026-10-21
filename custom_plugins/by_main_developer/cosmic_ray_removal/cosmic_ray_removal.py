@@ -273,7 +273,7 @@ def cosmic_ray_panel(context):
     )
 
     services = context.services
-    project_id = context.project.id
+    project_id = context.project_id if hasattr(context, "project_id") else context.project.id
     if not callable(getattr(services, "plot_session", None)):
         panel = QWidget()
         layout = QVBoxLayout(panel)

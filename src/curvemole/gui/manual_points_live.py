@@ -415,7 +415,8 @@ def _apply_manual_point_drag(
 ) -> None:
     if not window.active_curve_id:
         return
-    component = window.project.model_for(window.active_curve_id).component(component_id)
+    curve_id = window.active_curve_id
+    component = window.project.model_for(curve_id).component(component_id)
     points = _stored_points(component)
     if not points or point_index >= len(points):
         return
@@ -465,12 +466,14 @@ def _apply_manual_point_drag(
 
     def restore(state: dict[str, Any]) -> None:
         restored = Component.from_dict(copy.deepcopy(state))
-        _replace_component_state(component, restored)
+        current = window.project.model_for(curve_id).component(component_id)
+        _replace_component_state(current, restored)
 
     window._push_change(
         window.tr("Drag manual control point"),
         lambda: restore(after),
         lambda: restore(before),
+        modified_curve_ids={curve_id},
     )
 
 

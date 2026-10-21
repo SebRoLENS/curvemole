@@ -74,12 +74,12 @@ def test_first_multicore_fit_is_visible_before_second_finishes(monkeypatch) -> N
         assert window._fit_for_uncertainty(curves[0].id) is not None
         component = project.model_for(curves[0].id).components[0]
         assert component.parameters["center"].value == pytest.approx(-0.7, abs=0.02)
-        assert component.id in window.plot_workspace._component_items
+        assert (curves[0].id, component.id) in window.plot_workspace._component_items
         window._set_active_curve(curves[1].id)
         assert window.active_curve_id == curves[1].id
         window._set_active_curve(curves[0].id)
         assert window.model_panel.parameters.rowCount() > 0
-        assert component.id in window.plot_workspace._component_items
+        assert (curves[0].id, component.id) in window.plot_workspace._component_items
         release.set()
         _wait_for(app, lambda: window._thread is None)
         assert curves[1].state == CurveState.FITTED

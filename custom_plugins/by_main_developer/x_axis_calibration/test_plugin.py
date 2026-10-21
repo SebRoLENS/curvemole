@@ -121,7 +121,8 @@ def test_large_offset_conditioning_and_descending_axis():
     np.testing.assert_allclose(plugin.evaluate(p, x[::-1]), [508, 506, 504, 502, 500])
 
 
-def test_gui_manual_application_undo_redo_and_no_import_override(monkeypatch):
+@pytest.mark.parametrize("compact_snapshots", [False, True])
+def test_gui_manual_application_undo_redo_and_no_import_override(monkeypatch, compact_snapshots):
     from PySide6.QtWidgets import QApplication, QMainWindow
 
     from curvemole.gui.plugin_services import PluginServices
@@ -145,6 +146,11 @@ def test_gui_manual_application_undo_redo_and_no_import_override(monkeypatch):
     entry = Contribution(plugin.OWNER, plugin.OWNER+":calibration", "Calibration", "panels", plugin.create_panel)
     monkeypatch.setattr(extensions, "entries", {entry.identifier: entry})
     host = SimpleNamespace(window=window)
+    window.plugin_host = host
+    if compact_snapshots:
+        from curvemole.gui.plugin_snapshots import ProjectSnapshotStore
+
+        host._snapshots = ProjectSnapshotStore()
     services = PluginServices(host, plugin.OWNER)
     host.context = lambda *args, **kwargs: SimpleNamespace(data=copy.deepcopy(
         window.project.ui_state.get("plugin_data", {}).get(plugin.OWNER, {})))

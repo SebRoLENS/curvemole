@@ -207,3 +207,39 @@ def test_clicking_described_objects_navigates_open_notebook() -> None:
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("show_all", [False, True])
+def test_plot_function_selection_updates_parameters_and_notebook_with_shared_ids(show_all):
+    app = QApplication.instance() or QApplication([])
+    project = Project("Plot notebook selection")
+    first = Curve("First", [0., 1., 2.], [1., 2., 3.])
+    second = Curve("Second", [0., 1., 2.], [3., 2., 1.])
+    for curve in (first, second):
+        project.add_curve(curve)
+        project.model_for(curve.id).add(Component.create("constant"))
+        project.model_for(curve.id).add(Component.create("linear"))
+    for source, target in zip(project.model_for(first.id).components,
+                              project.model_for(second.id).components, strict=True):
+        target.id = source.id
+    component_id = project.model_for(second.id).components[1].id
+    project.notebook.set_description(project, "spectrum", first.id, "First spectrum note")
+    project.notebook.set_description(project, "function", component_id,
+                                     "Second function note", second.id)
+    project.dirty = False
+    window = MainWindow(project)
+    try:
+        window.model_panel.show_all_functions.setChecked(show_all)
+        window.open_notebook()
+        panel = window._notebook_widget
+        panel.tabs.setCurrentIndex(1)
+        panel.focus_description("spectrum", first.id)
+        window.plot_workspace.componentOnCurveSelected.emit(second.id, component_id)
+        assert window.active_curve_id == second.id
+        assert window.model_panel.selected_component_refs() == [(second.id, component_id)]
+        assert panel.current_key == description_key("function", component_id, second.id)
+        assert panel.description.toPlainText() == "Second function note"
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()

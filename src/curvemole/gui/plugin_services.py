@@ -26,6 +26,11 @@ class PluginServices:
         self._window()
         return self._host.context(self.owner, with_services=True)
 
+    def settings(self):
+        """Copy only this plugin's settings, without capturing project data."""
+        window = self._window()
+        return copy.deepcopy(window.project.ui_state.get("plugin_data", {}).get(self.owner, {}))
+
     def active_spectrum_state(self):
         """Detached identifiers/hash for polling; never copy the full project."""
         window = self._window()
@@ -36,8 +41,12 @@ class PluginServices:
         return (window.project.id, curve.id if curve else None,
                 curve.content_hash if curve else None, curve.name if curve else None)
 
-    def spectrum_snapshot(self, *, include_selected=False):
-        """Detached spectrum-only context, without models, results or fit history."""
+    def spectrum_snapshot(self, *, include_selected=False, include_models=False, include_settings=False):
+        """Detached requested spectra, optionally models/settings; no fit history.
+
+        All models are included together when requested, so links to parameters
+        in other spectra still resolve. Fit results and resampling stay omitted.
+        """
         from curvemole.core.data import Dataset, Series
         from curvemole.core.project import Project
         from curvemole.gui.plugin_host import PluginContext
@@ -55,7 +64,15 @@ class PluginServices:
             name=window.project.name, id=window.project.id, dataset=Dataset(groups),
             path=window.project.path, read_only=window.project.read_only,
         )
+        if include_models:
+            project.models = copy.deepcopy(window.project.models)
+        if include_settings:
+            project.ui_state["plugin_data"] = {self.owner: self.settings()}
         return PluginContext(project, window.active_curve_id, selected, self.owner, services=self)
+
+    def active_model_snapshot(self):
+        """Active spectrum, linked models and owner settings; omit fit outputs."""
+        return self.spectrum_snapshot(include_models=True, include_settings=True)
 
     def save_settings(self, data, *, metadata_key=None, curve_metadata=None):
         """Undoable settings/metadata only; preserve fit state and selection."""
@@ -69,10 +86,16 @@ class PluginServices:
         curves = {curve.id: curve for curve in window.project.curves}
         if not set(updates) <= curves.keys():
             raise ValueError("The selected spectra are no longer available.")
-        previous = copy.deepcopy(window.project.ui_state.get("plugin_data", {}))
-        if not updates and previous.get(self.owner, {}) == data:
+        missing = object()
+        current = window.project.ui_state.get("plugin_data", {})
+        previous = copy.deepcopy(current[self.owner]) if self.owner in current else missing
+        if not updates and current.get(self.owner, {}) == data:
             return
-        before = {key: copy.deepcopy(curves[key].metadata) for key in updates}
+        before = {
+            key: copy.deepcopy(curves[key].metadata[metadata_key])
+            if metadata_key in curves[key].metadata else missing
+            for key in updates
+        }
 
         def redo():
             window.project.ui_state.setdefault("plugin_data", {})[self.owner] = copy.deepcopy(data)
@@ -80,9 +103,17 @@ class PluginServices:
                 window.project.dataset.curve(key).metadata[metadata_key] = copy.deepcopy(value)
 
         def undo():
-            window.project.ui_state["plugin_data"] = copy.deepcopy(previous)
+            plugin_data = window.project.ui_state.setdefault("plugin_data", {})
+            if previous is missing:
+                plugin_data.pop(self.owner, None)
+            else:
+                plugin_data[self.owner] = copy.deepcopy(previous)
             for key, value in before.items():
-                window.project.dataset.curve(key).metadata = copy.deepcopy(value)
+                metadata = window.project.dataset.curve(key).metadata
+                if value is missing:
+                    metadata.pop(metadata_key, None)
+                else:
+                    metadata[metadata_key] = copy.deepcopy(value)
 
         window._push_change("Plugin settings", redo, undo, modified_curve_ids=set())
 
@@ -105,6 +136,7 @@ class PluginServices:
             raise ValueError("Replacement Y values must be finite and match the spectrum length.")
         if metadata is not None and not metadata_key:
             raise ValueError("A metadata key is required when metadata is supplied.")
+        metadata = copy.deepcopy(metadata)
         json.dumps(metadata, allow_nan=False)
         from curvemole.core.data import Transformation
 
@@ -121,22 +153,31 @@ class PluginServices:
             else missing
         )
 
+        def is_replacement(item):
+            # General plugin Undo can restore a detached Project, recreating
+            # Transformation instances. Object identity then no longer matches.
+            return (item.created_at == transformation.created_at
+                    and item.operation == transformation.operation
+                    and item.parameters == transformation.parameters)
+
         def redo():
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
+            current = window.project.dataset.curve(curve_id)
+            if current.redo_transformations and is_replacement(current.redo_transformations[-1]):
+                current.redo_transformation()
+            elif not any(is_replacement(item) for item in current.transformations):
+                current.apply_transformation(copy.deepcopy(transformation))
             if metadata_key:
-                curve.metadata[metadata_key] = copy.deepcopy(metadata)
+                current.metadata[metadata_key] = copy.deepcopy(metadata)
 
         def undo():
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
+            current = window.project.dataset.curve(curve_id)
+            if current.transformations and is_replacement(current.transformations[-1]):
+                current.undo_transformation()
             if metadata_key:
                 if previous_metadata is missing:
-                    curve.metadata.pop(metadata_key, None)
+                    current.metadata.pop(metadata_key, None)
                 else:
-                    curve.metadata[metadata_key] = copy.deepcopy(previous_metadata)
+                    current.metadata[metadata_key] = copy.deepcopy(previous_metadata)
 
         window._push_change(str(description), redo, undo, modified_curve_ids={curve_id})
 
@@ -184,6 +225,7 @@ class PluginServices:
         window = self._window()
         if window._thread is not None or window.project.read_only:
             raise ValueError("Wait for the fit to finish, or use an editable project.")
+        masks = dict(masks)
         previous = {}
         for curve_id, name in masks.items():
             curve = window.project.dataset.curve(curve_id)

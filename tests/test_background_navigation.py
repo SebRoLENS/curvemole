@@ -53,7 +53,7 @@ def test_fit_components_follow_background_and_visual_subtraction_is_non_destruct
         registry=window.registry,
         components=True,
     )
-    peak_item = window.plot_workspace._component_items[peak.id]
+    peak_item = window.plot_workspace._component_items[(curve.id, peak.id)]
     _, displayed_peak = peak_item.getOriginalDataset()
     np.testing.assert_allclose(displayed_peak, components[peak.id] + 3.0)
 
@@ -61,10 +61,10 @@ def test_fit_components_follow_background_and_visual_subtraction_is_non_destruct
     app.processEvents()
 
     _, displayed_data = window.plot_workspace._data_items[curve.id].getOriginalDataset()
-    _, displayed_peak = window.plot_workspace._component_items[peak.id].getOriginalDataset()
+    _, displayed_peak = window.plot_workspace._component_items[(curve.id, peak.id)].getOriginalDataset()
     np.testing.assert_allclose(displayed_data, original_y - 3.0)
     np.testing.assert_allclose(displayed_peak, components[peak.id])
-    assert not window.plot_workspace._component_items[background.id].isVisible()
+    assert not window.plot_workspace._component_items[(curve.id, background.id)].isVisible()
     np.testing.assert_allclose(curve.y, original_y)
 
     window.background_subtracted_view_action.setChecked(False)
@@ -76,6 +76,69 @@ def test_fit_components_follow_background_and_visual_subtraction_is_non_destruct
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("mode", [1, 2])
+def test_duplicate_component_ids_in_spectra_with_different_lengths(mode: int) -> None:
+    """Imported/copy models can reuse component IDs across distinct spectra."""
+    import copy
+
+    app = QApplication.instance() or QApplication([])
+    project, first, background, peak = _background_fit_project()
+    first.name = "same name"
+    x = np.linspace(-4., 4., 83)
+    second = Curve("same name", x, 8. + np.exp(-x * x))
+    project.add_curve(second)
+    for source in (background, peak):
+        project.model_for(second.id).add(copy.deepcopy(source))
+    project.model_for(second.id).component(background.id).parameters["offset"].value = 8.
+    project.dirty = False
+    window = CurveMoleMainWindow(project)
+    workspace = window.plot_workspace
+    try:
+        workspace.scope_project.setChecked(True)
+        workspace.display_mode.setCurrentIndex(mode)
+        workspace.y_offset.setValue(11.)
+        workspace.x_offset.setValue(2.)
+        assert set(workspace._component_items) == {
+            (curve.id, component.id)
+            for curve in project.curves for component in project.model_for(curve.id).components
+        }
+        for subtract in (False, True, False):
+            window.background_subtracted_view_action.setChecked(subtract)
+            workspace.refresh()
+            app.processEvents()
+            for index, (curve, offset) in enumerate(zip(project.curves, (3., 8.), strict=True)):
+                model = project.model_for(curve.id)
+                total, components = model.evaluate(
+                    curve.x, curve_id=curve.id,
+                    values=project.resolved_parameter_values(), components=True,
+                )
+                shift = index * workspace.y_offset.value() if mode == 2 else 0.
+                x_shift = index * workspace.x_offset.value() if mode == 2 else 0.
+                peak_item = workspace._component_items[(curve.id, peak.id)]
+                x_data, y_data = peak_item.getOriginalDataset()
+                np.testing.assert_allclose(x_data, curve.x + x_shift)
+                np.testing.assert_allclose(y_data, components[peak.id] + shift + (0. if subtract else offset))
+                _, sum_y = workspace._sum_items[curve.id].getOriginalDataset()
+                np.testing.assert_allclose(sum_y, total + shift - (offset if subtract else 0.))
+                assert workspace._component_items[(curve.id, background.id)].isVisible() != subtract
+                assert workspace._component_labels_by_key[(curve.id, background.id)].isVisible() != subtract
+                assert workspace._component_labels_by_key[(curve.id, peak.id)].isVisible()
+
+        # The curve identity must also travel with click selection: otherwise a
+        # shared component ID targets the active spectrum's parameters.
+        assert window.active_curve_id == first.id
+        workspace._component_items[(second.id, peak.id)].sigClicked.emit(
+            workspace._component_items[(second.id, peak.id)], None
+        )
+        assert window.active_curve_id == second.id
+        assert workspace._selected_component_id == peak.id
+        assert window.model_panel.selected_component_refs() == [(second.id, peak.id)]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
 
 
 def test_subtract_all_backgrounds_changes_every_eligible_curve_and_is_undoable() -> None:

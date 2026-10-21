@@ -93,7 +93,7 @@ def test_manual_placement_clicks_pass_through_plot_points_and_previews() -> None
     workspace = window.plot_workspace
     workspace.set_plot_appearance({"data_style": "points", "function_style": "points"})
     data = workspace._data_items[curve.id]
-    model = workspace._component_items[component.id]
+    model = workspace._component_items[(curve.id, component.id)]
     original_data = data.scatter.acceptedMouseButtons()
     original_model = model.scatter.acceptedMouseButtons()
     assert original_data != Qt.MouseButton.NoButton
@@ -107,9 +107,9 @@ def test_manual_placement_clicks_pass_through_plot_points_and_previews() -> None
 
     workspace.refresh()  # A redraw must keep newly created symbols transparent.
     assert workspace._data_items[curve.id].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
-    assert workspace._component_items[component.id].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+    assert workspace._component_items[(curve.id, component.id)].scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
     data = workspace._data_items[curve.id]
-    model = workspace._component_items[component.id]
+    model = workspace._component_items[(curve.id, component.id)]
     workspace.cancel_placement()
     assert data.scatter.acceptedMouseButtons() == original_data
     assert model.scatter.acceptedMouseButtons() == original_model
@@ -120,6 +120,58 @@ def test_manual_placement_clicks_pass_through_plot_points_and_previews() -> None
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_refresh_during_placement_releases_removed_plot_mouse_targets() -> None:
+    app = _app()
+    project, curve = _project("Placement refresh retention")
+    project.model_for(curve.id).add(Component.create("linear"))
+    window = MainWindow(project)
+    workspace = window.plot_workspace
+    try:
+        workspace.begin_peak_placement("Gaussian")
+        count = len(workspace._placement_mouse_targets)
+        assert count
+        for _ in range(12):
+            previous = set(workspace._placement_mouse_targets)
+            workspace.refresh()
+            assert len(workspace._placement_mouse_targets) == count
+            assert not previous.intersection(workspace._placement_mouse_targets)
+        workspace.cancel_placement()
+        assert not workspace._placement_mouse_targets
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
+def test_dense_line_and_point_markers_keep_placement_clicks_transparent_after_refresh() -> None:
+    import numpy as np
+
+    app = _app()
+    project = Project("Dense placement targets")
+    x = np.linspace(0., 100., 3000)
+    curve = Curve("dense", x, np.sin(x))
+    project.add_curve(curve)
+    window = MainWindow(project)
+    workspace = window.plot_workspace
+    try:
+        workspace.set_plot_appearance({"data_style": "lines_points"})
+        workspace.begin_peak_placement("Gaussian")
+        for _ in range(3):
+            workspace.refresh()
+            markers = [item for item in workspace.plot.listDataItems()
+                       if item.opts["symbol"] is not None]
+            assert markers
+            for item in markers:
+                assert item.scatter.acceptedMouseButtons() == Qt.MouseButton.NoButton
+        workspace.cancel_placement()
+        for item in markers:
+            assert item.scatter.acceptedMouseButtons() != Qt.MouseButton.NoButton
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
 
 
 def test_click_exactly_on_visible_data_symbol_places_manual_point() -> None:

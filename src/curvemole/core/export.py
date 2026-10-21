@@ -17,20 +17,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-if "MPLCONFIGDIR" not in os.environ:
-    preferred_cache = Path.home() / ".cache" / "curvemole" / "matplotlib"
-    try:
-        preferred_cache.mkdir(parents=True, exist_ok=True)
-    except OSError:
-        preferred_cache = Path(tempfile.gettempdir()) / "curvemole-matplotlib"
-        preferred_cache.mkdir(parents=True, exist_ok=True)
-    os.environ["MPLCONFIGDIR"] = str(preferred_cache)
-import matplotlib  # noqa: E402
-
-matplotlib.use("Agg")
-from matplotlib import pyplot as plt  # noqa: E402
-from matplotlib.backends.backend_pdf import PdfPages  # noqa: E402
-
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
@@ -42,6 +28,35 @@ from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.serialization import save_fitmodel, save_project
 from curvemole.version import __version__
+
+
+def _export_figure(**kwargs):
+    """Create a lazy, standalone renderer without changing the caller's backend.
+
+    A plugin/API caller may already own interactive pyplot figures. Using an
+    explicit Agg canvas avoids changing their global backend or creating GUI
+    figure managers when exports run on a worker thread.
+    """
+    if "MPLCONFIGDIR" not in os.environ:
+        preferred_cache = Path.home() / ".cache" / "curvemole" / "matplotlib"
+        try:
+            preferred_cache.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            preferred_cache = Path(tempfile.gettempdir()) / "curvemole-matplotlib"
+            preferred_cache.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(preferred_cache)
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    figure = Figure(**kwargs)
+    FigureCanvasAgg(figure)
+    return figure
+
+
+def _release_export_figure(figure):
+    """Release raster/artist data immediately, including after failed writes."""
+    figure.clear()
+    figure.set_canvas(None)
 
 
 @dataclass(slots=True)
@@ -497,59 +512,61 @@ def export_figure(
     destination.parent.mkdir(parents=True, exist_ok=True)
     curves = list(curves)
     parameter_values = _resolved_values(models)
-    figure = plt.figure(figsize=(width, height), constrained_layout=True)
-    if include_residuals:
-        grid = figure.add_gridspec(4, 1)
-        axis = figure.add_subplot(grid[:3, 0])
-        residual_axis = figure.add_subplot(grid[3, 0], sharex=axis)
-    else:
-        axis = figure.add_subplot(111)
-        residual_axis = None
-    for curve in curves:
-        valid = np.isfinite(curve.x) & np.isfinite(curve.y)
-        line = axis.plot(curve.x[valid], curve.y[valid], color=curve.colour, linewidth=1.0, label=curve.name)[0]
-        if include_error_bars:
-            if curve.has_y_errors:
-                minus, plus = (curve.current_error_y_minus, curve.current_error_y_plus) if (
-                    curve.current_error_y_minus is not None) else (curve.current_sigma_y, curve.current_sigma_y)
-                keep = valid & ~curve.effective_mask & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
-                axis.errorbar(curve.x[keep], curve.y[keep], yerr=np.array([minus[keep], plus[keep]]),
-                              fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
-            if curve.current_sigma_x is not None:
-                sx = curve.current_sigma_x
-                keep = valid & ~curve.effective_mask & np.isfinite(sx) & (sx > 0)
-                axis.errorbar(curve.x[keep], curve.y[keep], xerr=sx[keep],
-                              fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
-        masked = curve.effective_mask & valid
-        if np.any(masked):
-            axis.scatter(curve.x[masked], curve.y[masked], color=line.get_color(), alpha=0.25, s=8)
-        model = models.get(curve.id)
-        if model and model.components:
-            total, components = model.evaluate(
-                curve.x,
-                curve_id=curve.id,
-                values=parameter_values,
-                registry=registry,
-                components=True,
-            )
-            axis.plot(curve.x[valid], total[valid], color="#D55E00", linewidth=1.8, label=f"{curve.name} fit")
-            if include_components:
-                for component in model.display_components:
-                    if component.enabled and component.id in components:
-                        axis.plot(curve.x[valid], components[component.id][valid], "--", linewidth=0.8, alpha=0.75)
+    figure = _export_figure(figsize=(width, height), constrained_layout=True)
+    try:
+        if include_residuals:
+            grid = figure.add_gridspec(4, 1)
+            axis = figure.add_subplot(grid[:3, 0])
+            residual_axis = figure.add_subplot(grid[3, 0], sharex=axis)
+        else:
+            axis = figure.add_subplot(111)
+            residual_axis = None
+        for curve in curves:
+            valid = np.isfinite(curve.x) & np.isfinite(curve.y)
+            line = axis.plot(curve.x[valid], curve.y[valid], color=curve.colour, linewidth=1.0, label=curve.name)[0]
+            if include_error_bars:
+                if curve.has_y_errors:
+                    minus, plus = (curve.current_error_y_minus, curve.current_error_y_plus) if (
+                        curve.current_error_y_minus is not None) else (curve.current_sigma_y, curve.current_sigma_y)
+                    keep = valid & ~curve.effective_mask & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
+                    axis.errorbar(curve.x[keep], curve.y[keep], yerr=np.array([minus[keep], plus[keep]]),
+                                  fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
+                if curve.current_sigma_x is not None:
+                    sx = curve.current_sigma_x
+                    keep = valid & ~curve.effective_mask & np.isfinite(sx) & (sx > 0)
+                    axis.errorbar(curve.x[keep], curve.y[keep], xerr=sx[keep],
+                                  fmt="none", ecolor=curve.colour, elinewidth=.8, capsize=2)
+            masked = curve.effective_mask & valid
+            if np.any(masked):
+                axis.scatter(curve.x[masked], curve.y[masked], color=line.get_color(), alpha=0.25, s=8)
+            model = models.get(curve.id)
+            if model and model.components:
+                total, components = model.evaluate(
+                    curve.x,
+                    curve_id=curve.id,
+                    values=parameter_values,
+                    registry=registry,
+                    components=True,
+                )
+                axis.plot(curve.x[valid], total[valid], color="#D55E00", linewidth=1.8, label=f"{curve.name} fit")
+                if include_components:
+                    for component in model.display_components:
+                        if component.enabled and component.id in components:
+                            axis.plot(curve.x[valid], components[component.id][valid], "--", linewidth=0.8, alpha=0.75)
+                if residual_axis is not None:
+                    residual_axis.axhline(0, color="0.4", linewidth=0.7)
+                    residual_axis.plot(curve.x[valid], (curve.y - total)[valid], color=curve.colour, linewidth=0.8)
+        if curves:
+            axis.set_xlabel(_label(curves[0].x_label, curves[0].x_unit))
+            axis.set_ylabel(_label(curves[0].y_label, curves[0].y_unit))
             if residual_axis is not None:
-                residual_axis.axhline(0, color="0.4", linewidth=0.7)
-                residual_axis.plot(curve.x[valid], (curve.y - total)[valid], color=curve.colour, linewidth=0.8)
-    if curves:
-        axis.set_xlabel(_label(curves[0].x_label, curves[0].x_unit))
-        axis.set_ylabel(_label(curves[0].y_label, curves[0].y_unit))
-        if residual_axis is not None:
-            residual_axis.set_ylabel("Residual")
-            residual_axis.set_xlabel(_label(curves[0].x_label, curves[0].x_unit))
-            axis.tick_params(labelbottom=False)
-    axis.legend(loc="best", frameon=False)
-    figure.savefig(destination, dpi=dpi, transparent=transparent)
-    plt.close(figure)
+                residual_axis.set_ylabel("Residual")
+                residual_axis.set_xlabel(_label(curves[0].x_label, curves[0].x_unit))
+                axis.tick_params(labelbottom=False)
+        axis.legend(loc="best", frameon=False)
+        figure.savefig(destination, dpi=dpi, transparent=transparent)
+    finally:
+        _release_export_figure(figure)
     return destination
 
 
@@ -607,22 +624,32 @@ def generate_pdf_report(
     title: str | None = None,
     registry: FunctionRegistry | None = None,
 ) -> Path:
+    from PIL import Image
+
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    with PdfPages(destination) as pdf:
-        temporary_plot = destination.with_suffix(".plot.tmp.png")
+    with tempfile.TemporaryDirectory(prefix=".curvemole-report-", dir=destination.parent) as temporary:
+        temporary_plot = Path(temporary) / "plot.png"
         export_figure(project.curves, project.models, temporary_plot, dpi=180, registry=registry)
-        image = plt.imread(temporary_plot)
-        figure, axis = plt.subplots(figsize=(8.27, 11.69))
-        axis.axis("off")
-        axis.text(0.02, 0.98, title or project.name, fontsize=18, weight="bold", va="top")
-        axis.text(0.02, 0.94, f"CurveMole {__version__}", fontsize=9, va="top")
-        axis.imshow(image, extent=(0.02, 0.98, 0.38, 0.89), aspect="auto")
-        stats_text = "\n".join(f"{key}: {value}" for key, value in (result.statistics if result else {}).items())
-        axis.text(0.02, 0.34, stats_text or "No fit result.", fontsize=8, va="top", family="monospace")
-        pdf.savefig(figure, bbox_inches="tight")
-        plt.close(figure)
-        temporary_plot.unlink(missing_ok=True)
+        from matplotlib.backends.backend_pdf import PdfPages
+
+        with PdfPages(destination) as pdf:
+            # Preserve the PNG's byte pixels instead of expanding its RGBA
+            # raster into a float32 array (four times the memory).
+            with Image.open(temporary_plot) as plot_image:
+                image = np.asarray(plot_image)
+            figure = _export_figure(figsize=(8.27, 11.69))
+            try:
+                axis = figure.subplots()
+                axis.axis("off")
+                axis.text(0.02, 0.98, title or project.name, fontsize=18, weight="bold", va="top")
+                axis.text(0.02, 0.94, f"CurveMole {__version__}", fontsize=9, va="top")
+                axis.imshow(image, extent=(0.02, 0.98, 0.38, 0.89), aspect="auto")
+                stats_text = "\n".join(f"{key}: {value}" for key, value in (result.statistics if result else {}).items())
+                axis.text(0.02, 0.34, stats_text or "No fit result.", fontsize=8, va="top", family="monospace")
+                pdf.savefig(figure, bbox_inches="tight")
+            finally:
+                _release_export_figure(figure)
     return destination
 
 

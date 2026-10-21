@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSpinBox,
     QStackedWidget,
+    QTableView,
     QTableWidget,
     QTableWidgetItem,
     QToolButton,
@@ -43,6 +44,7 @@ from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.core.uncertainty import AdaptiveReplicateSettings
+from curvemole.gui.worksheet import WorksheetModel
 
 
 class ModelPanel(QWidget):
@@ -820,41 +822,22 @@ class WorksheetPanel(QWidget):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         self.label = QLabel(self.tr("No active curve"))
-        self.table = QTableWidget()
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table = QTableView()
+        self.table.setEditTriggers(QTableView.EditTrigger.NoEditTriggers)
+        self._model = WorksheetModel(self.table)
+        self.table.setModel(self._model)
         layout.addWidget(self.label)
         layout.addWidget(self.table)
 
     def set_curve(self, curve: Any | None, *, maximum_rows: int = 100_000) -> None:
+        self._model.set_curve(curve, maximum_rows=maximum_rows)
         if curve is None:
             self.label.setText(self.tr("No active curve"))
-            self.table.setRowCount(0)
             return
-        rows = min(len(curve), maximum_rows)
+        rows = self._model.rowCount()
         self.label.setText(
             f"{curve.name} — {rows}/{len(curve)} " + self.tr("rows shown")
         )
-        self.table.setRowCount(rows)
-        asymmetric = curve.current_error_y_minus is not None
-        headings = (["x", "y", "error −", "error +", "data confidence (%)", "weight", self.tr("masked")]
-                    if asymmetric else ["x", "y", "sigma_y", "weight", self.tr("masked")])
-        self.table.setColumnCount(len(headings))
-        self.table.setHorizontalHeaderLabels(headings)
-        sigma = curve.current_sigma_y
-        x, y, excluded = curve.x, curve.y, curve.effective_mask
-        minus, plus = curve.current_error_y_minus, curve.current_error_y_plus
-        for row in range(rows):
-            values = [
-                x[row],
-                y[row],
-                *([minus[row], plus[row],
-                   curve.error_confidence_level * 100] if asymmetric else
-                  [sigma[row] if sigma is not None else None]),
-                curve.current_weights[row] if curve.current_weights is not None else None,
-                bool(excluded[row]),
-            ]
-            for column, value in enumerate(values):
-                self.table.setItem(row, column, QTableWidgetItem("" if value is None else str(value)))
 
 
 class DiagnosticsPanel(QWidget):

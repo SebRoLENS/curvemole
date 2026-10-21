@@ -164,6 +164,51 @@ def test_folder_to_plugin_to_main_plot(tmp_path):
         extensions.entries.pop(identifier, None)
 
 
+def test_monitor_refresh_never_expands_full_project_and_pauses_when_hidden(monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.gui.plugin_snapshots import ProjectSnapshot
+
+    monkeypatch.setenv("CURVEMOLE_DISABLE_PLUGINS", "1")
+    project = Project()
+    curve = Curve("ruby active", np.arange(5.), np.arange(5.))
+    curve.metadata["ruby_monitor"] = {"settings": ruby.settings({})}
+    project.add_curve(curve)
+    window = CurveMoleMainWindow(project)
+    identifier = ruby.OWNER + ":monitor"
+    extensions.entries[identifier] = Contribution(
+        ruby.OWNER, identifier, "Ruby", "panels", ruby.monitor_panel
+    )
+    window.active_curve_id = curve.id
+    initial = window.plugin_host.context(ruby.OWNER, with_services=True)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("A monitor refresh must not copy the full project")
+
+    monkeypatch.setattr(ProjectSnapshot, "restore", forbidden)
+    monkeypatch.setattr(window.plugin_host, "context", forbidden)
+    panel = None
+    try:
+        panel = ruby.monitor_panel(initial)
+        for _ in range(5):
+            panel.refresh()
+        assert panel.spectrum.text() == "ruby active"
+        assert "must not copy" not in panel.status.text()
+        panel.show()
+        QApplication.processEvents()
+        assert panel.timer.isActive()
+        panel.hide()
+        QApplication.processEvents()
+        assert not panel.timer.isActive()
+    finally:
+        if panel is not None:
+            panel.timer.stop()
+            panel.deleteLater()
+        window.project.dirty = False
+        window.close()
+        extensions.entries.pop(identifier, None)
+
+
 def test_real_plugin_load_and_unload():
     from pathlib import Path
 

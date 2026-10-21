@@ -5,6 +5,47 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Reduce resident memory by restoring uncertainty samples as compact NumPy arrays,
+  retaining complete fit history in compressed records, and loading Matplotlib
+  only when graphical exports need it. Keep numerical values and all historical fits.
+- Store numerical results in binary NumPy payloads and stream history in project
+  schema 3. Read legacy projects and preserve atomic saves, checksums and partial
+  recovery while avoiding full-size JSON and array buffers during saving.
+- Render the worksheet through an on-demand table model instead of allocating a
+  widget item for every data cell. Release hidden worksheet/notebook state when
+  switching projects.
+- Use lazy, isolated plugin snapshots and compact Undo states. Settings and active
+  spectrum services avoid copying unrelated results, history and experimental data;
+  Ruby pressure-monitor polling uses spectrum-only snapshots and pauses while hidden.
+
+### Fixed
+
+- Destroy completed one-shot dialogs and menus, release retired project/UI cycles
+  on the GUI thread, clear paused-task state on project changes, and prevent a
+  running calculation from applying results to a different project.
+- Copy only the selected independent spectrum and covariance block when retaining
+  a fit baseline, instead of copying the entire batch for every spectrum.
+- Identify plotted components by spectrum and component together. Fix Overlay and
+  Waterfall crashes, wrong-spectrum selection and misplaced labels when legacy or
+  copied models reuse component identifiers.
+- Release removed graphical objects during repeated manual-point/peak placement;
+  preserve click handling for dense plot markers created by adaptive rendering.
+- Close export figures and remove isolated temporary files on failed exports;
+  reduce PDF raster memory without reducing pixel precision.
+- Preserve plugin settings and replacement Undo after whole-project restoration,
+  replace redrawn plugin layers instead of accumulating them, and release closed
+  plugin result dialogs.
+- Resolve native Undo/Redo targets by spectrum/function identity after a plugin
+  restores the project graph. Preserve calculator, parameter, background, mask,
+  manual-point and selection edits across repeated plugin Undo/Redo sequences.
+- Preserve arbitrary metadata when excluding raw uncertainty samples, support
+  escaped/reserved JSON keys and non-UTF-8 filenames, and recover intact spectra
+  when compressed result/history members are damaged.
+- Keep a plugin or API caller's Matplotlib backend and existing figures unchanged
+  while exporting through isolated noninteractive canvases.
+
 ## [0.44.0] - 2026-10-21
 
 ### Added

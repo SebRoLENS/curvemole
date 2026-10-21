@@ -23,6 +23,7 @@ from curvemole.gui.plot_appearance import (
     plot_mode_flags,
     qt_pen_style,
 )
+from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 
 
 def background_removed(workspace: PlotWorkspace, curve_id: str | None) -> bool:
@@ -175,13 +176,6 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
             item.setZValue(4.0)
 
 
-def _item_name(item: pg.PlotDataItem) -> str:
-    try:
-        return str(item.name() or "")
-    except Exception:
-        return str(item.opts.get("name") or "")
-
-
 def _label_position(x: np.ndarray, y: np.ndarray) -> tuple[float, float] | None:
     finite = np.isfinite(x) & np.isfinite(y)
     if not np.any(finite):
@@ -267,35 +261,14 @@ def _apply_background_aware_display(
             display_y[unmasked] + index * y_step,
         )
 
-    # Model sums are named but not otherwise retained by PlotWorkspace.
-    data_item_ids = {id(item) for item in workspace._data_items.values()}
-    component_item_ids = {id(item) for item in workspace._component_items.values()}
-    sum_candidates = [
-        item
-        for item in workspace.plot.listDataItems()
-        if id(item) not in data_item_ids
-        and id(item) not in component_item_ids
-        and _item_name(item).endswith(" Model sum")
-    ]
-    used_sum_items: set[int] = set()
     for curve in curves:
         subtract = background_removed(workspace, curve.id)
         model = project.models.get(curve.id)
         if model is None or not model.components:
             continue
-        wanted = f"{curve.name} Model sum"
-        sum_item = next(
-            (
-                item
-                for item in sum_candidates
-                if id(item) not in used_sum_items and _item_name(item) == wanted
-            ),
-            None,
-        )
+        sum_item = workspace._sum_items.get(curve.id)
         if sum_item is None:
             continue
-        used_sum_items.add(id(sum_item))
-        sum_item.curve_id = curve.id
         if subtract:
             x_data, y_data = sum_item.getOriginalDataset()
             background = backgrounds.get(curve.id)
@@ -317,7 +290,7 @@ def _apply_background_aware_display(
         background = backgrounds.get(curve.id, np.zeros_like(curve.y, dtype=float))
         y_offset = index * y_step
         for component in model.components:
-            item = workspace._component_items.get(component.id)
+            item = workspace._component_items.get((curve.id, component.id))
             if not component.enabled or item is None:
                 continue
             x_data, y_data = item.getOriginalDataset()
@@ -340,7 +313,6 @@ def _apply_background_aware_display(
 
     # Re-anchor component labels after moving the dashed curves.
     if workspace._show_component_labels and workspace._component_labels:
-        label_index = 0
         specs: list[tuple[Any, float, float]] = []
         for curve in curves:
             subtract = background_removed(workspace, curve.id)
@@ -348,13 +320,13 @@ def _apply_background_aware_display(
             if model is None:
                 continue
             for component in model.components:
-                if not component.enabled or component.id not in workspace._component_items:
+                key = (curve.id, component.id)
+                if not component.enabled or key not in workspace._component_items:
                     continue
-                if label_index >= len(workspace._component_labels):
-                    break
-                label = workspace._component_labels[label_index]
-                label_index += 1
-                item = workspace._component_items[component.id]
+                label = workspace._component_labels_by_key.get(key)
+                if label is None:
+                    continue
+                item = workspace._component_items[key]
                 if subtract and component.is_background:
                     label.hide()
                     continue
@@ -556,8 +528,7 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
 
     records: list[
         tuple[
-            Curve,
-            Any,
+            str,
             Any,
             dict[str, tuple[bool, bool]],
             dict[str, tuple[bool, bool]],
@@ -565,7 +536,7 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
         ]
     ] = []
     try:
-        for curve, model, marked, background in prepared:
+        for curve, _model, marked, background in prepared:
             component_ids = [component.id for component in marked]
             transformation = apply_background_subtraction(
                 curve,
@@ -583,27 +554,25 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
                 for component in marked
             }
             after = {component.id: (True, False) for component in marked}
-            records.append((curve, model, transformation, before, after, curve.state))
+            records.append((curve.id, transformation, before, after, curve.state))
     except Exception as exc:
         window._show_error(window.tr("Subtract all backgrounds"), exc)
         return
 
     def redo() -> None:
-        for curve, model, transformation, _before, after, state_before in records:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
-            _restore_component_states(model, after)
+        for curve_id, transformation, _before, after, state_before in records:
+            current = window.project.dataset.curve(curve_id)
+            redo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), after)
             if state_before == CurveState.FITTED:
-                curve.state = CurveState.MODIFIED
+                current.state = CurveState.MODIFIED
 
     def undo() -> None:
-        for curve, model, transformation, before, _after, state_before in reversed(records):
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
-            _restore_component_states(model, before)
-            curve.state = state_before
+        for curve_id, transformation, before, _after, state_before in reversed(records):
+            current = window.project.dataset.curve(curve_id)
+            undo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), before)
+            current.state = state_before
 
     def wrapped(operation: Callable[[], None]) -> None:
         operation()

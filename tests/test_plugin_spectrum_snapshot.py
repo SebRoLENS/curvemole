@@ -63,3 +63,32 @@ def test_spectrum_snapshot_copies_only_requested_data_and_is_detached(services, 
     snapshot.project.curves[0].metadata["new"] = True
     assert curves[0].y[0] == 0
     assert "new" not in curves[0].metadata
+
+
+def test_active_model_snapshot_omits_history_results_and_unrelated_settings(services):
+    from curvemole.core.models import Component
+
+    service, window, curves = services
+    window.project.add_component(curves[0].id, Component.create("gaussian"))
+    window.project.add_component(curves[1].id, Component.create("gaussian"))
+    first = window.project.models[curves[0].id].components[0]
+    second = window.project.models[curves[1].id].components[0]
+    parameter = first.parameters["center"]
+    other_path = window.project.models[curves[1].id].parameter_path(curves[1].id, second.id, "center")
+    parameter.link = f"${{{other_path}}}"
+    parameter.link_scope = "absolute"
+    second.parameters["center"].value = 123
+    window.project.ui_state["plugin_data"] = {
+        service.owner: {"temperature": 296}, "other": DoNotCopy()
+    }
+
+    snapshot = service.active_model_snapshot()
+    assert [curve.id for curve in snapshot.project.curves] == [curves[0].id]
+    assert len(snapshot.project.models) == len(window.project.models)
+    assert snapshot.project.results == {}
+    assert len(snapshot.project.fit_history) == 0
+    own_path = snapshot.project.models[curves[0].id].parameter_path(curves[0].id, first.id, "center")
+    assert snapshot.project.resolved_parameter_values()[own_path] == 123
+    assert snapshot.project.ui_state["plugin_data"] == {service.owner: {"temperature": 296}}
+    snapshot.data["temperature"] = 400
+    assert service.settings()["temperature"] == 296

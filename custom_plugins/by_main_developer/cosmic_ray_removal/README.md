@@ -44,7 +44,8 @@ Accepted intervals and detection settings are stored in spectrum metadata.
 On current CurveMole versions, preview refreshes check only the active spectrum
 and copy its data only when it changes. Repeated-spectrum detection copies only
 the selected acquisitions. Hidden panels pause preview polling.
-Version 0.5.0 uses CurveMole's generic plugin plot service; older hosts show an
+Version 0.5.1 avoids expanding a full project snapshot just to read its identity.
+It uses CurveMole's generic plugin plot service; older hosts show an
 upgrade message before offering these controls.
 
 ## Detection methods

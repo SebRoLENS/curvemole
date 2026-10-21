@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Any
 
 import numpy as np
@@ -29,20 +29,30 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
         raise KeyError(curve_id)
     if result.mode == FitMode.GLOBAL:
         return copy.deepcopy(result)  # Coupled parameters require the whole global fit.
-    selected = copy.deepcopy(result)
-    selected.mode = FitMode.INDEPENDENT
-    selected.parameters = {path: estimate for path, estimate in selected.parameters.items()
-                           if path.startswith(curve_id + ".")}
-    selected.curve_outputs = {curve_id: selected.curve_outputs[curve_id]}
-    indices = [i for i, path in enumerate(selected.free_parameter_paths)
+    # Select before copying: a batch may contain many large curve arrays and
+    # dense covariance matrices, none of which the other baselines need.
+    indices = [i for i, path in enumerate(result.free_parameter_paths)
                if path.startswith(curve_id + ".")]
-    selected.free_parameter_paths = [selected.free_parameter_paths[i] for i in indices]
+    matrices: dict[str, np.ndarray | None] = {}
     for field in ("covariance", "correlation"):
-        matrix = getattr(selected, field)
-        if matrix is not None:
-            setattr(selected, field, np.asarray(matrix)[np.ix_(indices, indices)].copy())
-    selected.statistics = dict(selected.curve_outputs[curve_id].statistics)
-    return selected
+        matrix = getattr(result, field)
+        matrices[field] = None if matrix is None else np.asarray(matrix)[np.ix_(indices, indices)]
+    output = copy.deepcopy(result.curve_outputs[curve_id])
+    return replace(
+        result,
+        mode=FitMode.INDEPENDENT,
+        parameters=copy.deepcopy({
+            path: estimate for path, estimate in result.parameters.items()
+            if path.startswith(curve_id + ".")
+        }),
+        curve_outputs={curve_id: output},
+        statistics=copy.deepcopy(output.statistics),
+        warnings=copy.deepcopy(result.warnings),
+        settings=copy.deepcopy(result.settings),
+        free_parameter_paths=[result.free_parameter_paths[i] for i in indices],
+        covariance=matrices["covariance"],
+        correlation=matrices["correlation"],
+    )
 
 
 def individual_plan(plan: FitPlan, curve_id: str) -> FitPlan:

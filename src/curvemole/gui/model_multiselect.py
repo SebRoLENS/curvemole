@@ -6,7 +6,7 @@ import copy
 from collections import defaultdict
 from typing import Any
 
-from PySide6.QtCore import QItemSelection, QItemSelectionModel, Qt
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QSignalBlocker, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -25,6 +25,7 @@ from curvemole.core.models import Model
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import ModelPanel
+from curvemole.gui.windowing import transient_widget
 
 _CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _BATCH = "__curvemole_batch_components__"
@@ -225,17 +226,17 @@ def _install_model_panel() -> None:
         ref = _item_ref(panel.components.itemAt(position))
         if ref is None:
             return
-        menu = QMenu(panel)
-        from curvemole.gui.component_composition import add_composition_actions
+        with transient_widget(QMenu(panel)) as menu:
+            from curvemole.gui.component_composition import add_composition_actions
 
-        add_composition_actions(menu.addMenu(panel.tr("Composition")), panel, *ref)
-        rename = menu.addAction(panel.tr("Rename function…"))
-        rename.setEnabled(panel.project is not None and not panel.project.read_only)
-        rename.triggered.connect(lambda checked=False: panel.renameRequested.emit(*ref))
-        action = menu.addAction(panel.tr("Add description…"))
-        action.setEnabled(panel.project is not None and not panel.project.read_only)
-        action.triggered.connect(lambda checked=False: panel.descriptionRequested.emit(*ref))
-        menu.exec(panel.components.viewport().mapToGlobal(position))
+            add_composition_actions(menu.addMenu(panel.tr("Composition")), panel, *ref)
+            rename = menu.addAction(panel.tr("Rename function…"))
+            rename.setEnabled(panel.project is not None and not panel.project.read_only)
+            rename.triggered.connect(lambda checked=False: panel.renameRequested.emit(*ref))
+            action = menu.addAction(panel.tr("Add description…"))
+            action.setEnabled(panel.project is not None and not panel.project.read_only)
+            action.triggered.connect(lambda checked=False: panel.descriptionRequested.emit(*ref))
+            menu.exec(panel.components.viewport().mapToGlobal(position))
 
     def set_context(
         panel: ModelPanel,
@@ -421,6 +422,16 @@ def _install_model_panel() -> None:
     def selected_component_refs(panel: ModelPanel) -> list[tuple[str, str]]:
         return _selected_refs(panel)
 
+    def select_component_ref(panel: ModelPanel, curve_id: str, component_id: str) -> bool:
+        """Select one plotted function using its complete spectrum identity."""
+        for row in range(panel.components.count()):
+            if _item_ref(panel.components.item(row)) == (curve_id, component_id):
+                with QSignalBlocker(panel.components):
+                    panel.components.setCurrentRow(row, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+                panel._update_function_selection_summary()
+                return True
+        return False
+
     def selected_component_ids(panel: ModelPanel) -> list[str]:
         return [component_id for _, component_id in panel.selected_component_refs()]
 
@@ -564,6 +575,7 @@ def _install_model_panel() -> None:
     ModelPanel.set_context = set_context
     ModelPanel.refresh = refresh
     ModelPanel.selected_component_refs = selected_component_refs
+    ModelPanel.select_component_ref = select_component_ref
     ModelPanel.selected_component_ids = selected_component_ids
     ModelPanel.selected_component_id = selected_component_id
     ModelPanel.selected_component_curve_id = selected_component_curve_id
@@ -741,12 +753,13 @@ def _install_main_window() -> None:
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             if component.enabled != bool(enabled):
-                changes.append((component, component.enabled, bool(enabled)))
+                changes.append((curve_id, selected_id, component.enabled, bool(enabled)))
         if not changes:
             return
 
         def restore(use_new: bool) -> None:
-            for component, old, new in changes:
+            for curve_id, selected_id, old, new in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 component.enabled = new if use_new else old
 
         window._push_change(
@@ -755,6 +768,7 @@ def _install_main_window() -> None:
             else window.tr("Enable/disable component"),
             lambda: restore(True),
             lambda: restore(False),
+            modified_curve_ids={curve_id for curve_id, *_ in changes},
         )
 
     def set_component_background(window: MainWindow, component_id: str, marked: bool) -> None:
@@ -765,12 +779,13 @@ def _install_main_window() -> None:
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             if component.is_background != bool(marked):
-                changes.append((component, component.is_background, bool(marked)))
+                changes.append((curve_id, selected_id, component.is_background, bool(marked)))
         if not changes:
             return
 
         def restore(use_new: bool) -> None:
-            for component, old, new in changes:
+            for curve_id, selected_id, old, new in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 component.is_background = new if use_new else old
 
         text = (
@@ -782,13 +797,14 @@ def _install_main_window() -> None:
             if marked
             else window.tr("Unmark background")
         )
-        window._push_change(text, lambda: restore(True), lambda: restore(False))
+        window._push_change(text, lambda: restore(True), lambda: restore(False),
+                            modified_curve_ids={curve_id for curve_id, *_ in changes})
 
     def set_component_fixed(window: MainWindow, component_id: str, fixed: bool) -> None:
         if not window._ensure_editable():
             return
         refs = _refs_for_request(window, component_id)
-        changes: list[tuple[Any, dict[str, bool], dict[str, bool]]] = []
+        changes: list[tuple[str, str, dict[str, bool], dict[str, bool]]] = []
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             before = {
@@ -797,12 +813,13 @@ def _install_main_window() -> None:
             }
             after = {name: bool(fixed) for name in component.parameters}
             if before != after:
-                changes.append((component, before, after))
+                changes.append((curve_id, selected_id, before, after))
         if not changes:
             return
 
         def restore(which: int) -> None:
-            for component, before, after in changes:
+            for curve_id, selected_id, before, after in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 values = after if which else before
                 for name, value in values.items():
                     component.parameters[name].fixed = value
@@ -812,7 +829,8 @@ def _install_main_window() -> None:
             if fixed
             else window.tr("Unlock all parameters in selected functions")
         )
-        window._push_change(text, lambda: restore(1), lambda: restore(0))
+        window._push_change(text, lambda: restore(1), lambda: restore(0),
+                            modified_curve_ids={curve_id for curve_id, *_ in changes})
 
     def change_parameter(
         window: MainWindow,
@@ -836,10 +854,14 @@ def _install_main_window() -> None:
             window._show_error(window.tr("Parameter constraint"), exc)
             window.model_panel.refresh_parameters()
             return
+        def assign(value):
+            target = window.project.model_for(curve_id).component(component_id).parameters[name]
+            setattr(target, field, value)
         window._push_change(
             window.tr("Edit parameter"),
-            lambda: setattr(parameter, field, value),
-            lambda: setattr(parameter, field, old),
+            lambda: assign(value),
+            lambda: assign(old),
+            modified_curve_ids={curve_id},
         )
 
     def edit_parameter_link(window: MainWindow, component_id: str, name: str) -> None:
@@ -847,7 +869,7 @@ def _install_main_window() -> None:
         if curve_id is None:
             return
         parameter = window.project.model_for(curve_id).component(component_id).parameters[name]
-        dialog = ParameterLinkDialog(
+        with transient_widget(ParameterLinkDialog(
             window.project,
             curve_id,
             component_id,
@@ -859,14 +881,14 @@ def _install_main_window() -> None:
             current_relation=parameter.link_relation,
             current_tolerance=parameter.link_tolerance,
             current_tolerance_mode=parameter.link_tolerance_mode,
-        )
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        window.apply_parameter_link(curve_id, component_id, name,
-                                    dialog.selected_link(), dialog.selected_link_scope(),
-                                    reference_scopes=dialog.selected_reference_scopes(),
-                                    relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
-                                    tolerance_mode=dialog.selected_tolerance_mode())
+        )) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            window.apply_parameter_link(curve_id, component_id, name,
+                                        dialog.selected_link(), dialog.selected_link_scope(),
+                                        reference_scopes=dialog.selected_reference_scopes(),
+                                        relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
+                                        tolerance_mode=dialog.selected_tolerance_mode())
 
     MainWindow._set_component = set_component
     MainWindow.duplicate_component = duplicate_component

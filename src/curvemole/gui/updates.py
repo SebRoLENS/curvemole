@@ -20,7 +20,7 @@ from PySide6.QtCore import QObject, QSettings, QTimer, QUrl
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QMessageBox, QToolButton
 
-from curvemole.gui.windowing import secondary_window_parent
+from curvemole.gui.windowing import secondary_window_parent, transient_widget
 from curvemole.version import __version__
 
 RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases/latest"
@@ -333,24 +333,24 @@ class UpdateController(QObject):
         asset = self._windows_setup_asset(payload)
         if asset is None:
             return
-        box = QMessageBox(secondary_window_parent(self.window))
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle(self.window.tr("Install CurveMole"))
-        box.setText(
-            self.window.tr(
-                "Install CurveMole in the Windows application menu and register .fitproj files? "
-                "Your projects, settings and plugins will be preserved."
+        with transient_widget(QMessageBox(secondary_window_parent(self.window))) as box:
+            box.setIcon(QMessageBox.Icon.Information)
+            box.setWindowTitle(self.window.tr("Install CurveMole"))
+            box.setText(
+                self.window.tr(
+                    "Install CurveMole in the Windows application menu and register .fitproj files? "
+                    "Your projects, settings and plugins will be preserved."
+                )
             )
-        )
-        install_button = box.addButton(
-            self.window.tr("Install CurveMole"), QMessageBox.ButtonRole.AcceptRole
-        )
-        box.addButton(self.window.tr("Keep portable"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is install_button:
-            self._download_update(asset, latest)
-        else:
-            self.settings.setValue("desktop/windows_installer_declined", latest)
+            install_button = box.addButton(
+                self.window.tr("Install CurveMole"), QMessageBox.ButtonRole.AcceptRole
+            )
+            box.addButton(self.window.tr("Keep portable"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() is install_button:
+                self._download_update(asset, latest)
+            else:
+                self.settings.setValue("desktop/windows_installer_declined", latest)
 
     def _show_update_available(
         self,
@@ -385,27 +385,27 @@ class UpdateController(QObject):
                 "Automatic replacement is not available for this installation. Use the release page instead."
             )
 
-        box = QMessageBox(secondary_window_parent(self.window))
-        box.setIcon(
-            QMessageBox.Icon.Warning if kind == "major" else QMessageBox.Icon.Information
-        )
-        box.setWindowTitle(self.window.tr("CurveMole update available"))
-        box.setText(message)
-        update_button = None
-        if asset is not None:
-            update_button = box.addButton(
-                self.window.tr("Update now"), QMessageBox.ButtonRole.AcceptRole
+        with transient_widget(QMessageBox(secondary_window_parent(self.window))) as box:
+            box.setIcon(
+                QMessageBox.Icon.Warning if kind == "major" else QMessageBox.Icon.Information
             )
-        release_button = box.addButton(
-            self.window.tr("Release notes"), QMessageBox.ButtonRole.ActionRole
-        )
-        box.addButton(self.window.tr("Later"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
+            box.setWindowTitle(self.window.tr("CurveMole update available"))
+            box.setText(message)
+            update_button = None
+            if asset is not None:
+                update_button = box.addButton(
+                    self.window.tr("Update now"), QMessageBox.ButtonRole.AcceptRole
+                )
+            release_button = box.addButton(
+                self.window.tr("Release notes"), QMessageBox.ButtonRole.ActionRole
+            )
+            box.addButton(self.window.tr("Later"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
 
-        if update_button is not None and box.clickedButton() is update_button:
-            self._download_update(asset, latest)
-        elif box.clickedButton() is release_button:
-            self.window._open_external(str(payload.get("html_url") or RELEASE_PAGE))
+            if update_button is not None and box.clickedButton() is update_button:
+                self._download_update(asset, latest)
+            elif box.clickedButton() is release_button:
+                self.window._open_external(str(payload.get("html_url") or RELEASE_PAGE))
 
     def _download_update(self, asset: ReleaseAsset, latest: str) -> None:
         if self._download_reply is not None:

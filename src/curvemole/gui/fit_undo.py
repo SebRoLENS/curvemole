@@ -7,6 +7,7 @@ from dataclasses import fields
 
 from PySide6.QtGui import QUndoCommand
 
+from curvemole.core.history import CompactHistory
 from curvemole.gui.main_window import MainWindow
 
 
@@ -19,7 +20,7 @@ def _capture(window):
         "models": models,
         # Completed FitResults are not mutated; share their potentially large arrays.
         "results": dict(window.project.results),
-        "history": list(window.project.fit_history),
+        "history": CompactHistory(window.project.fit_history),
         "states": {curve.id: curve.state for curve in window.project.curves},
         "active": window.active_curve_id,
         "selected": window.selected_component_id,
@@ -52,7 +53,7 @@ def _restore(window, state):
         model.components = components
         window.project.models[curve_id] = model
     window.project.results = dict(state["results"])
-    window.project.fit_history = list(state["history"])
+    window.project.fit_history = state["history"].copy()
     for curve in window.project.curves:
         if curve.id in state["states"]:
             curve.state = state["states"][curve.id]
