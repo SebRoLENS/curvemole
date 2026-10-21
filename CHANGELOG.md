@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.45.0] - 2026-10-21
+
 ### Changed
 
 - Reduce resident memory by restoring uncertainty samples as compact NumPy arrays,
