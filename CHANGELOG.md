@@ -5,6 +5,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Size plot-style and autoscale selectors to their text and native font metrics,
+  keeping long choices such as "Lines + points" fully visible.
+- Show both cursor coordinates in full. Reserve space for scientific notation
+  and wrap the controls on narrow plots or with enlarged fonts; keep detailed
+  spectrum readings in the tooltip.
+
 ## [0.45.0] - 2026-10-21
 
 ### Changed

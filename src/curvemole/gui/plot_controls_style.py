@@ -8,14 +8,18 @@ from PySide6.QtWidgets import QApplication, QLabel, QSizePolicy
 
 
 class CoordinateReadout(QLabel):
-    """Keep mouse coordinates on one line; the tooltip retains the full reading."""
+    """Show complete mouse coordinates; keep spectrum details in the tooltip."""
+
+    # Reserve space for the longest finite .8g readings used by the plot. A
+    # stable width also prevents the rows moving as the cursor changes digits.
+    _RESERVED_READING = "x: -1.2345678e-308   y: -1.2345678e-308"
 
     def __init__(self, text, parent):
         super().__init__(parent)
         self._reading = str(text)
         self.setObjectName("plotCoordinates")
-        self.setMinimumWidth(140)
-        self.setMaximumWidth(240)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+        self.setWordWrap(True)
         self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._update_reading()
 
@@ -28,22 +32,24 @@ class CoordinateReadout(QLabel):
 
     def _update_reading(self):
         self.setToolTip(self._reading)
-        width = max(0, self.contentsRect().width() - 16)
         primary = " ".join(self._reading.split("|", 1)[0].split())
-        super().setText(self.fontMetrics().elidedText(primary, Qt.TextElideMode.ElideRight, width))
+        # Keep each axis beside its number when a narrow plot needs two lines.
+        super().setText(primary.replace(": ", ":\N{NO-BREAK SPACE}"))
+        self.updateGeometry()
 
     def sizeHint(self):
         size = super().sizeHint()
-        return QSize(160, size.height())
+        margins = self.contentsMargins()
+        width = self.fontMetrics().horizontalAdvance(self._RESERVED_READING)
+        width += margins.left() + margins.right() + 2 * self.margin() + 2
+        return QSize(max(size.width(), width), size.height())
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._update_reading()
-
-    def changeEvent(self, event):
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.FontChange and hasattr(self, "_reading"):
-            self._update_reading()
+    def minimumSizeHint(self):
+        size = super().minimumSizeHint()
+        margins = self.contentsMargins()
+        width = self.fontMetrics().horizontalAdvance("x:\N{NO-BREAK SPACE}-1.2345678e-308")
+        width += margins.left() + margins.right() + 2 * self.margin() + 2
+        return QSize(width, size.height())
 
 
 class PlotControlStyle(QObject):
