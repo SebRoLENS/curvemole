@@ -13,6 +13,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Store numerical results in binary NumPy payloads and stream history in project
   schema 3. Read legacy projects and preserve atomic saves, checksums and partial
   recovery while avoiding full-size JSON and array buffers during saving.
+- Projects saved in schema 3 require CurveMole 0.44.0 or newer. Existing archives
+  remain readable; saving and reopening them enables the smallest memory footprint.
 - Render the worksheet through an on-demand table model instead of allocating a
   widget item for every data cell. Release hidden worksheet/notebook state when
   switching projects.
