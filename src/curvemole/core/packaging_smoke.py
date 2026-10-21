@@ -1,4 +1,4 @@
-"""Exercise custom-formula process workers from the frozen desktop executable."""
+"""Exercise fit workers and graphical exports from the frozen desktop executable."""
 
 from __future__ import annotations
 
@@ -18,6 +18,25 @@ def _marked_fit(curve, model, plan):
     result = fitting._fit_in_process(curve, model, plan)
     result.statistics["packaging_worker_pid"] = os.getpid()
     return result
+
+
+def _smoke_graphic_exports(project, directory, *, registry=None) -> None:
+    # Keep renderer imports inside the explicitly requested smoke test so normal
+    # startup retains the same deferred Matplotlib loading as the application.
+    from pathlib import Path
+
+    from curvemole.core.export import export_figure, generate_pdf_report
+
+    directory = Path(directory)
+    for suffix in ("png", "svg"):
+        destination = directory / f"packaging-plot.{suffix}"
+        export_figure(project.curves, project.models, destination, registry=registry, dpi=40,
+                      width=3., height=2.)
+        if not destination.is_file() or not destination.stat().st_size:
+            raise RuntimeError(f"Frozen {suffix.upper()} export produced no output")
+    destination = generate_pdf_report(project, directory / "packaging-report.pdf", registry=registry)
+    if not destination.is_file() or not destination.stat().st_size:
+        raise RuntimeError("Frozen PDF export produced no output")
 
 
 def run_packaging_smoke() -> None:
@@ -57,3 +76,14 @@ def run_packaging_smoke() -> None:
     )
     if resampling.completed != 4:
         raise RuntimeError("Frozen multicore custom-formula bootstrap failed")
+    import tempfile
+
+    from curvemole import Project
+
+    project = Project("Packaging exports")
+    for curve in curves:
+        project.add_curve(curve)
+        project.models[curve.id] = models[curve.id]
+    project.results["last_fit"] = result
+    with tempfile.TemporaryDirectory(prefix="curvemole-packaging-exports-") as directory:
+        _smoke_graphic_exports(project, directory, registry=registry)

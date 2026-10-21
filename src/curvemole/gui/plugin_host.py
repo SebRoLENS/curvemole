@@ -1,9 +1,9 @@
 """Qt hosting for additive plugins; callbacks never receive the live main window."""
 from __future__ import annotations
 
-import copy
 import json
-from dataclasses import dataclass
+import weakref
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +22,8 @@ from PySide6.QtWidgets import (
 from curvemole.core.extensions import extensions
 from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.gui.documentation import plugin_manuals, show_markdown_document
+from curvemole.gui.plugin_snapshots import ProjectSnapshot, ProjectSnapshotStore
+from curvemole.gui.windowing import transient_widget
 
 
 def _plugin_recovery_problems(
@@ -38,7 +40,7 @@ def _plugin_recovery_problems(
 
 @dataclass
 class PluginContext:
-    """Detached project snapshot. Mutating commands are committed as one undo step."""
+    """Detached snapshot, expanded only when the callback uses project data."""
     project: Any
     active_curve_id: str | None
     selected_curve_ids: tuple[str, ...]
@@ -47,10 +49,34 @@ class PluginContext:
     cancellation: Any = None
     services: Any = None
     settings_only: bool = False
+    _settings: dict | None = field(default=None, init=False, repr=False)
+
+    def __getattribute__(self, name: str) -> Any:
+        value = object.__getattribute__(self, name)
+        if name == "project" and isinstance(value, ProjectSnapshot):
+            project = value.restore()
+            settings = object.__getattribute__(self, "_settings")
+            if settings is not None:
+                project.ui_state.setdefault("plugin_data", {})[self.owner] = settings
+            object.__setattr__(self, "project", project)
+            return project
+        return value
+
+    @property
+    def project_id(self) -> str:
+        """Project identity without expanding a large detached snapshot."""
+        project = object.__getattribute__(self, "project")
+        return project.field("id") if isinstance(project, ProjectSnapshot) else project.id
 
     @property
     def data(self) -> dict:
-        return self.project.ui_state.setdefault("plugin_data", {}).setdefault(self.owner, {})
+        project = object.__getattribute__(self, "project")
+        if isinstance(project, ProjectSnapshot):
+            if self._settings is None:
+                state = project.field("ui_state")
+                self._settings = state.get("plugin_data", {}).get(self.owner, {})
+            return self._settings
+        return project.ui_state.setdefault("plugin_data", {}).setdefault(self.owner, {})
 
 
 class PluginHost:
@@ -60,6 +86,8 @@ class PluginHost:
         self.dialogs: dict[str, QDockWidget] = {}
         self._auto_opened = set()
         self._startup_complete = False
+        self._snapshots = ProjectSnapshotStore()
+        self._layers: dict[str, list[weakref.ReferenceType]] = {}
         menus = {action.text().replace("&", ""): action.menu()
                  for action in window.menuBar().actions() if action.menu()}
         locations = {"importers": "File", "exporters": "File", "transformations": "Data",
@@ -78,7 +106,7 @@ class PluginHost:
         window = self.window
         from curvemole.gui.plugin_services import PluginServices
 
-        return PluginContext(copy.deepcopy(window.project), window.active_curve_id,
+        return PluginContext(self._snapshots.capture(window.project), window.active_curve_id,
                              tuple(window.curve_tree.selected_curve_ids()), owner, path,
                              services=PluginServices(self, owner) if with_services else None)
 
@@ -91,6 +119,10 @@ class PluginHost:
                 dialog.close()
                 dialog.deleteLater()
                 self.dialogs.pop(identifier, None)
+        for identifier in list(self._layers):
+            entry = extensions.entries.get(identifier)
+            if entry is None or entry.owner in self.window.plugin_manager.errors:
+                self._remove_layer(identifier)
         if hasattr(self.window, "_refresh_quick_function_selector"):
             self.window._refresh_quick_function_selector()
         for kind, menu in self.menus.items():
@@ -184,15 +216,18 @@ class PluginHost:
                 for curve in context.project.curves:
                     curve.__post_init__()  # Revalidate arrays, masks and transformation replay.
                 context.project.resolved_parameter_values()
-                before = copy.deepcopy(window.project)
-                after = copy.deepcopy(context.project)
-                after.id, after.path, after.read_only = before.id, before.path, before.read_only
+                before = self._snapshots.capture(window.project)
+                after = context.project
+                after.id, after.path, after.read_only = (
+                    window.project.id, window.project.path, window.project.read_only
+                )
                 from curvemole.core.data import CurveState
                 for curve in after.curves:
                     if curve.state == CurveState.FITTED:
                         curve.state = CurveState.MODIFIED
-                def restore(project: Any) -> None:
-                    window.project = copy.deepcopy(project)
+                after = self._snapshots.capture(after)
+                def restore(project: ProjectSnapshot) -> None:
+                    window.project = project.restore()
                     ids = {curve.id for curve in window.project.curves}
                     if window.active_curve_id not in ids:
                         window.active_curve_id = next(iter(ids), None)
@@ -225,13 +260,13 @@ class PluginHost:
                 self.dialogs[entry.identifier] = dialog
                 dialog.destroyed.connect(lambda: self.dialogs.pop(entry.identifier, None))
             elif result is not None:
-                dialog = QDialog(window)
-                dialog.setWindowTitle(entry.label)
-                text = QPlainTextEdit(str(result))
-                text.setReadOnly(True)
-                QVBoxLayout(dialog).addWidget(text)
-                dialog.resize(720, 480)
-                dialog.exec()
+                with transient_widget(QDialog(window)) as dialog:
+                    dialog.setWindowTitle(entry.label)
+                    text = QPlainTextEdit(str(result))
+                    text.setReadOnly(True)
+                    QVBoxLayout(dialog).addWidget(text)
+                    dialog.resize(720, 480)
+                    dialog.exec()
             window._notify(entry.label + " completed")
         except Exception as exc:
             window.plugin_manager.errors[entry.owner] = str(exc)
@@ -252,8 +287,18 @@ class PluginHost:
                 raise ValueError("Plot layers require matching finite one-dimensional x/y arrays.")
             items.append(pg.PlotDataItem(x, y, pen=pg.mkPen(line.get("colour", "#cc79a7")),
                                          name=entry.label))
+        self._remove_layer(entry.identifier)
         for item in items:
             self.window.plot_workspace.plot.addItem(item, ignoreBounds=True)
+        # The PlotItem owns displayed items. Weak refs allow a native graph
+        # refresh to release their arrays without waiting for the next callback.
+        self._layers[entry.identifier] = [weakref.ref(item) for item in items]
+
+    def _remove_layer(self, identifier: str) -> None:
+        for reference in self._layers.pop(identifier, []):
+            item = reference()
+            if item is not None:
+                self.window.plot_workspace.plot.removeItem(item)
 
     def emit(self, event: str) -> None:
         for entry in extensions.values("hooks"):

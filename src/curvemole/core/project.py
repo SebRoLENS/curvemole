@@ -14,6 +14,7 @@ import numpy as np
 from curvemole.core.background_status import copy_background_history
 from curvemole.core.data import Curve, Dataset, Mask, Series
 from curvemole.core.errors import ConstraintError, DataValidationError
+from curvemole.core.history import CompactHistory
 from curvemole.core.models import Component, Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.parameters import Parameter, resolve_parameter_values
@@ -26,7 +27,7 @@ class Project:
     dataset: Dataset = field(default_factory=Dataset)
     models: dict[str, Model] = field(default_factory=dict)
     results: dict[str, Any] = field(default_factory=dict)
-    fit_history: list[dict[str, Any]] = field(default_factory=list)
+    fit_history: CompactHistory = field(default_factory=CompactHistory)
     custom_functions: list[dict[str, Any]] = field(default_factory=list)
     custom_formulas: list[dict[str, Any]] = field(default_factory=list)
     ui_state: dict[str, Any] = field(default_factory=dict)
@@ -40,6 +41,10 @@ class Project:
     dirty: bool = False
     revision: int = 0
     notebook: LaboratoryNotebook = field(default_factory=LaboratoryNotebook)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fit_history, CompactHistory):
+            self.fit_history = CompactHistory(self.fit_history)
 
     @property
     def curves(self) -> list[Curve]:
@@ -309,7 +314,7 @@ class Project:
         self.dirty = False
 
     def snapshot(self, reason: str, payload: dict[str, Any]) -> None:
-        self.fit_history.append(
+        self.fit_history.append_record(
             {
                 "timestamp": datetime.now(UTC).isoformat(),
                 "reason": reason,

@@ -131,6 +131,7 @@ from curvemole.gui.panels import (
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog
 from curvemole.gui.task_thread import TaskThread
+from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
@@ -260,6 +261,10 @@ class TaskCallbacks(QObject):
 
     def cleanup(self):
         self.closed = True
+        # Finished handlers capture detached fit inputs/results. Release those
+        # closures immediately even when Qt defers destruction of this object.
+        self.on_finished = None
+        self.on_partial = None
         try:
             self.window._task_done()
         except BaseException:
@@ -570,81 +575,81 @@ class CurveTree(QTreeWidget):
     def _show_context_menu(self, position: Any) -> None:
         item = self.itemAt(position)
         project = self._project
-        menu = QMenu(self)
-        new_series_action = menu.addAction(self.tr("New series…"))
-        new_series_action.triggered.connect(lambda checked=False: self.newSeriesRequested.emit())
-        if item is None or project is None:
-            menu.exec(self.viewport().mapToGlobal(position))
-            return
-        metadata = item.data(1, Qt.ItemDataRole.UserRole)
-        if not metadata:
-            menu.exec(self.viewport().mapToGlobal(position))
-            return
+        with transient_widget(QMenu(self)) as menu:
+            new_series_action = menu.addAction(self.tr("New series…"))
+            new_series_action.triggered.connect(lambda checked=False: self.newSeriesRequested.emit())
+            if item is None or project is None:
+                menu.exec(self.viewport().mapToGlobal(position))
+                return
+            metadata = item.data(1, Qt.ItemDataRole.UserRole)
+            if not metadata:
+                menu.exec(self.viewport().mapToGlobal(position))
+                return
 
-        menu.addSeparator()
-        if metadata[0] == "curve":
-            curve_id = str(metadata[1])
-            if not item.isSelected():
-                self.clearSelection()
-                item.setSelected(True)
-                self.setCurrentItem(item)
-            selected_ids = self.ordered_selected_curve_ids() or [curve_id]
-
-            description_action = menu.addAction(self.tr("Add description…"))
-            description_action.setEnabled(not project.read_only)
-            description_action.triggered.connect(
-                lambda checked=False, curve_id=curve_id: self.curveDescriptionRequested.emit(curve_id)
-            )
-
-            move_menu = menu.addMenu(self.tr("Move selected to series"))
-            for series in project.dataset.series:
-                action = move_menu.addAction(series.name)
-                action.triggered.connect(
-                    lambda checked=False, ids=list(selected_ids), target_id=series.id: (
-                        self.curvesMoveRequested.emit(ids, target_id)
-                    )
-                )
-            menu.addAction(self.tr("Move selected up")).triggered.connect(
-                lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, -1)
-            )
-            menu.addAction(self.tr("Move selected down")).triggered.connect(
-                lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, 1)
-            )
             menu.addSeparator()
-            colour_action = menu.addAction(self.tr("Choose spectrum colour…"))
-            colour_action.triggered.connect(
-                lambda checked=False, curve_id=curve_id: self.curveColourRequested.emit(curve_id)
-            )
-        elif metadata[0] == "series":
-            series_id = str(metadata[1])
-            rename_action = menu.addAction(self.tr("Rename series…"))
-            rename_action.triggered.connect(
-                lambda checked=False, series_id=series_id: self.seriesRenameRequested.emit(series_id)
-            )
-            description_action = menu.addAction(self.tr("Add description…"))
-            description_action.setEnabled(not project.read_only)
-            description_action.triggered.connect(
-                lambda checked=False, series_id=series_id: self.seriesDescriptionRequested.emit(series_id)
-            )
-            merge_menu = menu.addMenu(self.tr("Merge series into"))
-            targets = [series for series in project.dataset.series if series.id != series_id]
-            merge_menu.setEnabled(bool(targets))
-            for target in targets:
-                action = merge_menu.addAction(target.name)
-                action.triggered.connect(
-                    lambda checked=False, source_id=series_id, target_id=target.id: (
-                        self.seriesMergeRequested.emit(source_id, target_id)
-                    )
+            if metadata[0] == "curve":
+                curve_id = str(metadata[1])
+                if not item.isSelected():
+                    self.clearSelection()
+                    item.setSelected(True)
+                    self.setCurrentItem(item)
+                selected_ids = self.ordered_selected_curve_ids() or [curve_id]
+
+                description_action = menu.addAction(self.tr("Add description…"))
+                description_action.setEnabled(not project.read_only)
+                description_action.triggered.connect(
+                    lambda checked=False, curve_id=curve_id: self.curveDescriptionRequested.emit(curve_id)
                 )
-            palette_menu = menu.addMenu(self.tr("Series palette"))
-            for palette_name in SERIES_PALETTES:
-                action = palette_menu.addAction(palette_name)
-                action.triggered.connect(
-                    lambda checked=False, series_id=series_id, palette_name=palette_name: (
-                        self.seriesPaletteRequested.emit(series_id, palette_name)
+
+                move_menu = menu.addMenu(self.tr("Move selected to series"))
+                for series in project.dataset.series:
+                    action = move_menu.addAction(series.name)
+                    action.triggered.connect(
+                        lambda checked=False, ids=list(selected_ids), target_id=series.id: (
+                            self.curvesMoveRequested.emit(ids, target_id)
+                        )
                     )
+                menu.addAction(self.tr("Move selected up")).triggered.connect(
+                    lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, -1)
                 )
-        menu.exec(self.viewport().mapToGlobal(position))
+                menu.addAction(self.tr("Move selected down")).triggered.connect(
+                    lambda checked=False, ids=list(selected_ids): self.curvesReorderRequested.emit(ids, 1)
+                )
+                menu.addSeparator()
+                colour_action = menu.addAction(self.tr("Choose spectrum colour…"))
+                colour_action.triggered.connect(
+                    lambda checked=False, curve_id=curve_id: self.curveColourRequested.emit(curve_id)
+                )
+            elif metadata[0] == "series":
+                series_id = str(metadata[1])
+                rename_action = menu.addAction(self.tr("Rename series…"))
+                rename_action.triggered.connect(
+                    lambda checked=False, series_id=series_id: self.seriesRenameRequested.emit(series_id)
+                )
+                description_action = menu.addAction(self.tr("Add description…"))
+                description_action.setEnabled(not project.read_only)
+                description_action.triggered.connect(
+                    lambda checked=False, series_id=series_id: self.seriesDescriptionRequested.emit(series_id)
+                )
+                merge_menu = menu.addMenu(self.tr("Merge series into"))
+                targets = [series for series in project.dataset.series if series.id != series_id]
+                merge_menu.setEnabled(bool(targets))
+                for target in targets:
+                    action = merge_menu.addAction(target.name)
+                    action.triggered.connect(
+                        lambda checked=False, source_id=series_id, target_id=target.id: (
+                            self.seriesMergeRequested.emit(source_id, target_id)
+                        )
+                    )
+                palette_menu = menu.addMenu(self.tr("Series palette"))
+                for palette_name in SERIES_PALETTES:
+                    action = palette_menu.addAction(palette_name)
+                    action.triggered.connect(
+                        lambda checked=False, series_id=series_id, palette_name=palette_name: (
+                            self.seriesPaletteRequested.emit(series_id, palette_name)
+                        )
+                    )
+            menu.exec(self.viewport().mapToGlobal(position))
 
     def _active_changed(self, current: QTreeWidgetItem | None, previous: QTreeWidgetItem | None) -> None:
         if self._updating or current is None:
@@ -839,6 +844,7 @@ class MainWindow(QMainWindow):
 
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
+        self.log.setMaximumBlockCount(5000)
         self.log_dock = self._dock(self.tr("Log"), self.log, Qt.DockWidgetArea.BottomDockWidgetArea)
         self.log_dock.hide()
 
@@ -1164,9 +1170,9 @@ class MainWindow(QMainWindow):
         self.about_action.triggered.connect(self.show_about)
 
     def configure_plot_appearance(self) -> None:
-        dialog = PlotAppearanceDialog(self.plot_workspace.plot_appearance(), self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.plot_workspace.set_plot_appearance(dialog.settings())
+        with transient_widget(PlotAppearanceDialog(self.plot_workspace.plot_appearance(), self)) as dialog:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.plot_workspace.set_plot_appearance(dialog.settings())
 
     def _build_menus(self) -> None:
         menu = self.menuBar()
@@ -1324,6 +1330,7 @@ class MainWindow(QMainWindow):
         self.model_panel.descriptionRequested.connect(self.describe_function)
         self.model_panel.noteRequested.connect(self.open_attached_note)
         self.plot_workspace.componentSelected.connect(self._set_component)
+        self.plot_workspace.componentOnCurveSelected.connect(self._set_component_on_curve)
         self.plot_workspace.maskPointRequested.connect(self.mask_point)
         self.plot_workspace.maskRangeRequested.connect(self.mask_range)
         self.plot_workspace.unmaskPointRequested.connect(lambda x: self.mask_point(x, unmask=True))
@@ -1337,7 +1344,7 @@ class MainWindow(QMainWindow):
         self.calculator.applyRequested.connect(self.apply_calculator)
         self.calculator.saveFormulaRequested.connect(self.save_custom_formula)
         self.function_builder.functionAdded.connect(lambda _: self._notify(self.tr("Function library updated.")))
-        self.worksheet_dock.visibilityChanged.connect(lambda visible: self.refresh_worksheet() if visible else None)
+        self.worksheet_dock.visibilityChanged.connect(self.refresh_worksheet)
         self.uncertainty_panel.runRequested.connect(self.start_uncertainty)
         self.uncertainty_panel.deleteRequested.connect(self.delete_uncertainty_analysis)
         self.model_panel.displayMethodChanged.connect(self._select_uncertainty_display)
@@ -1368,7 +1375,17 @@ class MainWindow(QMainWindow):
         self._select_uncertainty_display(self.uncertainty_panel.method.currentData())
 
     def refresh_all(self) -> None:
+        previous_project = getattr(self, "_displayed_project_id", id(self.project))
         self._sync_uncertainty_method()
+        # A hidden notebook is lazy but may still own the previous project.
+        # Dispose its stale panel without rebuilding another hidden notebook.
+        notebook = self._notebook_widget
+        if (notebook is not None and notebook.project is not self.project
+                and self.notebook_dock.isHidden()):
+            self._notebook_widget = None
+            self._notebook_placeholder = QWidget(self)
+            self.notebook_dock.setWidget(self._notebook_placeholder)
+            notebook.deleteLater()
         # Restoring Qt's dock state can expose the lazy placeholder without the
         # toolbar action running. Also rebind an open notebook on project changes.
         if not self.notebook_dock.isHidden():
@@ -1396,11 +1413,19 @@ class MainWindow(QMainWindow):
         self._refresh_diagnostics()
         if hasattr(self, "plugin_host"):
             self.plugin_host.emit("project_refreshed")
+        self._displayed_project_id = id(self.project)
+        if previous_project != self._displayed_project_id:
+            from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
+
+            ensure_gui_garbage_collection().retire_project()
 
     def new_project(self) -> None:
+        if not self._can_replace_project():
+            return
         if not self._confirm_discard_or_save():
             return
         self._release_lock()
+        self._clear_project_session_state()
         self.project = Project()
         self.active_curve_id = None
         self.selected_component_id = None
@@ -1408,6 +1433,8 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def open_project(self, path: str | Path | None = None) -> None:
+        if not self._can_replace_project():
+            return
         if path is None:
             selected, _ = QFileDialog.getOpenFileName(
                 self, self.tr("Open CurveMole project"), "", self.tr("CurveMole projects (*.fitproj)")
@@ -1426,6 +1453,7 @@ class MainWindow(QMainWindow):
             if not lock.acquired:
                 project.read_only = True
                 self._notify(self.tr("Project is already open elsewhere; opened read-only."), warning=True)
+            self._clear_project_session_state()
             self.project = project
             self.active_curve_id = project.curves[0].id if project.curves else None
             self.selected_component_id = None
@@ -1438,6 +1466,32 @@ class MainWindow(QMainWindow):
             self._remember_recent_project(project.path)
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
+
+    def _can_replace_project(self) -> bool:
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the running task before opening another project."), warning=True)
+            return False
+        if self.automation_runner.process is not None:
+            self._notify(self.tr("Stop the automation before opening another project."), warning=True)
+            return False
+        return True
+
+    def _clear_project_session_state(self) -> None:
+        """Drop project-specific state that outlives the panels' normal refresh."""
+        self.plot_workspace.cancel_placement()
+        self._pending_component = None
+        self._pending_component_curve_id = None
+        self._pending_manual_points = False
+        self.last_fit_plan = None
+        self._running_fit_plan = None
+        self._paused_result = None
+        self._sequential_pause_result = None
+        self._sequential_resume_plan = None
+        self._sequential_pause_source_ids = ()
+        self._fit_undo_before = None
+        self.resume_action.setEnabled(False)
+        # A large hidden worksheet otherwise keeps its old table allocation.
+        self.worksheet.set_curve(None)
 
     def import_data(self, paths: list[str] | None = None, *, preview_columns=None) -> None:
         if not self._ensure_editable():
@@ -1456,29 +1510,29 @@ class MainWindow(QMainWindow):
         try:
             for index, path in enumerate(paths):
                 if index == 0 or not apply_all:
-                    dialog = ImportMappingDialog(path, batch_size=len(paths), parent=self)
-                    choice = (preview_columns or {}).get(str(Path(path).resolve()))
-                    if choice:
-                        xi, yi = choice
-                        if xi < dialog.x_column.count() and yi < dialog.y_columns.count():
-                            dialog.x_column.setCurrentIndex(xi)
-                            for row in range(dialog.y_columns.count()):
-                                dialog.y_columns.item(row).setCheckState(
-                                    Qt.CheckState.Checked if row == yi else Qt.CheckState.Unchecked)
-                    dialog.series_name.setText(series.name)
-                    dialog.set_series_destinations(self.project.dataset.series, destination_id)
-                    if index > 0:
-                        dialog.destination_series.setEnabled(False)
-                        dialog.series_name.setEnabled(False)
-                    dialog.existing_series_names = {item.name for item in self.project.dataset.series}
-                    if dialog.exec() != dialog.DialogCode.Accepted:
-                        return
-                    if index == 0:
-                        destination_id = dialog.destination_series.currentData()
-                        series.name = dialog.series_name.text().strip()
-                    shared_mapping = dialog.mapping()
-                    shared_config = dialog.config()
-                    apply_all = dialog.apply_all.isChecked()
+                    with transient_widget(ImportMappingDialog(path, batch_size=len(paths), parent=self)) as dialog:
+                        choice = (preview_columns or {}).get(str(Path(path).resolve()))
+                        if choice:
+                            xi, yi = choice
+                            if xi < dialog.x_column.count() and yi < dialog.y_columns.count():
+                                dialog.x_column.setCurrentIndex(xi)
+                                for row in range(dialog.y_columns.count()):
+                                    dialog.y_columns.item(row).setCheckState(
+                                        Qt.CheckState.Checked if row == yi else Qt.CheckState.Unchecked)
+                        dialog.series_name.setText(series.name)
+                        dialog.set_series_destinations(self.project.dataset.series, destination_id)
+                        if index > 0:
+                            dialog.destination_series.setEnabled(False)
+                            dialog.series_name.setEnabled(False)
+                        dialog.existing_series_names = {item.name for item in self.project.dataset.series}
+                        if dialog.exec() != dialog.DialogCode.Accepted:
+                            return
+                        if index == 0:
+                            destination_id = dialog.destination_series.currentData()
+                            series.name = dialog.series_name.text().strip()
+                        shared_mapping = dialog.mapping()
+                        shared_config = dialog.config()
+                        apply_all = dialog.apply_all.isChecked()
                 curves = import_file(path, shared_mapping, shared_config)
                 for curve in curves:
                     curve.colour = PALETTE[(len(self.project.curves) + len(series.curves)) % len(PALETTE)]
@@ -1605,46 +1659,46 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Wait for the current task to finish before editing descriptions."))
             return
         entry = self.project.notebook.descriptions.get(description_key(kind, object_id, curve_id))
-        dialog = DescriptionDialog(title, entry.text if entry else "", self)
-        if dialog.exec() == dialog.DialogCode.Accepted:
-            self.project.notebook.set_description(self.project, kind, object_id, dialog.editor.toPlainText(), curve_id)
-            self.refresh_all()
+        with transient_widget(DescriptionDialog(title, entry.text if entry else "", self)) as dialog:
+            if dialog.exec() == dialog.DialogCode.Accepted:
+                self.project.notebook.set_description(self.project, kind, object_id, dialog.editor.toPlainText(), curve_id)
+                self.refresh_all()
 
     def export_analysis(self) -> None:
         remembered = self.project.export_config.get("directory")
-        dialog = ExportBundleDialog(remembered, self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        overwrite = dialog.overwrite.isChecked()
-        if overwrite:
-            answer = QMessageBox.question(
-                self,
-                self.tr("Confirm export update"),
-                self.tr(
-                    "CurveMole will overwrite only files previously recorded as belonging "
-                    "to this project export. Unrelated files will be preserved. Continue?"
-                ),
-            )
-            if answer != QMessageBox.StandardButton.Yes:
+        with transient_widget(ExportBundleDialog(remembered, self)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
                 return
-        try:
-            result = self._last_fit_result()
-            summary = export_bundle(
-                self.project,
-                dialog.directory.text(),
-                result=result,
-                versioned=dialog.versioned.isChecked(),
-                overwrite=overwrite,
-                include_uncertainty_samples=dialog.full_samples.isChecked(),
-                selection=dialog.selection(),
-            )
-            self.project.touch()
-            self._notify(
-                self.tr("Export complete: ")
-                + f"{len(summary.created)} {self.tr('created')}, {len(summary.updated)} {self.tr('updated')}."
-            )
-        except Exception as exc:
-            self._show_error(self.tr("Export analysis"), exc)
+            overwrite = dialog.overwrite.isChecked()
+            if overwrite:
+                answer = QMessageBox.question(
+                    self,
+                    self.tr("Confirm export update"),
+                    self.tr(
+                        "CurveMole will overwrite only files previously recorded as belonging "
+                        "to this project export. Unrelated files will be preserved. Continue?"
+                    ),
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+            try:
+                result = self._last_fit_result()
+                summary = export_bundle(
+                    self.project,
+                    dialog.directory.text(),
+                    result=result,
+                    versioned=dialog.versioned.isChecked(),
+                    overwrite=overwrite,
+                    include_uncertainty_samples=dialog.full_samples.isChecked(),
+                    selection=dialog.selection(),
+                )
+                self.project.touch()
+                self._notify(
+                    self.tr("Export complete: ")
+                    + f"{len(summary.created)} {self.tr('created')}, {len(summary.updated)} {self.tr('updated')}."
+                )
+            except Exception as exc:
+                self._show_error(self.tr("Export analysis"), exc)
 
     def export_parameters(self) -> None:
         if not self.project.curves:
@@ -1653,28 +1707,28 @@ class MainWindow(QMainWindow):
         suggested = (self.project.path.parent if self.project.path else Path.cwd()) / f"{self.project.name}-functions-parameters.csv"
         from PySide6.QtWidgets import QCheckBox, QGridLayout
 
-        dialog = QFileDialog(self, self.tr("Export functions parameters"), str(suggested),
-                             self.tr("CSV files (*.csv)"))
-        dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
-        dialog.setDefaultSuffix("csv")
-        dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
-        covariance = QCheckBox(self.tr("Also export covariance matrices"), dialog)
-        covariance.setObjectName("export_covariance")
-        covariance.setToolTip(self.tr(
-            "Write fit covariance and, when available, a separate sample covariance "
-            "for the selected bootstrap or Monte Carlo analysis."))
-        layout = dialog.layout()
-        if isinstance(layout, QGridLayout):
-            layout.addWidget(covariance, layout.rowCount(), 0, 1, layout.columnCount())
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        selected = dialog.selectedFiles()[0]
-        try:
-            destination = export_function_parameters(
-                self.project, selected, include_covariance=covariance.isChecked())
-            self._notify(self.tr("Functions parameters exported: ") + str(destination))
-        except Exception as exc:
-            self._show_error(self.tr("Export functions parameters"), exc)
+        with transient_widget(QFileDialog(self, self.tr("Export functions parameters"), str(suggested),
+                             self.tr("CSV files (*.csv)"))) as dialog:
+            dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
+            dialog.setDefaultSuffix("csv")
+            dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+            covariance = QCheckBox(self.tr("Also export covariance matrices"), dialog)
+            covariance.setObjectName("export_covariance")
+            covariance.setToolTip(self.tr(
+                "Write fit covariance and, when available, a separate sample covariance "
+                "for the selected bootstrap or Monte Carlo analysis."))
+            layout = dialog.layout()
+            if isinstance(layout, QGridLayout):
+                layout.addWidget(covariance, layout.rowCount(), 0, 1, layout.columnCount())
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            selected = dialog.selectedFiles()[0]
+            try:
+                destination = export_function_parameters(
+                    self.project, selected, include_covariance=covariance.isChecked())
+                self._notify(self.tr("Functions parameters exported: ") + str(destination))
+            except Exception as exc:
+                self._show_error(self.tr("Export functions parameters"), exc)
 
     def add_component(self) -> None:
         if not self._ensure_editable():
@@ -1684,36 +1738,36 @@ class MainWindow(QMainWindow):
             return
         curve = self.project.dataset.curve(self.active_curve_id)
         self.plot_workspace.cancel_placement()
-        dialog = AddComponentDialog(self.registry, curve, self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        try:
-            component = dialog.component()
-            definition = self.registry.get(component.function_id)
-            if definition.kind == "peak":
-                self.last_peak_function_id = component.function_id
-                self.settings.setValue("last_peak_function", component.function_id)
-                self._pending_component = component
-                self._pending_component_curve_id = self.active_curve_id
-                self.plot_workspace.begin_peak_placement(definition.display_name)
-                self._notify(
-                    self.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
-                )
+        with transient_widget(AddComponentDialog(self.registry, curve, self)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
                 return
-            if component.function_id == "cubic_spline":
-                self._pending_component = component
-                self._pending_component_curve_id = self.active_curve_id
-                self.plot_workspace.begin_spline_placement(definition.display_name)
-                self._notify(
-                    self.tr(
-                        "Click background points anywhere on the graph, including masked regions; "
-                        "finish after at least two points. Spline nodes are locked by default."
+            try:
+                component = dialog.component()
+                definition = self.registry.get(component.function_id)
+                if definition.kind == "peak":
+                    self.last_peak_function_id = component.function_id
+                    self.settings.setValue("last_peak_function", component.function_id)
+                    self._pending_component = component
+                    self._pending_component_curve_id = self.active_curve_id
+                    self.plot_workspace.begin_peak_placement(definition.display_name)
+                    self._notify(
+                        self.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
                     )
-                )
-                return
-            self._commit_component(component, self.active_curve_id)
-        except Exception as exc:
-            self._show_error(self.tr("Add component"), exc)
+                    return
+                if component.function_id == "cubic_spline":
+                    self._pending_component = component
+                    self._pending_component_curve_id = self.active_curve_id
+                    self.plot_workspace.begin_spline_placement(definition.display_name)
+                    self._notify(
+                        self.tr(
+                            "Click background points anywhere on the graph, including masked regions; "
+                            "finish after at least two points. Spline nodes are locked by default."
+                        )
+                    )
+                    return
+                self._commit_component(component, self.active_curve_id)
+            except Exception as exc:
+                self._show_error(self.tr("Add component"), exc)
 
     def quick_peak(self) -> None:
         if not self._ensure_editable():
@@ -1973,7 +2027,7 @@ class MainWindow(QMainWindow):
         if not self.active_curve_id:
             return
         parameter = self.project.model_for(self.active_curve_id).component(component_id).parameters[name]
-        dialog = ParameterLinkDialog(
+        with transient_widget(ParameterLinkDialog(
             self.project,
             self.active_curve_id,
             component_id,
@@ -1985,14 +2039,14 @@ class MainWindow(QMainWindow):
             current_relation=parameter.link_relation,
             current_tolerance=parameter.link_tolerance,
             current_tolerance_mode=parameter.link_tolerance_mode,
-        )
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        self.apply_parameter_link(self.active_curve_id, component_id, name,
-                                  dialog.selected_link(), dialog.selected_link_scope(),
-                                  reference_scopes=dialog.selected_reference_scopes(),
-                                  relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
-                                  tolerance_mode=dialog.selected_tolerance_mode())
+        )) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            self.apply_parameter_link(self.active_curve_id, component_id, name,
+                                      dialog.selected_link(), dialog.selected_link_scope(),
+                                      reference_scopes=dialog.selected_reference_scopes(),
+                                      relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
+                                      tolerance_mode=dialog.selected_tolerance_mode())
 
     def apply_parameter_link(self, curve_id: str, component_id: str, name: str,
                              link: str | None, scope: str, *,
@@ -2042,26 +2096,26 @@ class MainWindow(QMainWindow):
         from curvemole.gui.component_composition import CalculationOrderDialog
 
         model = self.project.model_for(curve_id)
-        dialog = CalculationOrderDialog(model, self.project.dataset.curve(curve_id).name, self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        mode, order = dialog.choices()
-        before = copy.deepcopy(model.to_dict())
-        candidate = model.clone()
-        candidate.composition_mode, candidate.operation_order = mode, order
-        try:
-            candidate.validate_composition()
-        except Exception as exc:
-            self._show_error(self.tr("Calculation order"), exc)
-            return
-        after = candidate.to_dict()
-        if before != after:
-            self._push_change(
-                self.tr("Change calculation order"),
-                lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
-                lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
-                modified_curve_ids={curve_id},
-            )
+        with transient_widget(CalculationOrderDialog(model, self.project.dataset.curve(curve_id).name, self)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            mode, order = dialog.choices()
+            before = copy.deepcopy(model.to_dict())
+            candidate = model.clone()
+            candidate.composition_mode, candidate.operation_order = mode, order
+            try:
+                candidate.validate_composition()
+            except Exception as exc:
+                self._show_error(self.tr("Calculation order"), exc)
+                return
+            after = candidate.to_dict()
+            if before != after:
+                self._push_change(
+                    self.tr("Change calculation order"),
+                    lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
+                    lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+                    modified_curve_ids={curve_id},
+                )
 
     def set_component_operator(self, curve_id: str, component_id: str, operator: str) -> None:
         if not self._ensure_editable():
@@ -2099,49 +2153,49 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("There is no next spectrum in this series."))
                 return
             next_id = ids[index + 1]
-        dialog = CopyFitDialog(self.project, self.active_curve_id, self, next_curve_id=next_id)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        targets, choices = dialog.choices()
-        if not targets:
-            return
+        with transient_widget(CopyFitDialog(self.project, self.active_curve_id, self, next_curve_id=next_id)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            targets, choices = dialog.choices()
+            if not targets:
+                return
 
-        def capture():
-            return {curve_id: {
-                "model": copy.deepcopy(self.project.model_for(curve_id).to_dict()),
-                "masks": copy.deepcopy(self.project.dataset.curve(curve_id).masks),
-                "active_mask": self.project.dataset.curve(curve_id).active_mask,
-                "fit_ranges": list(self.project.dataset.curve(curve_id).fit_ranges),
-            } for curve_id in targets}
+            def capture():
+                return {curve_id: {
+                    "model": copy.deepcopy(self.project.model_for(curve_id).to_dict()),
+                    "masks": copy.deepcopy(self.project.dataset.curve(curve_id).masks),
+                    "active_mask": self.project.dataset.curve(curve_id).active_mask,
+                    "fit_ranges": list(self.project.dataset.curve(curve_id).fit_ranges),
+                } for curve_id in targets}
 
-        def restore(states):
-            for curve_id, state in states.items():
-                self.project.models[curve_id] = Model.from_dict(copy.deepcopy(state["model"]))
-                curve = self.project.dataset.curve(curve_id)
-                curve.masks = copy.deepcopy(state["masks"])
-                curve.active_mask = state["active_mask"]
-                curve.fit_ranges = list(state["fit_ranges"])
+            def restore(states):
+                for curve_id, state in states.items():
+                    self.project.models[curve_id] = Model.from_dict(copy.deepcopy(state["model"]))
+                    curve = self.project.dataset.curve(curve_id)
+                    curve.masks = copy.deepcopy(state["masks"])
+                    curve.active_mask = state["active_mask"]
+                    curve.fit_ranges = list(state["fit_ranges"])
 
-        before = capture()
-        try:
-            self.project.copy_fit(self.active_curve_id, targets, **choices)
-            self._validate_all_links()
-        except Exception as exc:
+            before = capture()
+            try:
+                self.project.copy_fit(self.active_curve_id, targets, **choices)
+                self._validate_all_links()
+            except Exception as exc:
+                restore(before)
+                self._show_error(self.tr("Copy fit"), exc)
+                return
+            after = capture()
             restore(before)
-            self._show_error(self.tr("Copy fit"), exc)
-            return
-        after = capture()
-        restore(before)
 
-        self._push_change(
-            self.tr("Copy fit"),
-            lambda: restore(after),
-            lambda: restore(before),
-            modified_curve_ids=set(targets),
-            preserve_curve_ids={self.active_curve_id},
-        )
-        if next_id in targets:
-            self._set_active_curve(next_id)
+            self._push_change(
+                self.tr("Copy fit"),
+                lambda: restore(after),
+                lambda: restore(before),
+                modified_curve_ids=set(targets),
+                preserve_curve_ids={self.active_curve_id},
+            )
+            if next_id in targets:
+                self._set_active_curve(next_id)
 
     def subtract_background(self) -> None:
         if not self._ensure_editable():
@@ -2159,72 +2213,72 @@ class MainWindow(QMainWindow):
             )
             return
 
-        dialog = BackgroundComponentsDialog(self.project, curve_id, self.registry, self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        component_ids = dialog.selected_component_ids()
-        if not component_ids:
-            self._notify(self.tr("Select at least one background function."), warning=True)
-            return
+        with transient_widget(BackgroundComponentsDialog(self.project, curve_id, self.registry, self)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            component_ids = dialog.selected_component_ids()
+            if not component_ids:
+                self._notify(self.tr("Select at least one background function."), warning=True)
+                return
 
-        selected = [model.component(component_id) for component_id in component_ids]
-        try:
-            background = model.background(
-                curve.x,
-                curve_id=curve_id,
-                values=self.project.resolved_parameter_values(),
-                registry=self.registry,
-                component_ids=set(component_ids),
+            selected = [model.component(component_id) for component_id in component_ids]
+            try:
+                background = model.background(
+                    curve.x,
+                    curve_id=curve_id,
+                    values=self.project.resolved_parameter_values(),
+                    registry=self.registry,
+                    component_ids=set(component_ids),
+                )
+            except Exception as exc:
+                self._show_error(self.tr("Subtract background"), exc)
+                return
+            if not np.all(np.isfinite(background)):
+                self._notify(
+                    self.tr("The selected background functions produce non-finite values."),
+                    warning=True,
+                )
+                return
+
+            states_before = {
+                component.id: (component.is_background, component.enabled)
+                for component in selected
+            }
+            states_after = {component.id: (True, False) for component in selected}
+            transformation = apply_background_subtraction(
+                curve,
+                background,
+                method="model_components",
+                description=self.tr("Subtract marked model background"),
+                parameters={
+                    "component_ids": list(component_ids),
+                    "component_names": [component.name for component in selected],
+                },
             )
-        except Exception as exc:
-            self._show_error(self.tr("Subtract background"), exc)
-            return
-        if not np.all(np.isfinite(background)):
+            curve.undo_transformation()
+
+            def restore_states(states: dict[str, tuple[bool, bool]]) -> None:
+                for component_id, (marked, enabled) in states.items():
+                    component = model.component(component_id)
+                    component.is_background = marked
+                    component.enabled = enabled
+
+            def redo() -> None:
+                if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
+                    curve.redo_transformation()
+                elif transformation not in curve.transformations:
+                    curve.apply_transformation(transformation)
+                restore_states(states_after)
+
+            def undo() -> None:
+                if curve.transformations and curve.transformations[-1] is transformation:
+                    curve.undo_transformation()
+                restore_states(states_before)
+
+            self._push_change(self.tr("Subtract background"), redo, undo)
             self._notify(
-                self.tr("The selected background functions produce non-finite values."),
-                warning=True,
+                self.tr("Background subtracted. Selected background functions were disabled to avoid double-counting.")
             )
-            return
-
-        states_before = {
-            component.id: (component.is_background, component.enabled)
-            for component in selected
-        }
-        states_after = {component.id: (True, False) for component in selected}
-        transformation = apply_background_subtraction(
-            curve,
-            background,
-            method="model_components",
-            description=self.tr("Subtract marked model background"),
-            parameters={
-                "component_ids": list(component_ids),
-                "component_names": [component.name for component in selected],
-            },
-        )
-        curve.undo_transformation()
-
-        def restore_states(states: dict[str, tuple[bool, bool]]) -> None:
-            for component_id, (marked, enabled) in states.items():
-                component = model.component(component_id)
-                component.is_background = marked
-                component.enabled = enabled
-
-        def redo() -> None:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
-            restore_states(states_after)
-
-        def undo() -> None:
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
-            restore_states(states_before)
-
-        self._push_change(self.tr("Subtract background"), redo, undo)
-        self._notify(
-            self.tr("Background subtracted. Selected background functions were disabled to avoid double-counting.")
-        )
 
     def _apply_background_array(
         self,
@@ -2308,13 +2362,13 @@ class MainWindow(QMainWindow):
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
             selected = {self.active_curve_id}
-        dialog = FitPlanDialog(self.project, selected, self.fit_settings, self)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        plan = dialog.plan()
-        self.fit_settings = plan.settings
-        self.last_fit_plan = plan
-        self._run_fit(plan)
+        with transient_widget(FitPlanDialog(self.project, selected, self.fit_settings, self)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            plan = dialog.plan()
+            self.fit_settings = plan.settings
+            self.last_fit_plan = plan
+            self._run_fit(plan)
 
     def quick_fit(self) -> None:
         if not self._ensure_editable():
@@ -2611,14 +2665,14 @@ class MainWindow(QMainWindow):
             return
         from curvemole.gui.reorder import ReorderRulesDialog, load_reorder_rules
 
-        dialog = ReorderRulesDialog(
+        with transient_widget(ReorderRulesDialog(
             self.project.model_for(self.active_curve_id), self.registry,
             load_reorder_rules(self.settings), self,
-        )
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            rules = load_reorder_rules(self.settings)
-            rules.update(dialog.rules())
-            self.settings.setValue("model/reorder_rules", json.dumps(rules))
+        )) as dialog:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                rules = load_reorder_rules(self.settings)
+                rules.update(dialog.rules())
+                self.settings.setValue("model/reorder_rules", json.dumps(rules))
 
     def reorder_functions(self) -> None:
         if self._thread is not None or not self.active_curve_id or not self._ensure_editable():
@@ -3481,17 +3535,17 @@ class MainWindow(QMainWindow):
                 "the latest bug fixes, reliability improvements, and compatibility updates."
             )
         )
-        box = QMessageBox(self)
-        box.setIcon(QMessageBox.Icon.Information)
-        box.setWindowTitle(self.tr("CurveMole update available"))
-        box.setText(message)
-        open_button = box.addButton(
-            self.tr("Open release page"), QMessageBox.ButtonRole.AcceptRole
-        )
-        box.addButton(self.tr("Later"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        if box.clickedButton() is open_button:
-            self._open_external(release_url)
+        with transient_widget(QMessageBox(self)) as box:
+            box.setIcon(QMessageBox.Icon.Information)
+            box.setWindowTitle(self.tr("CurveMole update available"))
+            box.setText(message)
+            open_button = box.addButton(
+                self.tr("Open release page"), QMessageBox.ButtonRole.AcceptRole
+            )
+            box.addButton(self.tr("Later"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            if box.clickedButton() is open_button:
+                self._open_external(release_url)
 
     def open_documentation(self, name: str) -> None:
         from curvemole.gui.documentation import show_markdown_document
@@ -3525,20 +3579,21 @@ class MainWindow(QMainWindow):
         )
 
     def show_about(self) -> None:
-        AboutDialog(_resource_path("curvemole.png"), self).exec()
+        with transient_widget(AboutDialog(_resource_path("curvemole.png"), self)) as dialog:
+            dialog.exec()
 
     def show_plugin_manager(self) -> None:
         if self._thread is not None:
             QMessageBox.information(self, "Plugin Manager", "Wait for the running task to finish.")
             return
-        dialog = PluginManagerDialog(self.plugin_manager,
-                                     self.settings.value("plugin_directory", ""), self)
-        dialog.exec()
-        self.settings.setValue("plugin_directory", dialog.directory.text().strip())
-        if hasattr(self, "plugin_update_controller"):
-            self.plugin_update_controller.check()
-        self.plugin_host.refresh()
-        self.refresh_all()
+        with transient_widget(PluginManagerDialog(self.plugin_manager,
+                                     self.settings.value("plugin_directory", ""), self)) as dialog:
+            dialog.exec()
+            self.settings.setValue("plugin_directory", dialog.directory.text().strip())
+            if hasattr(self, "plugin_update_controller"):
+                self.plugin_update_controller.check()
+            self.plugin_host.refresh()
+            self.refresh_all()
 
     def _set_active_series(self, series_id: str) -> None:
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)
@@ -3994,6 +4049,15 @@ class MainWindow(QMainWindow):
             component_id,
         )
 
+    def _set_component_on_curve(self, curve_id: str, component_id: str) -> None:
+        model = self.project.models.get(curve_id)
+        if model is None or not any(component.id == component_id for component in model.components):
+            return
+        if curve_id != self.active_curve_id:
+            self._set_active_curve(curve_id)
+        self.model_panel.select_component_ref(curve_id, component_id)
+        self._set_component(component_id)
+
     def _model_mutation(self, text: str, operation: Callable[[Model], Any]) -> None:
         if not self.active_curve_id:
             return
@@ -4177,10 +4241,10 @@ class MainWindow(QMainWindow):
             return [self.project.dataset.curve(self.active_curve_id)]
         if scope == 1:
             from curvemole.gui.series_groups import SpectrumSelectionDialog
-            dialog = SpectrumSelectionDialog(self.project, self.active_curve_id, self)
-            if dialog.exec() != QDialog.DialogCode.Accepted:
-                return []
-            return [self.project.dataset.curve(identifier) for identifier in dialog.selected_ids()]
+            with transient_widget(SpectrumSelectionDialog(self.project, self.active_curve_id, self)) as dialog:
+                if dialog.exec() != QDialog.DialogCode.Accepted:
+                    return []
+                return [self.project.dataset.curve(identifier) for identifier in dialog.selected_ids()]
         series = self.project.dataset.series_for(self.active_curve_id)
         return list(series.curves)
 
@@ -4206,6 +4270,7 @@ class MainWindow(QMainWindow):
 
     def refresh_worksheet(self) -> None:
         if not self.worksheet_dock.isVisible():
+            self.worksheet.set_curve(None)
             return
         curve = self.project.dataset.curve(self.active_curve_id) if self.active_curve_id else None
         self.worksheet.set_curve(curve)
@@ -4283,8 +4348,7 @@ class MainWindow(QMainWindow):
         from curvemole.gui.recovery import RecoveryDialog
         from curvemole.gui.recovery_monitor import should_warn
 
-        if self._thread is not None:
-            self._notify(self.tr("Wait for the running task before recovering another session."))
+        if not self._can_replace_project():
             return
         try:
             paths = self.recovery.files()
@@ -4320,23 +4384,24 @@ class MainWindow(QMainWindow):
             paths = [p for p in paths if p in descriptions]
             if not paths:
                 return
-            dialog = RecoveryDialog(self.recovery, paths, self, descriptions=descriptions)
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            project = self.recovery.recover(dialog.selected_path)
-            if not self._confirm_discard_or_save():
-                return
-            self._release_lock()
-            self.project = project
-            self.active_curve_id = project.curves[0].id if project.curves else None
-            self.selected_component_id = None
-            self.undo_stack.clear()
-            self._load_custom_functions()
-            self._normalise_component_names()
-            self._normalise_spectrum_colours()
-            self.refresh_all()
-            self._notify(self.tr("Session recovered. Save the project to keep this work."))
-            self._autosave()
+            with transient_widget(RecoveryDialog(self.recovery, paths, self, descriptions=descriptions)) as dialog:
+                if dialog.exec() != dialog.DialogCode.Accepted:
+                    return
+                project = self.recovery.recover(dialog.selected_path)
+                if not self._confirm_discard_or_save():
+                    return
+                self._release_lock()
+                self._clear_project_session_state()
+                self.project = project
+                self.active_curve_id = project.curves[0].id if project.curves else None
+                self.selected_component_id = None
+                self.undo_stack.clear()
+                self._load_custom_functions()
+                self._normalise_component_names()
+                self._normalise_spectrum_colours()
+                self.refresh_all()
+                self._notify(self.tr("Session recovered. Save the project to keep this work."))
+                self._autosave()
         except Exception as exc:
             self._show_error(self.tr("Recover session"), exc)
 

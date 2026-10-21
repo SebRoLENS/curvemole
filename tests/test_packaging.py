@@ -52,3 +52,30 @@ def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:
     policy = (ROOT / ".github/scripts/workflow_plan.py").read_text(encoding="utf-8")
     assert '"[skip release]" in message' in policy
     assert "source_ref" in candidate["jobs"]["appimage"]["steps"][0]["with"]["ref"]
+
+
+def test_packaging_smoke_creates_valid_png_svg_and_pdf(tmp_path) -> None:
+    import xml.etree.ElementTree as ET
+
+    from PIL import Image
+
+    from curvemole import Component, Curve, Project
+    from curvemole.core.functions import formula_definition
+    from curvemole.core.packaging_smoke import _smoke_graphic_exports
+    from curvemole.core.registry import default_registry
+
+    project = Project("Renderer packaging smoke")
+    curve = Curve("sample", [0., 1., 2.], [1., 2., 1.])
+    project.add_curve(curve)
+    registry = default_registry()
+    registry.register(formula_definition("packaging_export", "Packaging export", "a * exp(-x*x)",
+                                         defaults={"a": 1.}))
+    project.model_for(curve.id).add(Component.create("packaging_export", registry=registry))
+    _smoke_graphic_exports(project, tmp_path, registry=registry)
+
+    with Image.open(tmp_path / "packaging-plot.png") as image:
+        assert image.format == "PNG"
+        assert image.size == (120, 80)
+        image.verify()
+    assert ET.parse(tmp_path / "packaging-plot.svg").getroot().tag.endswith("}svg")
+    assert (tmp_path / "packaging-report.pdf").read_bytes().startswith(b"%PDF-")

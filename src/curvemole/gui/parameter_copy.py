@@ -25,6 +25,7 @@ from curvemole.core.models import Model
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.model_multiselect import _current_ref
 from curvemole.gui.panels import ModelPanel
+from curvemole.gui.windowing import transient_widget
 
 
 @dataclass(slots=True)
@@ -466,24 +467,24 @@ def _install_parameter_copy() -> None:
         remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
         source_hint = remembered_source if remembered_source in refs else _current_ref(panel)
         parameter_hint = remembered_parameter if source_hint == remembered_source else None
-        dialog = CopyParameterDialog(window, refs, source_hint, parameter_hint)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        try:
-            result = copy_parameter_to_refs(
-                window,
-                dialog.source_ref(),
-                dialog.target_refs(),
-                dialog.parameter_name(),
-                copy_value=dialog.copy_value.isChecked(),
-                copy_fixed=dialog.copy_fixed.isChecked(),
-                copy_bounds=dialog.copy_bounds.isChecked(),
-                copy_link=dialog.copy_link.isChecked(),
-            )
-        except Exception as exc:
-            window._show_error(window.tr("Copy parameter"), exc)
-            return
-        _show_copy_result(window, result, dialog.parameter_name())
+        with transient_widget(CopyParameterDialog(window, refs, source_hint, parameter_hint)) as dialog:
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+            try:
+                result = copy_parameter_to_refs(
+                    window,
+                    dialog.source_ref(),
+                    dialog.target_refs(),
+                    dialog.parameter_name(),
+                    copy_value=dialog.copy_value.isChecked(),
+                    copy_fixed=dialog.copy_fixed.isChecked(),
+                    copy_bounds=dialog.copy_bounds.isChecked(),
+                    copy_link=dialog.copy_link.isChecked(),
+                )
+            except Exception as exc:
+                window._show_error(window.tr("Copy parameter"), exc)
+                return
+            _show_copy_result(window, result, dialog.parameter_name())
 
     ModelPanel.__init__ = init
     ModelPanel._remember_parameter_copy_source = remember_source

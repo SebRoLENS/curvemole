@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.core.uncertainty_summary import METHOD_LABELS, summarize
+from curvemole.gui.windowing import transient_widget
 
 
 class UncertaintyResults(QWidget):
@@ -191,8 +192,8 @@ class UncertaintyResults(QWidget):
         data = self._assessment_rows[row]
         reasons = data.get("reason_items") or ([data["reasons"]] if data["reasons"] else [])
         details = "".join(f"<li>{escape(reason)}</li>" for reason in reasons)
-        box = QMessageBox(self)
-        box.setWindowTitle("Assessment details")
-        box.setText(escape(f"{data['spectrum']} / {data['function']} / {data['parameter']}: {data['status']}"))
-        box.setInformativeText(f"<ul>{details}</ul>" if details else "No reasons were recorded.")
-        box.exec()
+        with transient_widget(QMessageBox(self)) as box:
+            box.setWindowTitle("Assessment details")
+            box.setText(escape(f"{data['spectrum']} / {data['function']} / {data['parameter']}: {data['status']}"))
+            box.setInformativeText(f"<ul>{details}</ul>" if details else "No reasons were recorded.")
+            box.exec()

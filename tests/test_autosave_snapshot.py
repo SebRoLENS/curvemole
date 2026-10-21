@@ -45,7 +45,7 @@ def test_snapshot_shares_original_data_but_detaches_all_mutable_archive_state(tm
     np.testing.assert_array_equal(recovered.curves[0].y, np.full(30, 2.))
     assert recovered.curves[0].effective_mask[3:6].all()
     assert recovered.models[curve.id].components[0].parameters["offset"].value == 7
-    assert recovered.results["values"] == [1., 2.]
+    np.testing.assert_array_equal(recovered.results["values"], [1., 2.])
     assert recovered.ui_state["nested"]["value"] == [1]
     assert recovered.notebook.notes == "Before"
     assert project.dirty and project.path is None

@@ -61,7 +61,7 @@ def test_delete_initial_add_keeps_remaining_model_visible_and_undo_restores_comp
         assert [component.id for component in model.components] == [factor.id, other.id]
         assert model.component(factor.id).operator == "add"
         assert "using Add" in questions[0]
-        assert set(window.plot_workspace._component_items) == {factor.id, other.id}
+        assert set(window.plot_workspace._component_items) == {(curve.id, factor.id), (curve.id, other.id)}
         assert set(window.plot_workspace._data_items) == {curve.id}
         remaining_fit = model.evaluate(curve.x, curve_id=curve.id)
         assert np.all(np.isfinite(remaining_fit))
@@ -87,7 +87,7 @@ def test_delete_later_add_preserves_multiplication(monkeypatch):
         assert model.component(factor.id).operator == "multiply"
         np.testing.assert_allclose(model.evaluate(curve.x, curve_id=curve.id),
                                    2. * Model(components=[base]).evaluate(curve.x))
-        assert set(window.plot_workspace._component_items) == {base.id, factor.id}
+        assert set(window.plot_workspace._component_items) == {(curve.id, base.id), (curve.id, factor.id)}
     finally:
         close(window, app)
 
@@ -107,7 +107,7 @@ def test_deletion_with_dependent_link_is_rejected_without_changing_project_or_pl
         assert project.model_for(curve.id).to_dict() == before
         assert window.undo_stack.count() == 0
         assert "Remove the following links or constraints first" in errors[0]
-        assert set(window.plot_workspace._component_items) == {component.id for component in project.model_for(curve.id).components}
+        assert set(window.plot_workspace._component_items) == {(curve.id, component.id) for component in project.model_for(curve.id).components}
     finally:
         close(window, app)
 
@@ -132,9 +132,9 @@ def test_invalid_link_does_not_hide_data_or_healthy_cross_spectrum_models():
         workspace.scope_project.setChecked(True)
         workspace.refresh()
         assert set(workspace._data_items) == {curve.id, healthy.id, broken.id}
-        assert linked.id in workspace._component_items
-        assert other.id in workspace._component_items
-        assert invalid.id not in workspace._component_items
+        assert (healthy.id, linked.id) in workspace._component_items
+        assert (curve.id, other.id) in workspace._component_items
+        assert (broken.id, invalid.id) not in workspace._component_items
         assert "missing.function.center" in workspace.plot.toolTip()
     finally:
         close(window, app)

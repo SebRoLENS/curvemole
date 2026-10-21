@@ -2263,8 +2263,15 @@ A `.fitproj` is a ZIP container with:
 - uncertainty and weight arrays when present;
 - mask arrays;
 - transformation operands;
+- binary fit-output, covariance and raw uncertainty-sample arrays;
 - models, links, custom functions, results, history, and UI/export state;
 - SHA-256 checksums for every binary payload.
+
+Project schema 3 keeps numerical results in NumPy payloads and streams the complete
+fit history separately. This reduces memory while preserving all recorded fits and
+sample values. Schemas 1 and 2 remain readable. Newly saved schema 3 projects
+require a compatible CurveMole version; keep a backup when sharing with older
+installations. Model and workflow formats remain at schema 2.
 
 NumPy arrays are loaded with `allow_pickle=False`. CurveMole projects never require
 executing a Python pickle. The format is documented in [project-format.md](project-format.md).

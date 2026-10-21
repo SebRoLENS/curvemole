@@ -23,6 +23,7 @@ from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols
 from curvemole.gui.updates import UpdateController
+from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
 PlotViewState = tuple[
@@ -85,6 +86,9 @@ def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
         for item in tuple(plot.listDataItems()):
             _split_dense_symbols(plot, item)
             _optimise_plot_data_item(item, adaptive=adaptive)
+    # Dense rendering can add marker items after refresh configured placement.
+    # Apply the same mouse rules to those new items before the next click.
+    workspace._sync_placement_mouse_targets()
 
 
 def _is_dense_mask_marker(kwargs: dict[str, Any]) -> bool:
@@ -341,22 +345,22 @@ class CurveMoleMainWindow(MainWindow):
 
     def _offer_linux_desktop_integration(self) -> None:
         """Offer AppImage integration once, while keeping the menu action available."""
-        box = QMessageBox(self)
-        box.setWindowTitle(self.tr("Desktop integration"))
-        box.setIcon(QMessageBox.Icon.Question)
-        box.setText(
-            self.tr(
-                "Would you like to add CurveMole to the application menu and register it for .fitproj files?"
+        with transient_widget(QMessageBox(self)) as box:
+            box.setWindowTitle(self.tr("Desktop integration"))
+            box.setIcon(QMessageBox.Icon.Question)
+            box.setText(
+                self.tr(
+                    "Would you like to add CurveMole to the application menu and register it for .fitproj files?"
+                )
             )
-        )
-        integrate_button = box.addButton(
-            self.tr("Integrate CurveMole"), QMessageBox.ButtonRole.AcceptRole
-        )
-        box.addButton(self.tr("Not now"), QMessageBox.ButtonRole.RejectRole)
-        box.exec()
-        self.settings.setValue("desktop/linux_integration_prompted_v2", True)
-        if box.clickedButton() is integrate_button:
-            self.integrate_linux_desktop()
+            integrate_button = box.addButton(
+                self.tr("Integrate CurveMole"), QMessageBox.ButtonRole.AcceptRole
+            )
+            box.addButton(self.tr("Not now"), QMessageBox.ButtonRole.RejectRole)
+            box.exec()
+            self.settings.setValue("desktop/linux_integration_prompted_v2", True)
+            if box.clickedButton() is integrate_button:
+                self.integrate_linux_desktop()
 
     def integrate_linux_desktop(self) -> None:
         """Install or update the per-user AppImage launcher and file association."""

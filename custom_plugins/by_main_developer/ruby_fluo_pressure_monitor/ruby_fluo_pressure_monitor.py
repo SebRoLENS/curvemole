@@ -747,11 +747,13 @@ def monitor_panel(context):
     if getattr(context, "services", None) is None:
         raise ValueError("Update CurveMole to a version with plugin panel services.")
     services = context.services
+    project_id = context.project_id if hasattr(context, "project_id") else context.project.id
+    initial_settings = copy.deepcopy(context.data)
 
     class MonitorPanel(QWidget):
         def __init__(self):
             super().__init__()
-            self.project_id = context.project.id
+            self.project_id = project_id
             self.curve_id = None
             self.loaded_settings = None
             self.show_first = False
@@ -792,8 +794,8 @@ def monitor_panel(context):
             self.status = QLabel()
             self.status.setWordWrap(True)
             layout.addWidget(self.status)
-            self.folder = QLineEdit(context.data.get("monitor_folder", ""))
-            self.contains = QLineEdit(settings(context.data)["filename_contains"])
+            self.folder = QLineEdit(initial_settings.get("monitor_folder", ""))
+            self.contains = QLineEdit(settings(initial_settings)["filename_contains"])
             browse = QPushButton("Choose folder…")
             def choose():
                 path = QFileDialog.getExistingDirectory(self, "Choose acquisition folder", self.folder.text())
@@ -843,12 +845,28 @@ def monitor_panel(context):
         def displayed_curve(self, snapshot):
             return next((c for c in snapshot.project.curves if c.id == self.curve_id), None)
 
+        def snapshot(self):
+            # New hosts provide the active data + linked models without copying
+            # historical fits/resampling matrices on every timer tick.
+            if callable(getattr(services, "active_model_snapshot", None)):
+                return services.active_model_snapshot()
+            return services.snapshot()
+
+        def showEvent(self, event):
+            super().showEvent(event)
+            self.timer.start()
+            self.refresh()
+
+        def hideEvent(self, event):
+            self.timer.stop()
+            super().hideEvent(event)
+
         def temperature_edited(self, _text):
             self.temperature_pending = True
             self.refresh()
 
         def save(self):
-            snapshot = services.snapshot()
+            snapshot = self.snapshot()
             if snapshot.project.id != self.project_id:
                 self.refresh()
                 return
@@ -875,7 +893,7 @@ def monitor_panel(context):
             # Commit any spin-box text before reading this spectrum's settings.
             self.temperature.interpretText()
             self.save()
-            snapshot = services.snapshot()
+            snapshot = self.snapshot()
             curve = self.displayed_curve(snapshot)
             if curve is None:
                 raise ValueError("Select a ruby spectrum first.")
@@ -886,20 +904,20 @@ def monitor_panel(context):
         def start_monitor(self):
             self.temperature.interpretText()
             self.save()
-            self.show_first = services.snapshot().active_curve_id is None and not self.follow.isChecked()
+            self.show_first = self.snapshot().active_curve_id is None and not self.follow.isChecked()
             services.start_monitor(self.folder.text(), self.contains.text().strip(),
                                    include_existing=self.existing.isChecked(),
                                    follow=self.follow.isChecked() or self.show_first)
 
         def configure(self):
-            snapshot = services.snapshot()
+            snapshot = self.snapshot()
             configure(snapshot)
             self.loaded_settings = None
 
         def refresh(self):
             try:
                 status = services.monitor_status()
-                snapshot = services.snapshot()
+                snapshot = self.snapshot()
                 if snapshot.project.id != self.project_id:
                     self.project_id = snapshot.project.id
                     self.curve_id = None

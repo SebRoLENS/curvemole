@@ -208,11 +208,22 @@ def commit_calibration(window, curve_ids, profile):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             QMessageBox.StandardButton.No) != QMessageBox.StandardButton.Yes):
         return False
-    before = copy.deepcopy(window.project)
-    after = copy.deepcopy(before)
-    apply_to_project(after, curve_ids, profile)
-    def restore(project):
-        window.project = copy.deepcopy(project)
+    snapshots = getattr(getattr(window, "plugin_host", None), "_snapshots", None)
+    if snapshots is not None:
+        before = snapshots.capture(window.project)
+        changed = before.restore()
+        apply_to_project(changed, curve_ids, profile)
+        after = snapshots.capture(changed)
+
+        def restore(project):
+            window.project = project.restore()
+    else:
+        before = copy.deepcopy(window.project)
+        after = copy.deepcopy(before)
+        apply_to_project(after, curve_ids, profile)
+
+        def restore(project):
+            window.project = copy.deepcopy(project)
     window._push_change("Apply X calibration" if profile else "Restore uncalibrated X",
                         lambda: restore(after), lambda: restore(before), modified_curve_ids=set())
     return True
@@ -236,10 +247,12 @@ def create_panel(context):
         QWidget,
     )
 
+    services = context.services
+
     class CalibrationPanel(QWidget):
         def __init__(self):
             super().__init__()
-            self.services = context.services
+            self.services = services
             # Use the existing native import and undo commands; no host modifications.
             self.window = self.services._window()
             self.project_id = None
@@ -381,7 +394,8 @@ def create_panel(context):
                     raise ValueError(f"Reference row {row+1}: enter both numeric positions.") from exc
             p = make_profile(self.name.text(), measured, reference, degree=self.method.currentData(),
                              unit=self.unit.text().strip(), source=self.spectrum.currentText())
-            data = copy.deepcopy(self.services.snapshot().data)
+            data = (self.services.settings() if hasattr(self.services, "settings")
+                    else copy.deepcopy(self.services.snapshot().data))
             data.setdefault(KEY, {})[p["id"]] = p
             self.services.save_settings(data)
             # Match residuals back to the table's original row order.
@@ -439,7 +453,8 @@ def create_panel(context):
             path, _ = QFileDialog.getOpenFileName(self, "Import calibration", "", "Calibration (*.json)")
             if path:
                 p = import_profile(path)
-                data = copy.deepcopy(self.services.snapshot().data)
+                data = (self.services.settings() if hasattr(self.services, "settings")
+                        else copy.deepcopy(self.services.snapshot().data))
                 data.setdefault(KEY, {})[p["id"]] = p
                 self.services.save_settings(data)
                 self.refresh()

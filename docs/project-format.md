@@ -1,9 +1,11 @@
-# `.fitproj` format version 2
+# `.fitproj` format version 3
 
 A project is an ordinary ZIP archive:
 
 ```text
 manifest.json
+history.jsonl
+results/arrays/<index>.npy
 data/<curve-id>/original_x.npy
 data/<curve-id>/original_y.npy
 data/<curve-id>/sigma_y.npy              optional
@@ -13,9 +15,35 @@ data/<curve-id>/transformations/*_operand.npy  optional
 ```
 
 `manifest.json` contains `format`, `schema_version`, application version, project
-metadata, model graphs, histories, UI/export state, and a SHA-256 map for every
-binary payload. NumPy arrays are loaded with `allow_pickle=False`. A save is written
+metadata, model graphs, UI/export state, and a SHA-256 map for every
+binary payload and the history stream. NumPy arrays are loaded with `allow_pickle=False`. A save is written
 to a temporary sibling, reopened and validated, then atomically replaces the target.
+
+## Numerical results and history
+
+Version 3 stores fit-output arrays, covariance/correlation matrices and raw
+uncertainty samples as binary NumPy payloads. JSON refers to each payload using
+`{"__curvemole_array__":"results/arrays/000000.npy"}`. Repeated references to the
+same array share one payload and one loaded buffer. User dictionaries with a
+reserved marker key are escaped with `__curvemole_literal_dict__` so their content
+is never interpreted as an array reference. Array dtypes and numeric bits are
+preserved, including signed zero and non-finite numerical-array values.
+
+The project's `fit_history` field contains
+`{"storage":"history.jsonl","count":N}`. The referenced UTF-8 stream contains one
+JSON record per line. All records are retained. The application keeps untouched
+records compressed in memory and streams them when saving, instead of retaining
+every historical Python object or building one large JSON string.
+
+Version 1 and 2 projects remain readable; legacy JSON uncertainty samples are
+restored into float64 arrays without reducing precision. Save a backup before
+opening a project with older software: version 3 result storage requires a
+CurveMole version that supports schema 3. Model and YAML workflow formats remain
+at schema 2. No project archive contains or executes Python pickles.
+
+CRC and SHA-256 checks read ZIP members in bounded chunks. Partial recovery can
+retain intact experimental spectra if a numerical result or history member is
+damaged; recovered archives open read-only for inspection and Save As.
 
 ## Retained import columns
 

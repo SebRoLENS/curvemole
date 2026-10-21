@@ -23,6 +23,7 @@ from curvemole.gui.dialogs import AddComponentDialog
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import FunctionBuilderPanel
 from curvemole.gui.plot import PlotWorkspace
+from curvemole.gui.windowing import transient_widget
 
 
 def manual_points_default(definition: Any) -> bool:
@@ -359,83 +360,83 @@ def _install_main_window() -> None:
             return
         curve = window.project.dataset.curve(window.active_curve_id)
         window.plot_workspace.cancel_placement()
-        dialog = AddComponentDialog(window.registry, curve, window)
-        from curvemole.gui.function_composition import (
-            OPERATORS,
-            operator_available,
-            selected_operator,
-            set_operator,
-        )
-        for index, (operator, _, _) in enumerate(OPERATORS):
-            dialog.operator.model().item(index).setEnabled(operator_available(window, operator))
-        current_operator = selected_operator(window)
-        dialog.operator.setCurrentText(current_operator if operator_available(window, current_operator) else "add")
-        def update_background_option():
-            allowed = dialog.operator.currentText() in {"add", "subtract"}
-            dialog.add_as_background.setEnabled(allowed)
-            if not allowed:
-                dialog.add_as_background.setChecked(False)
-        dialog.operator.currentIndexChanged.connect(lambda *_: update_background_option())
-        update_background_option()
-        selector = getattr(window, "quick_function_selector", None)
-        if selector is not None:
-            index = dialog.function.findData(selector.currentData())
-            if index >= 0:
-                dialog.function.setCurrentIndex(index)
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        try:
-            component = dialog.component()
-            set_operator(window, component.operator)
-            definition = window.registry.get(component.function_id)
-            use_points = bool(dialog.use_manual_points())
-            if definition.kind == "peak":
-                window.last_peak_function_id = component.function_id
-                window.settings.setValue("last_peak_function", component.function_id)
-
-            if use_points:
-                window._pending_component = component
-                window._pending_component_curve_id = window.active_curve_id
-                window._pending_manual_points = True
-                required = minimum_manual_points(component)
-                window.plot_workspace.begin_manual_point_placement(
-                    definition.display_name,
-                    component.function_id,
-                    required,
-                )
-                window._notify(
-                    window.tr("Select explicit graph points, then press Finish. ")
-                    + window.tr("The resulting parameters will be locked by default.")
-                )
+        with transient_widget(AddComponentDialog(window.registry, curve, window)) as dialog:
+            from curvemole.gui.function_composition import (
+                OPERATORS,
+                operator_available,
+                selected_operator,
+                set_operator,
+            )
+            for index, (operator, _, _) in enumerate(OPERATORS):
+                dialog.operator.model().item(index).setEnabled(operator_available(window, operator))
+            current_operator = selected_operator(window)
+            dialog.operator.setCurrentText(current_operator if operator_available(window, current_operator) else "add")
+            def update_background_option():
+                allowed = dialog.operator.currentText() in {"add", "subtract"}
+                dialog.add_as_background.setEnabled(allowed)
+                if not allowed:
+                    dialog.add_as_background.setChecked(False)
+            dialog.operator.currentIndexChanged.connect(lambda *_: update_background_option())
+            update_background_option()
+            selector = getattr(window, "quick_function_selector", None)
+            if selector is not None:
+                index = dialog.function.findData(selector.currentData())
+                if index >= 0:
+                    dialog.function.setCurrentIndex(index)
+            if dialog.exec() != dialog.DialogCode.Accepted:
                 return
+            try:
+                component = dialog.component()
+                set_operator(window, component.operator)
+                definition = window.registry.get(component.function_id)
+                use_points = bool(dialog.use_manual_points())
+                if definition.kind == "peak":
+                    window.last_peak_function_id = component.function_id
+                    window.settings.setValue("last_peak_function", component.function_id)
 
-            window._pending_manual_points = False
-            if definition.kind == "peak":
-                window._pending_component = component
-                window._pending_component_curve_id = window.active_curve_id
-                window.plot_workspace.begin_peak_placement(definition.display_name)
-                window._notify(
-                    window.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
-                )
-                return
+                if use_points:
+                    window._pending_component = component
+                    window._pending_component_curve_id = window.active_curve_id
+                    window._pending_manual_points = True
+                    required = minimum_manual_points(component)
+                    window.plot_workspace.begin_manual_point_placement(
+                        definition.display_name,
+                        component.function_id,
+                        required,
+                    )
+                    window._notify(
+                        window.tr("Select explicit graph points, then press Finish. ")
+                        + window.tr("The resulting parameters will be locked by default.")
+                    )
+                    return
 
-            if component.function_id == "cubic_spline":
-                # Free-mode spline: initialize the dialog's default x nodes from
-                # the active curve, but leave y parameters free for fitting.
-                nodes = np.asarray(component.metadata.get("x_nodes", []), dtype=float)
-                finite = np.isfinite(curve.x) & np.isfinite(curve.y)
-                if len(nodes) >= 2 and np.any(finite):
-                    order = np.argsort(curve.x[finite])
-                    xs = curve.x[finite][order]
-                    ys = curve.y[finite][order]
-                    for index, node in enumerate(nodes):
-                        parameter = component.parameters.get(f"y{index}")
-                        if parameter is not None:
-                            parameter.value = float(np.interp(node, xs, ys))
-                            parameter.fixed = False
-            window._commit_component(component, window.active_curve_id)
-        except Exception as exc:
-            window._show_error(window.tr("Add component"), exc)
+                window._pending_manual_points = False
+                if definition.kind == "peak":
+                    window._pending_component = component
+                    window._pending_component_curve_id = window.active_curve_id
+                    window.plot_workspace.begin_peak_placement(definition.display_name)
+                    window._notify(
+                        window.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
+                    )
+                    return
+
+                if component.function_id == "cubic_spline":
+                    # Free-mode spline: initialize the dialog's default x nodes from
+                    # the active curve, but leave y parameters free for fitting.
+                    nodes = np.asarray(component.metadata.get("x_nodes", []), dtype=float)
+                    finite = np.isfinite(curve.x) & np.isfinite(curve.y)
+                    if len(nodes) >= 2 and np.any(finite):
+                        order = np.argsort(curve.x[finite])
+                        xs = curve.x[finite][order]
+                        ys = curve.y[finite][order]
+                        for index, node in enumerate(nodes):
+                            parameter = component.parameters.get(f"y{index}")
+                            if parameter is not None:
+                                parameter.value = float(np.interp(node, xs, ys))
+                                parameter.fixed = False
+                window._commit_component(component, window.active_curve_id)
+            except Exception as exc:
+                window._show_error(window.tr("Add component"), exc)
 
     def graphical_points_placed(window: MainWindow, points: object) -> None:
         if not bool(getattr(window, "_pending_manual_points", False)):

@@ -3,7 +3,7 @@
   "name": "ruby_fluo_pressure_monitor",
   "description": "Monitor ruby fluorescence acquisitions, fit the R doublet and calculate pressure with selectable Mao–Xu–Bell or IPPS Ruby2020 scales.",
   "author": "CurveMole contributors",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "api_compatibility": "1",
   "licence": "GPL-3.0-or-later",
   "capabilities": [

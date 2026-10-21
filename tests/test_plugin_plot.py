@@ -68,6 +68,38 @@ def test_generic_previews_reuse_main_graph_without_mutation_or_navigation_change
     assert not session._items and not session.closed
 
 
+def test_layer_redraw_replaces_previous_items_and_native_refresh_releases_them(preview_window):
+    import gc
+
+    _, main, _, _, _ = preview_window
+    host = main.plugin_host
+    entry = Contribution("test.layer", "test.layer:curve", "Layer", "plot_layers", lambda ctx: None)
+    for value in (1, 2, 3):
+        host.show_layer(entry, [{"x": np.arange(5.), "y": np.full(5, value)}])
+        visible = [ref() for ref in host._layers[entry.identifier]]
+        assert len(visible) == 1
+        assert sum(item.name() == "Layer" for item in main.plot_workspace.plot.listDataItems()) == 1
+        np.testing.assert_array_equal(visible[0].yData, np.full(5, value))
+    references = list(host._layers[entry.identifier])
+    del visible
+    main.refresh_all()
+    gc.collect()
+    assert not any(ref() is not None for ref in references)
+
+
+def test_analysis_result_dialog_is_destroyed_after_close(preview_window, monkeypatch):
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from PySide6.QtWidgets import QDialog
+
+    _, main, _, _, _ = preview_window
+    monkeypatch.setattr(QDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+    entry = Contribution("test.analysis", "test.analysis:text", "Analysis", "analysis", lambda ctx: "Large output")
+    before = len(main.findChildren(QDialog))
+    main.plugin_host.run(entry)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert len(main.findChildren(QDialog)) == before
+
+
 def test_marker_review_and_exclusive_real_sample_picking(preview_window):
     app, main, curve, _, session = preview_window
     selected, picked, modes = [], [], []

@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.project import Project
 from curvemole.core.spectrum_export import SpectrumExportOptions, export_spectra
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.windowing import transient_widget
 
 _ORIGINAL_BUILD_ACTIONS = MainWindow._build_actions
 _ORIGINAL_BUILD_MENUS = MainWindow._build_menus
@@ -215,31 +216,31 @@ def _export_spectra_data(window: MainWindow) -> None:
         window._notify(window.tr("Import data before exporting spectra."), warning=True)
         return
     remembered = str(window.settings.value("spectrum_export_directory", ""))
-    dialog = SpectrumExportDialog(
+    with transient_widget(SpectrumExportDialog(
         window.project,
         window.active_curve_id,
         remembered or None,
         window,
-    )
-    if dialog.exec() != dialog.DialogCode.Accepted:
-        return
-    try:
-        destination = dialog.directory.text().strip()
-        created = export_spectra(
-            window.project,
-            destination,
-            dialog.selected_curve_ids(),
-            options=dialog.options(),
-            registry=window.registry,
-        )
-        window.settings.setValue("spectrum_export_directory", destination)
-        window._notify(
-            window.tr("Spectrum export complete: ")
-            + f"{len(created)} "
-            + window.tr("file(s) written.")
-        )
-    except Exception as exc:
-        window._show_error(window.tr("Export spectra"), exc)
+    )) as dialog:
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        try:
+            destination = dialog.directory.text().strip()
+            created = export_spectra(
+                window.project,
+                destination,
+                dialog.selected_curve_ids(),
+                options=dialog.options(),
+                registry=window.registry,
+            )
+            window.settings.setValue("spectrum_export_directory", destination)
+            window._notify(
+                window.tr("Spectrum export complete: ")
+                + f"{len(created)} "
+                + window.tr("file(s) written.")
+            )
+        except Exception as exc:
+            window._show_error(window.tr("Export spectra"), exc)
 
 
 def _install() -> None:

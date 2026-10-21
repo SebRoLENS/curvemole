@@ -4,7 +4,7 @@
 
 Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
 
-Version 0.6.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 0.6.1. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
@@ -12,6 +12,10 @@ peak at the longer wavelength. All processing is local.
 ## Requirements and installation
 
 Requires **CurveMole 0.25.2 or later** with the existing generic panel services.
+On newer hosts, periodic refresh copies only the active spectrum, linked models
+and this plugin's settings, omitting historical fits and uncertainty samples.
+Polling pauses while the panel is hidden. Older hosts retain the full-snapshot
+fallback.
 This version changes only the plugin; an app that already has these services does
 not need another desktop rebuild.
 1. In **File > Plugin Manager > Choose plugin folder…**, choose this directory.

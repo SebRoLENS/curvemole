@@ -175,13 +175,6 @@ def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
             item.setZValue(4.0)
 
 
-def _item_name(item: pg.PlotDataItem) -> str:
-    try:
-        return str(item.name() or "")
-    except Exception:
-        return str(item.opts.get("name") or "")
-
-
 def _label_position(x: np.ndarray, y: np.ndarray) -> tuple[float, float] | None:
     finite = np.isfinite(x) & np.isfinite(y)
     if not np.any(finite):
@@ -267,35 +260,14 @@ def _apply_background_aware_display(
             display_y[unmasked] + index * y_step,
         )
 
-    # Model sums are named but not otherwise retained by PlotWorkspace.
-    data_item_ids = {id(item) for item in workspace._data_items.values()}
-    component_item_ids = {id(item) for item in workspace._component_items.values()}
-    sum_candidates = [
-        item
-        for item in workspace.plot.listDataItems()
-        if id(item) not in data_item_ids
-        and id(item) not in component_item_ids
-        and _item_name(item).endswith(" Model sum")
-    ]
-    used_sum_items: set[int] = set()
     for curve in curves:
         subtract = background_removed(workspace, curve.id)
         model = project.models.get(curve.id)
         if model is None or not model.components:
             continue
-        wanted = f"{curve.name} Model sum"
-        sum_item = next(
-            (
-                item
-                for item in sum_candidates
-                if id(item) not in used_sum_items and _item_name(item) == wanted
-            ),
-            None,
-        )
+        sum_item = workspace._sum_items.get(curve.id)
         if sum_item is None:
             continue
-        used_sum_items.add(id(sum_item))
-        sum_item.curve_id = curve.id
         if subtract:
             x_data, y_data = sum_item.getOriginalDataset()
             background = backgrounds.get(curve.id)
@@ -317,7 +289,7 @@ def _apply_background_aware_display(
         background = backgrounds.get(curve.id, np.zeros_like(curve.y, dtype=float))
         y_offset = index * y_step
         for component in model.components:
-            item = workspace._component_items.get(component.id)
+            item = workspace._component_items.get((curve.id, component.id))
             if not component.enabled or item is None:
                 continue
             x_data, y_data = item.getOriginalDataset()
@@ -340,7 +312,6 @@ def _apply_background_aware_display(
 
     # Re-anchor component labels after moving the dashed curves.
     if workspace._show_component_labels and workspace._component_labels:
-        label_index = 0
         specs: list[tuple[Any, float, float]] = []
         for curve in curves:
             subtract = background_removed(workspace, curve.id)
@@ -348,13 +319,13 @@ def _apply_background_aware_display(
             if model is None:
                 continue
             for component in model.components:
-                if not component.enabled or component.id not in workspace._component_items:
+                key = (curve.id, component.id)
+                if not component.enabled or key not in workspace._component_items:
                     continue
-                if label_index >= len(workspace._component_labels):
-                    break
-                label = workspace._component_labels[label_index]
-                label_index += 1
-                item = workspace._component_items[component.id]
+                label = workspace._component_labels_by_key.get(key)
+                if label is None:
+                    continue
+                item = workspace._component_items[key]
                 if subtract and component.is_background:
                     label.hide()
                     continue

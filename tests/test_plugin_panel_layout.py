@@ -6,6 +6,7 @@ from PySide6.QtCore import QCoreApplication, QEvent, Qt
 from PySide6.QtWidgets import QApplication, QDockWidget, QMainWindow, QWidget
 
 from curvemole.core.extensions import Contribution, extensions
+from curvemole.core.project import Project
 from curvemole.gui.plugin_host import PluginHost
 
 
@@ -24,7 +25,7 @@ def panel_windows(monkeypatch):
         window.setCentralWidget(QWidget())
         for name in ("File", "Data", "Tools", "View"):
             window.menuBar().addMenu(name)
-        window.project = SimpleNamespace(ui_state={})
+        window.project = Project()
         window.active_curve_id = None
         window.curve_tree = SimpleNamespace(selected_curve_ids=lambda: [])
         window.plugin_manager = SimpleNamespace(errors={}, loaded={}, installed={})

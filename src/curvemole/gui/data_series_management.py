@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox
 
 from curvemole.gui.colours import SERIES_PALETTES
 from curvemole.gui.main_window import CurveTree, MainWindow
+from curvemole.gui.windowing import transient_widget
 
 
 def _rename_data(window: MainWindow, curve_id: str) -> None:
@@ -115,99 +116,99 @@ def _show_context_menu(tree: CurveTree, position: Any) -> None:
     """Extended tree menu with explicit generic-data rename and series deletion."""
     item = tree.itemAt(position)
     project = tree._project
-    menu = QMenu(tree)
-    new_series_action = menu.addAction(tree.tr("New series…"))
-    new_series_action.triggered.connect(
-        lambda checked=False: tree.newSeriesRequested.emit()
-    )
-    if item is None or project is None:
-        menu.exec(tree.viewport().mapToGlobal(position))
-        return
-    metadata = item.data(1, Qt.ItemDataRole.UserRole)
-    if not metadata:
-        menu.exec(tree.viewport().mapToGlobal(position))
-        return
+    with transient_widget(QMenu(tree)) as menu:
+        new_series_action = menu.addAction(tree.tr("New series…"))
+        new_series_action.triggered.connect(
+            lambda checked=False: tree.newSeriesRequested.emit()
+        )
+        if item is None or project is None:
+            menu.exec(tree.viewport().mapToGlobal(position))
+            return
+        metadata = item.data(1, Qt.ItemDataRole.UserRole)
+        if not metadata:
+            menu.exec(tree.viewport().mapToGlobal(position))
+            return
 
-    window = tree.window()
-    menu.addSeparator()
-    if metadata[0] == "curve":
-        curve_id = str(metadata[1])
-        if not item.isSelected():
-            tree.clearSelection()
-            item.setSelected(True)
-            tree.setCurrentItem(item)
-        selected_ids = tree.ordered_selected_curve_ids() or [curve_id]
+        window = tree.window()
+        menu.addSeparator()
+        if metadata[0] == "curve":
+            curve_id = str(metadata[1])
+            if not item.isSelected():
+                tree.clearSelection()
+                item.setSelected(True)
+                tree.setCurrentItem(item)
+            selected_ids = tree.ordered_selected_curve_ids() or [curve_id]
 
-        rename_action = menu.addAction(tree.tr("Rename data…"))
-        rename_action.setEnabled(not project.read_only and isinstance(window, MainWindow))
-        if isinstance(window, MainWindow):
+            rename_action = menu.addAction(tree.tr("Rename data…"))
+            rename_action.setEnabled(not project.read_only and isinstance(window, MainWindow))
+            if isinstance(window, MainWindow):
+                rename_action.triggered.connect(
+                    lambda checked=False, curve_id=curve_id: window.rename_data(curve_id)
+                )
+
+            description_action = menu.addAction(tree.tr("Add description…"))
+            description_action.setEnabled(not project.read_only)
+            description_action.triggered.connect(
+                lambda checked=False, curve_id=curve_id: tree.curveDescriptionRequested.emit(curve_id)
+            )
+
+            move_menu = menu.addMenu(tree.tr("Move selected to series"))
+            for series in project.dataset.series:
+                action = move_menu.addAction(series.name)
+                action.triggered.connect(
+                    lambda checked=False, ids=list(selected_ids), target_id=series.id: (
+                        tree.curvesMoveRequested.emit(ids, target_id)
+                    )
+                )
+            menu.addAction(tree.tr("Move selected up")).triggered.connect(
+                lambda checked=False, ids=list(selected_ids): tree.curvesReorderRequested.emit(ids, -1)
+            )
+            menu.addAction(tree.tr("Move selected down")).triggered.connect(
+                lambda checked=False, ids=list(selected_ids): tree.curvesReorderRequested.emit(ids, 1)
+            )
+            menu.addSeparator()
+            colour_action = menu.addAction(tree.tr("Choose data colour…"))
+            colour_action.triggered.connect(
+                lambda checked=False, curve_id=curve_id: tree.curveColourRequested.emit(curve_id)
+            )
+        elif metadata[0] == "series":
+            series_id = str(metadata[1])
+            rename_action = menu.addAction(tree.tr("Rename series…"))
             rename_action.triggered.connect(
-                lambda checked=False, curve_id=curve_id: window.rename_data(curve_id)
+                lambda checked=False, series_id=series_id: tree.seriesRenameRequested.emit(series_id)
             )
-
-        description_action = menu.addAction(tree.tr("Add description…"))
-        description_action.setEnabled(not project.read_only)
-        description_action.triggered.connect(
-            lambda checked=False, curve_id=curve_id: tree.curveDescriptionRequested.emit(curve_id)
-        )
-
-        move_menu = menu.addMenu(tree.tr("Move selected to series"))
-        for series in project.dataset.series:
-            action = move_menu.addAction(series.name)
-            action.triggered.connect(
-                lambda checked=False, ids=list(selected_ids), target_id=series.id: (
-                    tree.curvesMoveRequested.emit(ids, target_id)
+            description_action = menu.addAction(tree.tr("Add description…"))
+            description_action.setEnabled(not project.read_only)
+            description_action.triggered.connect(
+                lambda checked=False, series_id=series_id: tree.seriesDescriptionRequested.emit(series_id)
+            )
+            merge_menu = menu.addMenu(tree.tr("Merge series into"))
+            targets = [series for series in project.dataset.series if series.id != series_id]
+            merge_menu.setEnabled(bool(targets))
+            for target in targets:
+                action = merge_menu.addAction(target.name)
+                action.triggered.connect(
+                    lambda checked=False, source_id=series_id, target_id=target.id: (
+                        tree.seriesMergeRequested.emit(source_id, target_id)
+                    )
                 )
-            )
-        menu.addAction(tree.tr("Move selected up")).triggered.connect(
-            lambda checked=False, ids=list(selected_ids): tree.curvesReorderRequested.emit(ids, -1)
-        )
-        menu.addAction(tree.tr("Move selected down")).triggered.connect(
-            lambda checked=False, ids=list(selected_ids): tree.curvesReorderRequested.emit(ids, 1)
-        )
-        menu.addSeparator()
-        colour_action = menu.addAction(tree.tr("Choose data colour…"))
-        colour_action.triggered.connect(
-            lambda checked=False, curve_id=curve_id: tree.curveColourRequested.emit(curve_id)
-        )
-    elif metadata[0] == "series":
-        series_id = str(metadata[1])
-        rename_action = menu.addAction(tree.tr("Rename series…"))
-        rename_action.triggered.connect(
-            lambda checked=False, series_id=series_id: tree.seriesRenameRequested.emit(series_id)
-        )
-        description_action = menu.addAction(tree.tr("Add description…"))
-        description_action.setEnabled(not project.read_only)
-        description_action.triggered.connect(
-            lambda checked=False, series_id=series_id: tree.seriesDescriptionRequested.emit(series_id)
-        )
-        merge_menu = menu.addMenu(tree.tr("Merge series into"))
-        targets = [series for series in project.dataset.series if series.id != series_id]
-        merge_menu.setEnabled(bool(targets))
-        for target in targets:
-            action = merge_menu.addAction(target.name)
-            action.triggered.connect(
-                lambda checked=False, source_id=series_id, target_id=target.id: (
-                    tree.seriesMergeRequested.emit(source_id, target_id)
+            palette_menu = menu.addMenu(tree.tr("Series palette"))
+            for palette_name in SERIES_PALETTES:
+                action = palette_menu.addAction(palette_name)
+                action.triggered.connect(
+                    lambda checked=False, series_id=series_id, palette_name=palette_name: (
+                        tree.seriesPaletteRequested.emit(series_id, palette_name)
+                    )
                 )
-            )
-        palette_menu = menu.addMenu(tree.tr("Series palette"))
-        for palette_name in SERIES_PALETTES:
-            action = palette_menu.addAction(palette_name)
-            action.triggered.connect(
-                lambda checked=False, series_id=series_id, palette_name=palette_name: (
-                    tree.seriesPaletteRequested.emit(series_id, palette_name)
+            menu.addSeparator()
+            delete_action = menu.addAction(tree.tr("Delete series…"))
+            delete_action.setEnabled(not project.read_only and isinstance(window, MainWindow))
+            if isinstance(window, MainWindow):
+                delete_action.triggered.connect(
+                    lambda checked=False, series_id=series_id: window.delete_series(series_id)
                 )
-            )
-        menu.addSeparator()
-        delete_action = menu.addAction(tree.tr("Delete series…"))
-        delete_action.setEnabled(not project.read_only and isinstance(window, MainWindow))
-        if isinstance(window, MainWindow):
-            delete_action.triggered.connect(
-                lambda checked=False, series_id=series_id: window.delete_series(series_id)
-            )
 
-    menu.exec(tree.viewport().mapToGlobal(position))
+        menu.exec(tree.viewport().mapToGlobal(position))
 
 
 def _install() -> None:

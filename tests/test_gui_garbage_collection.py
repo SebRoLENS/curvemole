@@ -49,6 +49,20 @@ if AUTOMATIC_VALUE:
     assert set(collected) == {main_thread}
 else:
     assert not collector.timer.isActive()  # Respect an embedding caller's GC policy.
+# Old widget cycles can retain retired projects even with no new allocations.
+# A queued retirement collection runs once on the GUI thread, including when
+# the unreachable cycle has already been promoted to an older generation.
+cycle = Cycle()
+gc.collect(2)
+before = len(collected)
+del cycle
+collector.retire_project()
+collector.retire_project()
+QTest.qWait(20)
+assert len(collected) == before + int(AUTOMATIC_VALUE)
+assert not collector._retirement_timer.isActive()
+if AUTOMATIC_VALUE:
+    assert collected[-1] == main_thread
 collector.stop()
 collector.stop()
 assert gc.isenabled() == AUTOMATIC_VALUE

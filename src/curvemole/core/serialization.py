@@ -22,10 +22,12 @@ import numpy as np
 from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series, Transformation
 from curvemole.core.errors import ProjectFormatError
 from curvemole.core.fitting import FitResult
+from curvemole.core.history import CompactHistory
 from curvemole.core.models import Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.process import process_alive
 from curvemole.core.project import Project
+from curvemole.core.uncertainty import ResamplingResult
 from curvemole.version import FITMODEL_SCHEMA_VERSION, PROJECT_SCHEMA_VERSION, __version__
 
 
@@ -42,6 +44,176 @@ class ProjectSaveSnapshot:
 
     def to_metadata(self) -> dict[str, Any]:
         return self.metadata
+
+
+_ARRAY_REF = "__curvemole_array__"
+_LITERAL_DICT = "__curvemole_literal_dict__"
+_HISTORY_PATH = "history.jsonl"
+
+
+class _DigestWriter(io.RawIOBase):
+    """Hash bytes as ZIP members are written, without a second full-size buffer."""
+
+    def __init__(self, stream) -> None:
+        self.stream = stream
+        self.digest = hashlib.sha256()
+
+    def writable(self) -> bool:
+        return True
+
+    def write(self, payload) -> int:
+        self.digest.update(payload)
+        return self.stream.write(payload)
+
+    def flush(self) -> None:
+        if not self.closed:
+            self.stream.flush()
+
+
+def _write_json(archive, name, value, checksums=None) -> None:
+    with archive.open(name, "w", force_zip64=True) as stream:
+        writer = _DigestWriter(stream)
+        with io.TextIOWrapper(writer, encoding="utf-8", newline="\n") as text_stream:
+            json.dump(value, text_stream, ensure_ascii=False, separators=(",", ":"),
+                      allow_nan=False)
+        if checksums is not None:
+            checksums[name] = writer.digest.hexdigest()
+
+
+class _ArchiveValues:
+    """Externalise numerical results once; keep JSON limited to small metadata."""
+
+    def __init__(self, archive, checksums, *, include_samples: bool) -> None:
+        self.archive = archive
+        self.checksums = checksums
+        self.include_samples = include_samples
+        self.arrays: dict[int, tuple[np.ndarray, str]] = {}
+
+    def encode(self, value):
+        if isinstance(value, FitResult):
+            metadata = value.to_dict(arrays=False)
+            for curve_id, output in value.curve_outputs.items():
+                metadata["curve_outputs"][curve_id].update(
+                    (name, getattr(output, name)) for name in
+                    ("indices", "x", "observed", "fitted", "residual", "weighted_residual"))
+            metadata.update(covariance=value.covariance, correlation=value.correlation)
+            return self.encode(metadata)
+        if isinstance(value, np.ndarray):
+            if value.dtype.hasobject:
+                return self.encode(value.tolist())
+            known = self.arrays.get(id(value))
+            if known is None:
+                name = f"results/arrays/{len(self.arrays):06d}.npy"
+                _write_array(self.archive, name, value, self.checksums)
+                self.arrays[id(value)] = (value, name)
+            else:
+                name = known[1]
+            return {_ARRAY_REF: name}
+        if hasattr(value, "to_dict") and callable(value.to_dict):
+            # ResamplingResult.to_dict otherwise creates millions of Python floats.
+            if isinstance(value, ResamplingResult):
+                metadata = value.to_dict(include_samples=False)
+                metadata["samples"] = value.samples if self.include_samples else None
+            else:
+                metadata = value.to_dict()
+            return self.encode(metadata)
+        if isinstance(value, dict):
+            encoded = {}
+            for key, item in value.items():
+                if key in {"samples", "raw_samples", "replicates"} and not self.include_samples:
+                    item = None
+                elif key == "samples" and isinstance(item, list) and "parameter_paths" in value:
+                    item = _sample_array(item, value["parameter_paths"])
+                encoded[str(key)] = self.encode(item)
+            if set(encoded) in ({_ARRAY_REF}, {_LITERAL_DICT}):
+                return {_LITERAL_DICT: encoded}
+            return encoded
+        if isinstance(value, (list, tuple)):
+            return [self.encode(item) for item in value]
+        return _json_safe(value)
+
+
+def _sample_array(samples, paths):
+    if not isinstance(paths, (list, tuple)):
+        return samples
+    try:
+        array = np.asarray(samples, dtype=np.float64)
+    except (TypeError, ValueError, OverflowError):
+        return samples
+    if array.ndim == 2 and array.shape[1] == len(paths):
+        return array
+    if array.size == 0 and array.ndim == 1:
+        return array.reshape(0, len(paths)) if paths else array.reshape(0, 0)
+    return samples
+
+
+def _archive_values(value, archive, cache):
+    if isinstance(value, dict):
+        if set(value) == {_LITERAL_DICT}:
+            if not isinstance(value[_LITERAL_DICT], dict):
+                raise ProjectFormatError("Invalid literal metadata dictionary.")
+            return {key: _archive_values(item, archive, cache)
+                    for key, item in value[_LITERAL_DICT].items()}
+        if set(value) == {_ARRAY_REF}:
+            name = value[_ARRAY_REF]
+            if (not isinstance(name, str) or not name.startswith("results/arrays/")
+                    or not name.endswith(".npy") or ".." in name.split("/")):
+                raise ProjectFormatError("Invalid numerical-result array reference.")
+            if name not in cache:
+                try:
+                    cache[name] = _read_array(archive, name)
+                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile) as exc:
+                    raise ProjectFormatError(f"Cannot read result array: {name}") from exc
+            return cache[name]
+        return {key: _archive_values(item, archive, cache) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_archive_values(item, archive, cache) for item in value]
+    return value
+
+
+def _write_history(archive, history, checksums):
+    records = history.iter_records() if isinstance(history, CompactHistory) else iter(history)
+    with archive.open(_HISTORY_PATH, "w", force_zip64=True) as stream:
+        writer = _DigestWriter(stream)
+        with io.TextIOWrapper(writer, encoding="utf-8", newline="\n") as text_stream:
+            for record in records:
+                json.dump(_json_safe(record), text_stream, ensure_ascii=False,
+                          separators=(",", ":"), allow_nan=False)
+                text_stream.write("\n")
+        checksums[_HISTORY_PATH] = writer.digest.hexdigest()
+    return {"storage": _HISTORY_PATH, "count": len(history)}
+
+
+def _load_history(value, archive, schema, *, partial_recovery=False, failures=None):
+    def problem(message):
+        if not partial_recovery:
+            raise ProjectFormatError(message)
+        if failures is not None:
+            failures.append(message)
+
+    if schema < 3 or isinstance(value, list):
+        return CompactHistory(value)
+    if not isinstance(value, dict) or value.get("storage") != _HISTORY_PATH:
+        problem("Invalid fit-history storage descriptor.")
+        return CompactHistory()
+    history = CompactHistory()
+    try:
+        with archive.open(_HISTORY_PATH) as stream:
+            for line in stream:
+                try:
+                    record = json.loads(line)
+                except (ValueError, UnicodeError) as exc:
+                    problem(f"Invalid fit-history record: {exc}")
+                    continue
+                if not isinstance(record, dict):
+                    problem("Invalid fit-history record.")
+                    continue
+                history.append_record(record)
+    except (KeyError, ValueError, OSError, zipfile.BadZipFile) as exc:
+        problem(f"Cannot read fit history: {exc}")
+    if len(history) != value.get("count"):
+        problem("Fit-history record count does not match its descriptor.")
+    return history
 
 
 def _project_arrays(project: Project | ProjectSaveSnapshot) -> Iterator[tuple[str, np.ndarray]]:
@@ -119,7 +291,7 @@ def save_project(
     if destination.suffix.lower() != ".fitproj":
         destination = destination.with_suffix(".fitproj")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    metadata = project.to_metadata()
+    metadata = dict(project.to_metadata())
     mask_names = {
         f"data/{curve_id}/masks/{mask['id']}.npy"
         for curve_id, curve in metadata["curves"].items() for mask in curve.get("masks", [])
@@ -131,10 +303,9 @@ def save_project(
             for key, value in metadata.get("export_config", {}).items()
             if key not in {"directory", "last_export_path", "local_paths"}
         }
+        metadata["curves"] = {key: dict(value) for key, value in metadata["curves"].items()}
         for curve in metadata["curves"].values():
             curve["source"] = Path(curve["source"]).name if curve.get("source") else None
-    if not include_uncertainty_samples:
-        metadata["results"] = _remove_raw_samples(metadata.get("results", {}))
 
     file_descriptor, temporary_name = tempfile.mkstemp(
         prefix=f".{destination.name}.", suffix=".tmp", dir=destination.parent
@@ -150,6 +321,11 @@ def save_project(
                 if name in mask_names:
                     array = array.astype(np.uint8)
                 _write_array(archive, name, array, checksums)
+            history = _write_history(archive, metadata.get("fit_history", ()), checksums)
+            values = _ArchiveValues(archive, checksums, include_samples=include_uncertainty_samples)
+            encoded = values.encode({key: value for key, value in metadata.items()
+                                     if key != "fit_history"})
+            encoded["fit_history"] = history
             manifest = {
                 "format": "CurveMole project",
                 "schema_version": PROJECT_SCHEMA_VERSION,
@@ -158,12 +334,9 @@ def save_project(
                 "portable": portable,
                 "uncertainty_samples_included": include_uncertainty_samples,
                 "checksums": checksums,
-                "project": _json_safe(metadata),
+                "project": encoded,
             }
-            archive.writestr(
-                "manifest.json",
-                json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False).encode("utf-8"),
-            )
+            _write_json(archive, "manifest.json", manifest)
         validate_project_archive(temporary)
         os.replace(temporary, destination)
         if update_project_path:
@@ -178,22 +351,48 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
     source = Path(path)
     if not source.is_file():
         raise ProjectFormatError(f"Project does not exist: {source}")
-    failures = validate_project_archive(source, raise_on_error=not partial_recovery)
     try:
         with zipfile.ZipFile(source, "r") as archive:
-            manifest = json.loads(archive.read("manifest.json"))
+            manifest, failures = _validate_archive(archive)
+            if failures and not partial_recovery:
+                raise ProjectFormatError("Project validation failed: " + "; ".join(failures))
             schema = int(manifest.get("schema_version", -1))
             if schema < 1:
                 raise ProjectFormatError(f"Unsupported project schema: {schema}")
             future = schema > PROJECT_SCHEMA_VERSION
             metadata = manifest["project"]
+            if schema >= 3:
+                # Result arrays are loaded directly into their final NumPy storage.
+                cache = {}
+                decoded = dict(metadata)
+                for key, value in metadata.items():
+                    if key == "results" and isinstance(value, dict):
+                        results = {}
+                        for name, record in value.items():
+                            try:
+                                results[name] = _archive_values(record, archive, cache)
+                            except ProjectFormatError as exc:
+                                if not partial_recovery:
+                                    raise
+                                failures.append(f"Result '{name}' could not be recovered: {exc}")
+                        decoded[key] = results
+                    else:
+                        try:
+                            decoded[key] = _archive_values(value, archive, cache)
+                        except ProjectFormatError as exc:
+                            if not partial_recovery:
+                                raise
+                            failures.append(f"Metadata '{key}' could not be fully recovered: {exc}")
+                metadata = decoded
+            history = _load_history(metadata.get("fit_history", []), archive, schema,
+                                    partial_recovery=partial_recovery, failures=failures)
             curve_values: dict[str, Curve] = {}
             for curve_id, curve_meta in metadata.get("curves", {}).items():
                 prefix = f"data/{curve_id}"
                 try:
                     original_x = _read_array(archive, f"{prefix}/original_x.npy")
                     original_y = _read_array(archive, f"{prefix}/original_y.npy")
-                except (KeyError, ValueError) as exc:
+                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile) as exc:
                     if partial_recovery:
                         continue
                     raise ProjectFormatError(f"Cannot recover data for curve '{curve_id}': {exc}") from exc
@@ -281,7 +480,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                     if curve_id in curve_values
                 },
                 results=_load_results(metadata.get("results", {})),
-                fit_history=list(metadata.get("fit_history", [])),
+                fit_history=history,
                 custom_functions=list(metadata.get("custom_functions", [])),
                 custom_formulas=list(metadata.get("custom_formulas", [])),
                 ui_state=dict(metadata.get("ui_state", {})),
@@ -307,33 +506,52 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
 def validate_project_archive(
     path: str | Path, *, raise_on_error: bool = True
 ) -> list[str]:
-    failures: list[str] = []
     try:
         with zipfile.ZipFile(path, "r") as archive:
-            bad_entry = archive.testzip()
-            if bad_entry:
-                failures.append(f"ZIP CRC failed: {bad_entry}")
-            try:
-                manifest = json.loads(archive.read("manifest.json"))
-            except KeyError:
-                failures.append("Missing manifest.json")
-                manifest = {}
-            except json.JSONDecodeError as exc:
-                failures.append(f"Invalid manifest JSON: {exc}")
-                manifest = {}
-            for name, expected in manifest.get("checksums", {}).items():
-                try:
-                    actual = hashlib.sha256(archive.read(name)).hexdigest()
-                except KeyError:
-                    failures.append(f"Missing entry: {name}")
-                    continue
-                if actual != expected:
-                    failures.append(f"Checksum mismatch: {name}")
+            _manifest, failures = _validate_archive(archive)
     except (OSError, zipfile.BadZipFile) as exc:
-        failures.append(str(exc))
+        failures = [str(exc)]
     if failures and raise_on_error:
         raise ProjectFormatError("Project validation failed: " + "; ".join(failures))
     return failures
+
+
+def _validate_archive(archive):
+    """Parse metadata once and stream every member through CRC/checksum checks."""
+    failures = []
+    try:
+        with archive.open("manifest.json") as stream:
+            manifest = json.load(stream)
+    except KeyError:
+        failures.append("Missing manifest.json")
+        manifest = {}
+    except (ValueError, UnicodeError) as exc:
+        failures.append(f"Invalid manifest JSON: {exc}")
+        manifest = {}
+    if not isinstance(manifest, dict):
+        failures.append("Manifest must be a JSON object")
+        manifest = {}
+    checksums = manifest.get("checksums", {})
+    if not isinstance(checksums, dict):
+        failures.append("Manifest checksums must be an object")
+        checksums = {}
+    names = set(archive.namelist())
+    failures.extend(f"Missing entry: {name}" for name in checksums if name not in names)
+    for member in archive.infolist():
+        if member.filename == "manifest.json" or member.is_dir():
+            continue
+        digest = hashlib.sha256()
+        try:
+            with archive.open(member) as stream:
+                while chunk := stream.read(1024 * 1024):
+                    digest.update(chunk)
+        except zipfile.BadZipFile as exc:
+            failures.append(f"ZIP CRC failed: {member.filename}: {exc}")
+            continue
+        expected = checksums.get(member.filename)
+        if expected is not None and digest.hexdigest() != expected:
+            failures.append(f"Checksum mismatch: {member.filename}")
+    return manifest, failures
 
 
 def save_fitmodel(
@@ -434,11 +652,10 @@ def _write_array(
     array: np.ndarray,
     checksums: dict[str, str],
 ) -> None:
-    buffer = io.BytesIO()
-    np.save(buffer, np.asarray(array), allow_pickle=False)
-    payload = buffer.getvalue()
-    archive.writestr(name, payload)
-    checksums[name] = hashlib.sha256(payload).hexdigest()
+    with archive.open(name, "w", force_zip64=True) as stream, _DigestWriter(stream) as writer:
+        np.save(writer, np.asarray(array), allow_pickle=False)
+        writer.flush()
+        checksums[name] = writer.digest.hexdigest()
 
 
 def _read_array(archive: zipfile.ZipFile, name: str) -> np.ndarray:
@@ -477,6 +694,8 @@ def _load_transformations(
 
 
 def _json_safe(value: Any) -> Any:
+    if isinstance(value, CompactHistory):
+        return [_json_safe(record) for record in value.iter_records()]
     if isinstance(value, FitResult):
         return _json_safe(value.to_dict(arrays=True))
     if hasattr(value, "to_dict") and callable(value.to_dict):
@@ -515,9 +734,18 @@ def _load_results(value: Any) -> Any:
                 return FitResult.from_dict(value)
             except (TypeError, ValueError, KeyError):
                 return value
-        return {key: _load_results(item) for key, item in value.items()}
+        # Conversion is private to the freshly decoded archive. Replace children
+        # in place so their former JSON lists can be freed as soon as possible.
+        for key in value:
+            if key == "samples" and isinstance(value[key], list) and "parameter_paths" in value:
+                value[key] = _sample_array(value[key], value["parameter_paths"])
+            else:
+                value[key] = _load_results(value[key])
+        return value
     if isinstance(value, list):
-        return [_load_results(item) for item in value]
+        for index in range(len(value)):
+            value[index] = _load_results(value[index])
+        return value
     return value
 
 

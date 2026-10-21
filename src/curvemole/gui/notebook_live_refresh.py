@@ -116,6 +116,11 @@ def _install() -> None:
 
         window.model_panel.componentSelected.connect(focus_component)
         window.plot_workspace.componentSelected.connect(focus_component)
+        window.plot_workspace.componentOnCurveSelected.connect(
+            lambda curve_id, component_id: _window_focus_description(
+                window, "function", component_id, curve_id
+            )
+        )
 
     connect_signals._curvemole_notebook_selection_sync = True  # type: ignore[attr-defined]
     MainWindow._connect_signals = connect_signals

@@ -51,6 +51,7 @@ from curvemole.gui.function_composition import (
 from curvemole.gui.function_info import show_function_info, sync_function_info
 from curvemole.gui.main_window import MainWindow, _resource_icon
 from curvemole.gui.panels import FunctionBuilderPanel
+from curvemole.gui.windowing import transient_widget
 
 _LIBRARY_FOLDER_NAME = "my_curvemole_functions"
 _LIBRARY_SETTING = "custom_function_directory"
@@ -71,70 +72,70 @@ def _choose_library_directory(window: MainWindow) -> Path | None:
     if existing is not None:
         return existing
 
-    box = QMessageBox(window)
-    box.setWindowTitle(window.tr("CurveMole function library"))
-    box.setIcon(QMessageBox.Icon.Question)
-    box.setText(
-        window.tr(
-            "Reusable functions are stored in a dedicated my_curvemole_functions folder. "
-            "Create one where you want, or open an existing one."
-        )
-    )
-    create_button = box.addButton(
-        window.tr("Create my_curvemole_functions…"), QMessageBox.ButtonRole.ActionRole
-    )
-    open_button = box.addButton(
-        window.tr("Open existing my_curvemole_functions…"), QMessageBox.ButtonRole.ActionRole
-    )
-    box.addButton(QMessageBox.StandardButton.Cancel)
-    box.exec()
-
-    clicked = box.clickedButton()
-    directory: Path | None = None
-    if clicked is create_button:
-        parent = QFileDialog.getExistingDirectory(
-            window,
-            window.tr("Choose where to create my_curvemole_functions"),
-        )
-        if not parent:
-            return None
-        selected = Path(parent).expanduser()
-        directory = (
-            selected
-            if selected.name.casefold() == _LIBRARY_FOLDER_NAME.casefold()
-            else selected / _LIBRARY_FOLDER_NAME
-        )
-        try:
-            directory.mkdir(parents=True, exist_ok=True)
-        except OSError as exc:
-            QMessageBox.warning(window, window.tr("Function library"), str(exc))
-            return None
-    elif clicked is open_button:
-        selected_value = QFileDialog.getExistingDirectory(
-            window,
-            window.tr("Open my_curvemole_functions"),
-        )
-        if not selected_value:
-            return None
-        selected = Path(selected_value).expanduser()
-        if selected.name.casefold() == _LIBRARY_FOLDER_NAME.casefold():
-            directory = selected
-        elif (selected / _LIBRARY_FOLDER_NAME).is_dir():
-            directory = selected / _LIBRARY_FOLDER_NAME
-        else:
-            QMessageBox.warning(
-                window,
-                window.tr("Function library"),
-                window.tr("Select the existing my_curvemole_functions folder."),
+    with transient_widget(QMessageBox(window)) as box:
+        box.setWindowTitle(window.tr("CurveMole function library"))
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(
+            window.tr(
+                "Reusable functions are stored in a dedicated my_curvemole_functions folder. "
+                "Create one where you want, or open an existing one."
             )
-            return None
-    else:
-        return None
+        )
+        create_button = box.addButton(
+            window.tr("Create my_curvemole_functions…"), QMessageBox.ButtonRole.ActionRole
+        )
+        open_button = box.addButton(
+            window.tr("Open existing my_curvemole_functions…"), QMessageBox.ButtonRole.ActionRole
+        )
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.exec()
 
-    if directory is None or not directory.is_dir():
-        return None
-    window.settings.setValue(_LIBRARY_SETTING, str(directory.resolve()))
-    return directory
+        clicked = box.clickedButton()
+        directory: Path | None = None
+        if clicked is create_button:
+            parent = QFileDialog.getExistingDirectory(
+                window,
+                window.tr("Choose where to create my_curvemole_functions"),
+            )
+            if not parent:
+                return None
+            selected = Path(parent).expanduser()
+            directory = (
+                selected
+                if selected.name.casefold() == _LIBRARY_FOLDER_NAME.casefold()
+                else selected / _LIBRARY_FOLDER_NAME
+            )
+            try:
+                directory.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                QMessageBox.warning(window, window.tr("Function library"), str(exc))
+                return None
+        elif clicked is open_button:
+            selected_value = QFileDialog.getExistingDirectory(
+                window,
+                window.tr("Open my_curvemole_functions"),
+            )
+            if not selected_value:
+                return None
+            selected = Path(selected_value).expanduser()
+            if selected.name.casefold() == _LIBRARY_FOLDER_NAME.casefold():
+                directory = selected
+            elif (selected / _LIBRARY_FOLDER_NAME).is_dir():
+                directory = selected / _LIBRARY_FOLDER_NAME
+            else:
+                QMessageBox.warning(
+                    window,
+                    window.tr("Function library"),
+                    window.tr("Select the existing my_curvemole_functions folder."),
+                )
+                return None
+        else:
+            return None
+
+        if directory is None or not directory.is_dir():
+            return None
+        window.settings.setValue(_LIBRARY_SETTING, str(directory.resolve()))
+        return directory
 
 
 def _refresh_quick_function_selector(
@@ -480,65 +481,65 @@ def _find_peaks(window: MainWindow) -> None:
         0,
     )
     function_names = [definition.display_name for definition in peak_definitions]
-    chooser = QInputDialog(window)
-    chooser.setWindowTitle(window.tr("Find Peaks — Function"))
-    chooser.setLabelText(window.tr("Function to use for detected peaks:"))
-    chooser.setComboBoxItems(function_names)
-    chooser.setComboBoxEditable(False)
-    chooser.setTextValue(function_names[default_index])
-    combo = chooser.findChild(QComboBox)
-    if combo is not None:
-        for index, definition in enumerate(peak_definitions):
-            combo.setItemData(index, function_tooltip(definition), Qt.ItemDataRole.ToolTipRole)
-        combo.currentIndexChanged.connect(
-            lambda index: combo.setToolTip(combo.itemData(index, Qt.ItemDataRole.ToolTipRole) or ""))
-        combo.setToolTip(function_tooltip(peak_definitions[default_index]))
-    accepted = chooser.exec()
-    selected_name = chooser.textValue()
-    if not accepted:
-        return
-    selected_index = function_names.index(selected_name)
-    function_id = peak_definitions[selected_index].identifier
-    _remember_quick_function(window, function_id)
+    with transient_widget(QInputDialog(window)) as chooser:
+        chooser.setWindowTitle(window.tr("Find Peaks — Function"))
+        chooser.setLabelText(window.tr("Function to use for detected peaks:"))
+        chooser.setComboBoxItems(function_names)
+        chooser.setComboBoxEditable(False)
+        chooser.setTextValue(function_names[default_index])
+        combo = chooser.findChild(QComboBox)
+        if combo is not None:
+            for index, definition in enumerate(peak_definitions):
+                combo.setItemData(index, function_tooltip(definition), Qt.ItemDataRole.ToolTipRole)
+            combo.currentIndexChanged.connect(
+                lambda index: combo.setToolTip(combo.itemData(index, Qt.ItemDataRole.ToolTipRole) or ""))
+            combo.setToolTip(function_tooltip(peak_definitions[default_index]))
+        accepted = chooser.exec()
+        selected_name = chooser.textValue()
+        if not accepted:
+            return
+        selected_index = function_names.index(selected_name)
+        function_id = peak_definitions[selected_index].identifier
+        _remember_quick_function(window, function_id)
 
-    suggestions = find_peak_suggestions(curve, sign=sign)
-    if not suggestions:
-        window._notify(window.tr("No peak suggestion met the automatic threshold."), warning=True)
-        return
-    count, ok = QInputDialog.getInt(
-        window,
-        window.tr("Find Peaks"),
-        window.tr("Suggested peaks found: ")
-        + f"{len(suggestions)}\n"
-        + window.tr("How many should be added?"),
-        min(1, len(suggestions)),
-        1,
-        len(suggestions),
-    )
-    if not ok:
-        return
+        suggestions = find_peak_suggestions(curve, sign=sign)
+        if not suggestions:
+            window._notify(window.tr("No peak suggestion met the automatic threshold."), warning=True)
+            return
+        count, ok = QInputDialog.getInt(
+            window,
+            window.tr("Find Peaks"),
+            window.tr("Suggested peaks found: ")
+            + f"{len(suggestions)}\n"
+            + window.tr("How many should be added?"),
+            min(1, len(suggestions)),
+            1,
+            len(suggestions),
+        )
+        if not ok:
+            return
 
-    model = window.project.model_for(window.active_curve_id)
-    before = model.to_dict()
-    try:
-        for suggestion in suggestions[:count]:
-            component = Component.create(function_id, registry=window.registry)
-            initialise_peak_component(component, suggestion, registry=window.registry)
-            window._assign_component_name(component, model)
-            model.add(component)
-        after = model.to_dict()
-    except Exception as exc:
+        model = window.project.model_for(window.active_curve_id)
+        before = model.to_dict()
+        try:
+            for suggestion in suggestions[:count]:
+                component = Component.create(function_id, registry=window.registry)
+                initialise_peak_component(component, suggestion, registry=window.registry)
+                window._assign_component_name(component, model)
+                model.add(component)
+            after = model.to_dict()
+        except Exception as exc:
+            window.project.models[window.active_curve_id] = Model.from_dict(before)
+            window._show_error(window.tr("Find Peaks"), exc)
+            return
+
         window.project.models[window.active_curve_id] = Model.from_dict(before)
-        window._show_error(window.tr("Find Peaks"), exc)
-        return
-
-    window.project.models[window.active_curve_id] = Model.from_dict(before)
-    window._push_model_state(
-        window.active_curve_id,
-        before,
-        after,
-        window.tr("Add suggested peaks"),
-    )
+        window._push_model_state(
+            window.active_curve_id,
+            before,
+            after,
+            window.tr("Add suggested peaks"),
+        )
 
 
 def _builder_add(panel: FunctionBuilderPanel) -> None:
