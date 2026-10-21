@@ -65,3 +65,11 @@ def test_shallow_copy_has_independent_sequence_and_shares_explicit_mutable_recor
     other = copy.copy(history)
     other[0]["value"] = 4
     assert history[0]["value"] == 4
+
+
+def test_snapshot_accepts_history_replaced_through_the_public_python_api():
+    project = Project()
+    project.fit_history = [{"reason": "external", "value": 1}]
+    project.snapshot("Fit", {"value": 2})
+    assert isinstance(project.fit_history, CompactHistory)
+    assert [record["value"] for record in project.fit_history.iter_records()] == [1, 2]

@@ -37,6 +37,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Preserve plugin settings and replacement Undo after whole-project restoration,
   replace redrawn plugin layers instead of accumulating them, and release closed
   plugin result dialogs.
+- Resolve native Undo/Redo targets by spectrum/function identity after a plugin
+  restores the project graph. Preserve calculator, parameter, background, mask,
+  manual-point and selection edits across repeated plugin Undo/Redo sequences.
+- Preserve arbitrary metadata when excluding raw uncertainty samples, support
+  escaped/reserved JSON keys and non-UTF-8 filenames, and recover intact spectra
+  when compressed result/history members are damaged.
+- Keep a plugin or API caller's Matplotlib backend and existing figures unchanged
+  while exporting through isolated noninteractive canvases.
 
 ## [0.44.0] - 2026-10-21
 

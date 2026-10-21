@@ -753,12 +753,13 @@ def _install_main_window() -> None:
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             if component.enabled != bool(enabled):
-                changes.append((component, component.enabled, bool(enabled)))
+                changes.append((curve_id, selected_id, component.enabled, bool(enabled)))
         if not changes:
             return
 
         def restore(use_new: bool) -> None:
-            for component, old, new in changes:
+            for curve_id, selected_id, old, new in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 component.enabled = new if use_new else old
 
         window._push_change(
@@ -767,6 +768,7 @@ def _install_main_window() -> None:
             else window.tr("Enable/disable component"),
             lambda: restore(True),
             lambda: restore(False),
+            modified_curve_ids={curve_id for curve_id, *_ in changes},
         )
 
     def set_component_background(window: MainWindow, component_id: str, marked: bool) -> None:
@@ -777,12 +779,13 @@ def _install_main_window() -> None:
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             if component.is_background != bool(marked):
-                changes.append((component, component.is_background, bool(marked)))
+                changes.append((curve_id, selected_id, component.is_background, bool(marked)))
         if not changes:
             return
 
         def restore(use_new: bool) -> None:
-            for component, old, new in changes:
+            for curve_id, selected_id, old, new in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 component.is_background = new if use_new else old
 
         text = (
@@ -794,13 +797,14 @@ def _install_main_window() -> None:
             if marked
             else window.tr("Unmark background")
         )
-        window._push_change(text, lambda: restore(True), lambda: restore(False))
+        window._push_change(text, lambda: restore(True), lambda: restore(False),
+                            modified_curve_ids={curve_id for curve_id, *_ in changes})
 
     def set_component_fixed(window: MainWindow, component_id: str, fixed: bool) -> None:
         if not window._ensure_editable():
             return
         refs = _refs_for_request(window, component_id)
-        changes: list[tuple[Any, dict[str, bool], dict[str, bool]]] = []
+        changes: list[tuple[str, str, dict[str, bool], dict[str, bool]]] = []
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
             before = {
@@ -809,12 +813,13 @@ def _install_main_window() -> None:
             }
             after = {name: bool(fixed) for name in component.parameters}
             if before != after:
-                changes.append((component, before, after))
+                changes.append((curve_id, selected_id, before, after))
         if not changes:
             return
 
         def restore(which: int) -> None:
-            for component, before, after in changes:
+            for curve_id, selected_id, before, after in changes:
+                component = window.project.model_for(curve_id).component(selected_id)
                 values = after if which else before
                 for name, value in values.items():
                     component.parameters[name].fixed = value
@@ -824,7 +829,8 @@ def _install_main_window() -> None:
             if fixed
             else window.tr("Unlock all parameters in selected functions")
         )
-        window._push_change(text, lambda: restore(1), lambda: restore(0))
+        window._push_change(text, lambda: restore(1), lambda: restore(0),
+                            modified_curve_ids={curve_id for curve_id, *_ in changes})
 
     def change_parameter(
         window: MainWindow,
@@ -848,10 +854,14 @@ def _install_main_window() -> None:
             window._show_error(window.tr("Parameter constraint"), exc)
             window.model_panel.refresh_parameters()
             return
+        def assign(value):
+            target = window.project.model_for(curve_id).component(component_id).parameters[name]
+            setattr(target, field, value)
         window._push_change(
             window.tr("Edit parameter"),
-            lambda: setattr(parameter, field, value),
-            lambda: setattr(parameter, field, old),
+            lambda: assign(value),
+            lambda: assign(old),
+            modified_curve_ids={curve_id},
         )
 
     def edit_parameter_link(window: MainWindow, component_id: str, name: str) -> None:

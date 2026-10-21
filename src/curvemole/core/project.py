@@ -314,6 +314,9 @@ class Project:
         self.dirty = False
 
     def snapshot(self, reason: str, payload: dict[str, Any]) -> None:
+        # The public Python/plugin API can replace history with an ordinary list.
+        if not isinstance(self.fit_history, CompactHistory):
+            self.fit_history = CompactHistory(self.fit_history)
         self.fit_history.append_record(
             {
                 "timestamp": datetime.now(UTC).isoformat(),

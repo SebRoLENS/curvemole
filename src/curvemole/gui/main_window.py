@@ -131,6 +131,7 @@ from curvemole.gui.panels import (
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog
 from curvemole.gui.task_thread import TaskThread
+from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
@@ -1965,31 +1966,40 @@ class MainWindow(QMainWindow):
     def enable_component(self, component_id: str, enabled: bool) -> None:
         if not self.active_curve_id:
             return
-        component = self.project.model_for(self.active_curve_id).component(component_id)
+        curve_id = self.active_curve_id
+        component = self.project.model_for(curve_id).component(component_id)
         old = component.enabled
+        def assign(value):
+            self.project.model_for(curve_id).component(component_id).enabled = value
         self._push_change(
             self.tr("Enable/disable component"),
-            lambda: setattr(component, "enabled", enabled),
-            lambda: setattr(component, "enabled", old),
+            lambda: assign(enabled),
+            lambda: assign(old),
+            modified_curve_ids={curve_id},
         )
 
     def set_component_background(self, component_id: str, marked: bool) -> None:
         if not self.active_curve_id:
             return
-        component = self.project.model_for(self.active_curve_id).component(component_id)
+        curve_id = self.active_curve_id
+        component = self.project.model_for(curve_id).component(component_id)
         old = component.is_background
         if old == bool(marked):
             return
+        def assign(value):
+            self.project.model_for(curve_id).component(component_id).is_background = value
         self._push_change(
             self.tr("Mark background") if marked else self.tr("Unmark background"),
-            lambda: setattr(component, "is_background", bool(marked)),
-            lambda: setattr(component, "is_background", old),
+            lambda: assign(bool(marked)),
+            lambda: assign(old),
+            modified_curve_ids={curve_id},
         )
 
     def change_parameter(self, component_id: str, name: str, field: str, value: Any) -> None:
         if not self.active_curve_id:
             return
-        parameter = self.project.model_for(self.active_curve_id).component(component_id).parameters[name]
+        curve_id = self.active_curve_id
+        parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
         old = getattr(parameter, field)
         try:
             setattr(parameter, field, value)
@@ -2001,27 +2011,34 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Parameter constraint"), exc)
             self.model_panel.refresh_parameters()
             return
+        def assign(value):
+            target = self.project.model_for(curve_id).component(component_id).parameters[name]
+            setattr(target, field, value)
         self._push_change(
             self.tr("Edit parameter"),
-            lambda: setattr(parameter, field, value),
-            lambda: setattr(parameter, field, old),
+            lambda: assign(value),
+            lambda: assign(old),
+            modified_curve_ids={curve_id},
         )
 
     def set_component_fixed(self, component_id: str, fixed: bool) -> None:
         if not self.active_curve_id:
             return
-        component = self.project.model_for(self.active_curve_id).component(component_id)
+        curve_id = self.active_curve_id
+        component = self.project.model_for(curve_id).component(component_id)
         before = {name: parameter.fixed for name, parameter in component.parameters.items()}
         after = {name: bool(fixed) for name in component.parameters}
         if before == after:
             return
 
         def restore(values: dict[str, bool]) -> None:
+            component = self.project.model_for(curve_id).component(component_id)
             for name, value in values.items():
                 component.parameters[name].fixed = value
 
         text = self.tr("Lock all parameters") if fixed else self.tr("Unlock all parameters")
-        self._push_change(text, lambda: restore(after), lambda: restore(before))
+        self._push_change(text, lambda: restore(after), lambda: restore(before),
+                          modified_curve_ids={curve_id})
 
     def edit_parameter_link(self, component_id: str, name: str) -> None:
         if not self.active_curve_id:
@@ -2258,21 +2275,18 @@ class MainWindow(QMainWindow):
             curve.undo_transformation()
 
             def restore_states(states: dict[str, tuple[bool, bool]]) -> None:
+                model = self.project.model_for(curve_id)
                 for component_id, (marked, enabled) in states.items():
                     component = model.component(component_id)
                     component.is_background = marked
                     component.enabled = enabled
 
             def redo() -> None:
-                if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                    curve.redo_transformation()
-                elif transformation not in curve.transformations:
-                    curve.apply_transformation(transformation)
+                redo_transformation(self.project.dataset.curve(curve_id), transformation)
                 restore_states(states_after)
 
             def undo() -> None:
-                if curve.transformations and curve.transformations[-1] is transformation:
-                    curve.undo_transformation()
+                undo_transformation(self.project.dataset.curve(curve_id), transformation)
                 restore_states(states_before)
 
             self._push_change(self.tr("Subtract background"), redo, undo)
@@ -2289,6 +2303,7 @@ class MainWindow(QMainWindow):
         description: str,
         parameters: dict[str, Any] | None = None,
     ) -> None:
+        curve_id = curve.id
         transformation = apply_background_subtraction(
             curve,
             background,
@@ -2299,14 +2314,10 @@ class MainWindow(QMainWindow):
         curve.undo_transformation()
 
         def redo() -> None:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
+            redo_transformation(self.project.dataset.curve(curve_id), transformation)
 
         def undo() -> None:
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
+            undo_transformation(self.project.dataset.curve(curve_id), transformation)
 
         self._push_change(self.tr("Subtract background"), redo, undo)
 
@@ -3201,8 +3212,15 @@ class MainWindow(QMainWindow):
 
     def _apply_parameter_drag_changes(self, changes, text: str) -> None:
         """Validate the entire dependency graph before committing a graphical edit."""
+        # A plugin or model Undo can reconstruct parameters between executions.
+        # Keep stable paths in the command, rather than retaining old instances.
+        paths = {id(parameter): path for path, parameter in self.project.parameter_map().items()}
+        edits = [(paths[id(parameter)].split(".", 2), old, new)
+                 for parameter, old, new in changes]
+
         def assign(position):
-            for parameter, old, new in changes:
+            for (curve_id, component_id, name), old, new in edits:
+                parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
                 parameter.value = (old, new)[position]
 
         try:
@@ -3214,7 +3232,8 @@ class MainWindow(QMainWindow):
             self.refresh_all()
             return
         assign(0)
-        self._push_change(text, lambda: assign(1), lambda: assign(0))
+        self._push_change(text, lambda: assign(1), lambda: assign(0),
+                          modified_curve_ids={key[0] for key, _old, _new in edits})
 
     def _set_data_point_edit_mode(self, enabled: bool) -> None:
         editor = self.plot_workspace.point_editor
@@ -3270,6 +3289,7 @@ class MainWindow(QMainWindow):
             after = copy.deepcopy((trial.transformations, trial.redo_transformations, trial.state))
 
             def restore(state):
+                curve = self.project.dataset.curve(curve_id)
                 curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(state)
                 curve._recompute()
 
@@ -3315,8 +3335,9 @@ class MainWindow(QMainWindow):
                 after[curve.id] = snapshot(curve)
 
             def restore(values):
-                for curve in targets:
-                    curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(values[curve.id])
+                for curve_id, state in values.items():
+                    curve = self.project.dataset.curve(curve_id)
+                    curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(state)
                     curve._recompute()
 
             self._push_change(self.tr("Data calculation"), lambda: restore(after), lambda: restore(before),
@@ -3783,6 +3804,7 @@ class MainWindow(QMainWindow):
         after_colours = [palette[index % len(palette)] for index in range(len(series.curves))]
 
         def restore(colours: list[str], marker: Any) -> None:
+            series = next(item for item in self.project.dataset.series if item.id == series_id)
             for curve, colour in zip(series.curves, colours, strict=True):
                 curve.colour = colour.upper()
             if marker is None:

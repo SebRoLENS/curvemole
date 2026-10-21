@@ -39,7 +39,7 @@ class CompactHistory(MutableSequence[dict[str, Any]]):
         try:
             if not plain(record):
                 return record
-            payload = json.dumps(record, ensure_ascii=False, separators=(",", ":"),
+            payload = json.dumps(record, ensure_ascii=True, separators=(",", ":"),
                                  allow_nan=True).encode("utf-8")
         except (TypeError, ValueError, RecursionError):
             return record

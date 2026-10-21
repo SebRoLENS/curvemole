@@ -158,6 +158,7 @@ def copy_parameter_to_refs(
         window.tr("Copy all parameters to selected functions") if parameter_name is None else window.tr("Copy parameter to selected functions"),
         lambda: _restore_models(window, after),
         lambda: _restore_models(window, before),
+        modified_curve_ids=set(curve_ids),
     )
     return ParameterCopyResult(len(compatible), missing, incompatible_bounds)
 

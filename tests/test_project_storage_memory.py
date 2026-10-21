@@ -1,6 +1,7 @@
 import copy
 import hashlib
 import json
+import struct
 import zipfile
 
 import numpy as np
@@ -184,3 +185,64 @@ def test_unrecognised_sample_metadata_is_left_untouched(tmp_path):
     project.results["custom"] = {"parameter_paths": None, "samples": [[1, 2]]}
     restored = load_project(save_project(project, tmp_path / "custom.fitproj"))
     assert restored.results["custom"] == project.results["custom"]
+
+
+@pytest.mark.parametrize("marker", ["__curvemole_array__", "__curvemole_literal_dict__"])
+def test_whole_result_mapping_can_be_reserved_user_metadata(tmp_path, marker):
+    project = Project()
+    project.results = {marker: "ordinary user metadata"}
+    restored = load_project(save_project(project, tmp_path / "literal-results.fitproj"))
+    assert restored.results == project.results
+
+
+def test_excluding_uncertainty_samples_preserves_other_metadata_with_similar_names(tmp_path):
+    project, curve, _samples = sample_project()
+    curve.metadata = {"samples": ["sample-A"], "raw_samples": ["raw"], "replicates": 3}
+    project.dataset.series[0].metadata = {"replicates": 4}
+    project.ui_state = {"plugin_data": {"custom": {"replicates": 200, "samples": [1, 2]}}}
+    path = save_project(project, tmp_path / "without-private-samples.fitproj",
+                        include_uncertainty_samples=False)
+    restored = load_project(path)
+    assert restored.curves[0].metadata == curve.metadata
+    assert restored.dataset.series[0].metadata == project.dataset.series[0].metadata
+    assert restored.ui_state == project.ui_state
+    assert restored.results["uncertainty_by_curve"][curve.id]["residual_bootstrap"]["samples"] is None
+
+
+@pytest.mark.parametrize("kind", ["results", "history", "manifest"])
+def test_real_zip_stream_corruption_is_reported_and_intact_spectra_can_be_recovered(tmp_path, kind):
+    project, curve, _samples = sample_project()
+    path = save_project(project, tmp_path / "deflate.fitproj")
+    with zipfile.ZipFile(path) as archive:
+        name = ("manifest.json" if kind == "manifest" else "history.jsonl" if kind == "history" else
+                next(name for name in archive.namelist() if name.startswith("results/arrays/")))
+        member = archive.getinfo(name)
+    with path.open("r+b") as stream:
+        stream.seek(member.header_offset)
+        header = struct.unpack("<IHHHHHIIIHH", stream.read(30))
+        stream.seek(member.header_offset + 30 + header[-2] + header[-1])
+        stream.write(b"\xff" * min(8, member.compress_size))
+    assert validate_project_archive(path, raise_on_error=False)
+    with pytest.raises(ProjectFormatError):
+        load_project(path)
+    if kind != "manifest":
+        recovered = load_project(path, partial_recovery=True)
+        assert recovered.read_only
+        assert len(recovered.curves) == 1
+        np.testing.assert_array_equal(recovered.curves[0].y, curve.y)
+
+
+def test_unicode_and_surrogate_escaped_filenames_survive_streamed_metadata_and_history(tmp_path):
+    project = Project("Misura à λ")
+    name = "spectrum-\udc80.dat"  # POSIX surrogateescape for a non-UTF-8 filename byte.
+    curve = Curve(name, [0., 1.], [1., 2.], source=name)
+    project.add_curve(curve)
+    project.ui_state["filename"] = name
+    project.snapshot("Fit", {"source": name, "label": "λ"})
+    restored = load_project(save_project(project, tmp_path / "unicode.fitproj"))
+    assert restored.name == project.name
+    assert restored.curves[0].source == name
+    assert restored.curves[0].name == name
+    assert restored.ui_state["filename"] == name
+    assert restored.fit_history[0]["source"] == name
+    assert restored.fit_history[0]["label"] == "λ"

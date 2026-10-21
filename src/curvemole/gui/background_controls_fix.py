@@ -30,6 +30,7 @@ from curvemole.core.data import Curve, CurveState, Transformation
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401
 from curvemole.gui.dialogs import BackgroundComponentsDialog
 from curvemole.gui.main_window import CallbackCommand, MainWindow, _resource_icon
+from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 from curvemole.gui.windowing import transient_widget
 
 _BACKGROUND_METHODS = {"model_components", "model_components_global"}
@@ -182,19 +183,18 @@ def _subtract_current_background(window: MainWindow) -> None:
         curve.undo_transformation()
 
         def redo() -> None:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
+            current = window.project.dataset.curve(curve_id)
+            redo_transformation(current, transformation)
             _restore_component_states(window.project.model_for(curve_id), states_after)
 
         def undo() -> None:
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
+            current = window.project.dataset.curve(curve_id)
+            undo_transformation(current, transformation)
             _restore_component_states(window.project.model_for(curve_id), states_before)
-            curve.state = state_before
+            current.state = state_before
 
-        window._push_change(window.tr("Subtract background"), redo, undo)
+        window._push_change(window.tr("Subtract background"), redo, undo,
+                            modified_curve_ids={curve_id})
         window._notify(
             window.tr(
                 "Background subtracted. Selected background functions were disabled to avoid double-counting."
@@ -272,8 +272,7 @@ def _subtract_all_backgrounds(
 
     records: list[
         tuple[
-            Curve,
-            Any,
+            str,
             Transformation,
             dict[str, tuple[bool, bool]],
             dict[str, tuple[bool, bool]],
@@ -281,7 +280,7 @@ def _subtract_all_backgrounds(
         ]
     ] = []
     try:
-        for curve, model, marked, background, states_before, state_before in prepared:
+        for curve, _model, marked, background, states_before, state_before in prepared:
             component_ids = [component.id for component in marked]
             transformation = apply_background_subtraction(
                 curve,
@@ -300,26 +299,24 @@ def _subtract_all_backgrounds(
             curve.undo_transformation()
             states_after = {component.id: (True, False) for component in marked}
             records.append(
-                (curve, model, transformation, states_before, states_after, state_before)
+                (curve.id, transformation, states_before, states_after, state_before)
             )
     except Exception as exc:
         window._show_error(window.tr("Subtract backgrounds"), exc)
         return
 
     def redo() -> None:
-        for curve, _model, transformation, _before, after, _state_before in records:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
-            _restore_component_states(window.project.model_for(curve.id), after)
+        for curve_id, transformation, _before, after, _state_before in records:
+            current = window.project.dataset.curve(curve_id)
+            redo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), after)
 
     def undo() -> None:
-        for curve, _model, transformation, before, _after, state_before in reversed(records):
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
-            _restore_component_states(window.project.model_for(curve.id), before)
-            curve.state = state_before
+        for curve_id, transformation, before, _after, state_before in reversed(records):
+            current = window.project.dataset.curve(curve_id)
+            undo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), before)
+            current.state = state_before
 
     window.undo_stack.push(
         CallbackCommand(
@@ -517,8 +514,7 @@ def _revert_backgrounds(
                 )
         records.append(
             {
-                "curve": curve,
-                "model": model,
+                "curve_id": curve.id,
                 "before_transformations": list(curve.transformations),
                 "before_redo": list(curve.redo_transformations),
                 "before_state": curve.state,
@@ -536,22 +532,22 @@ def _revert_backgrounds(
     def redo() -> None:
         for record in records:
             _apply_curve_snapshot(
-                record["curve"],
+                window.project.dataset.curve(record["curve_id"]),
                 record["after_transformations"],
                 record["after_redo"],
                 record["after_state"],
             )
-            _restore_component_states(window.project.model_for(record["curve"].id), record["after_components"])
+            _restore_component_states(window.project.model_for(record["curve_id"]), record["after_components"])
 
     def undo() -> None:
         for record in records:
             _apply_curve_snapshot(
-                record["curve"],
+                window.project.dataset.curve(record["curve_id"]),
                 record["before_transformations"],
                 record["before_redo"],
                 record["before_state"],
             )
-            _restore_component_states(window.project.model_for(record["curve"].id), record["before_components"])
+            _restore_component_states(window.project.model_for(record["curve_id"]), record["before_components"])
 
     window.undo_stack.push(
         CallbackCommand(

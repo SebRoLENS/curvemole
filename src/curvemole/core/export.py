@@ -30,8 +30,13 @@ from curvemole.core.serialization import save_fitmodel, save_project
 from curvemole.version import __version__
 
 
-def _export_pyplot():
-    """Load the noninteractive renderer only when a graphic is exported."""
+def _export_figure(**kwargs):
+    """Create a lazy, standalone renderer without changing the caller's backend.
+
+    A plugin/API caller may already own interactive pyplot figures. Using an
+    explicit Agg canvas avoids changing their global backend or creating GUI
+    figure managers when exports run on a worker thread.
+    """
     if "MPLCONFIGDIR" not in os.environ:
         preferred_cache = Path.home() / ".cache" / "curvemole" / "matplotlib"
         try:
@@ -40,12 +45,18 @@ def _export_pyplot():
             preferred_cache = Path(tempfile.gettempdir()) / "curvemole-matplotlib"
             preferred_cache.mkdir(parents=True, exist_ok=True)
         os.environ["MPLCONFIGDIR"] = str(preferred_cache)
-    import matplotlib
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
 
-    matplotlib.use("Agg")
-    from matplotlib import pyplot
+    figure = Figure(**kwargs)
+    FigureCanvasAgg(figure)
+    return figure
 
-    return pyplot
+
+def _release_export_figure(figure):
+    """Release raster/artist data immediately, including after failed writes."""
+    figure.clear()
+    figure.set_canvas(None)
 
 
 @dataclass(slots=True)
@@ -496,13 +507,12 @@ def export_figure(
     include_residuals: bool = True,
     include_error_bars: bool = True,
 ) -> Path:
-    plt = _export_pyplot()
     registry = registry or default_registry()
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     curves = list(curves)
     parameter_values = _resolved_values(models)
-    figure = plt.figure(figsize=(width, height), constrained_layout=True)
+    figure = _export_figure(figsize=(width, height), constrained_layout=True)
     try:
         if include_residuals:
             grid = figure.add_gridspec(4, 1)
@@ -556,7 +566,7 @@ def export_figure(
         axis.legend(loc="best", frameon=False)
         figure.savefig(destination, dpi=dpi, transparent=transparent)
     finally:
-        plt.close(figure)
+        _release_export_figure(figure)
     return destination
 
 
@@ -614,8 +624,6 @@ def generate_pdf_report(
     title: str | None = None,
     registry: FunctionRegistry | None = None,
 ) -> Path:
-    plt = _export_pyplot()
-    from matplotlib.backends.backend_pdf import PdfPages
     from PIL import Image
 
     destination = Path(path)
@@ -623,13 +631,16 @@ def generate_pdf_report(
     with tempfile.TemporaryDirectory(prefix=".curvemole-report-", dir=destination.parent) as temporary:
         temporary_plot = Path(temporary) / "plot.png"
         export_figure(project.curves, project.models, temporary_plot, dpi=180, registry=registry)
+        from matplotlib.backends.backend_pdf import PdfPages
+
         with PdfPages(destination) as pdf:
             # Preserve the PNG's byte pixels instead of expanding its RGBA
             # raster into a float32 array (four times the memory).
             with Image.open(temporary_plot) as plot_image:
                 image = np.asarray(plot_image)
-            figure, axis = plt.subplots(figsize=(8.27, 11.69))
+            figure = _export_figure(figsize=(8.27, 11.69))
             try:
+                axis = figure.subplots()
                 axis.axis("off")
                 axis.text(0.02, 0.98, title or project.name, fontsize=18, weight="bold", va="top")
                 axis.text(0.02, 0.94, f"CurveMole {__version__}", fontsize=9, va="top")
@@ -638,7 +649,7 @@ def generate_pdf_report(
                 axis.text(0.02, 0.34, stats_text or "No fit result.", fontsize=8, va="top", family="monospace")
                 pdf.savefig(figure, bbox_inches="tight")
             finally:
-                plt.close(figure)
+                _release_export_figure(figure)
     return destination
 
 

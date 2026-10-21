@@ -43,7 +43,8 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
     if series_index is None:
         return
     series = window.project.dataset.series[series_index]
-    curve_ids = [curve.id for curve in series.curves]
+    saved_curves = list(series.curves)
+    curve_ids = [curve.id for curve in saved_curves]
 
     if curve_ids:
         answer = QMessageBox.question(
@@ -63,15 +64,26 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
         for curve_id in curve_ids
         if curve_id in window.project.models
     }
-    saved_results = {
-        curve_id: window.project.results[curve_id]
-        for curve_id in curve_ids
-        if curve_id in window.project.results
-    }
+    def copy_result_maps(results):
+        # remove_curve changes these map containers, never completed fit arrays.
+        # Give each restore fresh maps so a later deletion cannot alter Undo's
+        # saved records, including other spectra coupled through a global fit.
+        nested = {"fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
+                  "global_fit_baselines"}
+        return {key: dict(value) if key in nested and isinstance(value, dict) else value
+                for key, value in results.items()}
+
+    saved_results = copy_result_maps(window.project.results)
     previous_active = window.active_curve_id
     previous_component = window.selected_component_id
 
     def redo() -> None:
+        available = {curve.id for curve in window.project.curves}
+        for curve_id in curve_ids:
+            if curve_id in available:
+                # Use the same fit/global-fit/uncertainty cleanup as deleting an
+                # individual spectrum; otherwise large samples remain orphaned.
+                window.project.remove_curve(curve_id)
         current_index = next(
             (
                 index
@@ -82,9 +94,6 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
         )
         if current_index is not None:
             window.project.dataset.series.pop(current_index)
-        for curve_id in curve_ids:
-            window.project.models.pop(curve_id, None)
-            window.project.results.pop(curve_id, None)
         if window.active_curve_id in curve_ids:
             window.active_curve_id = (
                 window.project.curves[0].id if window.project.curves else None
@@ -93,11 +102,12 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
 
     def undo() -> None:
         if not any(candidate.id == series_id for candidate in window.project.dataset.series):
+            series.curves = list(saved_curves)
             window.project.dataset.series.insert(
                 min(series_index, len(window.project.dataset.series)), series
             )
         window.project.models.update(saved_models)
-        window.project.results.update(saved_results)
+        window.project.results = copy_result_maps(saved_results)
         if previous_active is not None and any(
             curve.id == previous_active for curve in window.project.curves
         ):

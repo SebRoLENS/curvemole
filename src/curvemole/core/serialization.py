@@ -10,6 +10,7 @@ import os
 import socket
 import tempfile
 import zipfile
+import zlib
 from collections.abc import Iterator, Mapping
 from contextlib import AbstractContextManager, suppress
 from dataclasses import dataclass
@@ -74,7 +75,7 @@ def _write_json(archive, name, value, checksums=None) -> None:
     with archive.open(name, "w", force_zip64=True) as stream:
         writer = _DigestWriter(stream)
         with io.TextIOWrapper(writer, encoding="utf-8", newline="\n") as text_stream:
-            json.dump(value, text_stream, ensure_ascii=False, separators=(",", ":"),
+            json.dump(value, text_stream, ensure_ascii=True, separators=(",", ":"),
                       allow_nan=False)
         if checksums is not None:
             checksums[name] = writer.digest.hexdigest()
@@ -89,7 +90,7 @@ class _ArchiveValues:
         self.include_samples = include_samples
         self.arrays: dict[int, tuple[np.ndarray, str]] = {}
 
-    def encode(self, value):
+    def encode(self, value, *, result_data=False):
         if isinstance(value, FitResult):
             metadata = value.to_dict(arrays=False)
             for curve_id, output in value.curve_outputs.items():
@@ -97,10 +98,10 @@ class _ArchiveValues:
                     (name, getattr(output, name)) for name in
                     ("indices", "x", "observed", "fitted", "residual", "weighted_residual"))
             metadata.update(covariance=value.covariance, correlation=value.correlation)
-            return self.encode(metadata)
+            return self.encode(metadata, result_data=result_data)
         if isinstance(value, np.ndarray):
             if value.dtype.hasobject:
-                return self.encode(value.tolist())
+                return self.encode(value.tolist(), result_data=result_data)
             known = self.arrays.get(id(value))
             if known is None:
                 name = f"results/arrays/{len(self.arrays):06d}.npy"
@@ -113,23 +114,23 @@ class _ArchiveValues:
             # ResamplingResult.to_dict otherwise creates millions of Python floats.
             if isinstance(value, ResamplingResult):
                 metadata = value.to_dict(include_samples=False)
-                metadata["samples"] = value.samples if self.include_samples else None
+                metadata["samples"] = value.samples if self.include_samples or not result_data else None
             else:
                 metadata = value.to_dict()
-            return self.encode(metadata)
+            return self.encode(metadata, result_data=result_data)
         if isinstance(value, dict):
             encoded = {}
             for key, item in value.items():
-                if key in {"samples", "raw_samples", "replicates"} and not self.include_samples:
+                if result_data and key in {"samples", "raw_samples", "replicates"} and not self.include_samples:
                     item = None
-                elif key == "samples" and isinstance(item, list) and "parameter_paths" in value:
+                elif result_data and key == "samples" and isinstance(item, list) and "parameter_paths" in value:
                     item = _sample_array(item, value["parameter_paths"])
-                encoded[str(key)] = self.encode(item)
+                encoded[str(key)] = self.encode(item, result_data=result_data)
             if set(encoded) in ({_ARRAY_REF}, {_LITERAL_DICT}):
                 return {_LITERAL_DICT: encoded}
             return encoded
         if isinstance(value, (list, tuple)):
-            return [self.encode(item) for item in value]
+            return [self.encode(item, result_data=result_data) for item in value]
         return _json_safe(value)
 
 
@@ -162,7 +163,7 @@ def _archive_values(value, archive, cache):
             if name not in cache:
                 try:
                     cache[name] = _read_array(archive, name)
-                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile) as exc:
+                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile, zlib.error) as exc:
                     raise ProjectFormatError(f"Cannot read result array: {name}") from exc
             return cache[name]
         return {key: _archive_values(item, archive, cache) for key, item in value.items()}
@@ -177,7 +178,7 @@ def _write_history(archive, history, checksums):
         writer = _DigestWriter(stream)
         with io.TextIOWrapper(writer, encoding="utf-8", newline="\n") as text_stream:
             for record in records:
-                json.dump(_json_safe(record), text_stream, ensure_ascii=False,
+                json.dump(_json_safe(record), text_stream, ensure_ascii=True,
                           separators=(",", ":"), allow_nan=False)
                 text_stream.write("\n")
         checksums[_HISTORY_PATH] = writer.digest.hexdigest()
@@ -209,7 +210,7 @@ def _load_history(value, archive, schema, *, partial_recovery=False, failures=No
                     problem("Invalid fit-history record.")
                     continue
                 history.append_record(record)
-    except (KeyError, ValueError, OSError, zipfile.BadZipFile) as exc:
+    except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile, zlib.error) as exc:
         problem(f"Cannot read fit history: {exc}")
     if len(history) != value.get("count"):
         problem("Fit-history record count does not match its descriptor.")
@@ -323,8 +324,8 @@ def save_project(
                 _write_array(archive, name, array, checksums)
             history = _write_history(archive, metadata.get("fit_history", ()), checksums)
             values = _ArchiveValues(archive, checksums, include_samples=include_uncertainty_samples)
-            encoded = values.encode({key: value for key, value in metadata.items()
-                                     if key != "fit_history"})
+            encoded = {key: values.encode(value, result_data=key == "results")
+                       for key, value in metadata.items() if key != "fit_history"}
             encoded["fit_history"] = history
             manifest = {
                 "format": "CurveMole project",
@@ -366,7 +367,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 cache = {}
                 decoded = dict(metadata)
                 for key, value in metadata.items():
-                    if key == "results" and isinstance(value, dict):
+                    if key == "results" and isinstance(value, dict) and set(value) != {_LITERAL_DICT}:
                         results = {}
                         for name, record in value.items():
                             try:
@@ -392,7 +393,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 try:
                     original_x = _read_array(archive, f"{prefix}/original_x.npy")
                     original_y = _read_array(archive, f"{prefix}/original_y.npy")
-                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile) as exc:
+                except (KeyError, ValueError, EOFError, OSError, zipfile.BadZipFile, zlib.error) as exc:
                     if partial_recovery:
                         continue
                     raise ProjectFormatError(f"Cannot recover data for curve '{curve_id}': {exc}") from exc
@@ -525,7 +526,7 @@ def _validate_archive(archive):
     except KeyError:
         failures.append("Missing manifest.json")
         manifest = {}
-    except (ValueError, UnicodeError) as exc:
+    except (ValueError, UnicodeError, EOFError, OSError, zipfile.BadZipFile, zlib.error) as exc:
         failures.append(f"Invalid manifest JSON: {exc}")
         manifest = {}
     if not isinstance(manifest, dict):
@@ -545,8 +546,8 @@ def _validate_archive(archive):
             with archive.open(member) as stream:
                 while chunk := stream.read(1024 * 1024):
                     digest.update(chunk)
-        except zipfile.BadZipFile as exc:
-            failures.append(f"ZIP CRC failed: {member.filename}: {exc}")
+        except (zipfile.BadZipFile, EOFError, OSError, zlib.error) as exc:
+            failures.append(f"ZIP CRC/read failed: {member.filename}: {exc}")
             continue
         expected = checksums.get(member.filename)
         if expected is not None and digest.hexdigest() != expected:

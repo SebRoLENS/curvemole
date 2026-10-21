@@ -23,6 +23,7 @@ from curvemole.gui.plot_appearance import (
     plot_mode_flags,
     qt_pen_style,
 )
+from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 
 
 def background_removed(workspace: PlotWorkspace, curve_id: str | None) -> bool:
@@ -527,8 +528,7 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
 
     records: list[
         tuple[
-            Curve,
-            Any,
+            str,
             Any,
             dict[str, tuple[bool, bool]],
             dict[str, tuple[bool, bool]],
@@ -536,7 +536,7 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
         ]
     ] = []
     try:
-        for curve, model, marked, background in prepared:
+        for curve, _model, marked, background in prepared:
             component_ids = [component.id for component in marked]
             transformation = apply_background_subtraction(
                 curve,
@@ -554,27 +554,25 @@ def _subtract_all_backgrounds(window: MainWindow) -> None:
                 for component in marked
             }
             after = {component.id: (True, False) for component in marked}
-            records.append((curve, model, transformation, before, after, curve.state))
+            records.append((curve.id, transformation, before, after, curve.state))
     except Exception as exc:
         window._show_error(window.tr("Subtract all backgrounds"), exc)
         return
 
     def redo() -> None:
-        for curve, model, transformation, _before, after, state_before in records:
-            if curve.redo_transformations and curve.redo_transformations[-1] is transformation:
-                curve.redo_transformation()
-            elif transformation not in curve.transformations:
-                curve.apply_transformation(transformation)
-            _restore_component_states(model, after)
+        for curve_id, transformation, _before, after, state_before in records:
+            current = window.project.dataset.curve(curve_id)
+            redo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), after)
             if state_before == CurveState.FITTED:
-                curve.state = CurveState.MODIFIED
+                current.state = CurveState.MODIFIED
 
     def undo() -> None:
-        for curve, model, transformation, before, _after, state_before in reversed(records):
-            if curve.transformations and curve.transformations[-1] is transformation:
-                curve.undo_transformation()
-            _restore_component_states(model, before)
-            curve.state = state_before
+        for curve_id, transformation, before, _after, state_before in reversed(records):
+            current = window.project.dataset.curve(curve_id)
+            undo_transformation(current, transformation)
+            _restore_component_states(window.project.model_for(curve_id), before)
+            current.state = state_before
 
     def wrapped(operation: Callable[[], None]) -> None:
         operation()
