@@ -227,7 +227,6 @@ class Project:
                     selected.append(clone)
                 target_model = Model(name=f"Model for {target_curve.name}", components=selected,
                                      display_order=[identity for identity in source_model.display_order if identity in selected_ids],
-                                     composition_mode=source_model.composition_mode,
                                      operation_order=[identity for identity in source_model.operation_order if identity in selected_ids])
                 if component_ids is not None:
                     target_model.validate_composition()

@@ -25,19 +25,14 @@ def selected_operator(window):
 
 
 def operator_available(window, operator):
-    if not window.active_curve_id:
-        return False
-    model = window.project.model_for(window.active_curve_id)
-    return model.composition_mode == "global" or operator in {"add", "subtract"} or any(
-        component.enabled for component in model.components)
+    return bool(window.active_curve_id)
 
 
 def ensure_insertion_operator(window):
     if operator_available(window, selected_operator(window)):
         return True
     window._notify(window.tr(
-        "Multiplication, division and convolution need an existing enabled model function. "
-        "Choose Add or Subtract to start the model."
+        "Select a spectrum before inserting a model function."
     ), warning=True)
     return False
 
@@ -123,7 +118,7 @@ def install_composition_menu(window, button):
 def insertion_signal(window, curve, operator):
     """Signal that the inserted factor/term should approximate before fitting."""
     model = window.project.model_for(curve.id)
-    if model.composition_mode == "global" and not any(c.enabled for c in model.components):
+    if not any(c.enabled for c in model.components):
         if operator == "multiply":
             return curve.y.copy()
         if operator == "divide":

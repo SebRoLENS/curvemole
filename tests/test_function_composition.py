@@ -93,18 +93,14 @@ def test_composition_applies_to_free_generic_functions(composition_window, opera
     assert window.project.model_for(curve.id).components[-1].operator == operator
 
 
-def test_legacy_empty_model_retains_guard_for_invalid_ordered_insertion(composition_window, monkeypatch):
+def test_empty_model_allows_every_insertion_role(composition_window):
     _, window, curve = composition_window
-    window.project.model_for(curve.id).composition_mode = "ordered"
     sync_composition(window)
     for operator, _, _ in OPERATORS:
-        assert window.function_composition_actions[operator].isEnabled() == (operator in {"add", "subtract"})
-    notices = []
-    monkeypatch.setattr(window, "_notify", lambda text, **kwargs: notices.append(text))
+        assert window.function_composition_actions[operator].isEnabled()
     set_operator(window, "multiply")
     window.quick_peak()
-    assert not window.project.model_for(curve.id).components
-    assert notices and "existing enabled" in notices[0]
+    assert window.project.model_for(curve.id).components[-1].operator == "multiply"
 
 
 def test_graphical_peaks_and_pending_next_peak_keep_the_chosen_operator(composition_window):

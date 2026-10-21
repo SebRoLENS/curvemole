@@ -106,6 +106,7 @@ def test_copy_can_include_fixed_bounds_and_relation_across_spectra() -> None:
     source_parameter.fixed = True
     source_parameter.link = f"${{{first.id}.{anchor.id}.center}}"
     source_parameter.link_scope = "absolute"
+    source_parameter.link_relation = "lower"
     source_parameter.validate()
 
     target_parameter.value = -1.0
@@ -132,6 +133,7 @@ def test_copy_can_include_fixed_bounds_and_relation_across_spectra() -> None:
     assert copied.maximum == pytest.approx(2.0)
     assert copied.fixed is True
     assert copied.link == source_parameter.link
+    assert copied.link_relation == "lower"
 
     window.project.dirty = False
     window.close()

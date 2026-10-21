@@ -112,8 +112,6 @@ def run_workflow(
         curve_id = _curve_id(model_spec["curve"], curve_aliases, project)
         model = project.model_for(curve_id)
         model.name = str(model_spec.get("name", model.name))
-        model.composition_mode = str(model_spec.get(
-            "composition_mode", "ordered" if workflow["schema_version"] == 1 else "global"))
         for component_spec in model_spec.get("components", []):
             component = Component.create(
                 component_spec["function"],

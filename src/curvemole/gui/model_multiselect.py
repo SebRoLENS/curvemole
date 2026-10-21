@@ -654,20 +654,6 @@ def _install_main_window() -> None:
         grouped: dict[str, set[str]] = defaultdict(set)
         for curve_id, selected_id in refs:
             grouped[curve_id].add(selected_id)
-        promoted = []
-        for curve_id, component_ids in grouped.items():
-            model = window.project.model_for(curve_id)
-            enabled = [component for component in model.components if component.enabled]
-            remaining = [component for component in enabled if component.id not in component_ids]
-            if (model.composition_mode == "ordered" and enabled and enabled[0].id in component_ids and remaining
-                    and remaining[0].operator in {"multiply", "divide", "convolve"}):
-                curve = window.project.dataset.curve(curve_id)
-                promoted.append(f"{curve.name} / {remaining[0].name}")
-        if promoted:
-            question += "\n\n" + window.tr(
-                "These functions will start the remaining model, using Add because "
-                "there is no preceding function to combine with:"
-            ) + "\n" + "\n".join(promoted)
         if (
             QMessageBox.question(window, window.tr("Delete component"), question)
             != QMessageBox.StandardButton.Yes
@@ -804,6 +790,12 @@ def _install_main_window() -> None:
         if not window._ensure_editable():
             return
         refs = _refs_for_request(window, component_id)
+        if fixed:
+            for curve_id, selected_id in refs:
+                component = window.project.model_for(curve_id).component(selected_id)
+                if any(not window._can_fix_parameter(curve_id, selected_id, name)
+                       for name in component.parameters):
+                    return
         changes: list[tuple[str, str, dict[str, bool], dict[str, bool]]] = []
         for curve_id, selected_id in refs:
             component = window.project.model_for(curve_id).component(selected_id)
@@ -841,6 +833,8 @@ def _install_main_window() -> None:
     ) -> None:
         curve_id = _find_component_curve(window, component_id)
         if curve_id is None:
+            return
+        if field == "fixed" and value and not window._can_fix_parameter(curve_id, component_id, name):
             return
         parameter = window.project.model_for(curve_id).component(component_id).parameters[name]
         old = getattr(parameter, field)

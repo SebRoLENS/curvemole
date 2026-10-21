@@ -358,9 +358,16 @@ class ModelPanel(QWidget):
                         "these are not uncertainties of the current fit. Refit and rerun the analysis."
                     ).format(value=f"{recorded_value:.12g}"))
                 self.parameters.setItem(row, 3, analysis_item)
-                fixed = QTableWidgetItem("🔒" if parameter.fixed else "")
-                fixed.setFlags(fixed.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                fixed.setCheckState(Qt.CheckState.Checked if parameter.fixed else Qt.CheckState.Unchecked)
+                equality_linked = bool(parameter.link and parameter.link_relation == "equal")
+                fixed_value = parameter.fixed and not equality_linked
+                fixed = QTableWidgetItem(self.tr("Linked") if equality_linked else "🔒" if fixed_value else "")
+                fixed.setFlags((fixed.flags() | Qt.ItemFlag.ItemIsUserCheckable) & ~Qt.ItemFlag.ItemIsEditable)
+                fixed.setCheckState(Qt.CheckState.Checked if fixed_value else Qt.CheckState.Unchecked)
+                if equality_linked:
+                    fixed.setToolTip(self.tr(
+                        "This value is controlled by an equality link, not Fixed. "
+                        "Remove the link in the Link column first, then set the value and select Fixed."
+                    ))
                 fixed.setData(Qt.ItemDataRole.UserRole, (component.id, name, "fixed"))
                 self.parameters.setItem(row, 4, fixed)
                 lower = QTableWidgetItem("" if math.isinf(parameter.minimum) else f"{parameter.minimum:.12g}")

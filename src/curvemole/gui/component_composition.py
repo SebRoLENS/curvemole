@@ -3,7 +3,6 @@
 from PySide6.QtCore import QEvent, QRect, Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
@@ -121,8 +120,7 @@ def update_composition_summary(panel):
         panel.composition_summary.clear()
         return
     model = panel.project.model_for(curve_id)
-    mode = panel.tr("Global roles") if model.composition_mode == "global" else panel.tr("Saved ordered model")
-    text = mode + ": " + model.calculation_expression()
+    text = panel.tr("Global roles") + ": " + model.calculation_expression()
     panel.composition_summary.setText(text)
     panel.composition_summary.setToolTip(text)
     panel.calculation_order_button.setToolTip(panel.tr("Calculation order for ") + panel.project.dataset.curve(curve_id).name)
@@ -135,16 +133,10 @@ class CalculationOrderDialog(QDialog):
         self.setWindowTitle(self.tr("Calculation order — ") + spectrum_name)
         self.resize(640, 500)
         layout = QVBoxLayout(self)
-        self.mode = QComboBox()
-        self.mode.addItem(self.tr("Global function roles (independent of insertion order)"), "global")
-        self.mode.addItem(self.tr("Saved ordered composition (legacy projects)"), "ordered")
-        self.mode.setCurrentIndex(self.mode.findData(model.composition_mode))
-        layout.addWidget(self.mode)
         note = QLabel(self.tr(
             "Global roles: Add and Subtract form the starting sum. Arrange Multiply, Divide "
             "and Convolve below in the order you want them applied, from top to bottom. "
-            "This order is separate from the function list. Saved ordered models keep their "
-            "original calculation until you explicitly switch to global roles."
+            "This order is separate from the function list and is the same for every project."
         ))
         note.setWordWrap(True)
         layout.addWidget(note)
@@ -171,14 +163,13 @@ class CalculationOrderDialog(QDialog):
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
-        self.mode.currentIndexChanged.connect(self._refresh)
         self.operations.model().rowsMoved.connect(self._refresh)
         self._refresh()
 
     def _move(self, offset):
         row = self.operations.currentRow()
         destination = row + offset
-        if row < 0 or not 0 <= destination < self.operations.count() or self.mode.currentData() != "global":
+        if row < 0 or not 0 <= destination < self.operations.count():
             return
         item = self.operations.takeItem(row)
         self.operations.insertItem(destination, item)
@@ -186,10 +177,9 @@ class CalculationOrderDialog(QDialog):
         self._refresh()
 
     def choices(self):
-        return self.mode.currentData(), [self.operations.item(i).data(Qt.ItemDataRole.UserRole)
-                                         for i in range(self.operations.count())]
+        return [self.operations.item(i).data(Qt.ItemDataRole.UserRole)
+                for i in range(self.operations.count())]
 
     def _refresh(self, *_args):
-        self.model.composition_mode, self.model.operation_order = self.choices()
-        self.operations.setEnabled(self.model.composition_mode == "global")
+        self.model.operation_order = self.choices()
         self.preview.setText(self.tr("Resulting model: ") + self.model.calculation_expression())

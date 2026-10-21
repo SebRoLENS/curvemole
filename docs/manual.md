@@ -550,10 +550,10 @@ Ctrl-click and Shift-click multi-selection, including selections across spectra.
 Each function has an inline composition menu beside its name: **add**, **subtract**,
 **multiply**, **divide** or **convolve**. Click it to change that function's role;
 the change is undoable and marks only its spectrum's fitted result as outdated.
-For new global models, insertion and list order do not determine the calculation.
+For every model, insertion and list order do not determine the calculation.
 **Calculation order** explicitly orders factors and convolutions and previews the
 resulting expression. **Reorder** sorts only the displayed list and automatic names.
-The Up/Down list controls change calculation order only for saved legacy ordered models.
+The Up/Down list controls change presentation only.
 Exported parameter rows and component trace columns follow this displayed order
 and use the current function names. Their values and uncertainties remain associated
 with the same functions, including models with multiplication, division or convolution.
@@ -596,11 +596,9 @@ mark or unmark backgrounds, and fix or free their parameters as applicable. Each
 edit is one Undo/Redo operation. Uncheck a component in the list to disable it without
 deleting it. Disabled components are not evaluated or fitted.
 
-In a saved legacy ordered model, deleting the first enabled function can leave a
-multiplication, division or convolution without a preceding term. The confirmation identifies
-the first surviving function and explains that it will start the remaining model
-with **Add**. Other operators and parameter values are preserved. Undo restores the
-original functions and composition. If remaining parameters link to a function
+Deleting a function preserves the roles and parameter values of surviving functions,
+including Multiply, Divide and Convolve. Undo restores the original functions and
+composition. If remaining parameters link to a function
 being deleted, deletion is cancelled and the affected links are listed; remove
 those links or constraints before deleting the function.
 
@@ -1187,10 +1185,11 @@ length, so inserting the same kernels in another order does not change edge hand
 Marked additive backgrounds receive the same global factors and convolutions as the
 full model when their contribution is evaluated.
 
-Older project/model/workflow files preserve their **saved ordered composition**.
-They keep the original accumulated-model calculation and first-function restriction.
-Use Calculation order and explicitly select global roles to convert such a model;
-the preview shows the new expression before applying it. Conversion is undoable.
+The same global roles apply to every project, model file and workflow, including
+files saved by earlier previews. There is no separate ordered-composition mode or
+first-function restriction. A model previously calculated in insertion order can
+produce a different result with global roles: review its expression in Calculation
+order and refit after opening it.
 
 Division by a component that reaches zero and other non-finite model evaluations are
 rejected by the fitter.
@@ -1328,9 +1327,7 @@ existing model: **Add (+)**, **Subtract (-)**, **Multiply (x)**, **Divide (/)**,
 **Convolve (*)**. The orange symbol on the insertion icon shows the current choice;
 clicking the main part of the button inserts with that composition. The same choice
 is available in Function details and the advanced Add dialog and is remembered.
-All roles are available in new global models, including for the first function.
-Saved legacy ordered models retain the preceding-function requirement until converted
-through Calculation order.
+All roles are available in every model, including for the first function.
 Background marking is available for Add and Subtract only.
 For automatic or graphical peak initialization, Add uses data minus the existing
 model, Subtract uses model minus data, Multiply uses data/model, and Divide uses
@@ -1475,9 +1472,7 @@ list order and automatic names are restored by Undo and reapplied by Redo.
 **Reorder changes presentation only:** parameter values, links, fit results and
 the mathematical composition order remain unchanged, including multiplication,
 division and convolution. The display order is saved with the project and copied
-with the model. Use Calculation order to change precedence in global models. For
-saved ordered models only, Up/Down changes mathematical composition order and
-restores the list to that order.
+with the model. Use Calculation order to change precedence in every model.
 
 ### 8.10 Copying a fit to other curves
 
@@ -1538,6 +1533,13 @@ for a centre link, the dialog shows `center =` followed by the expression field.
 **Equal to source** is the default. The field shows the selected source explicitly
 and is read-only for quick relationships; **Advanced expression** makes it editable.
 Use **Remove link** to remove the relation and make the parameter independent again.
+
+An **Equal to source** link determines the value instead of fitting it independently.
+Its Fixed cell shows **Linked**, and attempting to fix it explains that you must
+remove the link first, then set the value and select **Fixed**. Lock all and parameter
+copying enforce the same rule. Clear Fixed before adding an equality link to a fixed
+parameter. Numeric Lower/Upper limits and inequality links can still constrain a
+fixed value. These rules apply to every project.
 
 #### Choose a source spectrum
 

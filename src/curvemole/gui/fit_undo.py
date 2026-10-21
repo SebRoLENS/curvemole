@@ -37,7 +37,6 @@ def _restore(window, state):
     for curve_id, (model, saved, refs) in state["models"].items():
         model.name, model.id = saved.name, saved.id
         model.display_order = list(saved.display_order)
-        model.composition_mode = saved.composition_mode
         model.operation_order = list(saved.operation_order)
         components = []
         for snapshot in saved.components:
