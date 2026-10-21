@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QComboBox, QLabel
 
 from curvemole.gui.flow_layout import FlowLayout
 from curvemole.gui.plot import PlotWorkspace
@@ -139,8 +139,8 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
     view_layout.setContentsMargins(9, 6, 9, 6)
     view_layout.setSpacing(4)
     self.display_mode.setProperty("primaryControl", True)
-    self.autoscale_mode.setMaximumWidth(122)
-    self.plot_style_mode.setMaximumWidth(105)
+    for selector in (self.display_mode, self.autoscale_mode, self.plot_style_mode):
+        selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
     def show_offsets(index):
         for widget in (self.x_offset_label, self.x_offset, self.y_offset_label, self.y_offset):

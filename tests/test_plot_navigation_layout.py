@@ -4,10 +4,18 @@ import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QDockWidget, QStyleFactory
+from PySide6.QtWidgets import (
+    QApplication,
+    QDockWidget,
+    QLabel,
+    QStyle,
+    QStyleFactory,
+    QStyleOptionComboBox,
+)
 
 from curvemole import Curve, Project
 from curvemole.gui.app import CurveMoleMainWindow
+from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.scientific_axis import ScientificAxisItem
 
 
@@ -141,6 +149,102 @@ def test_plot_controls_wrap_inside_resized_docks(window, style_name, constrain_d
     narrow = display_row.minimumSize().width()
     assert display_row.hasHeightForWidth()
     assert display_row.heightForWidth(narrow) > display_row.heightForWidth(wide)
+
+
+@pytest.mark.parametrize("style_name", ["Fusion", "Windows"])
+@pytest.mark.parametrize("enlarged_font", [False, True])
+@pytest.mark.parametrize("width", [360, 720])
+def test_plot_control_text_fits_native_content_rects(style_name, enlarged_font, width):
+    """Widget containment alone misses text hidden under arrows or elided axes."""
+    from curvemole.core.registry import default_registry
+
+    app = QApplication.instance() or QApplication([])
+    style = QStyleFactory.create(style_name)
+    if style is None:
+        pytest.skip(f"{style_name} style unavailable")
+    workspace = PlotWorkspace(default_registry())
+    try:
+        workspace.resize(width, 650)
+        workspace.show()
+        controls = (workspace.plot_style_mode, workspace.autoscale_mode,
+                    workspace.coordinate_label)
+        for control in controls:
+            control.setStyle(style)
+            if enlarged_font:
+                # Application stylesheets can specify their own pixel font;
+                # explicitly enlarge the effective control font as high-DPI
+                # systems and accessibility settings do.
+                control.setStyleSheet("font-size: 14pt;")
+        workspace.plot_style_mode.setCurrentIndex(2)
+        workspace.autoscale_mode.setCurrentIndex(1)
+        app.processEvents()
+        for combo in (workspace.plot_style_mode, workspace.autoscale_mode):
+            option = QStyleOptionComboBox()
+            combo.initStyleOption(option)
+            text_rect = combo.style().subControlRect(
+                QStyle.ComplexControl.CC_ComboBox, option,
+                QStyle.SubControl.SC_ComboBoxEditField, combo,
+            )
+            assert combo.fontMetrics().horizontalAdvance(combo.currentText()) <= text_rect.width(), (
+                combo.currentText(), text_rect, combo.size(), combo.font().toString(),
+            )
+
+        label = workspace.coordinate_label
+        coordinate_widths = []
+        for x, y in (("12.5", "-0.25"), ("-1.2345678e+123", "9.8765432e-123")):
+            reading = f"x: {x}   y: {y}   |   A long spectrum name: ({x}, {y})"
+            label.setText(reading)
+            app.processEvents()
+            # CoordinateReadout.text() intentionally exposes the original full
+            # reading; QLabel.text() is the string that is actually painted.
+            painted = QLabel.text(label)
+            assert x in painted and y in painted
+            assert "…" not in painted
+            assert label.toolTip() == reading
+            contents = label.contentsRect()
+            flags = int(label.alignment())
+            if label.wordWrap():
+                flags |= int(Qt.TextFlag.TextWordWrap)
+            bounds = label.fontMetrics().boundingRect(contents, flags, painted)
+            assert bounds.width() <= contents.width()
+            assert bounds.height() <= contents.height()
+            assert workspace.view_controls.rect().contains(label.geometry())
+            coordinate_widths.append(label.width())
+        assert len(set(coordinate_widths)) == 1  # Cursor motion must not move the control rows.
+    finally:
+        workspace.close()
+        workspace.deleteLater()
+        app.processEvents()
+
+
+def test_mouse_coordinate_readout_wraps_inside_narrow_main_window(window):
+    app, main = window
+    workspace = main.plot_workspace
+    workspace.setFixedWidth(320)
+    label = workspace.coordinate_label
+    label.setStyleSheet("font-size: 14pt;")
+    reading = "x: -1.2345678e+123   y: 9.8765432e-123   |   Spectrum: (0, 1)"
+    try:
+        for theme in ("light", "dark", "light"):
+            main.apply_theme(theme)
+            label.setText(reading)
+            app.processEvents()
+            assert workspace.view_controls.width() == 320
+            assert workspace.view_controls.rect().contains(label.geometry())
+            painted = QLabel.text(label)
+            assert "-1.2345678e+123" in painted and "9.8765432e-123" in painted
+            assert "…" not in painted
+            assert label.toolTip() == reading
+            assert label.wordWrap()
+            contents = label.contentsRect()
+            bounds = label.fontMetrics().boundingRect(
+                contents, int(label.alignment()) | int(Qt.TextFlag.TextWordWrap), painted,
+            )
+            assert bounds.width() <= contents.width()
+            assert bounds.height() <= contents.height()
+            assert label.height() > label.fontMetrics().height()
+    finally:
+        main.apply_theme("system")
 
 
 @pytest.mark.parametrize("unit", ["nm", "s", "Pa"])
