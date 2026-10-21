@@ -136,9 +136,9 @@ def _install_model_panel() -> None:
         original_init(panel, *args, **kwargs)
         panel.components.setSpacing(2)
         panel.components.setSelectionMode(panel.components.SelectionMode.ExtendedSelection)
-        from curvemole.gui.note_indicators import NoteIndicatorDelegate
+        from curvemole.gui.component_composition import ComponentCompositionDelegate
 
-        panel.components.setItemDelegate(NoteIndicatorDelegate(panel.components, panel.noteRequested.emit))
+        panel.components.setItemDelegate(ComponentCompositionDelegate(panel))
 
         panel.show_all_functions = QCheckBox(panel.tr("Show all functions"))
         panel.show_all_functions.setToolTip(
@@ -226,6 +226,9 @@ def _install_model_panel() -> None:
         if ref is None:
             return
         menu = QMenu(panel)
+        from curvemole.gui.component_composition import add_composition_actions
+
+        add_composition_actions(menu.addMenu(panel.tr("Composition")), panel, *ref)
         rename = menu.addAction(panel.tr("Rename function…"))
         rename.setEnabled(panel.project is not None and not panel.project.read_only)
         rename.triggered.connect(lambda checked=False: panel.renameRequested.emit(*ref))
@@ -347,6 +350,10 @@ def _install_model_panel() -> None:
                 attach_note(item, project, "function", component.id, curve.id)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setData(_CURVE_ROLE, curve.id)
+                from curvemole.gui.component_composition import COMPOSITION_ROLE
+
+                item.setData(COMPOSITION_ROLE, component.operator)
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, label + " — " + component.operator)
                 item.setToolTip(
                     panel.tr("Spectrum: ")
                     + curve.name
@@ -356,6 +363,7 @@ def _install_model_panel() -> None:
                     + "\n"
                     + panel.tr("Type: ")
                     + component.function_id
+                    + "\n" + panel.tr("Composition: ") + component.operator
                     + "\n"
                     + panel.tr(
                         "Checkbox: include this function in the model and fit. "
@@ -441,6 +449,9 @@ def _install_model_panel() -> None:
         panel.refresh_parameters()
 
     def refresh_parameters(panel: ModelPanel) -> None:
+        from curvemole.gui.component_composition import update_composition_summary
+
+        update_composition_summary(panel)
         refs = panel.selected_component_refs()
         if len(refs) <= 1:
             panel.background_toggle.blockSignals(True)
@@ -636,7 +647,7 @@ def _install_main_window() -> None:
             model = window.project.model_for(curve_id)
             enabled = [component for component in model.components if component.enabled]
             remaining = [component for component in enabled if component.id not in component_ids]
-            if (enabled and enabled[0].id in component_ids and remaining
+            if (model.composition_mode == "ordered" and enabled and enabled[0].id in component_ids and remaining
                     and remaining[0].operator in {"multiply", "divide", "convolve"}):
                 curve = window.project.dataset.curve(curve_id)
                 promoted.append(f"{curve.name} / {remaining[0].name}")

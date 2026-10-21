@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtWidgets import QLabel, QSizePolicy
+from PySide6.QtWidgets import QLabel
 
 from curvemole.gui.flow_layout import FlowLayout
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import normalize_plot_appearance
+from curvemole.gui.plot_controls_style import CoordinateReadout, PlotControlStyle
 
 _ORIGINAL_INIT = PlotWorkspace.__init__
 
@@ -87,10 +88,13 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
     display_row.addWidget(self.coordinate_label)
     self.x_offset_label = x_label
     self.y_offset_label = y_label
-    self.coordinate_label.setWordWrap(True)
-    self.coordinate_label.setSizePolicy(
-        QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred
-    )
+    # A long spectrum name must not turn the toolbar into several text rows.
+    display_row.removeWidget(self.coordinate_label)
+    old_coordinates = self.coordinate_label
+    self.coordinate_label = CoordinateReadout(old_coordinates.text(), self.view_controls)
+    old_coordinates.hide()
+    old_coordinates.deleteLater()
+    display_row.addWidget(self.coordinate_label)
 
     # Residual visibility belongs with the other view-scaling controls.
     offset_row.removeWidget(self.residual_toggle)
@@ -116,6 +120,35 @@ def _plot_workspace_init(self: PlotWorkspace, *args: Any, **kwargs: Any) -> None
         old_row.setParent(None)
         old_row.deleteLater()
         view_layout.insertLayout(index, row)
+
+    # Two concise rows: display/scope/offsets above, rendering options below.
+    # Each row still wraps naturally when the user makes the plot narrower.
+    second = view_layout.itemAt(1).layout()
+    second.removeWidget(self.residual_toggle)
+    while view_layout.count() > 2:
+        row = view_layout.takeAt(2).layout()
+        while row.count():
+            item = row.takeAt(0)
+            if item.widget() is not None:
+                second.addItem(item)
+        row.deleteLater()
+    second.addWidget(self.residual_toggle)
+    # Keep Error bars beside Residuals, independent of the old offset row.
+    second.removeWidget(self.error_bars_toggle)
+    second.addWidget(self.error_bars_toggle)
+    view_layout.setContentsMargins(9, 6, 9, 6)
+    view_layout.setSpacing(4)
+    self.display_mode.setProperty("primaryControl", True)
+    self.autoscale_mode.setMaximumWidth(122)
+    self.plot_style_mode.setMaximumWidth(105)
+
+    def show_offsets(index):
+        for widget in (self.x_offset_label, self.x_offset, self.y_offset_label, self.y_offset):
+            widget.setVisible(index == 2)
+
+    self.display_mode.currentIndexChanged.connect(show_offsets)
+    show_offsets(self.display_mode.currentIndex())
+    self._plot_control_style = PlotControlStyle(self.view_controls)
 
 
 # Install semantic methods before __init__ is called so the signal connection made

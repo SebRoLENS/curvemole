@@ -56,6 +56,8 @@ class ModelPanel(QWidget):
     moveRequested = Signal(str, int)
     enabledRequested = Signal(str, bool)
     backgroundRequested = Signal(str, bool)
+    compositionRequested = Signal(str, str, str)
+    compositionOrderRequested = Signal(str)
     parameterChangeRequested = Signal(str, str, str, object)
     parameterLinkRequested = Signal(str, str)
     bulkFixedRequested = Signal(str, bool)
@@ -82,6 +84,16 @@ class ModelPanel(QWidget):
         self.components.currentItemChanged.connect(self._component_selected)
         self.components.itemChanged.connect(self._component_enabled)
         single_layout.addWidget(self.components, 1)
+        self.composition_summary = QLabel()
+        self.composition_summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.composition_summary.setWordWrap(True)
+        self.composition_summary.setMaximumHeight(60)
+        single_layout.addWidget(self.composition_summary)
+        self.calculation_order_button = QPushButton(self.tr("Calculation order…"))
+        self.calculation_order_button.clicked.connect(
+            lambda: self.compositionOrderRequested.emit(self._composition_curve_id)
+            if getattr(self, "_composition_curve_id", None) else None)
+        single_layout.addWidget(self.calculation_order_button)
         self.background_toggle = QCheckBox(self.tr("Mark as background"))
         self.background_toggle.setToolTip(
             self.tr("Treat the selected model function as part of the background.")
@@ -541,6 +553,8 @@ class CalculatorPanel(QWidget):
         self.column_help.setWordWrap(True)
         self.formula = QLineEdit()
         self.formula.setPlaceholderText(self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
+        self.formula_hint = QLabel(self.tr("For mathematical operators, use Python syntax."))
+        self.formula_hint.setWordWrap(True)
         self.formula_name = QLineEdit()
         self.formula_name.setPlaceholderText(self.tr("Name for saved formula"))
         self.saved_formula = QComboBox()
@@ -562,6 +576,7 @@ class CalculatorPanel(QWidget):
         layout.addRow(self.tr("Write result to"), self.column_target)
         layout.addRow(self.destination_help)
         layout.addRow(self.tr("Formula"), self.formula)
+        layout.addRow(self.formula_hint)
         layout.addRow(self.tr("Insert into formula"), self.column_insert_row)
         layout.addRow(self.insert_help)
         layout.addRow(self.column_help)
@@ -675,6 +690,7 @@ class CalculatorPanel(QWidget):
         scalar = operation not in {"normalize_max", "normalize_area"} and not curve_operation
         advanced = operation == "column_formula"
         custom = operation in {"custom_formula", "column_formula"}
+        self.layout().setRowVisible(self.formula_hint, custom)
         self.column_target.setEnabled(advanced)
         self.column_input.setEnabled(advanced)
         for widget in (self.column_help, self.destination_help, self.insert_help, self.formula_summary):

@@ -13,6 +13,7 @@ import numpy as np
 
 from curvemole.core.background_status import copy_background_history
 from curvemole.core.data import Curve, Dataset, Mask, Series
+from curvemole.core.errors import ConstraintError, DataValidationError
 from curvemole.core.models import Component, Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.parameters import Parameter, resolve_parameter_values
@@ -112,9 +113,65 @@ class Project:
         background: bool = True,
         masks: bool = False,
         fit_ranges: bool = False,
+        component_ids: list[str] | None = None,
+    ) -> None:
+        """Copy the chosen source functions atomically across all destinations.
+
+        With structure off, source positions continue to identify the same target
+        positions; filtering never shifts the selected functions onto other rows.
+        """
+        if self.read_only:
+            raise PermissionError("This project is open read-only.")
+        targets = list(dict.fromkeys(identity for identity in target_curve_ids if identity != source_curve_id))
+        before_models = {identity: copy.deepcopy(self.models.get(identity)) for identity in targets}
+        before_data = {}
+        for identity in targets:
+            curve = self.dataset.curve(identity)
+            before_data[identity] = (copy.deepcopy(curve.masks), curve.active_mask, list(curve.fit_ranges))
+        try:
+            self._copy_fit_impl(source_curve_id, targets, structure=structure, values=values,
+                                bounds_and_fixed=bounds_and_fixed, links=links, background=background,
+                                masks=masks, fit_ranges=fit_ranges, component_ids=component_ids)
+            if component_ids is not None and links:
+                try:
+                    self.resolved_parameter_values()
+                except ConstraintError as exc:
+                    raise ConstraintError(
+                        "The selected functions have missing or invalid parameter links. "
+                        "Include the referenced functions or turn off Internal links. " + str(exc)
+                    ) from exc
+        except Exception:
+            for identity, old in before_models.items():
+                if old is None:
+                    self.models.pop(identity, None)
+                else:
+                    self.models[identity] = old
+                curve = self.dataset.curve(identity)
+                curve.masks, curve.active_mask, curve.fit_ranges = before_data[identity]
+            raise
+        self.touch()
+
+    def _copy_fit_impl(
+        self,
+        source_curve_id: str,
+        target_curve_ids: list[str],
+        *,
+        structure: bool = True,
+        values: bool = True,
+        bounds_and_fixed: bool = True,
+        links: bool = True,
+        background: bool = True,
+        masks: bool = False,
+        fit_ranges: bool = False,
+        component_ids: list[str] | None = None,
     ) -> None:
         source_model = self.model_for(source_curve_id)
         source_curve = self.dataset.curve(source_curve_id)
+        selected_ids = set(component_ids) if component_ids is not None else {c.id for c in source_model.components}
+        unknown = selected_ids - {c.id for c in source_model.components}
+        if unknown:
+            raise DataValidationError("Unknown source function(s): " + ", ".join(sorted(unknown)))
+
         for target_id in target_curve_ids:
             if target_id == source_curve_id:
                 continue
@@ -123,6 +180,8 @@ class Project:
                 existing = self.models.get(target_id)
                 selected = []
                 for component in source_model.components:
+                    if component.id not in selected_ids:
+                        continue
                     if component.is_background and not background:
                         continue
                     clone = Component.from_dict(copy.deepcopy(component.to_dict()))
@@ -162,7 +221,11 @@ class Project:
                         parameter.value = min(max(parameter.value, parameter.minimum), parameter.maximum)
                     selected.append(clone)
                 target_model = Model(name=f"Model for {target_curve.name}", components=selected,
-                                     display_order=list(source_model.display_order))
+                                     display_order=[identity for identity in source_model.display_order if identity in selected_ids],
+                                     composition_mode=source_model.composition_mode,
+                                     operation_order=[identity for identity in source_model.operation_order if identity in selected_ids])
+                if component_ids is not None:
+                    target_model.validate_composition()
                 self.models[target_id] = target_model
             else:
                 target_model = self.model_for(target_id)
@@ -173,6 +236,8 @@ class Project:
                 for source_component, target_component in zip(
                     source_model.components, target_model.components, strict=False
                 ):
+                    if source_component.id not in selected_ids:
+                        continue
                     if source_component.is_background and not background:
                         continue
                     if background:
@@ -229,7 +294,6 @@ class Project:
                 target_curve.active_mask = source_curve.active_mask
             if fit_ranges:
                 target_curve.fit_ranges = list(source_curve.fit_ranges)
-        self.touch()
 
     def touch(self) -> None:
         if self.read_only:

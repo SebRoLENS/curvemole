@@ -460,11 +460,15 @@ control updates both panels and the spectrum tags. See Section 12.
 ### 5.2 Plot workspace
 
 The central workspace contains the data/model plot and an optional residual plot.
+The controls use two compact rows with palette-aware selection states. They wrap
+when dock resizing leaves less width; long coordinate readings stay on one line
+with the complete reading available in a tooltip.
+
 Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
 - **All series / Active series / Selected:** one-click scope for Overlay and Waterfall;
-- **X offset** and **Y offset:** display-only Waterfall spacing;
+- **X offset** and **Y offset:** display-only spacing, shown only in Waterfall;
 - **Residuals:** show or hide the linked residual panel;
 - **Autoscale:** automatically frame the experimental data when the active spectrum changes;
 - **All points / Unmasked points:** choose whether automatic framing includes masked data;
@@ -489,8 +493,8 @@ Offsets never modify data and are removed when converting pointer positions back
 scientific coordinates. Fitting and export use the original numeric coordinates,
 not screen offsets.
 
-The coordinate readout displays the pointer coordinate and the nearest finite point
-from the active curve. Overlay and Waterfall views use adaptive peak-preserving
+The compact coordinate readout displays the pointer position on one line. Hover
+over it to see the full values and the nearest finite point from the active curve. Overlay and Waterfall views use adaptive peak-preserving
 downsampling and clip drawing to the visible range for dense spectra. Single view
 keeps the full display resolution. Descending x arrays may be reversed only in the
 temporary display copy so that fast clipping remains available. Fitting, project
@@ -515,7 +519,7 @@ Normal plot navigation is available when neither placement nor Mask mode is acti
 Left double-click frames all experimental data, including masked points. Right
 double-click frames only unmasked experimental points. Hold the right button and
 drag to pan the spectrum; a single right-click opens the plot context menu after
-the double-click interval. Display controls and the coordinate readout wrap onto
+the double-click interval. Display controls wrap onto
 additional rows when dock resizing narrows the plot.
 Axes always retain the original data units. Numeric tick labels switch to
 scientific notation only when their decimal representation is too wide for the
@@ -543,9 +547,13 @@ The right dock normally lists components for the active curve. Enable **Show all
 functions** to list every model function in the project, grouped by series and
 spectrum. Group headings cannot be selected as functions. The list supports
 Ctrl-click and Shift-click multi-selection, including selections across spectra.
-Mathematical composition order matters because operators are evaluated sequentially.
-**Reorder** sorts only this displayed list and automatic names; it preserves the
-composition order and fit. The Up/Down controls explicitly change composition order.
+Each function has an inline composition menu beside its name: **add**, **subtract**,
+**multiply**, **divide** or **convolve**. Click it to change that function's role;
+the change is undoable and marks only its spectrum's fitted result as outdated.
+For new global models, insertion and list order do not determine the calculation.
+**Calculation order** explicitly orders factors and convolutions and previews the
+resulting expression. **Reorder** sorts only the displayed list and automatic names.
+The Up/Down list controls change calculation order only for saved legacy ordered models.
 Exported parameter rows and component trace columns follow this displayed order
 and use the current function names. Their values and uncertainties remain associated
 with the same functions, including models with multiplication, division or convolution.
@@ -588,8 +596,8 @@ mark or unmark backgrounds, and fix or free their parameters as applicable. Each
 edit is one Undo/Redo operation. Uncheck a component in the list to disable it without
 deleting it. Disabled components are not evaluated or fitted.
 
-Deleting the first enabled function can leave a multiplication, division or
-convolution without a preceding term. In that case, the confirmation identifies
+In a saved legacy ordered model, deleting the first enabled function can leave a
+multiplication, division or convolution without a preceding term. The confirmation identifies
 the first surviving function and explains that it will start the remaining model
 with **Add**. Other operators and parameter values are preserved. Undo restores the
 original functions and composition. If remaining parameters link to a function
@@ -716,6 +724,13 @@ when the quick preview is unavailable, then configured in the mapping dialog.
 ![Preview while selecting files, before opening the import mapping dialog.](screenshots/import-file-preview.png)
 
 ### 6.3 Column mapping
+
+**Destination** lets you create a new series or select an existing series by name.
+A new series requires a unique non-empty name. Selecting an existing series appends
+new spectra there while preserving its identity, existing spectra, notes and palette.
+The destination applies to every selected file in that import; later per-file mapping
+dialogs keep it fixed. Cancelling a later mapping or failing to parse any file leaves
+the destination unchanged. All files are parsed before any are added.
 
 Ordinary imports select one X and one active Y. All original columns remain
 available in the imported curve. For files with more than two columns, the
@@ -958,6 +973,8 @@ signal are rejected.
 
 #### Advanced column formulas
 
+The note below Formula reminds you to use Python syntax for mathematical operators.
+
 The green **Advanced - column formula** entry is first in the operation list,
 followed by the green **Custom formula** for a single plotted axis.
 New imports retain every source column as numeric data in the project, including
@@ -1138,19 +1155,42 @@ zoom while placement is active.
 
 ### 8.1 Component composition
 
-Components are evaluated in list order. Available operators are:
+New models use **global function roles**, independent of insertion and display order.
 
-| Operator | Operation |
+| Operator | Global role |
 |---|---|
-| `add` | Add the component array to the accumulated model |
-| `subtract` | Subtract the component array |
-| `multiply` | Multiply the accumulated model by the component array |
-| `divide` | Divide the accumulated model by the component array |
-| `convolve` | Convolve using FFT and scale by median x spacing |
+| `add` | Include the function in the starting sum |
+| `subtract` | Subtract the function from the starting sum |
+| `multiply` | Multiply the whole intermediate model by the function |
+| `divide` | Divide the whole intermediate model by the function |
+| `convolve` | Convolve the whole intermediate model with the function |
 
-The first enabled component can use only `add` or `subtract`; multiplication,
-division, or convolution requires an existing accumulated model. Additive peak plus
-background models should normally use `add` for every component.
+For example, two Add peaks G1 and G2 plus a Multiply function M produce
+`(G1 + G2) * M`, regardless of which function was added first. Additive peaks and
+backgrounds normally use Add. Background marking requires Add or Subtract; unmark a
+background before changing it to a factor or kernel.
+
+**Calculation order** lists individual Multiply, Divide and Convolve functions.
+Move them up/down or drag them to choose application order, from top to bottom.
+Its expression preview distinguishes `convolve((G1 + G2) * M, R)` from
+`convolve(G1 + G2, R) * M`; those calculations can give different results. Only OK
+applies the choice; Cancel discards it. Changes support Undo/Redo and persist in
+projects, model files and copied structures. Without an explicit choice the default
+is multiplication, then division, then convolution, independent of insertion order.
+
+With no Add/Subtract terms, multiplication and division start from 1; a convolution
+without a preceding signal starts with its first kernel. One Multiply function is
+therefore itself, one Divide function is its reciprocal, and one Convolve function
+is itself. An empty or fully disabled model is zero. Consecutive convolutions use
+full FFT convolution with median x-spacing scaling and crop once back to the input
+length, so inserting the same kernels in another order does not change edge handling.
+Marked additive backgrounds receive the same global factors and convolutions as the
+full model when their contribution is evaluated.
+
+Older project/model/workflow files preserve their **saved ordered composition**.
+They keep the original accumulated-model calculation and first-function restriction.
+Use Calculation order and explicitly select global roles to convert such a model;
+the preview shows the new expression before applying it. Conversion is undoable.
 
 Division by a component that reaches zero and other non-finite model evaluations are
 rejected by the fitter.
@@ -1288,7 +1328,9 @@ existing model: **Add (+)**, **Subtract (-)**, **Multiply (x)**, **Divide (/)**,
 **Convolve (*)**. The orange symbol on the insertion icon shows the current choice;
 clicking the main part of the button inserts with that composition. The same choice
 is available in Function details and the advanced Add dialog and is remembered.
-Multiplication, division and convolution require an existing enabled function.
+All roles are available in new global models, including for the first function.
+Saved legacy ordered models retain the preceding-function requirement until converted
+through Calculation order.
 Background marking is available for Add and Subtract only.
 For automatic or graphical peak initialization, Add uses data minus the existing
 model, Subtract uses model minus data, Multiply uses data/model, and Divide uses
@@ -1418,8 +1460,8 @@ identity, or line shape of peaks.
 
 Duplicate a component to create an adjacent copy with a new internal identifier.
 Disable a component to compare models without losing its settings. Deletion and
-reordering are undoable. Reordering can materially change models that use operations
-other than addition or subtraction.
+reordering are undoable. In global models the function list order is independent of
+the mathematical order; use Calculation order to change precedence explicitly.
 
 The **Reorder** button sorts the function list in ascending parameter order
 (peak `center`, or X position, by default), including peaks of different types.
@@ -1433,8 +1475,9 @@ list order and automatic names are restored by Undo and reapplied by Redo.
 **Reorder changes presentation only:** parameter values, links, fit results and
 the mathematical composition order remain unchanged, including multiplication,
 division and convolution. The display order is saved with the project and copied
-with the model. Use the Up/Down controls to change the mathematical composition
-order explicitly; those controls restore the list to composition order.
+with the model. Use Calculation order to change precedence in global models. For
+saved ordered models only, Up/Down changes mathematical composition order and
+restores the list to that order.
 
 ### 8.10 Copying a fit to other curves
 
@@ -1447,7 +1490,19 @@ series headings. Only targets in the displayed scope are copied.
 in the source series already checked. After a successful copy, that spectrum opens
 automatically in the plot and parameter panel. Cancelling the dialog leaves the
 active spectrum unchanged. The action is unavailable at the end of the series.
-Copying remains undoable. Options include:
+Copying remains undoable. **Functions to copy** lists every source function with
+its role; check only those you want, or use Select all functions / Clear functions.
+Disabled functions can also be copied and retain their disabled state. Turning off
+Background hides and excludes background functions without forgetting their checks.
+
+With **Component structure** checked, each target model is replaced by the checked
+functions, preserving their composition mode and calculation order. With structure
+off, only their original corresponding target positions are updated; skipping a
+source function does not shift another function into its place. Other target
+functions remain unchanged. Relative links to omitted functions must still resolve;
+otherwise the entire copy is rejected, including masks and ranges. Include the
+referenced function or disable Internal links. Undo restores the complete target
+state, including copied masks and ranges. Options include:
 
 - component structure;
 - current or best values;

@@ -27,9 +27,9 @@ def selected_operator(window):
 def operator_available(window, operator):
     if not window.active_curve_id:
         return False
-    return operator in {"add", "subtract"} or any(
-        component.enabled for component in window.project.model_for(window.active_curve_id).components
-    )
+    model = window.project.model_for(window.active_curve_id)
+    return model.composition_mode == "global" or operator in {"add", "subtract"} or any(
+        component.enabled for component in model.components)
 
 
 def ensure_insertion_operator(window):
@@ -76,7 +76,7 @@ def sync_composition(window):
     action.setIcon(composition_icon(operator))
     action.setText(window.tr("Add function") if operator == "add" else window.tr("Insert function") + " (" + symbol + " " + window.tr(label) + ")")
     action.setToolTip(action.text() + " — " + symbol + " " + window.tr(label) + "\n"
-        + window.tr("Combine the selected function with the existing model using this composition. Use the arrow to change it.\n")
+        + window.tr("Set the selected function's role in the whole model. Use the arrow to change it and Calculation order to choose precedence.\n")
         + window.tr("With Initialize with points checked, place peaks by click and drag; otherwise each click inserts one initial estimate. Right-click or press Enter, Esc, or Finish to stop placement."))
     for identifier, item in getattr(window, "function_composition_actions", {}).items():
         with QSignalBlocker(item):
@@ -108,7 +108,7 @@ def install_composition_menu(window, button):
         action = menu.addAction(symbol + " " + window.tr(label))
         action.setCheckable(True)
         action.setData(identifier)
-        action.setToolTip(window.tr("New model = existing model ") + symbol + window.tr(" selected function"))
+        action.setToolTip(window.tr("Set this function's role in the model. Use Calculation order in Model and parameters to choose precedence."))
         group.addAction(action)
         action.triggered.connect(lambda checked=False, op=identifier: set_operator(window, op))
         window.function_composition_actions[identifier] = action
@@ -123,6 +123,12 @@ def install_composition_menu(window, button):
 def insertion_signal(window, curve, operator):
     """Signal that the inserted factor/term should approximate before fitting."""
     model = window.project.model_for(curve.id)
+    if model.composition_mode == "global" and not any(c.enabled for c in model.components):
+        if operator == "multiply":
+            return curve.y.copy()
+        if operator == "divide":
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return np.where(curve.y != 0, 1 / curve.y, np.nan)
     existing = np.asarray(model.evaluate(curve.x, curve_id=curve.id,
         values=window.project.resolved_parameter_values(), registry=window.registry), dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):

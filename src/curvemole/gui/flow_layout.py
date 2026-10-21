@@ -56,6 +56,12 @@ class FlowLayout(QLayout):
         margins = self.contentsMargins()
         area = rect.adjusted(margins.left(), margins.top(), -margins.right(), -margins.bottom())
         x, y, row_height = area.x(), area.y(), 0
+        line = []
+
+        def place_line():
+            for row_item, left, width, height in line:
+                row_item.setGeometry(QRect(left, y + (row_height - height) // 2, width, height))
+
         for index, item in enumerate(self._items):
             if item.isEmpty():
                 continue
@@ -71,11 +77,16 @@ class FlowLayout(QLayout):
                 if following is not None and following.widget() is widget.buddy():
                     needed += self.spacing() + following.sizeHint().width()
             if row_height and x + needed > area.right() + 1:
+                if apply:
+                    place_line()
+                line.clear()
                 x = area.x()
                 y += row_height + self.spacing()
                 row_height = 0
             if apply:
-                item.setGeometry(QRect(x, y, width, height))
+                line.append((item, x, width, height))
             x += width + self.spacing()
             row_height = max(row_height, height)
+        if apply:
+            place_line()
         return y + row_height - rect.y() + margins.bottom()

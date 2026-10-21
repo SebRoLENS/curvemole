@@ -107,7 +107,7 @@ def function_info_html(definition: FunctionDefinition) -> str:
             "<p><b>Initialize with points checked:</b> select graph points and press Finish. Point-initialized parameters start fixed.</p><p><b>Unchecked:</b> insert the normal initial parameters; spline nodes are estimated from the data.</p>"
         )
     parts.append(
-        "<p>Composition combines this function with the whole existing model. Multiplication, division and convolution require an enabled model function first.</p>"
+        "<p>Global composition: Add/Subtract form the starting sum; Multiply, Divide and Convolve act on the whole model. Use Calculation order in Model and parameters to choose their precedence. Global roles do not depend on insertion order. Older saved ordered models retain their original calculation until explicitly converted there.</p>"
     )
     parts.append(
         "<p>Defaults above describe the function definition; data-based estimates can differ. Background marks the added component as background. Use Add function to add this function with advanced options, or Model → Add component (Ctrl++).</p>"

@@ -93,8 +93,9 @@ def test_composition_applies_to_free_generic_functions(composition_window, opera
     assert window.project.model_for(curve.id).components[-1].operator == operator
 
 
-def test_empty_model_disables_factor_operators_and_guard_prevents_invalid_insertion(composition_window, monkeypatch):
+def test_legacy_empty_model_retains_guard_for_invalid_ordered_insertion(composition_window, monkeypatch):
     _, window, curve = composition_window
+    window.project.model_for(curve.id).composition_mode = "ordered"
     sync_composition(window)
     for operator, _, _ in OPERATORS:
         assert window.function_composition_actions[operator].isEnabled() == (operator in {"add", "subtract"})

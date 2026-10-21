@@ -1314,6 +1314,8 @@ class MainWindow(QMainWindow):
         self.model_panel.moveRequested.connect(self.move_component)
         self.model_panel.enabledRequested.connect(self.enable_component)
         self.model_panel.backgroundRequested.connect(self.set_component_background)
+        self.model_panel.compositionRequested.connect(self.set_component_operator)
+        self.model_panel.compositionOrderRequested.connect(self.edit_calculation_order)
         self.model_panel.parameterChangeRequested.connect(self.change_parameter)
         self.model_panel.parameterLinkRequested.connect(self.edit_parameter_link)
         self.model_panel.bulkFixedRequested.connect(self.set_component_fixed)
@@ -1447,6 +1449,7 @@ class MainWindow(QMainWindow):
             return
         series = Series(self._next_series_name())
         series.metadata["palette"] = DEFAULT_SERIES_PALETTE
+        destination_id = None
         shared_mapping = None
         shared_config = None
         apply_all = False
@@ -1463,10 +1466,16 @@ class MainWindow(QMainWindow):
                                 dialog.y_columns.item(row).setCheckState(
                                     Qt.CheckState.Checked if row == yi else Qt.CheckState.Unchecked)
                     dialog.series_name.setText(series.name)
+                    dialog.set_series_destinations(self.project.dataset.series, destination_id)
+                    if index > 0:
+                        dialog.destination_series.setEnabled(False)
+                        dialog.series_name.setEnabled(False)
                     dialog.existing_series_names = {item.name for item in self.project.dataset.series}
                     if dialog.exec() != dialog.DialogCode.Accepted:
                         return
-                    series.name = dialog.series_name.text().strip()
+                    if index == 0:
+                        destination_id = dialog.destination_series.currentData()
+                        series.name = dialog.series_name.text().strip()
                     shared_mapping = dialog.mapping()
                     shared_config = dialog.config()
                     apply_all = dialog.apply_all.isChecked()
@@ -1476,7 +1485,15 @@ class MainWindow(QMainWindow):
                     if len(paths) > 1 and not (shared_mapping.as_separated_files or shared_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
                     series.add(curve)
-            self.project.add_series(series)
+            if destination_id is None:
+                self.project.add_series(series)
+            else:
+                destination = next(item for item in self.project.dataset.series if item.id == destination_id)
+                palette = SERIES_PALETTES.get(str(destination.metadata.get("palette", "")),
+                                             SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
+                for curve in series.curves:
+                    curve.colour = palette[len(destination.curves) % len(palette)]
+                    self.project.add_curve(curve, destination)
             self.active_curve_id = series.curves[0].id
             self.selected_component_id = None
             self.refresh_all()
@@ -2019,6 +2036,55 @@ class MainWindow(QMainWindow):
         self._push_change(self.tr("Set parameter link"), lambda: assign(after), lambda: assign(before),
                           modified_curve_ids={curve_id})
 
+    def edit_calculation_order(self, curve_id: str) -> None:
+        if not self._ensure_editable():
+            return
+        from curvemole.gui.component_composition import CalculationOrderDialog
+
+        model = self.project.model_for(curve_id)
+        dialog = CalculationOrderDialog(model, self.project.dataset.curve(curve_id).name, self)
+        if dialog.exec() != dialog.DialogCode.Accepted:
+            return
+        mode, order = dialog.choices()
+        before = copy.deepcopy(model.to_dict())
+        candidate = model.clone()
+        candidate.composition_mode, candidate.operation_order = mode, order
+        try:
+            candidate.validate_composition()
+        except Exception as exc:
+            self._show_error(self.tr("Calculation order"), exc)
+            return
+        after = candidate.to_dict()
+        if before != after:
+            self._push_change(
+                self.tr("Change calculation order"),
+                lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
+                lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+                modified_curve_ids={curve_id},
+            )
+
+    def set_component_operator(self, curve_id: str, component_id: str, operator: str) -> None:
+        if not self._ensure_editable():
+            return
+        model = self.project.model_for(curve_id)
+        component = model.component(component_id)
+        if component.operator == operator:
+            return
+        before = copy.deepcopy(model.to_dict())
+        try:
+            model.set_component_operator(component_id, operator)
+            after = copy.deepcopy(model.to_dict())
+        except Exception as exc:
+            self._show_error(self.tr("Change function composition"), exc)
+            return
+        self.project.models[curve_id] = Model.from_dict(before)
+        self._push_change(
+            self.tr("Change function composition"),
+            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
+            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+            modified_curve_ids={curve_id},
+        )
+
     def copy_fit(self, *, next_only: bool = False) -> None:
         if not self._ensure_editable():
             return
@@ -2039,22 +2105,33 @@ class MainWindow(QMainWindow):
         targets, choices = dialog.choices()
         if not targets:
             return
-        before = {curve_id: self.project.model_for(curve_id).to_dict() for curve_id in targets}
+
+        def capture():
+            return {curve_id: {
+                "model": copy.deepcopy(self.project.model_for(curve_id).to_dict()),
+                "masks": copy.deepcopy(self.project.dataset.curve(curve_id).masks),
+                "active_mask": self.project.dataset.curve(curve_id).active_mask,
+                "fit_ranges": list(self.project.dataset.curve(curve_id).fit_ranges),
+            } for curve_id in targets}
+
+        def restore(states):
+            for curve_id, state in states.items():
+                self.project.models[curve_id] = Model.from_dict(copy.deepcopy(state["model"]))
+                curve = self.project.dataset.curve(curve_id)
+                curve.masks = copy.deepcopy(state["masks"])
+                curve.active_mask = state["active_mask"]
+                curve.fit_ranges = list(state["fit_ranges"])
+
+        before = capture()
         try:
             self.project.copy_fit(self.active_curve_id, targets, **choices)
             self._validate_all_links()
         except Exception as exc:
-            for curve_id, model in before.items():
-                self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model))
+            restore(before)
             self._show_error(self.tr("Copy fit"), exc)
             return
-        after = {curve_id: self.project.model_for(curve_id).to_dict() for curve_id in targets}
-        for curve_id, model in before.items():
-            self.project.models[curve_id] = Model.from_dict(model)
-
-        def restore(values: dict[str, dict[str, Any]]) -> None:
-            for curve_id, model in values.items():
-                self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model))
+        after = capture()
+        restore(before)
 
         self._push_change(
             self.tr("Copy fit"),
@@ -2321,6 +2398,8 @@ class MainWindow(QMainWindow):
                     components.append(component)
                 current.components = components
                 current.display_order = list(saved.display_order)
+                current.composition_mode = saved.composition_mode
+                current.operation_order = list(saved.operation_order)
             self._fit_finished(result)
 
         if stream:

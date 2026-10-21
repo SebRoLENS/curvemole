@@ -1,4 +1,4 @@
-# `.fitproj` format version 1
+# `.fitproj` format version 2
 
 A project is an ordinary ZIP archive:
 
@@ -25,3 +25,17 @@ order, covered by archive checksums. Curves without these optional keys remain
 readable. `column_formula` transformations store a target and restricted expression;
 replaying the transformation stack reconstructs both plotted and auxiliary columns.
 Use a CurveMole build supporting this feature to reopen transformed projects.
+
+## Model composition
+
+Version 2 records `composition_mode` and `operation_order` on each model.
+`global` mode pools Add/Subtract functions, then applies the component IDs in
+`operation_order`; remaining factors default to multiplication, division, then
+convolution. Function insertion and display order are independent of this order.
+`ordered` preserves the original accumulated-model semantics. Version 1 archives
+remain readable; missing composition metadata is interpreted as `ordered`.
+
+The same version 2 composition fields are retained in `.fitmodel` files and YAML
+workflows. Older software does not implement global composition and must not be
+used to recalculate these models. Legacy YAML schema 1 remains supported with its
+original ordered semantics.

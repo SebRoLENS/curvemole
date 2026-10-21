@@ -5,6 +5,26 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Added
+
+- Add a short Python operator syntax reminder below the calculator formula field.
+- Show an editable composition menu beside every model function. New models use
+  global Add/Subtract/Multiply/Divide/Convolve roles independent of insertion order;
+  Calculation order provides explicit per-function precedence with an expression
+  preview and Undo/Redo. Older saved models retain their calculation until converted.
+- Select individual source functions in Copy fit and Copy fit to next. Preserve
+  composition and calculation order, validate links, and restore copied masks and
+  ranges with the same Undo operation.
+- Import files into an existing series or a new one. Stage an entire batch before
+  appending, preserving existing spectra, notes and palette on cancellation/failure.
+
+### Changed
+
+- Restyle plot controls as two compact, responsive rows with light/dark palettes,
+  aligned controls, Waterfall-only offsets and a one-line coordinate readout.
+- Use schema 2 for projects, fit models and exported workflows to record global
+  composition. Read schema 1 models and workflows with their original semantics.
+
 ## [0.43.1] - 2026-10-20
 
 ### Changed

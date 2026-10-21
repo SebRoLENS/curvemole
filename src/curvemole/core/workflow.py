@@ -39,7 +39,7 @@ def load_workflow(path: str | Path) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise CurveMoleError("Workflow root must be a mapping.")
     schema = int(value.get("schema_version", -1))
-    if schema != WORKFLOW_SCHEMA_VERSION:
+    if schema not in {1, WORKFLOW_SCHEMA_VERSION}:
         raise CurveMoleError(
             f"Unsupported workflow schema {schema}; expected {WORKFLOW_SCHEMA_VERSION}."
         )
@@ -48,8 +48,8 @@ def load_workflow(path: str | Path) -> dict[str, Any]:
 
 def validate_workflow(value: Mapping[str, Any]) -> list[str]:
     errors: list[str] = []
-    if value.get("schema_version") != WORKFLOW_SCHEMA_VERSION:
-        errors.append(f"schema_version must be {WORKFLOW_SCHEMA_VERSION}")
+    if value.get("schema_version") not in {1, WORKFLOW_SCHEMA_VERSION}:
+        errors.append(f"schema_version must be 1 or {WORKFLOW_SCHEMA_VERSION}")
     if not isinstance(value.get("imports"), list) or not value.get("imports"):
         errors.append("imports must be a non-empty list")
     if "models" in value and not isinstance(value["models"], list):
@@ -112,6 +112,8 @@ def run_workflow(
         curve_id = _curve_id(model_spec["curve"], curve_aliases, project)
         model = project.model_for(curve_id)
         model.name = str(model_spec.get("name", model.name))
+        model.composition_mode = str(model_spec.get(
+            "composition_mode", "ordered" if workflow["schema_version"] == 1 else "global"))
         for component_spec in model_spec.get("components", []):
             component = Component.create(
                 component_spec["function"],
@@ -121,6 +123,9 @@ def run_workflow(
                 metadata=component_spec.get("metadata"),
                 operator=component_spec.get("operator", "add"),
             )
+            component.id = str(component_spec.get("id", component.id))
+            component.enabled = bool(component_spec.get("enabled", True))
+            component.is_background = bool(component_spec.get("is_background", False))
             for name, rules in component_spec.get("constraints", {}).items():
                 parameter = component.parameters[name]
                 if "minimum" in rules:
@@ -136,6 +141,8 @@ def run_workflow(
                 parameter.link_tolerance_mode = rules.get("link_tolerance_mode", "absolute")
                 parameter.validate()
             model.add(component)
+        model.operation_order = list(model_spec.get("operation_order", []))
+        model.validate_composition()
 
     result: FitResult | None = None
     fit_spec = workflow.get("fit")
@@ -198,10 +205,15 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
             value["models"].append(
                 {
                     "curve": curve.name,
+                    "composition_mode": model.composition_mode,
+                    "operation_order": list(model.operation_order),
                     "components": [
                         {
                             "function": component.function_id,
+                            "id": component.id,
                             "name": component.name,
+                            "enabled": component.enabled,
+                            "is_background": component.is_background,
                             "operator": component.operator,
                             "metadata": component.metadata,
                             "parameters": {

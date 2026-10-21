@@ -37,6 +37,7 @@ def close(window, app):
 def test_delete_initial_add_keeps_remaining_model_visible_and_undo_restores_composition(monkeypatch, operator):
     app = QApplication.instance() or QApplication([])
     project, curve, base, factor, other = example(operator)
+    project.model_for(curve.id).composition_mode = "ordered"
     before = project.model_for(curve.id).to_dict()
     original_y = curve.y.copy()
     original_fit = project.model_for(curve.id).evaluate(curve.x, curve_id=curve.id)

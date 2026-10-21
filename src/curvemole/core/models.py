@@ -92,6 +92,8 @@ class Model:
     components: list[Component] = field(default_factory=list)
     id: str = field(default_factory=lambda: _identifier("model"))
     display_order: list[str] = field(default_factory=list)
+    composition_mode: str = "global"
+    operation_order: list[str] = field(default_factory=list)
 
     @property
     def display_components(self) -> list[Component]:
@@ -111,6 +113,7 @@ class Model:
         for index, component in enumerate(self.components):
             if component.id == component_id:
                 self.display_order = [item for item in self.display_order if item != component_id]
+                self.operation_order = [item for item in self.operation_order if item != component_id]
                 return self.components.pop(index)
         raise KeyError(component_id)
 
@@ -123,7 +126,8 @@ class Model:
         first = next((component for component in self.components if component.enabled), None)
         self.components = [component for component in self.components if component.id not in component_ids]
         self.display_order = [component_id for component_id in self.display_order if component_id not in component_ids]
-        if first is not None and first.id in component_ids:
+        self.operation_order = [component_id for component_id in self.operation_order if component_id not in component_ids]
+        if self.composition_mode == "ordered" and first is not None and first.id in component_ids:
             successor = next((component for component in self.components if component.enabled), None)
             if successor is not None and successor.operator in {"multiply", "divide", "convolve"}:
                 successor.operator = "add"
@@ -144,8 +148,10 @@ class Model:
         return duplicate
 
     def move(self, component_id: str, index: int) -> None:
+        calculation_order = list(self.operation_order)
         component = self.remove(component_id)
         self.components.insert(max(0, min(index, len(self.components))), component)
+        self.operation_order = calculation_order
         self.display_order = []
 
     def component(self, component_id: str) -> Component:
@@ -153,6 +159,36 @@ class Model:
             if component.id == component_id:
                 return component
         raise KeyError(component_id)
+
+    def validate_composition(self) -> None:
+        if self.composition_mode not in {"global", "ordered"}:
+            raise DataValidationError(f"Unknown composition mode: {self.composition_mode}")
+        if len(self.operation_order) != len(set(self.operation_order)):
+            raise DataValidationError("Calculation order contains duplicate functions.")
+        first = True
+        for component in self.components:
+            if component.operator not in {"add", "subtract", "multiply", "divide", "convolve"}:
+                raise DataValidationError(f"Unknown component operator: {component.operator}")
+            if not component.enabled:
+                continue
+            if self.composition_mode == "ordered" and first and component.operator not in {"add", "subtract"}:
+                raise DataValidationError(
+                    f"First enabled function '{component.name}' must use Add or Subtract. "
+                    "Multiplication, division and convolution need a preceding enabled function."
+                )
+            first = False
+
+    def set_component_operator(self, component_id: str, operator: str) -> None:
+        component = self.component(component_id)
+        if component.is_background and operator in {"multiply", "divide", "convolve"}:
+            raise DataValidationError("Unmark this function as background before choosing Multiply, Divide or Convolve.")
+        old = component.operator
+        component.operator = operator
+        try:
+            self.validate_composition()
+        except Exception:
+            component.operator = old
+            raise
 
     def parameter_map(self, curve_id: str) -> dict[str, Parameter]:
         return {
@@ -183,6 +219,8 @@ class Model:
         for component in self.components:
             if not component.enabled:
                 continue
+            if component.operator not in {"add", "subtract", "multiply", "divide", "convolve"}:
+                raise DataValidationError(f"Unknown component operator: {component.operator}")
             definition = registry.get(component.function_id)
             parameters = {
                 name: float(values.get(self.parameter_path(prefix, component.id, name), parameter.value))
@@ -190,33 +228,113 @@ class Model:
             }
             evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
             component_values[component.id] = evaluated
-            if total is None:
-                if component.operator == "subtract":
-                    total = -evaluated
-                elif component.operator in {"multiply", "divide", "convolve"}:
-                    raise DataValidationError(
-                        f"First enabled component '{component.name}' cannot use {component.operator}."
-                    )
+        if self.composition_mode == "global":
+            total = self._evaluate_global(np.asarray(x, dtype=float), component_values)
+        elif self.composition_mode == "ordered":
+            for component in self.components:
+                if component.id not in component_values:
+                    continue
+                evaluated = component_values[component.id]
+                if total is None:
+                    if component.operator == "subtract":
+                        total = -evaluated
+                    elif component.operator in {"multiply", "divide", "convolve"}:
+                        raise DataValidationError(
+                            f"First enabled component '{component.name}' cannot use {component.operator}."
+                        )
+                    else:
+                        total = evaluated.copy()
+                    continue
+                if component.operator == "add":
+                    total = total + evaluated
+                elif component.operator == "subtract":
+                    total = total - evaluated
+                elif component.operator == "multiply":
+                    total = total * evaluated
+                elif component.operator == "divide":
+                    with np.errstate(divide="ignore", invalid="ignore"):
+                        total = total / evaluated
+                elif component.operator == "convolve":
+                    spacing = np.nanmedian(np.abs(np.diff(x))) if len(x) > 1 else 1.0
+                    total = fftconvolve(total, evaluated, mode="same") * spacing
                 else:
-                    total = evaluated.copy()
+                    raise DataValidationError(f"Unknown component operator: {component.operator}")
+            if total is None:
+                total = np.zeros_like(x, dtype=float)
+        else:
+            raise DataValidationError(f"Unknown composition mode: {self.composition_mode}")
+        return (total, component_values) if components else total
+
+    @property
+    def ordered_operations(self) -> list[Component]:
+        """User-selected calculation order, separate from insertion/display order."""
+        rank = {"multiply": 0, "divide": 1, "convolve": 2}
+        positions = {identity: index for index, identity in enumerate(self.operation_order)}
+        operations = [c for c in self.components if c.operator in rank]
+        return sorted(operations, key=lambda c: (
+            positions.get(c.id, len(positions)), rank[c.operator] if c.id not in positions else 0, c.id,
+        ))
+
+    def _evaluate_global(self, x: np.ndarray, evaluated: dict[str, np.ndarray]) -> np.ndarray:
+        terms = sorted((c for c in self.components if c.enabled and c.id in evaluated
+                        and c.operator in {"add", "subtract"}), key=lambda c: c.id)
+        total = None
+        if terms:
+            total = np.zeros_like(x, dtype=float)
+            for component in terms:
+                total += evaluated[component.id] * (1 if component.operator == "add" else -1)
+        operations = [c for c in self.ordered_operations if c.enabled and c.id in evaluated]
+        index = 0
+        while index < len(operations):
+            component = operations[index]
+            if component.operator == "convolve":
+                # Crop once per consecutive convolution block. Repeated 'same'
+                # cropping would make three kernels depend on their insertion order.
+                arrays = [] if total is None else [total]
+                while index < len(operations) and operations[index].operator == "convolve":
+                    arrays.append(evaluated[operations[index].id])
+                    index += 1
+                spacing = np.nanmedian(np.abs(np.diff(x))) if len(x) > 1 else 1.0
+                full = arrays[0].copy()
+                for array in arrays[1:]:
+                    full = fftconvolve(full, array, mode="full") * spacing
+                offset = (len(full) - len(x)) // 2
+                total = full[offset:offset + len(x)]
                 continue
-            if component.operator == "add":
-                total = total + evaluated
-            elif component.operator == "subtract":
-                total = total - evaluated
-            elif component.operator == "multiply":
-                total = total * evaluated
+            if total is None:
+                total = np.ones_like(x, dtype=float)
+            if component.operator == "multiply":
+                total = total * evaluated[component.id]
             elif component.operator == "divide":
                 with np.errstate(divide="ignore", invalid="ignore"):
-                    total = total / evaluated
-            elif component.operator == "convolve":
-                spacing = np.nanmedian(np.abs(np.diff(x))) if len(x) > 1 else 1.0
-                total = fftconvolve(total, evaluated, mode="same") * spacing
+                    total = total / evaluated[component.id]
+            index += 1
+        return np.zeros_like(x, dtype=float) if total is None else total
+
+    def calculation_expression(self) -> str:
+        enabled = [c for c in self.components if c.enabled]
+        if self.composition_mode == "global":
+            terms = sorted((c for c in enabled if c.operator in {"add", "subtract"}), key=lambda c: c.id)
+            expression = ""
+            for component in terms:
+                sign = "+" if component.operator == "add" else "−"
+                expression += (f" {sign} " if expression else "−" if sign == "−" else "") + component.name
+            operations = [c for c in self.ordered_operations if c.enabled]
+        else:
+            expression = ""
+            operations = enabled
+        for component in operations:
+            name = component.name
+            if component.operator == "convolve":
+                expression = f"convolve({expression}, {name})" if expression else name
+            elif component.operator == "multiply":
+                expression = f"({expression}) × {name}" if expression else name
+            elif component.operator == "divide":
+                expression = f"({expression or '1'}) / {name}"
             else:
-                raise DataValidationError(f"Unknown component operator: {component.operator}")
-        if total is None:
-            total = np.zeros_like(x, dtype=float)
-        return (total, component_values) if components else total
+                sign = "+" if component.operator == "add" else "−"
+                expression = f"({expression}) {sign} {name}" if expression else ("−" if sign == "−" else "") + name
+        return expression or "0"
 
     def background(
         self,
@@ -234,6 +352,7 @@ class Model:
             values = resolve_parameter_values(self.parameter_map(prefix))
         selected = set(component_ids) if component_ids is not None else None
         result = np.zeros_like(x, dtype=float)
+        included = set()
         for component in self.components:
             if not component.enabled:
                 continue
@@ -253,6 +372,15 @@ class Model:
             }
             evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
             result += evaluated if component.operator == "add" else -evaluated
+            included.add(component.id)
+        if self.composition_mode == "global" and included and any(
+            c.enabled and c.operator not in {"add", "subtract"} for c in self.components
+        ):
+            _, evaluated = self.evaluate(x, curve_id=curve_id, values=values, registry=registry, components=True)
+            for component in self.components:
+                if component.operator in {"add", "subtract"} and component.id not in included:
+                    evaluated[component.id] = np.zeros_like(x, dtype=float)
+            return self._evaluate_global(np.asarray(x, dtype=float), evaluated)
         return result
 
     def derived_quantities(
@@ -296,7 +424,8 @@ class Model:
 
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "name": self.name, "components": [item.to_dict() for item in self.components],
-                "display_order": list(self.display_order)}
+                "display_order": list(self.display_order),
+                "composition_mode": self.composition_mode, "operation_order": list(self.operation_order)}
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> Model:
@@ -305,6 +434,8 @@ class Model:
             name=str(value.get("name", "Model")),
             components=[Component.from_dict(item) for item in value.get("components", [])],
             display_order=[str(item) for item in value.get("display_order", [])],
+            composition_mode=str(value.get("composition_mode", "ordered")),
+            operation_order=[str(item) for item in value.get("operation_order", [])],
         )
 
 
