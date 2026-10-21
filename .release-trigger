@@ -1,1 +1,16 @@
-0.45.0
+# Commit a change to this file to create a release without changing source code.
+# Default: patch. Use [minor], [major], or [release 0.30.0] in the commit message.
+initial-release=0.1.0
+release-request=22
+release-request=0.30.0
+release-request=0.31.1
+release-request=0.36.2
+release-request=0.38.1-manual-alignment
+release-request=0.38.2-validation-retry
+release-request=0.39.0-checkbox-validation-retry
+release-request=0.41.0-macos-validation-time-budget
+release-request=0.42.1-portable-help-tests
+release-request=0.43.1-deterministic-task-close-check
+release-request=0.43.1-composition-copy-all-spectrum-notes
+release-request=0.44.0-dispose-finished-test-windows
+release-request=0.45.0-compact-history-ram-undo
