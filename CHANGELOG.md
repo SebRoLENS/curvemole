@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [0.44.0] - 2026-10-21
+
 ### Added
 
 - Add a short Python operator syntax reminder below the calculator formula field.

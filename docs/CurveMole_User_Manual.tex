@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.43.1}
+\ohead{Version 0.44.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.43.1\par}
+    {\sffamily\Large\color{CurveMoleGrey}Preview 0.44.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.43.1}
+\subtitle{Preview 0.44.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.43.1}
+\date{Updated for CurveMole 0.44.0}
 
 \begin{document}
 \maketitle
@@ -202,12 +202,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.43.1 Preview. The Markdown file is the authoritative source.
+CurveMole 0.44.0 Preview. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
 \begin{quote}
-\textbf{Preview status.} CurveMole 0.43.1 is suitable for evaluation and
+\textbf{Preview status.} CurveMole 0.44.0 is suitable for evaluation and
 controlled testing. It has not yet completed the scientific validation
 planned for version 1.0.0. Inspect the residuals, parameter
 correlations, constraints, and exported results before using a fit in
@@ -270,8 +270,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.43.1
-describes CurveMole 0.43.1.
+an independent document version. For example, a manual marked 0.44.0
+describes CurveMole 0.44.0.
 
 The release automation performs four checks:
 
@@ -519,8 +519,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.44.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}0.44.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +528,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.43.1{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.44.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +572,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.43.1{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.44.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +580,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{44}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +597,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.43.1{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.44.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +608,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{43}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{44}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -961,7 +961,12 @@ panels and the spectrum tags. See Section 12.
 \section{5.2 Plot workspace}\label{plot-workspace}}
 
 The central workspace contains the data/model plot and an optional
-residual plot. Controls above it provide:
+residual plot. The controls use two compact rows with palette-aware
+selection states. They wrap when dock resizing leaves less width; long
+coordinate readings stay on one line with the complete reading available
+in a tooltip.
+
+Controls above it provide:
 
 \begin{itemize}
 \tightlist
@@ -971,8 +976,8 @@ residual plot. Controls above it provide:
   \textbf{All series / Active series / Selected:} one-click scope for
   Overlay and Waterfall;
 \item
-  \textbf{X offset} and \textbf{Y offset:} display-only Waterfall
-  spacing;
+  \textbf{X offset} and \textbf{Y offset:} display-only spacing, shown
+  only in Waterfall;
 \item
   \textbf{Residuals:} show or hide the linked residual panel;
 \item
@@ -1009,13 +1014,14 @@ Offsets never modify data and are removed when converting pointer
 positions back to scientific coordinates. Fitting and export use the
 original numeric coordinates, not screen offsets.
 
-The coordinate readout displays the pointer coordinate and the nearest
-finite point from the active curve. Overlay and Waterfall views use
-adaptive peak-preserving downsampling and clip drawing to the visible
-range for dense spectra. Single view keeps the full display resolution.
-Descending x arrays may be reversed only in the temporary display copy
-so that fast clipping remains available. Fitting, project storage, and
-export always use the complete original arrays.
+The compact coordinate readout displays the pointer position on one
+line. Hover over it to see the full values and the nearest finite point
+from the active curve. Overlay and Waterfall views use adaptive
+peak-preserving downsampling and clip drawing to the visible range for
+dense spectra. Single view keeps the full display resolution. Descending
+x arrays may be reversed only in the temporary display copy so that fast
+clipping remains available. Fitting, project storage, and export always
+use the complete original arrays.
 
 Model functions initially receive names such as \textbf{Voigt1},
 \textbf{Voigt2}, and \textbf{Gaussian1}. Right-click a function and
@@ -1042,16 +1048,16 @@ is active. Left double-click frames all experimental data, including
 masked points. Right double-click frames only unmasked experimental
 points. Hold the right button and drag to pan the spectrum; a single
 right-click opens the plot context menu after the double-click interval.
-Display controls and the coordinate readout wrap onto additional rows
-when dock resizing narrows the plot. Axes always retain the original
-data units. Numeric tick labels switch to scientific notation only when
-their decimal representation is too wide for the available space; this
-never changes spectrum values or adds an SI unit prefix. The mouse wheel
-remains available during peak placement, spline placement, Quick Fit,
-and live fit refreshes. A refresh preserves the current viewport instead
-of resetting a zoom chosen by the user. When the plot has keyboard
-focus, Up and Down activate the previous or next checked spectrum in
-project order. Up/Down in the curve tree also skips unchecked spectra.
+Display controls wrap onto additional rows when dock resizing narrows
+the plot. Axes always retain the original data units. Numeric tick
+labels switch to scientific notation only when their decimal
+representation is too wide for the available space; this never changes
+spectrum values or adds an SI unit prefix. The mouse wheel remains
+available during peak placement, spline placement, Quick Fit, and live
+fit refreshes. A refresh preserves the current viewport instead of
+resetting a zoom chosen by the user. When the plot has keyboard focus,
+Up and Down activate the previous or next checked spectrum in project
+order. Up/Down in the curve tree also skips unchecked spectra.
 
 Use \textbf{View \textgreater{} Axes} for:
 
@@ -1079,14 +1085,20 @@ The right dock normally lists components for the active curve. Enable
 \textbf{Show all functions} to list every model function in the project,
 grouped by series and spectrum. Group headings cannot be selected as
 functions. The list supports Ctrl-click and Shift-click multi-selection,
-including selections across spectra. Mathematical composition order
-matters because operators are evaluated sequentially. \textbf{Reorder}
-sorts only this displayed list and automatic names; it preserves the
-composition order and fit. The Up/Down controls explicitly change
-composition order. Exported parameter rows and component trace columns
-follow this displayed order and use the current function names. Their
-values and uncertainties remain associated with the same functions,
-including models with multiplication, division or convolution.
+including selections across spectra. Each function has an inline
+composition menu beside its name: \textbf{add}, \textbf{subtract},
+\textbf{multiply}, \textbf{divide} or \textbf{convolve}. Click it to
+change that function's role; the change is undoable and marks only its
+spectrum's fitted result as outdated. For new global models, insertion
+and list order do not determine the calculation. \textbf{Calculation
+order} explicitly orders factors and convolutions and previews the
+resulting expression. \textbf{Reorder} sorts only the displayed list and
+automatic names. The Up/Down list controls change calculation order only
+for saved legacy ordered models. Exported parameter rows and component
+trace columns follow this displayed order and use the current function
+names. Their values and uncertainties remain associated with the same
+functions, including models with multiplication, division or
+convolution.
 
 \textbf{Select all} selects every displayed function. \textbf{Select all
 except backgrounds} selects only functions that are not marked as
@@ -1178,14 +1190,14 @@ parameters as applicable. Each bulk edit is one Undo/Redo operation.
 Uncheck a component in the list to disable it without deleting it.
 Disabled components are not evaluated or fitted.
 
-Deleting the first enabled function can leave a multiplication, division
-or convolution without a preceding term. In that case, the confirmation
-identifies the first surviving function and explains that it will start
-the remaining model with \textbf{Add}. Other operators and parameter
-values are preserved. Undo restores the original functions and
-composition. If remaining parameters link to a function being deleted,
-deletion is cancelled and the affected links are listed; remove those
-links or constraints before deleting the function.
+In a saved legacy ordered model, deleting the first enabled function can
+leave a multiplication, division or convolution without a preceding
+term. The confirmation identifies the first surviving function and
+explains that it will start the remaining model with \textbf{Add}. Other
+operators and parameter values are preserved. Undo restores the original
+functions and composition. If remaining parameters link to a function
+being deleted, deletion is cancelled and the affected links are listed;
+remove those links or constraints before deleting the function.
 
 \textbf{Copy parameter} is enabled only when exactly one source function
 is selected. Select a row in the parameter table to make that parameter
@@ -1363,6 +1375,15 @@ mapping dialog.}
 \hypertarget{column-mapping}{%
 \section{6.3 Column mapping}\label{column-mapping}}
 
+\textbf{Destination} lets you create a new series or select an existing
+series by name. A new series requires a unique non-empty name. Selecting
+an existing series appends new spectra there while preserving its
+identity, existing spectra, notes and palette. The destination applies
+to every selected file in that import; later per-file mapping dialogs
+keep it fixed. Cancelling a later mapping or failing to parse any file
+leaves the destination unchanged. All files are parsed before any are
+added.
+
 Ordinary imports select one X and one active Y. All original columns
 remain available in the imported curve. For files with more than two
 columns, the \textbf{as separated files} checkbox appears directly below
@@ -1427,7 +1448,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.43.1 optimizer.
+version 0.44.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -1702,6 +1723,9 @@ are rejected.
 \hypertarget{advanced-column-formulas}{%
 \subsection{Advanced column formulas}\label{advanced-column-formulas}}
 
+The note below Formula reminds you to use Python syntax for mathematical
+operators.
+
 The green \textbf{Advanced - column formula} entry is first in the
 operation list, followed by the green \textbf{Custom formula} for a
 single plotted axis. New imports retain every source column as numeric
@@ -1968,29 +1992,59 @@ and the mouse wheel continues to zoom while placement is active.
 \hypertarget{component-composition}{%
 \section{8.1 Component composition}\label{component-composition}}
 
-Components are evaluated in list order. Available operators are:
+New models use \textbf{global function roles}, independent of insertion
+and display order.
 
 \begin{longtable}[]{@{}ll@{}}
 \toprule
-Operator & Operation\tabularnewline
+Operator & Global role\tabularnewline
 \midrule
 \endhead
-\texttt{add} & Add the component array to the accumulated
-model\tabularnewline
-\texttt{subtract} & Subtract the component array\tabularnewline
-\texttt{multiply} & Multiply the accumulated model by the component
-array\tabularnewline
-\texttt{divide} & Divide the accumulated model by the component
-array\tabularnewline
-\texttt{convolve} & Convolve using FFT and scale by median x
-spacing\tabularnewline
+\texttt{add} & Include the function in the starting sum\tabularnewline
+\texttt{subtract} & Subtract the function from the starting
+sum\tabularnewline
+\texttt{multiply} & Multiply the whole intermediate model by the
+function\tabularnewline
+\texttt{divide} & Divide the whole intermediate model by the
+function\tabularnewline
+\texttt{convolve} & Convolve the whole intermediate model with the
+function\tabularnewline
 \bottomrule
 \end{longtable}
 
-The first enabled component can use only \texttt{add} or
-\texttt{subtract}; multiplication, division, or convolution requires an
-existing accumulated model. Additive peak plus background models should
-normally use \texttt{add} for every component.
+For example, two Add peaks G1 and G2 plus a Multiply function M produce
+\texttt{(G1\ +\ G2)\ *\ M}, regardless of which function was added
+first. Additive peaks and backgrounds normally use Add. Background
+marking requires Add or Subtract; unmark a background before changing it
+to a factor or kernel.
+
+\textbf{Calculation order} lists individual Multiply, Divide and
+Convolve functions. Move them up/down or drag them to choose application
+order, from top to bottom. Its expression preview distinguishes
+\texttt{convolve((G1\ +\ G2)\ *\ M,\ R)} from
+\texttt{convolve(G1\ +\ G2,\ R)\ *\ M}; those calculations can give
+different results. Only OK applies the choice; Cancel discards it.
+Changes support Undo/Redo and persist in projects, model files and
+copied structures. Without an explicit choice the default is
+multiplication, then division, then convolution, independent of
+insertion order.
+
+With no Add/Subtract terms, multiplication and division start from 1; a
+convolution without a preceding signal starts with its first kernel. One
+Multiply function is therefore itself, one Divide function is its
+reciprocal, and one Convolve function is itself. An empty or fully
+disabled model is zero. Consecutive convolutions use full FFT
+convolution with median x-spacing scaling and crop once back to the
+input length, so inserting the same kernels in another order does not
+change edge handling. Marked additive backgrounds receive the same
+global factors and convolutions as the full model when their
+contribution is evaluated.
+
+Older project/model/workflow files preserve their \textbf{saved ordered
+composition}. They keep the original accumulated-model calculation and
+first-function restriction. Use Calculation order and explicitly select
+global roles to convert such a model; the preview shows the new
+expression before applying it. Conversion is undoable.
 
 Division by a component that reaches zero and other non-finite model
 evaluations are rejected by the fitter.
@@ -2164,13 +2218,15 @@ combines with the existing model: \textbf{Add (+)}, \textbf{Subtract
 The orange symbol on the insertion icon shows the current choice;
 clicking the main part of the button inserts with that composition. The
 same choice is available in Function details and the advanced Add dialog
-and is remembered. Multiplication, division and convolution require an
-existing enabled function. Background marking is available for Add and
-Subtract only. For automatic or graphical peak initialization, Add uses
-data minus the existing model, Subtract uses model minus data, Multiply
-uses data/model, and Divide uses model/data. Non-finite ratios are
-excluded. Automatic convolution inserts a kernel centred on the sampled
-domain; built-in area-normalized peaks start with unit area. All initial
+and is remembered. All roles are available in new global models,
+including for the first function. Saved legacy ordered models retain the
+preceding-function requirement until converted through Calculation
+order. Background marking is available for Add and Subtract only. For
+automatic or graphical peak initialization, Add uses data minus the
+existing model, Subtract uses model minus data, Multiply uses
+data/model, and Divide uses model/data. Non-finite ratios are excluded.
+Automatic convolution inserts a kernel centred on the sampled domain;
+built-in area-normalized peaks start with unit area. All initial
 estimates remain editable.
 
 The Functions group uses the shared function registry and peak parameter
@@ -2348,9 +2404,9 @@ reordering}\label{duplicating-disabling-deleting-and-reordering}}
 
 Duplicate a component to create an adjacent copy with a new internal
 identifier. Disable a component to compare models without losing its
-settings. Deletion and reordering are undoable. Reordering can
-materially change models that use operations other than addition or
-subtraction.
+settings. Deletion and reordering are undoable. In global models the
+function list order is independent of the mathematical order; use
+Calculation order to change precedence explicitly.
 
 The \textbf{Reorder} button sorts the function list in ascending
 parameter order (peak \texttt{center}, or X position, by default),
@@ -2366,9 +2422,9 @@ Undo and reapplied by Redo. \textbf{Reorder changes presentation only:}
 parameter values, links, fit results and the mathematical composition
 order remain unchanged, including multiplication, division and
 convolution. The display order is saved with the project and copied with
-the model. Use the Up/Down controls to change the mathematical
-composition order explicitly; those controls restore the list to
-composition order.
+the model. Use Calculation order to change precedence in global models.
+For saved ordered models only, Up/Down changes mathematical composition
+order and restores the list to that order.
 
 \hypertarget{copying-a-fit-to-other-curves}{%
 \section{8.10 Copying a fit to other
@@ -2385,7 +2441,22 @@ the next spectrum in the source series already checked. After a
 successful copy, that spectrum opens automatically in the plot and
 parameter panel. Cancelling the dialog leaves the active spectrum
 unchanged. The action is unavailable at the end of the series. Copying
-remains undoable. Options include:
+remains undoable. \textbf{Functions to copy} lists every source function
+with its role; check only those you want, or use Select all functions /
+Clear functions. Disabled functions can also be copied and retain their
+disabled state. Turning off Background hides and excludes background
+functions without forgetting their checks.
+
+With \textbf{Component structure} checked, each target model is replaced
+by the checked functions, preserving their composition mode and
+calculation order. With structure off, only their original corresponding
+target positions are updated; skipping a source function does not shift
+another function into its place. Other target functions remain
+unchanged. Relative links to omitted functions must still resolve;
+otherwise the entire copy is rejected, including masks and ranges.
+Include the referenced function or disable Internal links. Undo restores
+the complete target state, including copied masks and ranges. Options
+include:
 
 \begin{itemize}
 \tightlist
@@ -3107,7 +3178,7 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.43.1 does not yet provide a single comprehensive on-screen
+Preview 0.44.0 does not yet provide a single comprehensive on-screen
 results table, so use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
@@ -4587,7 +4658,7 @@ segments show accepted corrections before \textbf{Accept modifications}.
 \textbf{Detect manually} adds candidates by clicking measured samples.
 \textbf{Remove manually} opens the native point editor; its drags and
 deletions take effect immediately with Undo/Redo. This plugin version
-requires CurveMole 0.43.1 or later.
+requires CurveMole 0.44.0 or later.
 
 \hypertarget{troubleshooting}{%
 \chapter{19. Troubleshooting}\label{troubleshooting}}
@@ -4880,8 +4951,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.43.1) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.43.1
+(Version 0.44.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v0.44.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -5109,9 +5180,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.43.1-limitations}{%
-\chapter{Appendix D. Preview 0.43.1
-limitations}\label{appendix-d.-preview-0.43.1-limitations}}
+\hypertarget{appendix-d.-preview-0.44.0-limitations}{%
+\chapter{Appendix D. Preview 0.44.0
+limitations}\label{appendix-d.-preview-0.44.0-limitations}}
 
 The following boundaries are important when evaluating this release:
 
