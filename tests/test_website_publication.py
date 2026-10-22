@@ -100,3 +100,32 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     legacy = yaml.load((ROOT / '.github/workflows/website-screenshots.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in legacy['on']
     assert 'raw.githubusercontent.com' not in (ROOT / 'website/dist/citation.js').read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize('doi_ready', [True, False])
+def test_standalone_does_not_require_ci_but_still_requires_release_metadata(
+        website, release, monkeypatch, tmp_path, doi_ready):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(website, 'ROOT', tmp_path)
+    (tmp_path / 'src/curvemole').mkdir(parents=True)
+    (tmp_path / 'src/curvemole/version.py').write_text('__version__ = "1.2.3"', encoding='utf-8')
+    (tmp_path / 'CITATION.cff').write_text('version: "1.2.3"\ndoi: "10.5281/zenodo.123"', encoding='utf-8')
+    (tmp_path / 'README.md').write_text('https://doi.org/10.5281/zenodo.123', encoding='utf-8')
+    if not doi_ready:
+        release['body'] = ''
+
+    def api(path):
+        assert 'ci.yml' not in path, 'Standalone publication must not query the full CI'
+        return [release] if path.startswith('releases?') else {'workflow_runs': []}
+
+    monkeypatch.setattr(website, 'api', api)
+    monkeypatch.setattr(website, 'git', lambda *args: 'abc123')
+    monkeypatch.setattr(website.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    metadata, reason = website.ready(require_ci=False)
+    if doi_ready:
+        assert metadata['mode'] == 'standalone'
+        assert metadata['ci_run_id'] is None
+        assert reason == ''
+    else:
+        assert metadata is None and 'DOI' in reason

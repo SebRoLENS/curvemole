@@ -3,12 +3,15 @@
 Public website: https://sebrolens.github.io/curvemole/
 
 The website is buildless HTML, CSS and JavaScript in `website/dist/`.
-Edit those files and merge into `main`. Publication through
+Edit those files and merge into `main`. Automatic publication through
 `.github/workflows/website.yml` waits for successful CI (including the manual),
 a published release matching the application version, all expected release assets,
 and a matching Zenodo DOI in release notes, CITATION.cff and README.
 Website-only changes do not trigger a desktop software release. GitHub Pages must use **GitHub Actions** as its publishing source
-in the repository settings. The workflow also supports manual runs on `main`.
+in the repository settings. For standalone publication, open **Actions → Publish CurveMole website → Run workflow**
+on `main`. Manual runs are independent of the full desktop CI, but still require
+complete release metadata and pass the website tests and screenshot generation
+before deploying.
 
 ## Local preview
 
@@ -63,7 +66,10 @@ website-only commit cannot bypass an earlier manual failure.
 Successful CI, Automatic release and Sync Zenodo DOI runs request publication.
 If the DOI is still pending, deployment is skipped and the previous site remains
 online; the hourly DOI synchronisation retries. Manual publication and the legacy
-screenshot entry point run the same readiness checks. A source superseded during
+screenshot entry point use standalone mode: they do not wait for the full CI.
+They still check the published release, tag, packages/manual and DOI, and execute
+the website tests and render fresh screenshots. Automatic publication keeps the
+full-CI requirement. A source superseded during
 rendering is rejected. Screenshot generation no longer writes a competing commit
 or starts a deploy independently.
 The decorative signal background can be paused; the curve-reveal hero animation

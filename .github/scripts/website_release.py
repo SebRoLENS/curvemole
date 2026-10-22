@@ -61,13 +61,16 @@ def generated_since(source):
     return True
 
 
-def ready():
-    # Never fall back to an older successful run while the current source is failing/pending.
-    runs = api('actions/workflows/ci.yml/runs?branch=main&event=push&per_page=1')['workflow_runs']
-    if not runs or runs[0]['conclusion'] != 'success' or not generated_since(runs[0]['head_sha']):
-        return None, 'Waiting for successful CI, including the manual, for the current source.'
-    standalone = api('actions/workflows/automatic-release.yml/runs?branch=main&event=workflow_dispatch&per_page=1')['workflow_runs']
-    if standalone and standalone[0]['status'] != 'completed':
+def ready(*, require_ci=True):
+    ci_run_id = None
+    if require_ci:
+        # Automatic publication must not fall back to an older successful source.
+        runs = api('actions/workflows/ci.yml/runs?branch=main&event=push&per_page=1')['workflow_runs']
+        if not runs or runs[0]['conclusion'] != 'success' or not generated_since(runs[0]['head_sha']):
+            return None, 'Waiting for successful CI, including the manual, for the current source.'
+        ci_run_id = runs[0]['id']
+    manual_releases = api('actions/workflows/automatic-release.yml/runs?branch=main&event=workflow_dispatch&per_page=1')['workflow_runs']
+    if manual_releases and manual_releases[0]['status'] != 'completed':
         return None, 'A manually requested release is still running.'
     version = re.search(r'^__version__ = "([\d.]+)"',
                         (ROOT / 'src/curvemole/version.py').read_text(encoding="utf-8"), re.M)[1]
@@ -81,7 +84,8 @@ def ready():
     if subprocess.run(['git', 'merge-base', '--is-ancestor', tag, 'HEAD']).returncode:
         return None, 'Release tag is not part of the current source history.'
     return {'version': version, 'doi': field(citation, 'doi'), 'tag': f'v{version}',
-            'source_sha': git('rev-parse', 'HEAD'), 'tag_sha': tag, 'ci_run_id': runs[0]['id']}, ''
+            'source_sha': git('rev-parse', 'HEAD'), 'tag_sha': tag, 'ci_run_id': ci_run_id,
+            'mode': 'integrated' if require_ci else 'standalone'}, ''
 
 
 def assemble(metadata):
@@ -110,7 +114,7 @@ def assemble(metadata):
 
 
 def main():
-    metadata, reason = ready()
+    metadata, reason = ready(require_ci=os.environ.get('WEBSITE_PUBLICATION_MODE') != 'standalone')
     if metadata:
         assemble(metadata)
     else:

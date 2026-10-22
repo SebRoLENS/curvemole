@@ -38,10 +38,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
-      - name: Require successful CI, release assets, tag and DOI
+      - name: Check publication prerequisites
         id: readiness
         env:
           GH_TOKEN: ${{ github.token }}
+          WEBSITE_PUBLICATION_MODE: ${{ github.event_name == 'workflow_dispatch' && 'standalone' || 'integrated' }}
         run: python .github/scripts/website_release.py
       - name: Install GUI libraries
         if: steps.readiness.outputs.ready == 'true'
@@ -59,7 +60,8 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           PYTHONPATH: src
         run: |
-          uv sync --locked --no-default-groups --group screenshots
+          uv sync --locked --no-default-groups --group screenshots --group test
+          uv run --no-sync pytest -q tests/test_website_publication.py
           uv run --no-sync python website/scripts/render_demo_screenshots.py
           uv run --no-sync python website/scripts/render_project_screenshots.py
       - name: Reject a superseded snapshot
