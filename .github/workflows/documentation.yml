@@ -49,8 +49,10 @@ jobs:
       - name: Build and validate manual
         run: |
           python scripts/build_manual.py
-          pdfinfo docs/CurveMole_User_Manual.pdf | grep -q '^Pages:'
-          pdftotext docs/CurveMole_User_Manual.pdf - | grep -q 'Current manual version\|Updated for CurveMole'
+          pdfinfo docs/CurveMole_User_Manual.pdf > manual-pdfinfo.txt
+          grep -q '^Pages:' manual-pdfinfo.txt
+          pdftotext docs/CurveMole_User_Manual.pdf manual-text.txt
+          grep -q 'Current manual version\|Updated for CurveMole' manual-text.txt
           git diff --check
           tar -czf development-docs.tar.gz docs/CurveMole_User_Manual.tex docs/CurveMole_User_Manual.pdf docs/screenshots
       - uses: actions/upload-artifact@v7
