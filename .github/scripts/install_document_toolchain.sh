@@ -10,6 +10,6 @@ sudo apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::http
 sudo env DEBIAN_FRONTEND=noninteractive apt-get \
   -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
   install -y --no-install-recommends \
-  fonts-dejavu-core latexmk pandoc poppler-utils \
+  fonts-dejavu-core lmodern latexmk pandoc poppler-utils \
   texlive-fonts-recommended texlive-latex-extra texlive-xetex \
   "$@"
