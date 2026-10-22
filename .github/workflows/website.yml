@@ -1,6 +1,11 @@
 name: Publish CurveMole website
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'website/**'
+      - '.github/workflows/website.yml'
   workflow_run:
     workflows: [CI, Automatic release, Sync Zenodo DOI]
     types: [completed]
@@ -19,7 +24,8 @@ jobs:
   deploy:
     if: >-
       github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' ||
+       github.event_name == 'workflow_dispatch' ||
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-22.04
@@ -42,7 +48,7 @@ jobs:
         id: readiness
         env:
           GH_TOKEN: ${{ github.token }}
-          WEBSITE_PUBLICATION_MODE: ${{ github.event_name == 'workflow_dispatch' && 'standalone' || 'integrated' }}
+          WEBSITE_PUBLICATION_MODE: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'standalone' || 'integrated' }}
         run: python .github/scripts/website_release.py
       - name: Install GUI libraries
         if: steps.readiness.outputs.ready == 'true'
