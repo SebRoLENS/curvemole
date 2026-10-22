@@ -1,4 +1,4 @@
-name: Refresh experimental website screenshots
+name: Refresh website screenshots
 
 on:
   workflow_dispatch:
@@ -8,6 +8,8 @@ on:
       - 'src/curvemole/**'
       - 'website/projects/experimental-fluorescence.fitproj'
       - 'website/scripts/render_project_screenshots.py'
+      - 'website/scripts/render_demo_screenshots.py'
+      - 'scripts/generate_screenshots.py'
       - '.github/workflows/website-screenshots.yml'
 
 permissions:
@@ -36,18 +38,20 @@ jobs:
           enable-cache: false
           python-version: '3.12'
       - run: uv sync --locked --no-default-groups --group screenshots
-      - name: Render saved experimental project in the actual GUI
+      - name: Render original demo and experimental workspace in the actual GUI
         env:
           QT_QPA_PLATFORM: offscreen
           PYTHONPATH: src
-        run: uv run --no-sync python website/scripts/render_project_screenshots.py
+        run: |
+          uv run --no-sync python website/scripts/render_demo_screenshots.py
+          uv run --no-sync python website/scripts/render_project_screenshots.py
       - name: Commit screenshots and publish the website
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f website/dist/assets/experimental
+          git add -f website/dist/assets/demo website/dist/assets/experimental
           if ! git diff --cached --quiet; then
             git commit -m 'Refresh experimental website screenshots [skip release]'
             git pull --rebase origin main

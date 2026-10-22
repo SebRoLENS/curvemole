@@ -42,11 +42,14 @@ GPL-3.0-or-later license.
 
 ## Application screenshots
 
-The main workspace and Overlay / Waterfall / Fit tabs use the original application
-screenshots, refreshed from docs/screenshots on main with bundled fallbacks.
+The main workspace and Overlay / Waterfall / Fit tabs use the original Raman
+example from scripts/generate_screenshots.py, captured in the actual GUI. Every
+workspace tab uses dark mode. The main screenshot has a matching light/dark pair
+controlled by an accessible comparison slider. website/scripts/render_demo_screenshots.py
+regenerates these four assets when the app or original example changes.
 One additional dark screenshot of the renamed experimental project illustrates
 the complexity of a full workspace. The website has no experimental notebook,
-modelling-notes, uncertainty or trend gallery, and no theme comparison slider.
+modelling-notes, uncertainty or trend gallery, and retains only that single experimental screenshot.
 
 The download section reads the current release citation and DOI from the root
 CITATION.cff on page load, retaining a verified HTML fallback when offline.
