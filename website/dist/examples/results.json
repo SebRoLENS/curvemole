@@ -1,0 +1,191 @@
+[
+  {
+    "key": "spectrum",
+    "title": "Overlapping spectral bands",
+    "engine": "CurveMole 0.46.0",
+    "formula": "Linear background + two area-normalized Gaussian bands",
+    "N": 90,
+    "dof": 82,
+    "reduced_chi_square": 1.0521446146522608,
+    "parameters": [
+      {
+        "component": "Background",
+        "name": "intercept",
+        "value": 0.14115904771834084,
+        "standard_error": 0.01563737254249974,
+        "ci_low": 0.11051036072220581,
+        "ci_high": 0.17180773471447586
+      },
+      {
+        "component": "Background",
+        "name": "slope",
+        "value": 0.00010140426879261397,
+        "standard_error": 1.6417543161006605e-05,
+        "ci_low": 6.922647548240915e-05,
+        "ci_high": 0.0001335820621028188
+      },
+      {
+        "component": "Band 1",
+        "name": "area",
+        "value": 113.810548209902,
+        "standard_error": 7.727528626120619,
+        "ci_low": 98.6648704132033,
+        "ci_high": 128.9562260066007
+      },
+      {
+        "component": "Band 1",
+        "name": "center",
+        "value": 879.7606392345504,
+        "standard_error": 2.1581638155234564,
+        "ci_low": 875.5307158833868,
+        "ci_high": 883.9905625857139
+      },
+      {
+        "component": "Band 1",
+        "name": "sigma",
+        "value": 45.35102564698973,
+        "standard_error": 1.400166864163994,
+        "ci_low": 42.60674902088192,
+        "ci_high": 48.095302273097545
+      },
+      {
+        "component": "Band 2",
+        "name": "area",
+        "value": 143.75277767644707,
+        "standard_error": 8.294384509169657,
+        "ci_low": 127.49608276454761,
+        "ci_high": 160.00947258834654
+      },
+      {
+        "component": "Band 2",
+        "name": "center",
+        "value": 1001.8281283563267,
+        "standard_error": 3.9928457467873804,
+        "ci_low": 994.0022944967995,
+        "ci_high": 1009.6539622158539
+      },
+      {
+        "component": "Band 2",
+        "name": "sigma",
+        "value": 64.8444175288079,
+        "standard_error": 2.997886957696872,
+        "ci_low": 58.968667061999675,
+        "ci_high": 70.72016799561612
+      }
+    ],
+    "settings": {
+      "use_data_errors": true,
+      "absolute_sigma": true,
+      "loss": "linear"
+    },
+    "warnings": [
+      "At least one free-parameter correlation has |r| >= 0.95."
+    ]
+  },
+  {
+    "key": "oscillation",
+    "title": "Damped oscillatory response",
+    "engine": "CurveMole 0.46.0",
+    "formula": "offset + A*exp(-x/tau)*cos(omega*x + phi)",
+    "N": 85,
+    "dof": 80,
+    "reduced_chi_square": 0.8942533878722452,
+    "parameters": [
+      {
+        "component": "Damped oscillatory response",
+        "name": "A",
+        "value": 1.2693638198737967,
+        "standard_error": 0.020052392405358836,
+        "ci_low": 1.2300618529554288,
+        "ci_high": 1.3086657867921645
+      },
+      {
+        "component": "Damped oscillatory response",
+        "name": "offset",
+        "value": 0.17306345929341116,
+        "standard_error": 0.005297723198828491,
+        "ci_low": 0.16268011262364498,
+        "ci_high": 0.18344680596317733
+      },
+      {
+        "component": "Damped oscillatory response",
+        "name": "omega",
+        "value": 2.5066880217667693,
+        "standard_error": 0.005649680243923567,
+        "ci_low": 2.4956148519645116,
+        "ci_high": 2.517761191569027
+      },
+      {
+        "component": "Damped oscillatory response",
+        "name": "phi",
+        "value": 0.267391306157486,
+        "standard_error": 0.01613843834256063,
+        "ci_low": 0.2357605482393469,
+        "ci_high": 0.29902206407562515
+      },
+      {
+        "component": "Damped oscillatory response",
+        "name": "tau",
+        "value": 5.039561959872116,
+        "standard_error": 0.14131849378219416,
+        "ci_low": 4.762582801709568,
+        "ci_high": 5.316541118034664
+      }
+    ],
+    "settings": {
+      "use_data_errors": true,
+      "absolute_sigma": true,
+      "loss": "linear"
+    },
+    "warnings": []
+  },
+  {
+    "key": "kinetics",
+    "title": "Formation and decay kinetics",
+    "engine": "CurveMole 0.46.0",
+    "formula": "offset + A*(exp(-k_slow*x) - exp(-k_fast*x))",
+    "N": 75,
+    "dof": 71,
+    "reduced_chi_square": 0.8583041781377101,
+    "parameters": [
+      {
+        "component": "Formation and decay kinetics",
+        "name": "A",
+        "value": 2.3829196201497407,
+        "standard_error": 0.056555376678650744,
+        "ci_low": 2.2720731187274885,
+        "ci_high": 2.493766121571993
+      },
+      {
+        "component": "Formation and decay kinetics",
+        "name": "k_fast",
+        "value": 1.0430689643181383,
+        "standard_error": 0.04217996153782562,
+        "ci_low": 0.9603977588347155,
+        "ci_high": 1.1257401698015612
+      },
+      {
+        "component": "Formation and decay kinetics",
+        "name": "k_slow",
+        "value": 0.15933632351150176,
+        "standard_error": 0.0065803615497650745,
+        "ci_low": 0.14643905186871004,
+        "ci_high": 0.17223359515429348
+      },
+      {
+        "component": "Formation and decay kinetics",
+        "name": "offset",
+        "value": 0.10899105201320851,
+        "standard_error": 0.020409520435023788,
+        "ci_low": 0.06898912701882762,
+        "ci_high": 0.1489929770075894
+      }
+    ],
+    "settings": {
+      "use_data_errors": true,
+      "absolute_sigma": true,
+      "loss": "linear"
+    },
+    "warnings": []
+  }
+]

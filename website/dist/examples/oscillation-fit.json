@@ -1,0 +1,57 @@
+{
+  "key": "oscillation",
+  "title": "Damped oscillatory response",
+  "engine": "CurveMole 0.46.0",
+  "formula": "offset + A*exp(-x/tau)*cos(omega*x + phi)",
+  "N": 85,
+  "dof": 80,
+  "reduced_chi_square": 0.8942533878722452,
+  "parameters": [
+    {
+      "component": "Damped oscillatory response",
+      "name": "A",
+      "value": 1.2693638198737967,
+      "standard_error": 0.020052392405358836,
+      "ci_low": 1.2300618529554288,
+      "ci_high": 1.3086657867921645
+    },
+    {
+      "component": "Damped oscillatory response",
+      "name": "offset",
+      "value": 0.17306345929341116,
+      "standard_error": 0.005297723198828491,
+      "ci_low": 0.16268011262364498,
+      "ci_high": 0.18344680596317733
+    },
+    {
+      "component": "Damped oscillatory response",
+      "name": "omega",
+      "value": 2.5066880217667693,
+      "standard_error": 0.005649680243923567,
+      "ci_low": 2.4956148519645116,
+      "ci_high": 2.517761191569027
+    },
+    {
+      "component": "Damped oscillatory response",
+      "name": "phi",
+      "value": 0.267391306157486,
+      "standard_error": 0.01613843834256063,
+      "ci_low": 0.2357605482393469,
+      "ci_high": 0.29902206407562515
+    },
+    {
+      "component": "Damped oscillatory response",
+      "name": "tau",
+      "value": 5.039561959872116,
+      "standard_error": 0.14131849378219416,
+      "ci_low": 4.762582801709568,
+      "ci_high": 5.316541118034664
+    }
+  ],
+  "settings": {
+    "use_data_errors": true,
+    "absolute_sigma": true,
+    "loss": "linear"
+  },
+  "warnings": []
+}

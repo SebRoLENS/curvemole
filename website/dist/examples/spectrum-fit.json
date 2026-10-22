@@ -1,0 +1,83 @@
+{
+  "key": "spectrum",
+  "title": "Overlapping spectral bands",
+  "engine": "CurveMole 0.46.0",
+  "formula": "Linear background + two area-normalized Gaussian bands",
+  "N": 90,
+  "dof": 82,
+  "reduced_chi_square": 1.0521446146522608,
+  "parameters": [
+    {
+      "component": "Background",
+      "name": "intercept",
+      "value": 0.14115904771834084,
+      "standard_error": 0.01563737254249974,
+      "ci_low": 0.11051036072220581,
+      "ci_high": 0.17180773471447586
+    },
+    {
+      "component": "Background",
+      "name": "slope",
+      "value": 0.00010140426879261397,
+      "standard_error": 1.6417543161006605e-05,
+      "ci_low": 6.922647548240915e-05,
+      "ci_high": 0.0001335820621028188
+    },
+    {
+      "component": "Band 1",
+      "name": "area",
+      "value": 113.810548209902,
+      "standard_error": 7.727528626120619,
+      "ci_low": 98.6648704132033,
+      "ci_high": 128.9562260066007
+    },
+    {
+      "component": "Band 1",
+      "name": "center",
+      "value": 879.7606392345504,
+      "standard_error": 2.1581638155234564,
+      "ci_low": 875.5307158833868,
+      "ci_high": 883.9905625857139
+    },
+    {
+      "component": "Band 1",
+      "name": "sigma",
+      "value": 45.35102564698973,
+      "standard_error": 1.400166864163994,
+      "ci_low": 42.60674902088192,
+      "ci_high": 48.095302273097545
+    },
+    {
+      "component": "Band 2",
+      "name": "area",
+      "value": 143.75277767644707,
+      "standard_error": 8.294384509169657,
+      "ci_low": 127.49608276454761,
+      "ci_high": 160.00947258834654
+    },
+    {
+      "component": "Band 2",
+      "name": "center",
+      "value": 1001.8281283563267,
+      "standard_error": 3.9928457467873804,
+      "ci_low": 994.0022944967995,
+      "ci_high": 1009.6539622158539
+    },
+    {
+      "component": "Band 2",
+      "name": "sigma",
+      "value": 64.8444175288079,
+      "standard_error": 2.997886957696872,
+      "ci_low": 58.968667061999675,
+      "ci_high": 70.72016799561612
+    }
+  ],
+  "settings": {
+    "use_data_errors": true,
+    "absolute_sigma": true,
+    "loss": "linear"
+  },
+  "warnings": [
+    "At least one free-parameter correlation has |r| >= 0.95."
+  ]
+}

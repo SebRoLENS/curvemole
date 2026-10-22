@@ -1,0 +1,49 @@
+{
+  "key": "kinetics",
+  "title": "Formation and decay kinetics",
+  "engine": "CurveMole 0.46.0",
+  "formula": "offset + A*(exp(-k_slow*x) - exp(-k_fast*x))",
+  "N": 75,
+  "dof": 71,
+  "reduced_chi_square": 0.8583041781377101,
+  "parameters": [
+    {
+      "component": "Formation and decay kinetics",
+      "name": "A",
+      "value": 2.3829196201497407,
+      "standard_error": 0.056555376678650744,
+      "ci_low": 2.2720731187274885,
+      "ci_high": 2.493766121571993
+    },
+    {
+      "component": "Formation and decay kinetics",
+      "name": "k_fast",
+      "value": 1.0430689643181383,
+      "standard_error": 0.04217996153782562,
+      "ci_low": 0.9603977588347155,
+      "ci_high": 1.1257401698015612
+    },
+    {
+      "component": "Formation and decay kinetics",
+      "name": "k_slow",
+      "value": 0.15933632351150176,
+      "standard_error": 0.0065803615497650745,
+      "ci_low": 0.14643905186871004,
+      "ci_high": 0.17223359515429348
+    },
+    {
+      "component": "Formation and decay kinetics",
+      "name": "offset",
+      "value": 0.10899105201320851,
+      "standard_error": 0.020409520435023788,
+      "ci_low": 0.06898912701882762,
+      "ci_high": 0.1489929770075894
+    }
+  ],
+  "settings": {
+    "use_data_errors": true,
+    "absolute_sigma": true,
+    "loss": "linear"
+  },
+  "warnings": []
+}
