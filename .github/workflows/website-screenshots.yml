@@ -1,0 +1,56 @@
+name: Refresh experimental website screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/curvemole/**'
+      - 'website/projects/experimental-fluorescence.fitproj'
+      - 'website/scripts/render_project_screenshots.py'
+      - '.github/workflows/website-screenshots.yml'
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: curvemole-main-write
+  cancel-in-progress: false
+
+jobs:
+  screenshots:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Install GUI libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          enable-cache: false
+          python-version: '3.12'
+      - run: uv sync --locked --no-default-groups --group screenshots
+      - name: Render saved experimental project in the actual GUI
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src
+        run: uv run --no-sync python website/scripts/render_project_screenshots.py
+      - name: Commit screenshots and publish the website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add website/dist/assets/experimental
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh experimental website screenshots [skip release]'
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          gh workflow run website.yml --repo "$GITHUB_REPOSITORY" --ref main
