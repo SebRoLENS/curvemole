@@ -75,6 +75,10 @@ def render():
 
     focus_series = project.dataset.series[6]
     tree_selection({FOCUS}, {focus_series.id})
+    selected = project.model_for(FOCUS).components[2].id
+    window.selected_component_id = selected
+    assert window.model_panel.select_component_ref(FOCUS, selected)
+    window.model_panel.refresh_parameters()
     window.plot_workspace.auto_range()
     window.statusBar().showMessage('Experimental data · Saved multi-band fit · Block-bootstrap intervals')
     capture(window, 'fit-dark.png')
