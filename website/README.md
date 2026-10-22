@@ -74,3 +74,7 @@ rendering is rejected. Screenshot generation no longer writes a competing commit
 or starts a deploy independently.
 The decorative signal background can be paused; the curve-reveal hero animation
 remains removed.
+
+## Search engine verification
+
+Google Search Console ownership is verified using `website/dist/google06874d56da4b828b.html`. Keep this file in the published `website/dist/` directory so verification remains valid.
