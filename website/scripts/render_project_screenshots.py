@@ -15,6 +15,9 @@ FOCUS = 'curve_01ebf2b16013'
 
 
 def render():
+    # Screenshot generation must not start network update checks.
+    os.environ["CURVEMOLE_DISABLE_UPDATE_CHECK"] = "1"
+
     from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator
@@ -31,7 +34,6 @@ def render():
     project = load_project(PROJECT)
     window = CurveMoleMainWindow(project)
     window.autosave_timer.stop()
-    window.update_check_timer.stop()
     window.reset_layout()
     window.resize(1600, 1000)
     window.apply_theme('dark')

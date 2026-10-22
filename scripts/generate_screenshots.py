@@ -109,6 +109,9 @@ def _save_window(window, app, filename: str) -> None:
 
 
 def render_screenshots() -> None:
+    # Screenshot generation must not start network update checks.
+    os.environ["CURVEMOLE_DISABLE_UPDATE_CHECK"] = "1"
+
     from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication
@@ -127,7 +130,6 @@ def render_screenshots() -> None:
     project, selected_peak_id = build_example_project()
     window = MainWindow(project)
     window.autosave_timer.stop()
-    window.update_check_timer.stop()
     window.reset_layout()
     window.apply_theme("light")
     window.resize(1440, 900)

@@ -14,6 +14,9 @@ OUTPUT = ROOT / 'website' / 'dist' / 'assets' / 'demo'
 
 
 def render():
+    # Screenshot generation must not start network update checks.
+    os.environ["CURVEMOLE_DISABLE_UPDATE_CHECK"] = "1"
+
     from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication
@@ -31,7 +34,6 @@ def render():
     project, peak = build_example_project()
     window = MainWindow(project)
     window.autosave_timer.stop()
-    window.update_check_timer.stop()
     window.reset_layout()
     window.resize(1440, 900)
     window.selected_component_id = peak
