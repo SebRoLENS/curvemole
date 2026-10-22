@@ -233,7 +233,7 @@ jobs:
         shell: pwsh
         run: |
           $env:CURVEMOLE_ONEFILE = "1"
-          $env:CURVEMOLE_ICON = "generated-icons/curvemole.ico"
+          $env:CURVEMOLE_ICON = Join-Path $env:GITHUB_WORKSPACE "generated-icons/curvemole.ico"
           uv run --no-sync pyinstaller --noconfirm --clean packaging/curvemole.spec
 
       - name: Smoke-test frozen GUI
