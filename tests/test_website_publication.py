@@ -62,24 +62,33 @@ def test_unvalidated_source_blocks_publication(website, monkeypatch):
 
 
 def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypatch, tmp_path):
+    # Emulate the Windows legacy locale even when this regression runs on Linux.
+    original_open = Path.open
+
+    def windows_open(path, mode='r', buffering=-1, encoding=None, errors=None, newline=None):
+        if 'b' not in mode and encoding in (None, 'locale'):
+            encoding = 'cp1252'
+        return original_open(path, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, 'open', windows_open)
     monkeypatch.setattr(website, 'ROOT', tmp_path)
     (tmp_path / 'website/dist').mkdir(parents=True)
     citation = 'version: "1.2.3"\ndoi: "10.5281/zenodo.123"\ndate-released: 2026-10-22\ntitle: "CurveMole"\n'
-    (tmp_path / 'CITATION.cff').write_text(citation)
+    (tmp_path / 'CITATION.cff').write_text(citation, encoding="utf-8")
     index = ROOT / 'website/dist/index.html'
     target = tmp_path / 'website/dist/index.html'
-    target.write_text(index.read_text())
+    target.write_text(index.read_text(encoding="utf-8"), encoding="utf-8")
     website.assemble({'version': '1.2.3', 'tag': 'v1.2.3', 'doi': '10.5281/zenodo.123', 'source_sha': 'abc123'})
-    assert '/releases/latest' not in target.read_text()
-    assert '/blob/main/' not in target.read_text()
-    assert '(v1.2.3)' in target.read_text()
-    assert 'https://doi.org/10.5281/zenodo.123' in target.read_text()
-    assert (tmp_path / 'website/dist/CITATION.cff').read_text() == citation
-    assert json.loads((tmp_path / 'website/dist/publication.json').read_text())['tag'] == 'v1.2.3'
+    assert '/releases/latest' not in target.read_text(encoding="utf-8")
+    assert '/blob/main/' not in target.read_text(encoding="utf-8")
+    assert '(v1.2.3)' in target.read_text(encoding="utf-8")
+    assert 'https://doi.org/10.5281/zenodo.123' in target.read_text(encoding="utf-8")
+    assert (tmp_path / 'website/dist/CITATION.cff').read_text(encoding="utf-8") == citation
+    assert json.loads((tmp_path / 'website/dist/publication.json').read_text(encoding="utf-8"))['tag'] == 'v1.2.3'
 
 
 def test_deploy_cannot_race_screenshots_or_bypass_readiness():
-    workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(), Loader=yaml.BaseLoader)
+    workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in workflow['on']
     assert set(workflow['on']['workflow_run']['workflows']) == {'CI', 'Automatic release', 'Sync Zenodo DOI'}
     steps = workflow['jobs']['deploy']['steps']
@@ -88,6 +97,6 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     assert render < deploy
     for step in steps[render:]:
         assert step.get('if') == "steps.readiness.outputs.ready == 'true'"
-    legacy = yaml.load((ROOT / '.github/workflows/website-screenshots.yml').read_text(), Loader=yaml.BaseLoader)
+    legacy = yaml.load((ROOT / '.github/workflows/website-screenshots.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in legacy['on']
-    assert 'raw.githubusercontent.com' not in (ROOT / 'website/dist/citation.js').read_text()
+    assert 'raw.githubusercontent.com' not in (ROOT / 'website/dist/citation.js').read_text(encoding="utf-8")

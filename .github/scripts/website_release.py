@@ -70,12 +70,12 @@ def ready():
     if standalone and standalone[0]['status'] != 'completed':
         return None, 'A manually requested release is still running.'
     version = re.search(r'^__version__ = "([\d.]+)"',
-                        (ROOT / 'src/curvemole/version.py').read_text(), re.M)[1]
+                        (ROOT / 'src/curvemole/version.py').read_text(encoding="utf-8"), re.M)[1]
     # Listing also handles an absent or draft release without treating DOI delay as an error.
     releases = api('releases?per_page=100')
     release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
-    citation = (ROOT / 'CITATION.cff').read_text()
-    if not release_ready(release, version, citation, (ROOT / 'README.md').read_text()):
+    citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
+    if not release_ready(release, version, citation, (ROOT / 'README.md').read_text(encoding="utf-8")):
         return None, f'Waiting for v{version}: published packages/manual and matching Zenodo DOI.'
     tag = git('rev-parse', f'refs/tags/v{version}^{{commit}}')
     if subprocess.run(['git', 'merge-base', '--is-ancestor', tag, 'HEAD']).returncode:
@@ -86,9 +86,9 @@ def ready():
 
 def assemble(metadata):
     dist = ROOT / 'website/dist'
-    citation = (ROOT / 'CITATION.cff').read_text()
+    citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     shutil.copyfile(ROOT / 'CITATION.cff', dist / 'CITATION.cff')
-    index = (dist / 'index.html').read_text()
+    index = (dist / 'index.html').read_text(encoding="utf-8")
     text = f'Romi, S. ({field(citation, "date-released")[:4]}). {field(citation, "title")} (v{metadata["version"]}) [Software]. Zenodo.'
     index, count = re.subn(r'(<[^>]+id="citationText"[^>]*>).*?(</[^>]+>)',
                           lambda m: m[1] + html.escape(text) + m[2], index, flags=re.S)
@@ -105,8 +105,8 @@ def assemble(metadata):
     index = index.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
     index = index.replace(f'https://github.com/{repository}/blob/main/',
                           f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')
-    (dist / 'index.html').write_text(index)
-    (dist / 'publication.json').write_text(json.dumps(metadata, indent=2) + '\n')
+    (dist / 'index.html').write_text(index, encoding="utf-8")
+    (dist / 'publication.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding="utf-8")
 
 
 def main():
@@ -115,9 +115,9 @@ def main():
         assemble(metadata)
     else:
         print(reason)
-    with Path(os.environ['GITHUB_OUTPUT']).open('a') as output:
+    with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding="utf-8") as output:
         output.write(f'ready={str(metadata is not None).lower()}\n')
-    with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a') as summary:
+    with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding="utf-8") as summary:
         summary.write((f'Website snapshot ready: {metadata["tag"]}, DOI {metadata["doi"]}.'
                        if metadata else reason) + '\n')
 

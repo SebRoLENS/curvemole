@@ -45,9 +45,10 @@ jobs:
           - os: ubuntu-22.04
             python: "3.14"
     concurrency:
-      group: source-tests-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || '' }}
-      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-      queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
+      group: source-tests-${{ github.ref }}-${{ matrix.os }}-${{ matrix.python }}-${{ inputs.source_ref != github.sha && inputs.source_ref || (github.event_name == 'workflow_dispatch' && github.run_id || '') }}
+      # Read-only tests: prioritise the latest source, preserving isolated release validation.
+      cancel-in-progress: true
+      queue: single
     runs-on: ${{ matrix.os }}
     timeout-minutes: ${{ matrix.os == 'macos-14' && 15 || 10 }}
     steps:
