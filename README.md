@@ -4,6 +4,8 @@
 
 <h1 align="center">CurveMole</h1>
 
+<p align="center"><strong><a href="https://sebrolens.github.io/curvemole/">Official CurveMole Website</a></strong></p>
+
 <p align="center">
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" alt="Version"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
