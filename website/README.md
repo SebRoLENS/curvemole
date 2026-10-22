@@ -40,15 +40,15 @@ python website/dist/examples/generate_scientific_examples.py --output website/di
 The website and bundled CurveMole assets are covered by the repository's
 GPL-3.0-or-later license.
 
-## Real experimental workflow
+## Application screenshots
 
-The main screenshots now come from the public project in `website/projects/`.
-See its README for provenance, editorial changes, numerical-preservation checks
-and the regeneration workflow. All main views use dark mode; the light screenshot
-is reserved for the comparison slider. Synthetic examples remain explicitly
-labelled and use a compact card layout.
+The main workspace and Overlay / Waterfall / Fit tabs use the original application
+screenshots, refreshed from docs/screenshots on main with bundled fallbacks.
+One additional dark screenshot of the renamed experimental project illustrates
+the complexity of a full workspace. The website has no experimental notebook,
+modelling-notes, uncertainty or trend gallery, and no theme comparison slider.
 
 The download section reads the current release citation and DOI from the root
-`CITATION.cff` on page load, retaining a verified HTML fallback when offline.
-The decorative signal background can be paused; the former curve-reveal hero
-animation has been removed.
+CITATION.cff on page load, retaining a verified HTML fallback when offline.
+The decorative signal background can be paused; the curve-reveal hero animation
+remains removed.

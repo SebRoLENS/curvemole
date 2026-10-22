@@ -20,7 +20,6 @@ def render():
     from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator
     from curvemole.core.serialization import load_project
     from curvemole.gui.app import CurveMoleMainWindow, _configure_gui_defaults
-    from curvemole.gui.notebook import LaboratoryNotebookDialog
 
     _configure_gui_defaults()
     app = QApplication.instance() or QApplication(['curvemole-website-screenshots'])
@@ -82,59 +81,6 @@ def render():
     window.plot_workspace.auto_range()
     window.statusBar().showMessage('Experimental data · Saved multi-band fit · Block-bootstrap intervals')
     capture(window, 'fit-dark.png')
-    window.apply_theme('light')
-    capture(window, 'fit-light.png')
-    window.apply_theme('dark')
-
-    tree_selection({c.id for c in focus_series.curves[8:13]}, {focus_series.id})
-    window.plot_workspace.display_mode.setCurrentIndex(1)
-    window.plot_workspace.set_component_labels_visible(False)
-    window.plot_workspace.auto_range()
-    window.statusBar().showMessage('Experimental data · Five measured spectra from Sample G · Overlay')
-    capture(window, 'overlay-dark.png')
-    window.plot_workspace.display_mode.setCurrentIndex(2)
-    window.plot_workspace.y_offset.setValue(0.6)
-    window.plot_workspace.auto_range()
-    window.statusBar().showMessage('Experimental data · Sample G · Waterfall comparison')
-    capture(window, 'waterfall-dark.png')
-
-    trend = project.dataset.series[12]
-    tree_selection({c.id for c in trend.curves}, {trend.id})
-    window.active_curve_id = trend.curves[0].id
-    window.plot_workspace.y_offset.setValue(0)
-    window.plot_workspace.display_mode.setCurrentIndex(1)
-    window._selection_changed()
-    window.plot_workspace.auto_range()
-    window.statusBar().showMessage('Saved derived datasets · Band-position trends across the pressure cycle')
-    capture(window, 'trends-dark.png')
-
-    window._set_active_curve(FOCUS)
-    window.plot_workspace.display_mode.setCurrentIndex(0)
-    tree_selection({FOCUS}, {focus_series.id})
-    notebook = LaboratoryNotebookDialog(project, window)
-    notebook.resize(1200, 820)
-    notebook.show()
-    capture(notebook, 'notebook-dark.png')
-    notebook.tabs.setCurrentIndex(1)
-    iterator = QTreeWidgetItemIterator(notebook.tree)
-    while iterator.value():
-        key = iterator.value().data(0, Qt.ItemDataRole.UserRole)
-        if key and 'series_d2ac6e3a3f9a' in key:
-            notebook.tree.setCurrentItem(iterator.value())
-            break
-        iterator += 1
-    capture(notebook, 'model-notes-dark.png')
-    notebook.close()
-
-    window._select_uncertainty_display('block_bootstrap')
-    window.uncertainty_dock.setFloating(True)
-    window.uncertainty_dock.resize(1450, 1100)
-    window.uncertainty_dock.show()
-    settle()
-    window.uncertainty_panel.results.table.setMinimumHeight(650)
-    window.uncertainty_panel.scroll.ensureWidgetVisible(window.uncertainty_panel.results)
-    capture(window.uncertainty_panel.results, 'uncertainty-dark.png')
-    window.uncertainty_dock.hide()
     project.dirty = False
     window.close()
     settle()

@@ -32,15 +32,15 @@ With the repository's runtime dependencies installed, from the repository root:
 QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_project_screenshots.py
 ```
 
-This opens the saved project in the actual CurveMole GUI and captures dark-mode
-fit, overlay, waterfall, derived trends, notebook and uncertainty views. A matched
-light-mode fit capture is used only in the website's light/dark comparison.
+This opens the saved project in the actual CurveMole GUI and captures one dark
+workspace view, showing the series tree, multi-band fit, residuals and parameters.
+It does not capture the notebook or generate an experimental screenshot gallery.
 No fit or resampling is rerun. Settings and caches are isolated in a temporary
 directory; the committed project is read, never overwritten.
 
-`.github/workflows/website-screenshots.yml` regenerates these views when the
+`.github/workflows/website-screenshots.yml` regenerates that view when the
 application source, public project or capture script changes, and supports manual
-runs. It commits generated assets and dispatches the website deployment.
+runs. It commits the generated asset and dispatches the website deployment.
 
 `website/scripts/prepare_experimental_project.py` documents how the owner-supplied
 archive was renamed. Its input is intentionally absent from this repository.
