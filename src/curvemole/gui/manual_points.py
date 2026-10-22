@@ -51,15 +51,7 @@ def _make_mask_visuals_mouse_transparent(workspace: PlotWorkspace) -> None:
     for item in tuple(workspace.plot.items):
         is_mask_region = isinstance(item, pg.LinearRegionItem) and np.isclose(item.zValue(), -20.0)
         is_mask_boundary = bool(getattr(item, "_curvemole_mask_boundary", False))
-        is_mask_points = False
-        if isinstance(item, pg.PlotDataItem):
-            options = item.opts
-            is_mask_points = (
-                options.get("pen") is None
-                and options.get("symbol") == "o"
-                and options.get("symbolSize") == 5
-                and options.get("symbolPen") is None
-            )
+        is_mask_points = bool(getattr(item, "_curvemole_masked_data", False))
 
         if not (is_mask_region or is_mask_boundary or is_mask_points):
             continue

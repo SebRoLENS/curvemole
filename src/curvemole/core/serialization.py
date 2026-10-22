@@ -20,10 +20,19 @@ from typing import Any
 
 import numpy as np
 
-from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series, Transformation
+from curvemole.core.data import (
+    Curve,
+    CurveState,
+    Dataset,
+    ImmutableColumns,
+    Mask,
+    Series,
+    Transformation,
+)
 from curvemole.core.errors import ProjectFormatError
 from curvemole.core.fitting import FitResult
 from curvemole.core.history import CompactHistory
+from curvemole.core.matrices import BlockDiagonalMatrix
 from curvemole.core.models import Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.process import process_alive
@@ -99,6 +108,8 @@ class _ArchiveValues:
                     ("indices", "x", "observed", "fitted", "residual", "weighted_residual"))
             metadata.update(covariance=value.covariance, correlation=value.correlation)
             return self.encode(metadata, result_data=result_data)
+        if isinstance(value, BlockDiagonalMatrix):
+            return self.encode({"block_diagonal": value.blocks}, result_data=result_data)
         if isinstance(value, np.ndarray):
             if value.dtype.hasobject:
                 return self.encode(value.tolist(), result_data=result_data)
@@ -262,7 +273,7 @@ def capture_project_snapshot(project: Project) -> ProjectSaveSnapshot:
                 owner = owner.base
                 immutable = not owner.flags.writeable
             # A readonly view of a writable array/external buffer can still change.
-            immutable = immutable and owner.base is None
+            immutable = immutable and (owner.base is None or isinstance(owner.base, bytes))
             stable = array if immutable else array.copy()
             memo[id(array)] = stable
         arrays.append((name, stable))
@@ -387,6 +398,17 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                 metadata = decoded
             history = _load_history(metadata.get("fit_history", []), archive, schema,
                                     partial_recovery=partial_recovery, failures=failures)
+            column_cache = {}
+            def read_columns(prefix, keys):
+                columns = {}
+                for index, key in enumerate(keys):
+                    array = _read_array(archive, f"{prefix}/columns/{index}.npy")
+                    digest = (array.dtype.str, array.shape, hashlib.sha256(array.tobytes()).digest())
+                    if digest not in column_cache:
+                        column_cache[digest] = ImmutableColumns({key: array})[key]
+                    columns[key] = column_cache[digest]
+                return ImmutableColumns(columns)
+
             curve_values: dict[str, Curve] = {}
             for curve_id, curve_meta in metadata.get("curves", {}).items():
                 prefix = f"data/{curve_id}"
@@ -427,8 +449,7 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
                     name=str(curve_meta["name"]),
                     original_x=original_x,
                     original_y=original_y,
-                    original_columns={key: _read_array(archive, f"{prefix}/columns/{index}.npy")
-                                      for index, key in enumerate(curve_meta.get("column_keys", []))},
+                    original_columns=read_columns(prefix, curve_meta.get("column_keys", [])),
                     column_labels=dict(curve_meta.get("column_labels", {})),
                     column_axes=dict(curve_meta.get("column_axes", {})),
                     sigma_x=optional["sigma_x"],
@@ -752,17 +773,6 @@ def _load_results(value: Any) -> Any:
 
 def math_is_nan(value: float) -> bool:
     return value != value
-
-
-def _remove_raw_samples(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: None if key in {"samples", "raw_samples", "replicates"} else _remove_raw_samples(item)
-            for key, item in value.items()
-        }
-    if isinstance(value, list):
-        return [_remove_raw_samples(item) for item in value]
-    return value
 
 
 def _atomic_json(path: Path, payload: dict[str, Any]) -> None:

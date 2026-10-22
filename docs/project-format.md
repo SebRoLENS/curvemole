@@ -1,4 +1,4 @@
-# `.fitproj` format version 3
+# `.fitproj` format version 4
 
 A project is an ordinary ZIP archive:
 
@@ -28,6 +28,13 @@ same array share one payload and one loaded buffer. User dictionaries with a
 reserved marker key are escaped with `__curvemole_literal_dict__` so their content
 is never interpreted as an array reference. Array dtypes and numeric bits are
 preserved, including signed zero and non-finite numerical-array values.
+
+Version 4 preserves independent-fit covariance and correlation as
+`{"block_diagonal": [array_reference, ...]}`. Blocks follow the order of
+`free_parameter_paths`; their sizes define the offsets. Off-block entries are
+zero. Global fits retain a single dense matrix. Versions 1–3 remain readable,
+but version 4 archives require a reader supporting block matrices. CSV matrix
+exports retain the full rectangular layout and are streamed row by row.
 
 The project's `fit_history` field contains
 `{"storage":"history.jsonl","count":N}`. The referenced UTF-8 stream contains one

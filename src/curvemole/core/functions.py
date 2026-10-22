@@ -12,7 +12,7 @@ from scipy.interpolate import CubicSpline
 from scipy.special import voigt_profile
 
 from curvemole.core.errors import DataValidationError
-from curvemole.core.expressions import SafeExpression, expression_parameters
+from curvemole.core.expressions import SafeExpression
 from curvemole.core.parameters import Parameter
 
 Evaluator = Callable[[np.ndarray, Mapping[str, float], Mapping[str, Any]], np.ndarray]
@@ -141,10 +141,7 @@ def _polynomial_specs(metadata: Mapping[str, Any]) -> tuple[ParameterSpec, ...]:
 
 def _polynomial(x: np.ndarray, p: Mapping[str, float], metadata: Mapping[str, Any]) -> np.ndarray:
     order = int(metadata.get("order", len(p) - 1))
-    result = np.zeros_like(x)
-    for degree in range(order + 1):
-        result += p[f"c{degree}"] * np.power(x, degree)
-    return result
+    return np.polynomial.polynomial.polyval(x, [p[f"c{degree}"] for degree in range(order + 1)])
 
 
 def _spline_specs(metadata: Mapping[str, Any]) -> tuple[ParameterSpec, ...]:
@@ -253,7 +250,7 @@ def formula_definition(
     derived_formulas: Mapping[str, str] | None = None,
 ) -> FunctionDefinition:
     expression = SafeExpression.compile(formula)
-    parameter_names = expression_parameters(formula)
+    parameter_names = tuple(name for name in expression.variables if name != "x")
     default_values = defaults or {}
     parameter_bounds = bounds or {}
     specs = tuple(

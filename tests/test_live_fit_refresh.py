@@ -95,6 +95,10 @@ def test_gui_refreshes_plot_on_twentieth_evaluation_and_keeps_zoom(
     window._task_progress(19 / 1000, "Evaluation 19")
     assert not refreshes
     window._task_progress(20 / 1000, "Evaluation 20")
+    assert not refreshes
+    from curvemole.gui.live_fit_refresh import refresh_snapshot
+    values = project.resolved_parameter_values()
+    refresh_snapshot(window, values)
 
     after = view_box.viewRange()
     assert len(refreshes) == 1

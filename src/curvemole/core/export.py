@@ -22,6 +22,7 @@ from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.fitting import FitResult
 from curvemole.core.functions import formula_definition
+from curvemole.core.matrices import BlockDiagonalMatrix, matrix_from_value, save_matrix
 from curvemole.core.models import Model
 from curvemole.core.notebook import export_notebook
 from curvemole.core.project import Project
@@ -144,7 +145,7 @@ def wide_dataframe(
         columns[_label(curve.x_label, curve.x_unit)] = curve.x
     if selection.y:
         columns[_label(curve.y_label, curve.y_unit)] = curve.y
-    if model is not None and model.components:
+    if model is not None and model.components and any((selection.total_fit, selection.residual, selection.background, selection.components)):
         total, components = model.evaluate(
             curve.x,
             curve_id=curve.id,
@@ -158,7 +159,8 @@ def wide_dataframe(
             columns["Residual (data - fit)"] = curve.y - total
         if selection.background:
             columns["Background"] = model.background(
-                curve.x, curve_id=curve.id, values=parameter_values, registry=registry
+                curve.x, curve_id=curve.id, values=parameter_values, registry=registry,
+                evaluated_components=components,
             )
         if selection.components:
             for component in model.display_components:
@@ -387,7 +389,7 @@ def export_parameter_covariances(project: Project, parameter_path: str | Path) -
                      method: str, curve_name: str, samples: int = 0) -> None:
         if matrix.shape != (len(paths), len(paths)) or not len(paths):
             return
-        if not np.isfinite(matrix).all():
+        if not all(np.isfinite(block).all() for block in (matrix.blocks if isinstance(matrix, BlockDiagonalMatrix) else (matrix,))):
             return
         directory.mkdir(parents=True, exist_ok=True)
         filename = f"{len(written) + 1:03d}_{source}_{method}.csv"
@@ -421,7 +423,7 @@ def export_parameter_covariances(project: Project, parameter_path: str | Path) -
             paths = fit.free_parameter_paths if isinstance(fit, FitResult) else fit.get("free_parameter_paths", [])
             covariance = fit.covariance if isinstance(fit, FitResult) else fit.get("covariance")
             if covariance is not None:
-                write_matrix(paths, np.asarray(covariance, dtype=float), "fit", "covariance",
+                write_matrix(paths, matrix_from_value(covariance), "fit", "covariance",
                              "Global fit" if global_key is not None else curve.name)
         method = selected_method(project, curve.id)
         if method not in {"parametric_monte_carlo", "residual_bootstrap", "block_bootstrap"}:
@@ -837,11 +839,11 @@ def export_bundle(
         if result.covariance is not None:
             covariance_path = root / "uncertainty" / "covariance.csv"
             covariance_path.parent.mkdir(parents=True, exist_ok=True)
-            np.savetxt(covariance_path, result.covariance, delimiter=delimiter)
+            save_matrix(covariance_path, result.covariance, delimiter)
         if result.correlation is not None:
             correlation_path = root / "uncertainty" / "correlation.csv"
             correlation_path.parent.mkdir(parents=True, exist_ok=True)
-            np.savetxt(correlation_path, result.correlation, delimiter=delimiter)
+            save_matrix(correlation_path, result.correlation, delimiter)
 
     if selection.uncertainty and (project.results.get("uncertainty_reports") or
                                   project.results.get("uncertainty_reports_by_curve")):
@@ -1000,7 +1002,8 @@ def _escape(value: str) -> str:
 def _sha256(path: Path) -> str:
     import hashlib
 
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+    with path.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
 def _json_default(value: Any) -> Any:

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import io
 import json
 import re
@@ -158,13 +157,8 @@ def _unpack(archive: bytes, root: Path, update: PluginUpdate) -> Path:
                 with bundle.open(member) as source, destination.open("wb") as output:
                     shutil.copyfileobj(source, output)
     folder = root / update.folder
-    digest = hashlib.sha256()
-    for path in sorted(folder.rglob("*"), key=lambda item: item.relative_to(folder).as_posix()):
-        if path.is_file():
-            digest.update(path.relative_to(folder).as_posix().encode())
-            digest.update(b"\0")
-            digest.update(path.read_bytes())
-    if digest.hexdigest() != update.sha256:
+    from curvemole.plugin_fingerprint import fingerprint
+    if fingerprint(folder) != update.sha256:
         raise CurveMoleError("Plugin checksum mismatch. Check for updates again and retry.")
     return folder
 

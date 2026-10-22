@@ -17,6 +17,7 @@ def render():
     from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication
+
     from curvemole.gui.main_window import MainWindow
     sys.path.insert(0, str(ROOT / 'scripts'))
     from generate_screenshots import build_example_project

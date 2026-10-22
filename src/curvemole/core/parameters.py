@@ -271,3 +271,58 @@ def copy_parameter_values(source: Iterable[Parameter], target: Iterable[Paramete
         if parameter.name in source_by_name:
             value = source_by_name[parameter.name].value
             parameter.value = min(max(value, parameter.minimum), parameter.maximum)
+
+
+class EqualityParameterResolver:
+    """Prepared dependency order for a fit whose links are equalities.
+
+    Numerical values and limits are read on every evaluation. A changed graph
+    invalidates the prepared expressions, never the resolved numerical values.
+    """
+
+    def __init__(self, parameters: Mapping[str, Parameter]) -> None:
+        self.parameters = parameters
+        self._signature = None
+        self._order = []
+        self._expressions = {}
+
+    def resolve(self) -> dict[str, float]:
+        signature = tuple((path, parameter.link, parameter.link_relation,
+                           parameter.link_scope, tuple(parameter.link_reference_scopes))
+                          for path, parameter in self.parameters.items())
+        if signature != self._signature:
+            # Preserve public validation/error diagnostics before preparing a new graph.
+            resolve_parameter_values(self.parameters)
+            expressions = {path: SafeExpression.compile(parameter.link)
+                           for path, parameter in self.parameters.items() if parameter.link}
+            order, done = [], set()
+            def visit(path):
+                if path in done:
+                    return
+                if path in expressions:
+                    for dependency in expressions[path].references:
+                        visit(dependency)
+                done.add(path)
+                order.append(path)
+            for path in self.parameters:
+                visit(path)
+            self._signature, self._order, self._expressions = signature, order, expressions
+        values = {}
+        for path in self._order:
+            parameter = self.parameters[path]
+            expression = self._expressions.get(path)
+            if expression is None:
+                values[path] = parameter.value
+                continue
+            if parameter.link_relation != "equal":
+                return resolve_parameter_values(self.parameters)
+            if not parameter.minimum <= parameter.value <= parameter.maximum:
+                raise ConstraintError(f"Parameter '{path}' value is outside its bounds.")
+            try:
+                value = float(expression.evaluate(references=values))
+            except (ExpressionError, TypeError, ValueError) as exc:
+                raise ConstraintError(f"Cannot resolve linked parameter '{path}': {exc}") from exc
+            if not parameter.minimum <= value <= parameter.maximum:
+                raise ConstraintError(f"Linked value {value} for '{path}' violates [{parameter.minimum}, {parameter.maximum}].")
+            values[path] = value
+        return values

@@ -11,13 +11,16 @@ from curvemole.core.history import CompactHistory
 from curvemole.gui.main_window import MainWindow
 
 
-def _capture(window):
+def _capture(window, curve_ids=None):
     models = {}
     for curve_id, model in window.project.models.items():
+        if curve_ids is not None and curve_id not in curve_ids:
+            continue
         refs = {component.id: (component, dict(component.parameters)) for component in model.components}
         models[curve_id] = (model, copy.deepcopy(model), refs)
     return {
         "models": models,
+        "scope": set(window.project.models) if curve_ids is None else set(curve_ids),
         # Completed FitResults are not mutated; share their potentially large arrays.
         "results": dict(window.project.results),
         "history": CompactHistory(window.project.fit_history),
@@ -33,7 +36,8 @@ def _capture(window):
 
 
 def _restore(window, state):
-    window.project.models.clear()
+    for curve_id in state["scope"] - state["models"].keys():
+        window.project.models.pop(curve_id, None)
     for curve_id, (model, saved, refs) in state["models"].items():
         model.name, model.id = saved.name, saved.id
         model.display_order = list(saved.display_order)
@@ -95,7 +99,7 @@ def _install():
     def run(window, plan):
         if window._thread is not None:
             return original_run(window, plan)
-        window._fit_undo_before = _capture(window)
+        window._fit_undo_before = _capture(window, set(plan.curve_ids))
         window.undo_action.setEnabled(False)
         window.redo_action.setEnabled(False)
         try:
@@ -113,7 +117,7 @@ def _install():
         window._fit_undo_before = None
         if before is not None:
             if result.success or result.curve_outputs or result.paused_curve_id:
-                window.undo_stack.push(FitUndoCommand(window, before, _capture(window)))
+                window.undo_stack.push(FitUndoCommand(window, before, _capture(window, before["scope"])))
             else:
                 _restore(window, before)
 

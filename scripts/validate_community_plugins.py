@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
 import json
 import os
 import re
@@ -54,17 +53,8 @@ def inspect_manifest(path: Path) -> dict:
 
 
 def fingerprint(folder: Path) -> str:
-    digest = hashlib.sha256()
-    for path in sorted(folder.rglob("*"), key=lambda item: item.relative_to(folder).as_posix()):
-        if "__pycache__" in path.parts or ".pytest_cache" in path.parts or path.suffix == ".pyc":
-            continue
-        if path.is_symlink():
-            raise ValueError("Symlinks are not allowed in community plugins")
-        if path.is_file():
-            digest.update(path.relative_to(folder).as_posix().encode())
-            digest.update(b"\0")
-            digest.update(path.read_bytes())
-    return digest.hexdigest()
+    from runpy import run_path
+    return run_path(str(ROOT / "src/curvemole/plugin_fingerprint.py"))["fingerprint"](folder)
 
 
 def smoke(path: Path):

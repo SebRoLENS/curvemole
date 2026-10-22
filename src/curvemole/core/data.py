@@ -31,6 +31,26 @@ def _array(values: Iterable[float] | np.ndarray | None, *, length: int | None = 
     return result
 
 
+class ImmutableColumns(dict):
+    """Owned, read-only numeric table shared by curves; transformations replace columns."""
+
+    def __init__(self, columns):
+        def owned(value):
+            array = np.asarray(value, dtype=np.float64).reshape(-1)
+            owner = array
+            while isinstance(owner.base, np.ndarray):
+                owner = owner.base
+            if isinstance(owner.base, bytes):
+                return value if isinstance(value, np.ndarray) and value.ndim == 1 else array
+            return np.frombuffer(array.tobytes(), dtype=np.float64)
+        super().__init__((key, owned(value)) for key, value in columns.items())
+
+    def __deepcopy__(self, memo):
+        for value in self.values():
+            memo[id(value)] = value
+        return ImmutableColumns(self)
+
+
 class CurveState(StrEnum):
     NOT_FITTED = "Not fitted"
     READY = "Ready"
@@ -222,8 +242,9 @@ class Curve:
         if not np.isfinite(self.error_confidence_level) or not 0 < self.error_confidence_level < 1:
             raise DataValidationError("Data error confidence must be between zero and one.")
         self.weights = _array(self.weights, length=len(self.original_x))
-        self.original_columns = {key: _array(value, length=len(self.original_x))
-                                 for key, value in self.original_columns.items()}
+        self.original_columns = ImmutableColumns(self.original_columns)
+        if any(len(value) != len(self.original_x) for value in self.original_columns.values()):
+            raise DataValidationError("Original column length does not match the curve.")
         for value in self.original_columns.values():
             value.setflags(write=False)
         if any(key not in self.original_columns for key in self.column_axes.values()):
@@ -559,7 +580,7 @@ class Curve:
         original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
         from curvemole.core.columns import evaluate_columns
 
-        columns = {key: value.copy() for key, value in self.original_columns.items()}
+        columns = dict(self.original_columns)
         for transformation in self.transformations:
             op, p = transformation.operation, transformation.parameters
             if op in {"move_points", "delete_points"}:

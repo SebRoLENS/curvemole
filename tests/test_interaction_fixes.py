@@ -186,7 +186,7 @@ def test_fit_undo_redo_preserves_prior_edit_references(window, monkeypatch):
     parameter = model.components[0].parameters["intercept"]
     window.undo_stack.push(CallbackCommand("edit", lambda: setattr(parameter, "value", 0.5), lambda: setattr(parameter, "value", 0.)))
     original_x = window.project.dataset.curve(curve_id).original_x
-    def synchronous(operation, finished, status):
+    def synchronous(operation, finished, status, partial=None):
         finished(operation(lambda *_: None))
         window._task_done()
     monkeypatch.setattr(window, "_run_background", synchronous)
@@ -210,7 +210,7 @@ def test_fit_undo_redo_preserves_prior_edit_references(window, monkeypatch):
 def test_cancelled_fit_restores_pre_worker_model(window, monkeypatch):
     parameter = window.project.model_for(window.active_curve_id).components[0].parameters["intercept"]
     before = parameter.value
-    def cancelled(operation, finished, status):
+    def cancelled(operation, finished, status, partial=None):
         parameter.value = 999.
         window._task_failed("cancelled", "test cancellation")
         window._task_done()
@@ -228,7 +228,7 @@ def test_paused_sequence_undo_restores_target_structure_and_resume_state(window,
                              monitor_residuals=False, parameter_change_limit=0.001)
     window.last_fit_plan = plan
     monkeypatch.setattr(QMessageBox, "warning", lambda *args: None)
-    def synchronous(operation, finished, status):
+    def synchronous(operation, finished, status, partial=None):
         finished(operation(lambda *_: None))
         window._task_done()
     monkeypatch.setattr(window, "_run_background", synchronous)

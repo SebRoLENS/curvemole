@@ -7,6 +7,7 @@ from typing import Any
 from PySide6.QtCore import QEvent, QObject
 
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.plot_view import _capture_view_range, _restore_view_range
 
 _ORIGINAL_QUICK_FIT = MainWindow.quick_fit
 _ORIGINAL_FIT_FINISHED = MainWindow._fit_finished
@@ -49,26 +50,6 @@ class _QuickFitWheelZoomFilter(QObject):
         main_view.scaleBy((factor, factor), center=centre)
         event.accept()
         return True
-
-
-def _capture_view_range(window: MainWindow) -> tuple[tuple[float, float], tuple[float, float]]:
-    ranges = window.plot_workspace.view_box.viewRange()
-    return (
-        (float(ranges[0][0]), float(ranges[0][1])),
-        (float(ranges[1][0]), float(ranges[1][1])),
-    )
-
-
-def _restore_view_range(
-    window: MainWindow,
-    ranges: tuple[tuple[float, float], tuple[float, float]],
-) -> None:
-    window.plot_workspace.view_box.setRange(
-        xRange=ranges[0],
-        yRange=ranges[1],
-        padding=0,
-        disableAutoRange=True,
-    )
 
 
 def _ensure_wheel_filter(window: MainWindow) -> None:

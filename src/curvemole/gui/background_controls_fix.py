@@ -28,6 +28,7 @@ from curvemole.core.background_status import background_component_ids
 from curvemole.core.calculator import apply_background_subtraction
 from curvemole.core.data import Curve, CurveState, Transformation
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401
+from curvemole.gui.background_navigation import _find_menu
 from curvemole.gui.dialogs import BackgroundComponentsDialog
 from curvemole.gui.main_window import CallbackCommand, MainWindow, _resource_icon
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
@@ -561,15 +562,6 @@ def _revert_backgrounds(
         + str(len(records))
         + window.tr(" spectrum/spectra.")
     )
-
-
-def _find_menu(window: MainWindow, title: str) -> QMenu | None:
-    wanted = window.tr(title)
-    for action in window.menuBar().actions():
-        menu = action.menu()
-        if menu is not None and menu.title().replace("&", "") == wanted:
-            return menu
-    return None
 
 
 def _remove_action_everywhere(window: MainWindow, action: QAction) -> None:

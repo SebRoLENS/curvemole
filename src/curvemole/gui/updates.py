@@ -176,6 +176,8 @@ class UpdateController(QObject):
 
     def check(self, *, force: bool = False) -> None:
         """Check GitHub now; automatic calls are never throttled below one hour."""
+        if not force and os.environ.get("CURVEMOLE_DISABLE_UPDATE_CHECK", "").strip().lower() in {"1", "true", "yes"}:
+            return
         if self._release_reply is not None:
             if force:
                 self.window._notify(self.window.tr("An update check is already in progress."))

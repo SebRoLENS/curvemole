@@ -172,28 +172,8 @@ jobs:
       - name: Build AppImage
         id: appimage
         run: |
-          set -euxo pipefail
-          mkdir -p CurveMole.AppDir/usr/lib/curvemole
-          cp -a dist/CurveMole/. CurveMole.AppDir/usr/lib/curvemole/
-          cp packaging/linux/curvemole.desktop CurveMole.AppDir/curvemole.desktop
-          mkdir -p CurveMole.AppDir/usr/share/mime/packages
-          cp packaging/linux/curvemole.xml CurveMole.AppDir/usr/share/mime/packages/curvemole.xml
-          cp generated-icons/curvemole.png CurveMole.AppDir/curvemole.png
-          cp generated-icons/curvemole.png CurveMole.AppDir/.DirIcon
-          cat > CurveMole.AppDir/AppRun <<'EOF'
-          #!/bin/sh
-          APPDIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-          exec "$APPDIR/usr/lib/curvemole/CurveMole" "$@"
-          EOF
-          chmod +x CurveMole.AppDir/AppRun
           APPIMAGE="CurveMole-${VERSION}-linux-x86_64.AppImage"
-          curl -L --fail --retry 3 \
-            -o appimagetool-x86_64.AppImage \
-            https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 \
-            ./appimagetool-x86_64.AppImage --no-appstream CurveMole.AppDir "$APPIMAGE"
-          chmod +x "$APPIMAGE"
+          bash scripts/build_appimage.sh generated-icons/curvemole.png "$APPIMAGE"
           echo "path=$APPIMAGE" >> "$GITHUB_OUTPUT"
 
       - name: Sign and attest Linux AppImage with Sigstore
@@ -252,23 +232,9 @@ jobs:
       - name: Build standalone executable
         shell: pwsh
         run: |
-          $pyinstallerArgs = @(
-            "--noconfirm", "--clean", "--windowed", "--onefile",
-            "--name", "CurveMole",
-            "--icon", "generated-icons/curvemole.ico",
-            "--paths", "src",
-            "--add-data", "src/curvemole/resources;curvemole/resources",
-            "--add-data", "docs;curvemole/resources/docs",
-            "--hidden-import", "scipy.special._ufuncs_cxx",
-            "--hidden-import", "scipy.optimize",
-            "--hidden-import", "scipy.signal",
-            "--hidden-import", "scipy.interpolate",
-            "--hidden-import", "pandas",
-            "--hidden-import", "matplotlib.backends.backend_agg",
-            "--hidden-import", "matplotlib.backends.backend_svg",
-            "src/curvemole/gui/app.py"
-          )
-          uv run --no-sync pyinstaller @pyinstallerArgs
+          $env:CURVEMOLE_ONEFILE = "1"
+          $env:CURVEMOLE_ICON = "generated-icons/curvemole.ico"
+          uv run --no-sync pyinstaller --noconfirm --clean packaging/curvemole.spec
 
       - name: Smoke-test frozen GUI
         timeout-minutes: 3

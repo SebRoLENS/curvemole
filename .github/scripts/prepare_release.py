@@ -8,6 +8,9 @@ import datetime as dt
 import re
 import subprocess
 from pathlib import Path
+from runpy import run_path
+
+replace_section = run_path(str(Path(__file__).with_name("readme_sections.py")))["replace_section"]
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION_FILE = ROOT / "src" / "curvemole" / "version.py"
@@ -135,15 +138,6 @@ def choose_version(explicit_bump: str | None = None, explicit_version: str | Non
             f"Source version {current} is older than latest release v{latest}."
         )
     return bump_version(current, requested_bump(explicit_bump))
-
-
-def replace_section(text: str, heading: str, next_heading: str, body: str) -> str:
-    pattern = re.compile(
-        rf"(?ms)^{re.escape(heading)}\n.*?(?=^{re.escape(next_heading)}\n)"
-    )
-    if not pattern.search(text):
-        raise SystemExit(f"Could not find README section {heading!r}")
-    return pattern.sub(body.rstrip() + "\n\n", text, count=1)
 
 
 def pending_badges(text: str) -> str:

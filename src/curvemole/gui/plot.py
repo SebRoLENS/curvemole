@@ -661,7 +661,11 @@ class PlotWorkspace(QWidget):
         x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
         y_step = self.y_offset.value() if mode == self.tr("Waterfall") else 0.0
         try:
-            global_values = project.resolved_parameter_values()
+            global_values = getattr(self, "_render_values", None)
+            if global_values is None:
+                global_values = getattr(self, "_live_parameter_values", None)
+            if global_values is None:
+                global_values = project.resolved_parameter_values()
         except CurveMoleError:
             # An invalid link in one model must not erase measured data or
             # prevent independent models from being displayed.
@@ -669,6 +673,10 @@ class PlotWorkspace(QWidget):
         for index, curve in enumerate(curves):
             x = curve.x + index * x_step
             y = curve.y + index * y_step
+            from curvemole.gui.background_navigation import background_removed
+            subtract = background_removed(self, curve.id)
+            background = getattr(self, "_curvemole_background_cache", {}).get(curve.id, np.zeros_like(curve.y))
+            data_y = y - background if subtract else y
             unmasked = ~curve.effective_mask
             symbol = marker_for_curve(appearance, index)
             data_width = float(appearance["data_line_width"]) * (
@@ -676,7 +684,7 @@ class PlotWorkspace(QWidget):
             )
             item = self.plot.plot(
                 x[unmasked],
-                y[unmasked],
+                data_y[unmasked],
                 name=curve.name,
                 **self._plot_options(
                     str(appearance["data_style"]),
@@ -692,19 +700,18 @@ class PlotWorkspace(QWidget):
             self._data_items[curve.id] = item
             if self.error_bars_toggle.isChecked():
                 from curvemole.gui.background_navigation import (
-                    _background_array,
                     background_removed,
                 )
                 from curvemole.gui.data_errors import error_bar_item
                 bar_y = y
                 if background_removed(self, curve.id):
-                    bar_y = y - _background_array(self, curve)
+                    bar_y = y - background
                 errors = error_bar_item(curve, x, bar_y, unmasked,
                     colour_with_opacity(curve.colour, int(appearance["data_opacity"])))
                 if errors is not None:
                     self.plot.addItem(errors)
                     self._error_items[curve.id] = errors
-            for mask in curve.masks.values():
+            for mask in (() if getattr(self, "_lightweight_masks", False) else curve.masks.values()):
                 for lower, upper in mask.ranges:
                     if math.isclose(lower, upper):
                         continue
@@ -724,13 +731,11 @@ class PlotWorkspace(QWidget):
                         values = resolve_parameter_values(
                             project.parameter_map(), paths=model.parameter_map(curve.id),
                         )
-                    total, component_arrays = model.evaluate(
-                        curve.x,
-                        curve_id=curve.id,
-                        values=values,
-                        registry=self.registry,
-                        components=True,
-                    )
+                    cached = (getattr(self, "_render_models", None) or {}).get(curve.id)
+                    if cached is None:
+                        cached = model.evaluate(curve.x, curve_id=curve.id, values=values,
+                                                registry=self.registry, components=True)
+                    total, component_arrays = cached
                 except CurveMoleError as exc:
                     self.plot.setToolTip(
                         f"Model unavailable: {exc}. Review function operators, parameter links, "
@@ -740,7 +745,7 @@ class PlotWorkspace(QWidget):
                 total = total + index * y_step
                 sum_item = self.plot.plot(
                     x,
-                    total,
+                    total - background if subtract else total,
                     name=f"{curve.name} Model sum",
                     **self._plot_options(
                         str(appearance["function_style"]),
@@ -772,6 +777,11 @@ class PlotWorkspace(QWidget):
                     if not component.enabled or component.id not in component_arrays:
                         continue
                     component_y = component_arrays[component.id] + index * y_step
+                    if not subtract and not component.is_background:
+                        if component.operator == "add":
+                            component_y = background + component_y
+                        elif component.operator == "subtract":
+                            component_y = background - component_arrays[component.id] + index * y_step
                     selected = (
                         component.id == self._selected_component_id
                         and curve.id == self._active_curve_id
@@ -799,6 +809,7 @@ class PlotWorkspace(QWidget):
                             symbol,
                         ),
                     )
+                    component_item.setVisible(not (subtract and component.is_background))
                     component_item.component_id = component.id
                     component_item.curve_id = curve.id
                     component_item.curve.setClickable(

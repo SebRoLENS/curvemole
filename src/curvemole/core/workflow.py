@@ -97,7 +97,7 @@ def run_workflow(
     curve_aliases: dict[str, str] = {}
     for item in workflow["imports"]:
         input_path = _resolve(root, item["path"])
-        config = ImportConfig(**item.get("config", {}))
+        config = ImportConfig(**item["config"]) if "config" in item else None
         mapping = ColumnMapping(**item["columns"])
         curves = import_file(input_path, mapping, config)
         aliases = item.get("aliases", [])
@@ -194,7 +194,7 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
         value["imports"].append(
             {
                 "path": curve.source or f"data/{curve.name}.csv",
-                "columns": {"x": 0, "y": [1]},
+                **_import_spec(curve),
                 "aliases": [curve.name],
             }
         )
@@ -238,6 +238,21 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
             )
     destination.write_text(yaml.safe_dump(value, sort_keys=False), encoding="utf-8")
     return destination
+
+
+def _import_spec(curve) -> dict[str, Any]:
+    imported = curve.metadata.get("import", {})
+    if "config" in imported and "columns" in imported:
+        return {"config": imported["config"], "columns": imported["columns"]}
+    if "x_column" in imported:
+        config = {key: imported[key] for key in ("decimal", "header", "skip_rows") if key in imported}
+        config["delimiter"] = None if imported.get("delimiter") == "whitespace" else imported.get("delimiter")
+        columns = {"x": imported["x_column"], "y": [imported["y_column"]]}
+        for key in ("sigma_x", "sigma_y", "weights", "variance", "inverse_variance", "error_y_plus", "error_y_minus"):
+            columns[key] = imported.get(key + "_column")
+        columns["error_confidence_level"] = imported.get("error_confidence_level", 0.95)
+        return {"config": config, "columns": columns}
+    return {"columns": {"x": 0, "y": [1]}}
 
 
 def _resolve(root: Path, value: str | Path) -> Path:

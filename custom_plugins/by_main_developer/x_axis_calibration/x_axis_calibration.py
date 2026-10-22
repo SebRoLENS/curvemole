@@ -306,7 +306,6 @@ def create_panel(context):
             layout.addStretch()
             self.timer = QTimer(self)
             self.timer.timeout.connect(self.refresh)
-            self.timer.start(500)
             self.refresh()
 
         def button(self, layout, label, callback):
@@ -319,6 +318,16 @@ def create_panel(context):
                     QMessageBox.warning(self, "X calibration", str(exc))
             button.clicked.connect(guarded)
             layout.addWidget(button)
+
+        def hideEvent(self, event):
+            self.timer.stop()
+            super().hideEvent(event)
+
+        def showEvent(self, event):
+            super().showEvent(event)
+            self.refresh()
+            if _enabled(self.window):
+                self.timer.start(500)
 
         def refresh(self):
             if not _enabled(self.window):

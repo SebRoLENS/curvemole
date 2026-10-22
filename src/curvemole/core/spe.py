@@ -21,7 +21,7 @@ def is_spe(path: str | Path) -> bool:
     return len(header) == 3000 and struct.unpack_from("<I", header, 2996)[0] == 0x01234567
 
 
-def read_spe_frame(path: str | Path) -> pd.DataFrame:
+def read_spe_frame(path: str | Path, *, nrows: int | None = None) -> pd.DataFrame:
     source = Path(path)
     with source.open("rb") as stream:
         h = stream.read(4100)
@@ -61,10 +61,15 @@ def read_spe_frame(path: str | Path) -> pd.DataFrame:
         count = nx * frames
         if count * np.dtype(dtype).itemsize > 256 * 1024 * 1024:
             raise DataValidationError("SPE acquisition exceeds the 256 MiB import limit.")
-        payload = stream.read(count * np.dtype(dtype).itemsize)
-        if len(payload) != count * np.dtype(dtype).itemsize:
+        itemsize = np.dtype(dtype).itemsize
+        if source.stat().st_size < 4100 + count * itemsize:
             raise DataValidationError("Incomplete SPE data; waiting for acquisition to finish.")
-        y = np.frombuffer(payload, dtype=dtype).reshape(frames, nx)
+        rows = nx if nrows is None else min(nx, max(0, nrows))
+        y = []
+        for frame in range(frames):
+            stream.seek(4100 + frame * nx * itemsize)
+            y.append(np.frombuffer(stream.read(rows * itemsize), dtype=dtype))
+        x = x[:rows]
     columns = {"Wavelength [nm]": x}
     columns.update({f"Intensity {i + 1}": row.astype(float) for i, row in enumerate(y)})
     return pd.DataFrame(columns)

@@ -110,6 +110,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         payload = _dispatch(args)
         _print(payload, json_output)
+        if args.command == "validate" and not payload["valid"]:
+            return EXIT_PROJECT if args.path.suffix.lower() == ".fitproj" else EXIT_DATA
         return EXIT_OK
     except ProjectFormatError as exc:
         _error(exc, json_output)

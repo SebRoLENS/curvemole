@@ -22,7 +22,6 @@ from curvemole.gui.main_window import MainWindow, _resource_path
 from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols
-from curvemole.gui.updates import UpdateController
 from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
@@ -91,16 +90,6 @@ def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
     workspace._sync_placement_mouse_targets()
 
 
-def _is_dense_mask_marker(kwargs: dict[str, Any]) -> bool:
-    """Identify the legacy per-point mask marker render call."""
-    return (
-        kwargs.get("pen") is None
-        and kwargs.get("symbol") == "o"
-        and kwargs.get("symbolSize") == 5
-        and kwargs.get("symbolPen") is None
-    )
-
-
 def _render_lightweight_mask_boundaries(workspace: PlotWorkspace) -> None:
     """Replace filled mask overlays with cheap, non-ranging dashed boundary lines."""
     for item in tuple(workspace.plot.items):
@@ -157,18 +146,8 @@ def _install_view_preserving_refresh() -> None:
             delattr(workspace, "_preserve_view_on_refresh")
         state = _capture_plot_view(workspace) if preserve else None
 
-        original_plot = workspace.plot.plot
-
-        def lightweight_plot(*plot_args: Any, **plot_kwargs: Any) -> pg.PlotDataItem:
-            if _is_dense_mask_marker(plot_kwargs):
-                return pg.PlotDataItem()
-            return original_plot(*plot_args, **plot_kwargs)
-
-        workspace.plot.plot = lightweight_plot
-        try:
-            original_refresh(workspace, *args)
-        finally:
-            workspace.plot.plot = original_plot
+        workspace._lightweight_masks = True
+        original_refresh(workspace, *args)
 
         _render_lightweight_mask_boundaries(workspace)
         _optimise_plot_rendering(workspace)
@@ -483,6 +462,14 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
     return [name for name, action in actions.items() if action.icon().isNull()]
 
 
+def create_main_window(*args: Any, **kwargs: Any) -> CurveMoleMainWindow:
+    """Compose the desktop window identically for launchers and integration tests."""
+    window = CurveMoleMainWindow(*args, **kwargs)
+    from curvemole.gui.plugin_updates import PluginUpdateController
+    window.plugin_update_controller = PluginUpdateController(window)
+    return window
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     # PyInstaller's spawned fit processes enter through this executable.
     import multiprocessing
@@ -503,11 +490,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     QCoreApplication.setOrganizationName("CurveMole")
     QCoreApplication.setApplicationName("CurveMole")
     QCoreApplication.setApplicationVersion(__version__)
-    window = CurveMoleMainWindow()
+    window = create_main_window()
     app.aboutToQuit.connect(window._finish_session)
-    window._release_update_controller = UpdateController(window)
-    from curvemole.gui.plugin_updates import PluginUpdateController
-    window.plugin_update_controller = PluginUpdateController(window)
     window.show()
     if file_open_filter is not None:
         file_open_filter.set_file_open_handler(lambda path: _open_paths(window, [path]))

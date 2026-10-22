@@ -15,7 +15,8 @@ def test_frozen_apps_bundle_the_complete_resource_directory() -> None:
     )
 
     assert '"resources"), "curvemole/resources")' in spec
-    assert '"--add-data", "src/curvemole/resources;curvemole/resources"' in workflow
+    assert "packaging/curvemole.spec" in workflow
+    assert '$env:CURVEMOLE_ONEFILE = "1"' in workflow
 
 def test_linux_release_includes_a_detached_sigstore_signature() -> None:
     workflow = (ROOT / ".github" / "workflows" / "build-desktop.yml").read_text(
@@ -46,7 +47,7 @@ def test_all_desktop_builds_explicitly_collect_dynamic_svg_renderer() -> None:
     )
     windows = workflow["jobs"]["windows"]["steps"]
     build = next(step["run"] for step in windows if step.get("name") == "Build standalone executable")
-    assert '"--hidden-import", "matplotlib.backends.backend_svg"' in build
+    assert "packaging/curvemole.spec" in build
 
 
 def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:

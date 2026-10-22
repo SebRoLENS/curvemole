@@ -12,6 +12,7 @@ import operator
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -74,6 +75,7 @@ class SafeExpression:
     _references: tuple[tuple[str, str], ...]
 
     @classmethod
+    @lru_cache(maxsize=2048)
     def compile(cls, source: str) -> SafeExpression:
         if not source or not source.strip():
             raise ExpressionError("Expression is empty.")

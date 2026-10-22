@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from contextlib import suppress
 from typing import Any
 
@@ -12,10 +11,9 @@ from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMenu, QStyle, QToolBar, QToolButton, QTreeWidgetItem
 
-from curvemole.core.calculator import apply_background_subtraction
-from curvemole.core.data import Curve, CurveState
+from curvemole.core.data import Curve
 from curvemole.gui import mask_display as _mask_display
-from curvemole.gui.main_window import CallbackCommand, MainWindow
+from curvemole.gui.main_window import MainWindow
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import (
     colour_with_opacity,
@@ -23,7 +21,6 @@ from curvemole.gui.plot_appearance import (
     plot_mode_flags,
     qt_pen_style,
 )
-from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 
 
 def background_removed(workspace: PlotWorkspace, curve_id: str | None) -> bool:
@@ -85,11 +82,29 @@ def _background_cache(workspace: PlotWorkspace) -> dict[str, np.ndarray]:
     curves, _, _ = _displayed_curves(workspace)
     if project is None:
         return {}
-    try:
-        values = project.resolved_parameter_values()
-    except Exception:
-        values = None
-    return {curve.id: _background_array(workspace, curve, values) for curve in curves}
+    values = getattr(workspace, "_live_parameter_values", None)
+    if values is None:
+        try:
+            values = project.resolved_parameter_values()
+        except Exception:
+            values = None
+    workspace._render_values = values
+    workspace._render_models = {}
+    backgrounds = {}
+    for curve in curves:
+        model = project.models.get(curve.id)
+        try:
+            if model is not None and model.components:
+                total, components = model.evaluate(curve.x, curve_id=curve.id, values=values,
+                                                    registry=workspace.registry, components=True)
+                workspace._render_models[curve.id] = (total, components)
+                backgrounds[curve.id] = model.background(curve.x, curve_id=curve.id, values=values,
+                    registry=workspace.registry, evaluated_components=components)
+            else:
+                backgrounds[curve.id] = np.zeros_like(curve.y)
+        except Exception:
+            backgrounds[curve.id] = np.zeros_like(curve.y)
+    return backgrounds
 
 
 def _masked_sample_renderer(workspace: PlotWorkspace) -> None:
@@ -246,71 +261,6 @@ def _apply_background_aware_display(
         return
 
     # Data traces.
-    for index, curve in enumerate(curves):
-        subtract = background_removed(workspace, curve.id)
-        item = workspace._data_items.get(curve.id)
-        if item is None:
-            continue
-        background = backgrounds.get(curve.id, np.zeros_like(curve.y, dtype=float))
-        unmasked = ~curve.effective_mask
-        display_y = np.asarray(curve.y, dtype=float)
-        if subtract:
-            display_y = display_y - background
-        item.setData(
-            np.asarray(curve.x, dtype=float)[unmasked] + index * x_step,
-            display_y[unmasked] + index * y_step,
-        )
-
-    for curve in curves:
-        subtract = background_removed(workspace, curve.id)
-        model = project.models.get(curve.id)
-        if model is None or not model.components:
-            continue
-        sum_item = workspace._sum_items.get(curve.id)
-        if sum_item is None:
-            continue
-        if subtract:
-            x_data, y_data = sum_item.getOriginalDataset()
-            background = backgrounds.get(curve.id)
-            if (
-                x_data is not None
-                and y_data is not None
-                and background is not None
-                and len(y_data) == len(background)
-            ):
-                sum_item.setData(np.asarray(x_data), np.asarray(y_data) - background)
-
-    # Individual model functions: normal view sits additive peaks on their
-    # background baseline; visual subtraction returns them to zero baseline.
-    for index, curve in enumerate(curves):
-        subtract = background_removed(workspace, curve.id)
-        model = project.models.get(curve.id)
-        if model is None:
-            continue
-        background = backgrounds.get(curve.id, np.zeros_like(curve.y, dtype=float))
-        y_offset = index * y_step
-        for component in model.components:
-            item = workspace._component_items.get((curve.id, component.id))
-            if not component.enabled or item is None:
-                continue
-            x_data, y_data = item.getOriginalDataset()
-            if x_data is None or y_data is None:
-                continue
-            raw = np.asarray(y_data, dtype=float) - y_offset
-            if subtract and component.is_background:
-                item.setVisible(False)
-                continue
-            item.setVisible(True)
-            if subtract or component.is_background:
-                display = raw
-            elif component.operator == "add":
-                display = background + raw
-            elif component.operator == "subtract":
-                display = background - raw
-            else:
-                display = raw
-            item.setData(np.asarray(x_data), display + y_offset)
-
     # Re-anchor component labels after moving the dashed curves.
     if workspace._show_component_labels and workspace._component_labels:
         specs: list[tuple[Any, float, float]] = []
@@ -402,6 +352,8 @@ def _install_plot_display() -> None:
             original_refresh(workspace, *args)
             _apply_background_aware_display(workspace, backgrounds)
         finally:
+            workspace._render_models = None
+            workspace._render_values = None
             if hasattr(workspace, "_curvemole_background_cache"):
                 delattr(workspace, "_curvemole_background_cache")
 
@@ -476,124 +428,8 @@ def _restore_component_states(
 
 
 def _subtract_all_backgrounds(window: MainWindow) -> None:
-    if not window._ensure_editable():
-        return
-
-    try:
-        global_values = window.project.resolved_parameter_values()
-    except Exception as exc:
-        window._show_error(window.tr("Subtract all backgrounds"), exc)
-        return
-
-    prepared: list[tuple[Curve, Any, list[Any], np.ndarray]] = []
-    for curve in window.project.curves:
-        model = window.project.models.get(curve.id)
-        if model is None:
-            continue
-        marked = [
-            component
-            for component in model.components
-            if component.enabled and component.is_background
-        ]
-        if not marked:
-            continue
-        try:
-            background = np.asarray(
-                model.background(
-                    curve.x,
-                    curve_id=curve.id,
-                    values=global_values,
-                    registry=window.registry,
-                ),
-                dtype=float,
-            )
-        except Exception as exc:
-            window._show_error(window.tr("Subtract all backgrounds"), exc)
-            return
-        usable = np.isfinite(curve.x) & np.isfinite(curve.y)
-        if background.shape != curve.y.shape or np.any(usable & ~np.isfinite(background)):
-            window._notify(
-                window.tr("A marked background contains invalid values; no spectrum was changed."),
-                warning=True,
-            )
-            return
-        prepared.append((curve, model, marked, background))
-
-    if not prepared:
-        window._notify(
-            window.tr("No enabled function marked as background was found."),
-            warning=True,
-        )
-        return
-
-    records: list[
-        tuple[
-            str,
-            Any,
-            dict[str, tuple[bool, bool]],
-            dict[str, tuple[bool, bool]],
-            CurveState,
-        ]
-    ] = []
-    try:
-        for curve, _model, marked, background in prepared:
-            component_ids = [component.id for component in marked]
-            transformation = apply_background_subtraction(
-                curve,
-                background,
-                method="model_components_global",
-                description=window.tr("Subtract marked model background (all spectra)"),
-                parameters={
-                    "component_ids": component_ids,
-                    "component_names": [component.name for component in marked],
-                },
-            )
-            curve.undo_transformation()
-            before = {
-                component.id: (component.is_background, component.enabled)
-                for component in marked
-            }
-            after = {component.id: (True, False) for component in marked}
-            records.append((curve.id, transformation, before, after, curve.state))
-    except Exception as exc:
-        window._show_error(window.tr("Subtract all backgrounds"), exc)
-        return
-
-    def redo() -> None:
-        for curve_id, transformation, _before, after, state_before in records:
-            current = window.project.dataset.curve(curve_id)
-            redo_transformation(current, transformation)
-            _restore_component_states(window.project.model_for(curve_id), after)
-            if state_before == CurveState.FITTED:
-                current.state = CurveState.MODIFIED
-
-    def undo() -> None:
-        for curve_id, transformation, before, _after, state_before in reversed(records):
-            current = window.project.dataset.curve(curve_id)
-            undo_transformation(current, transformation)
-            _restore_component_states(window.project.model_for(curve_id), before)
-            current.state = state_before
-
-    def wrapped(operation: Callable[[], None]) -> None:
-        operation()
-        try:
-            window.project.touch()
-        except PermissionError as exc:
-            window._show_error(window.tr("Read-only project"), exc)
-        window.refresh_all()
-
-    window.undo_stack.push(
-        CallbackCommand(
-            window.tr("Subtract backgrounds from all spectra"),
-            lambda: wrapped(redo),
-            lambda: wrapped(undo),
-        )
-    )
-    window._notify(
-        window.tr("Background subtracted from ")
-        + str(len(records))
-        + window.tr(" spectrum/spectra. Marked background functions were disabled.")
-    )
+    from curvemole.gui.background_controls_fix import _subtract_all_backgrounds as subtract
+    subtract(window)
 
 
 def _find_menu(window: MainWindow, title: str) -> QMenu | None:

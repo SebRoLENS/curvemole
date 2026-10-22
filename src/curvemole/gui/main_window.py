@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import json
 import math
-import os
 import re
 import time
 import traceback
@@ -42,7 +41,6 @@ from PySide6.QtGui import (
     QUndoCommand,
     QUndoStack,
 )
-from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import (
     QApplication,
     QColorDialog,
@@ -132,6 +130,8 @@ from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog
 from curvemole.gui.task_thread import TaskThread
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
+from curvemole.gui.updates import semantic_version as _semantic_version  # noqa: F401
+from curvemole.gui.updates import update_kind as _update_kind  # noqa: F401
 from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
@@ -738,8 +738,6 @@ class MainWindow(QMainWindow):
         self.last_peak_function_id = str(
             self.settings.value("last_peak_function", "gaussian")
         )
-        self._update_manager = QNetworkAccessManager(self)
-        self._update_reply: Any | None = None
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
@@ -801,11 +799,8 @@ class MainWindow(QMainWindow):
         self.plugin_host.finish_startup()
         self._restore_layout()
         self.refresh_all()
-        self.update_check_timer = QTimer(self)
-        self.update_check_timer.setInterval(60 * 60 * 1000)
-        self.update_check_timer.timeout.connect(self._automatic_update_check)
-        self.update_check_timer.start()
-        QTimer.singleShot(2500, self._automatic_update_check)
+        from curvemole.gui.updates import UpdateController
+        self._release_update_controller = UpdateController(self)
 
     def _build_docks(self) -> None:
         left_container = QWidget()
@@ -2454,13 +2449,20 @@ class MainWindow(QMainWindow):
         self._task_snapshot_safe = True
 
         def operation(progress, publish=None):
+            def live_progress(value, text):
+                if publish is not None and text.startswith("Evaluation "):
+                    parameters = {path: parameter for cid, model in models.items()
+                                  for path, parameter in model.parameter_map(cid).items()}
+                    publish({"live_values": resolve_parameter_values(parameters)})
+                progress(value, text)
             return fitter.fit(
                 plan, curve_map, models, cancellation=cancellation,
-                progress=progress,
-                on_curve_result=(lambda cid, result: publish((cid, result))) if publish else None,
+                progress=live_progress,
+                on_curve_result=(lambda cid, result: publish((cid, result))) if stream and publish else None,
             )
 
         def finished(result):
+            self.plot_workspace._live_parameter_values = None
             # Apply worker-side propagation and states only on the GUI thread.
             for cid in plan.curve_ids:
                 curve = self.project.dataset.curve(cid)
@@ -2489,11 +2491,14 @@ class MainWindow(QMainWindow):
                 current.operation_order = list(saved.operation_order)
             self._fit_finished(result)
 
-        if stream:
-            self._run_background(operation, finished, self.tr("Fitting…"),
-                                 partial=self._partial_fit_result)
-        else:
-            self._run_background(operation, finished, self.tr("Fitting…"))
+        def partial(item):
+            if isinstance(item, dict) and "live_values" in item:
+                from curvemole.gui.live_fit_refresh import refresh_snapshot
+                refresh_snapshot(self, item["live_values"])
+            else:
+                self._partial_fit_result(item)
+
+        self._run_background(operation, finished, self.tr("Fitting…"), partial=partial)
 
     def _partial_fit_result(self, item: tuple[str, FitResult]) -> None:
         """Expose a completed independent spectrum while other fits are queued."""
@@ -3447,148 +3452,12 @@ class MainWindow(QMainWindow):
         self.check_for_updates(force=False)
 
     def check_for_updates(self, *, force: bool = False) -> None:
-        automatic_checks_disabled = os.environ.get(
-            "CURVEMOLE_DISABLE_UPDATE_CHECK", ""
-        ).strip().lower() in {"1", "true", "yes"}
-        if not force and automatic_checks_disabled:
-            return
-        if self._update_reply is not None:
-            if force:
-                self._notify(self.tr("An update check is already in progress."))
-            return
-        now = time.time()
-        try:
-            last_check = float(self.settings.value("updates/last_check", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            last_check = 0.0
-        if not force and now - last_check < 24 * 60 * 60:
-            return
-
-        # Record the attempt so repeated launches while offline do not hammer GitHub.
-        self.settings.setValue("updates/last_check", now)
-        request = QNetworkRequest(
-            QUrl("https://api.github.com/repos/SebRoLENS/curvemole/releases/latest")
-        )
-        request.setRawHeader(b"Accept", b"application/vnd.github+json")
-        request.setRawHeader(b"User-Agent", f"CurveMole/{__version__}".encode("ascii"))
-        request.setTransferTimeout(10_000)
-        reply = self._update_manager.get(request)
-        self._update_reply = reply
-        reply.finished.connect(
-            lambda reply=reply, force=force: self._update_check_finished(reply, force)
-        )
+        self._release_update_controller.check(force=force)
 
     def _update_check_finished(self, reply: Any, force: bool) -> None:
-        try:
-            if reply.error() != QNetworkReply.NetworkError.NoError:
-                message = self.tr("Could not check for CurveMole updates: ") + reply.errorString()
-                self._log(message)
-                if force:
-                    QMessageBox.warning(self, self.tr("Check for updates"), message)
-                return
-
-            payload = json.loads(bytes(reply.readAll()).decode("utf-8"))
-            current = _semantic_version(__version__)
-            latest = _semantic_version(str(payload.get("tag_name", "")))
-            if current is None or latest is None:
-                raise ValueError(self.tr("GitHub returned an unrecognised release version."))
-
-            latest_text = ".".join(str(value) for value in latest)
-            if latest <= current:
-                self.settings.remove("updates/last_notified_version")
-                self.settings.remove("updates/last_notified_at")
-                if force:
-                    QMessageBox.information(
-                        self,
-                        self.tr("Check for updates"),
-                        self.tr("CurveMole is up to date. Installed version: ") + __version__,
-                    )
-                return
-
-            now = time.time()
-            previous_version = str(
-                self.settings.value("updates/last_notified_version", "") or ""
-            )
-            try:
-                previous_at = float(
-                    self.settings.value("updates/last_notified_at", 0.0) or 0.0
-                )
-            except (TypeError, ValueError):
-                previous_at = 0.0
-
-            due = _update_notification_due(
-                latest_text,
-                previous_version,
-                previous_at,
-                now,
-            )
-            if not force and not due:
-                return
-
-            reminder = not force and previous_version == latest_text
-            release_url = str(
-                payload.get("html_url")
-                or "https://github.com/SebRoLENS/curvemole/releases"
-            )
-            self._show_update_available(
-                latest_text,
-                _update_kind(current, latest),
-                release_url,
-                reminder=reminder,
-            )
-            self.settings.setValue("updates/last_notified_version", latest_text)
-            self.settings.setValue("updates/last_notified_at", now)
-        except Exception as exc:
-            self._log(f"Update check failed: {exc}")
-            if force:
-                QMessageBox.warning(self, self.tr("Check for updates"), str(exc))
-        finally:
-            self._update_reply = None
-            reply.deleteLater()
-
-    def _show_update_available(
-        self,
-        latest: str,
-        kind: str,
-        release_url: str,
-        *,
-        reminder: bool,
-    ) -> None:
-        if kind == "patch":
-            description = self.tr(
-                "A maintenance update is available with patches that correct bugs."
-            )
-        elif kind == "minor":
-            description = self.tr(
-                "A feature update is available and contains new functionality."
-            )
-        else:
-            description = self.tr("A new major version of CurveMole is available.")
-
-        prefix = self.tr("Reminder: ") if reminder else ""
-        message = (
-            prefix
-            + self.tr("CurveMole ")
-            + latest
-            + self.tr(" is available. ")
-            + description
-            + "\n\n"
-            + self.tr(
-                "Keeping CurveMole up to date is strongly recommended so that you receive "
-                "the latest bug fixes, reliability improvements, and compatibility updates."
-            )
-        )
-        with transient_widget(QMessageBox(self)) as box:
-            box.setIcon(QMessageBox.Icon.Information)
-            box.setWindowTitle(self.tr("CurveMole update available"))
-            box.setText(message)
-            open_button = box.addButton(
-                self.tr("Open release page"), QMessageBox.ButtonRole.AcceptRole
-            )
-            box.addButton(self.tr("Later"), QMessageBox.ButtonRole.RejectRole)
-            box.exec()
-            if box.clickedButton() is open_button:
-                self._open_external(release_url)
+        """Compatibility entry point for integrations using the previous checker."""
+        self._release_update_controller._release_finished(reply, force)
+        self._update_reply = None
 
     def open_documentation(self, name: str) -> None:
         from curvemole.gui.documentation import show_markdown_document
@@ -4232,6 +4101,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(text)
 
     def _task_failed(self, message: str, details: str) -> None:
+        self.plot_workspace._live_parameter_values = None
         self._log(details)
         task = getattr(self, "_uncertainty_task", None)
         if task and message.startswith("Uncertainty replica timeout:"):
@@ -4255,6 +4125,7 @@ class MainWindow(QMainWindow):
     def _reset_task_state(self) -> None:
         """Idempotent busy-state cleanup, also used if a completion hook fails."""
         self._task_watchdog.stop()
+        self.plot_workspace._live_parameter_values = None
         self._thread = None
         self._worker = None
         self._cancellation = None
@@ -4604,21 +4475,6 @@ class MainWindow(QMainWindow):
             self.open_project(projects[0])
         elif data:
             self.import_data(data)
-
-
-def _semantic_version(value: str) -> tuple[int, int, int] | None:
-    match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", value.strip())
-    if match is None:
-        return None
-    return tuple(int(part) for part in match.groups())
-
-
-def _update_kind(current: tuple[int, int, int], latest: tuple[int, int, int]) -> str:
-    if latest[0] != current[0]:
-        return "major"
-    if latest[1] != current[1]:
-        return "minor"
-    return "patch"
 
 
 def _update_notification_due(

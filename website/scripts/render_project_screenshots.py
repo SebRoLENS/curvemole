@@ -18,6 +18,7 @@ def render():
     from PySide6.QtCore import QCoreApplication, Qt
     from PySide6.QtGui import QFont
     from PySide6.QtWidgets import QApplication, QTreeWidgetItemIterator
+
     from curvemole.core.serialization import load_project
     from curvemole.gui.app import CurveMoleMainWindow, _configure_gui_defaults
 

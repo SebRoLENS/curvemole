@@ -80,6 +80,7 @@ def test_mask_visuals_do_not_block_manual_point_clicks() -> None:
         symbolPen=None,
     )
 
+    masked_points._curvemole_masked_data = True
     boundary = pg.InfiniteLine(pos=1.5, angle=90, movable=False)
     boundary._curvemole_mask_boundary = True
     workspace.plot.addItem(boundary)

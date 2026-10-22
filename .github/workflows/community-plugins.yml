@@ -83,14 +83,9 @@ jobs:
               assert pathlib.Path(folder).name == folder and folder not in ('.', '..')
               assert category in ('by_main_developer', 'by_community')
               source = pathlib.Path('custom_plugins') / category / folder
-              digest = hashlib.sha256()
-              for path in sorted(source.rglob('*'), key=lambda item: item.relative_to(source).as_posix()):
-                  assert not path.is_symlink()
-                  if path.is_file():
-                      digest.update(path.relative_to(source).as_posix().encode())
-                      digest.update(b'\0')
-                      digest.update(path.read_bytes())
-              assert digest.hexdigest() == plugin['sha256'], 'Untested source change'
+              from runpy import run_path
+              fingerprint = run_path('src/curvemole/plugin_fingerprint.py')['fingerprint']
+              assert fingerprint(source) == plugin['sha256'], 'Untested source change'
               shutil.copytree(source, destination / category / folder)
       - uses: actions/upload-artifact@v7
         with:

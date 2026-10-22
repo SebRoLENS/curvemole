@@ -280,9 +280,6 @@ class Model:
                 expression = f"({expression}) × {name}" if expression else name
             elif component.operator == "divide":
                 expression = f"({expression or '1'}) / {name}"
-            else:
-                sign = "+" if component.operator == "add" else "−"
-                expression = f"({expression}) {sign} {name}" if expression else ("−" if sign == "−" else "") + name
         return expression or "0"
 
     def background(
@@ -293,6 +290,7 @@ class Model:
         values: Mapping[str, float] | None = None,
         registry: FunctionRegistry | None = None,
         component_ids: set[str] | None = None,
+        evaluated_components: Mapping[str, np.ndarray] | None = None,
     ) -> np.ndarray:
         """Evaluate marked background components, or an explicit selected subset."""
         registry = registry or default_registry()
@@ -301,6 +299,9 @@ class Model:
             values = resolve_parameter_values(self.parameter_map(prefix))
         selected = set(component_ids) if component_ids is not None else None
         result = np.zeros_like(x, dtype=float)
+        global_operations = any(c.enabled and c.operator not in {"add", "subtract"} for c in self.components)
+        if evaluated_components is None and global_operations:
+            _, evaluated_components = self.evaluate(x, curve_id=curve_id, values=values, registry=registry, components=True)
         included = set()
         for component in self.components:
             if not component.enabled:
@@ -319,13 +320,14 @@ class Model:
                 name: values.get(self.parameter_path(prefix, component.id, name), parameter.value)
                 for name, parameter in component.parameters.items()
             }
-            evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
+            evaluated = (evaluated_components[component.id] if evaluated_components is not None
+                         else definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata))
             result += evaluated if component.operator == "add" else -evaluated
             included.add(component.id)
         if included and any(
             c.enabled and c.operator not in {"add", "subtract"} for c in self.components
         ):
-            _, evaluated = self.evaluate(x, curve_id=curve_id, values=values, registry=registry, components=True)
+            evaluated = dict(evaluated_components)
             for component in self.components:
                 if component.operator in {"add", "subtract"} and component.id not in included:
                     evaluated[component.id] = np.zeros_like(x, dtype=float)

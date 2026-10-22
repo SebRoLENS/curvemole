@@ -6,13 +6,13 @@ import csv
 import re
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from curvemole.core.data import Curve, Series
+from curvemole.core.data import Curve, ImmutableColumns, Series
 from curvemole.core.errors import DataValidationError
 
 # Common extensions are kept for documentation/UI hints only. Import validity is
@@ -148,16 +148,21 @@ def detect_config(path: str | Path) -> ImportConfig:
     with source.open("rb") as stream:
         if b"\x00" in stream.read(4096):
             raise DataValidationError("Incomplete or unsupported binary spectrum; use SPE 2.x or X/Y text.")
+    indexed_lines = []
+    numeric_count = 0
     try:
-        text = source.read_text(encoding="utf-8-sig", errors="replace")
+        with source.open(encoding="utf-8-sig", errors="replace") as stream:
+            for index, line in enumerate(stream):
+                line = line.rstrip("\r\n")
+                if not line.strip() or line.lstrip().startswith(("#", ";", "%", "!")):
+                    continue
+                indexed_lines.append((index, line))
+                numeric_count += _looks_like_numeric_row(line)
+                if numeric_count >= 20:
+                    break
     except OSError as exc:
         raise DataValidationError(f"Cannot read '{source}': {exc}") from exc
 
-    indexed_lines = [
-        (index, line)
-        for index, line in enumerate(text.splitlines())
-        if line.strip() and not line.lstrip().startswith(("#", ";", "%", "!"))
-    ]
     if not indexed_lines:
         raise DataValidationError(f"'{source}' contains no data rows.")
 
@@ -262,6 +267,7 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                     raise DataValidationError("An error/weight column is already assigned as X or Y.")
     numeric_columns = {f"c{i}": _numeric(frame[name], selected.decimal)
                        for i, name in enumerate(frame.columns, 1)}
+    numeric_columns = ImmutableColumns(numeric_columns)
     labels = {f"c{i}": str(name) for i, name in enumerate(frame.columns, 1)}
     column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
     curves: list[Curve] = []
@@ -305,6 +311,8 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             source=str(source.resolve()),
             metadata={
                 "import": {
+                    "config": asdict(selected),
+                    "columns": asdict(spectrum),
                     "file_name": source.name,
                     "delimiter": selected.delimiter or "whitespace",
                     "decimal": selected.decimal,
@@ -352,41 +360,34 @@ def _read_frame(
 ) -> tuple[pd.DataFrame, list[str]]:
     from curvemole.core.spe import is_spe, read_spe_frame
     if is_spe(path):
-        frame = read_spe_frame(path)
+        frame = read_spe_frame(path, nrows=nrows)
         return (frame if nrows is None else frame.head(nrows)), []
-    lines = path.read_text(encoding=config.encoding, errors="replace").splitlines()
-    filtered: list[str] = []
-    comments = 0
-    for index, line in enumerate(lines):
-        if index < config.skip_rows:
-            continue
-        stripped = line.lstrip()
-        if not stripped:
-            continue
-        if any(stripped.startswith(prefix) for prefix in config.comment_prefixes):
-            comments += 1
-            continue
-        filtered.append(line)
-        if nrows is not None and len(filtered) >= nrows + 1:
-            break
-    if not filtered:
-        raise DataValidationError(f"'{path}' contains no readable table rows.")
-    separator = config.delimiter if config.delimiter is not None else r"\s+"
-    from io import StringIO
+    from tempfile import SpooledTemporaryFile
 
-    try:
-        frame = pd.read_csv(
-            StringIO("\n".join(filtered)),
-            sep=separator,
-            engine="python",
-            header=0 if config.header else None,
-            dtype=str,
-            keep_default_na=False,
-            na_filter=False,
-            nrows=nrows,
-        )
-    except Exception as exc:
-        raise DataValidationError(f"Cannot parse '{path.name}': {exc}") from exc
+    comments = 0
+    count = 0
+    separator = config.delimiter if config.delimiter is not None else r"\s+"
+    with SpooledTemporaryFile(mode="w+", max_size=1024 * 1024, encoding="utf-8", newline="") as filtered:
+        with path.open(encoding=config.encoding, errors="replace") as stream:
+            for index, line in enumerate(stream):
+                if index < config.skip_rows or not line.strip():
+                    continue
+                if line.lstrip().startswith(tuple(config.comment_prefixes)):
+                    comments += 1
+                    continue
+                filtered.write(line.rstrip("\r\n") + "\n")
+                count += 1
+                if nrows is not None and count >= nrows + int(bool(config.header)):
+                    break
+        if not count:
+            raise DataValidationError(f"'{path}' contains no readable table rows.")
+        filtered.seek(0)
+        try:
+            frame = pd.read_csv(filtered, sep=separator, engine="python",
+                                header=0 if config.header else None, dtype=str,
+                                keep_default_na=False, na_filter=False, nrows=nrows)
+        except Exception as exc:
+            raise DataValidationError(f"Cannot parse '{path.name}': {exc}") from exc
     if frame.shape[1] < 2:
         raise DataValidationError(
             f"'{path.name}' produced only one column. Check delimiter and decimal settings."

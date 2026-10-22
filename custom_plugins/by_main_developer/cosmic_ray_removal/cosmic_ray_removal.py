@@ -107,7 +107,7 @@ def _groups(flags, grow, max_width):
     return result
 
 
-def _peak_morphology(y, start, end, max_width):
+def _peak_morphology(y, start, end, max_width, peaks=None):
     """Return the local peak and its FWHM-like prominence width.
 
     A modified-Z residual can be narrow even at the apex of a broad Raman/IR
@@ -115,7 +115,8 @@ def _peak_morphology(y, start, end, max_width):
     artefact before it becomes a candidate.
     """
     y = np.asarray(y, dtype=float)
-    peaks, _ = find_peaks(y)
+    if peaks is None:
+        peaks, _ = find_peaks(y)
     peaks = peaks[(peaks >= start) & (peaks <= end)]
     if not len(peaks):
         return None
@@ -162,8 +163,9 @@ def detect_single(x, y, threshold=10.0, window=11, max_width=5, grow=1):
     margin = min(window // 2, len(y) // 4)
     flags[:margin] = flags[-margin:] = False
     candidates = []
+    peaks, _ = find_peaks(y)
     for start, end in _groups(flags, int(grow), int(max_width)):
-        morphology = _peak_morphology(y, start, end, max_width)
+        morphology = _peak_morphology(y, start, end, max_width, peaks)
         if morphology is None:
             continue
         _, width = morphology
@@ -225,8 +227,9 @@ def detect_ensemble(target, selected, threshold=10.0, window=11, max_width=5, gr
     margin = min((int(window) | 1) // 2, len(y) // 4)
     flags[:margin] = flags[-margin:] = False
     candidates = []
+    peaks, _ = find_peaks(y)
     for start, end in _groups(flags, int(grow), int(max_width)):
-        morphology = _peak_morphology(y, start, end, max_width)
+        morphology = _peak_morphology(y, start, end, max_width, peaks)
         if morphology is None:
             continue
         _, width = morphology

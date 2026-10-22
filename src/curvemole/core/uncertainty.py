@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from curvemole.core.data import Curve
+from curvemole.core.data import Curve, ImmutableColumns
 from curvemole.core.diagnostics import estimate_block_length
 from curvemole.core.errors import ConstraintError, FitError
 from curvemole.core.expressions import SafeExpression
@@ -237,6 +237,23 @@ def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Seque
     return type(fitter) is Fitter and _worker_formulas(fitter, models, curve_ids) is not None
 
 
+def _prepare_resampling(baseline, plan, curves, models, fitter):
+    resolved = resolve_parameter_values({path: parameter for cid, model in models.items()
+                                        for path, parameter in model.parameter_map(cid).items()})
+    prepared = {}
+    for cid in plan.curve_ids:
+        curve, output = curves[cid], baseline.curve_outputs[cid]
+        full_fit = np.asarray(models[cid].evaluate(curve.x, curve_id=cid, values=resolved,
+                                                   registry=fitter.registry))
+        scales = curve.y_error_scales()
+        residual = np.asarray(output.residual)
+        if scales is not None:
+            minus, plus = scales
+            residual = residual / np.where(residual >= 0, plus[output.indices], minus[output.indices])
+        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns))
+    return prepared
+
+
 def _resample_trial(
     seed: int, method: str, baseline: FitResult, plan: FitPlan,
     curves: Mapping[str, Curve], models: Mapping[str, Model],
@@ -269,34 +286,28 @@ def _resample_trial_body(
     rng = np.random.default_rng(seed)
     trial_models = {key: model.clone() for key, model in models.items()}
     try:
-        resolved = resolve_parameter_values({
-            path: parameter
-            for curve_id, model in trial_models.items()
-            for path, parameter in model.parameter_map(curve_id).items()
-        })
+        prepared = lengths.get("_prepared")
+        if prepared is None:
+            prepared = _prepare_resampling(baseline, plan, curves, models, fitter)
     except ConstraintError as exc:
         return None, str(exc)
     trial_curves: dict[str, Curve] = {}
     for curve_id in plan.curve_ids:
         curve = curves[curve_id]
-        trial = copy.deepcopy(curve)
+        trial = copy.copy(curve)
+        trial.masks = copy.deepcopy(curve.masks)
+        trial.metadata = copy.deepcopy(curve.metadata)
+        trial.column_axes = dict(curve.column_axes)
+        trial.column_labels = dict(curve.column_labels)
         output = baseline.curve_outputs[curve_id]
-        full_fit = np.asarray(trial_models[curve_id].evaluate(
-            curve.x, curve_id=curve_id, values=resolved, registry=fitter.registry))
+        full_fit, scales, residual, columns = prepared[curve_id]
         if method == "parametric_monte_carlo":
-            minus, plus = curve.y_error_scales()
+            minus, plus = scales
             normal = rng.normal(size=len(curve))
             synthetic = full_fit + normal * np.where(normal >= 0, plus, minus)
         else:
-            residual = np.asarray(output.residual)
-            # Sample standardized residuals only from fitted, unmasked rows.
-            # Reconstruct noise using each destination row's own uncertainty.
-            scales = curve.y_error_scales()
             if scales is not None:
                 minus, plus = scales
-                residual = residual / np.where(residual >= 0,
-                    plus[output.indices], minus[output.indices])
-            residual = residual - np.mean(residual)
             if method == "residual_bootstrap":
                 sampled = rng.choice(residual, size=len(output.indices), replace=True)
             else:
@@ -313,15 +324,15 @@ def _resample_trial_body(
                     plus[output.indices], minus[output.indices])
             synthetic = full_fit.copy()
             synthetic[output.indices] += sampled
-        trial.original_x = np.asarray(curve.x).copy()
-        trial.original_y = np.asarray(synthetic).copy()
+        trial.original_x = curve.x
+        trial.original_y = synthetic
         trial.sigma_x = curve.current_sigma_x
         trial.sigma_y = (None if curve.current_sigma_y is None
                          else np.asarray(curve.current_sigma_y).copy())
         trial.error_y_minus = curve.current_error_y_minus
         trial.error_y_plus = curve.current_error_y_plus
         trial.weights = curve.current_weights
-        trial.original_columns = {key: value.copy() for key, value in curve.columns.items()}
+        trial.original_columns = ImmutableColumns(columns)
         trial.transformations = []
         trial.redo_transformations = []
         trial.__post_init__()
@@ -726,7 +737,8 @@ class UncertaintyAnalyzer:
         settings.workers = 1
         trial_plan = copy.deepcopy(plan)
         trial_plan.settings = settings
-        lengths = extra_configuration.get("block_lengths", {})
+        lengths = dict(extra_configuration.get("block_lengths", {}))
+        lengths["_prepared"] = _prepare_resampling(baseline, trial_plan, curves, base_models, self.fitter)
         if adaptive is not None:
             if not paths:
                 raise FitError("Adaptive uncertainty analysis requires at least one free parameter.")
@@ -798,7 +810,8 @@ class UncertaintyAnalyzer:
         paths = list(baseline.free_parameter_paths)
         seeds = np.random.default_rng(seed).integers(
             0, np.iinfo(np.int64).max, size=adaptive.maximum_attempts).tolist()
-        lengths = extra_configuration.get("block_lengths", {})
+        lengths = dict(extra_configuration.get("block_lengths", {}))
+        lengths["_prepared"] = _prepare_resampling(baseline, plan, curves, models, self.fitter)
         context = (method, baseline, plan, curves, models, lengths)
         parallel = (workers > 1 and adaptive.maximum_attempts > 1
                     and _parallel_safe(self.fitter, models, plan.curve_ids))

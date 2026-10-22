@@ -33,13 +33,16 @@ def spectrum_export_dataframe(
     *,
     options: SpectrumExportOptions | None = None,
     registry: FunctionRegistry | None = None,
+    _context: tuple[dict, dict] | None = None,
 ) -> pd.DataFrame:
     """Build a wide x/y table that can be replotted directly."""
     options = options or SpectrumExportOptions()
     registry = registry or default_registry()
-    curve = project.dataset.curve(curve_id)
+    needs_model = any((options.subtract_background, options.include_background, options.include_components,
+                       options.include_total_fit, options.include_residual))
+    curve = project.dataset.curve(curve_id) if _context is None else _context[0][curve_id]
     model = project.models.get(curve.id)
-    values = project.resolved_parameter_values()
+    values = (project.resolved_parameter_values() if _context is None else _context[1]) if needs_model else {}
 
     x = np.asarray(curve.x, dtype=float)
     data = np.asarray(curve.y, dtype=float)
@@ -47,7 +50,7 @@ def spectrum_export_dataframe(
     total: np.ndarray | None = None
     components: dict[str, np.ndarray] = {}
 
-    if model is not None and model.components:
+    if needs_model and model is not None and model.components:
         evaluated_total, evaluated_components = model.evaluate(
             x,
             curve_id=curve.id,
@@ -60,15 +63,17 @@ def spectrum_export_dataframe(
             component_id: np.asarray(component_y, dtype=float)
             for component_id, component_y in evaluated_components.items()
         }
-        background = np.asarray(
-            model.background(
-                x,
-                curve_id=curve.id,
-                values=values,
-                registry=registry,
-            ),
-            dtype=float,
-        )
+        if options.include_background or options.subtract_background:
+            background = np.asarray(
+                model.background(
+                    x,
+                    curve_id=curve.id,
+                    values=values,
+                    registry=registry,
+                    evaluated_components=components,
+                ),
+                dtype=float,
+            )
 
     exported_data = data - background if options.subtract_background else data
     columns: dict[str, np.ndarray] = {
@@ -130,15 +135,21 @@ def export_spectra(
         raise CurveMoleError("Choose an export folder.")
     root.mkdir(parents=True, exist_ok=True)
 
+    options = options or SpectrumExportOptions()
+    needs_model = any((options.subtract_background, options.include_background, options.include_components,
+                       options.include_total_fit, options.include_residual))
+    context = ({curve.id: curve for curve in project.curves},
+               project.resolved_parameter_values() if needs_model else {})
     created: list[Path] = []
     used_names: set[str] = set()
     for curve_id in curve_ids:
-        curve = project.dataset.curve(curve_id)
+        curve = context[0][curve_id]
         frame = spectrum_export_dataframe(
             project,
             curve_id,
             options=options,
             registry=registry,
+            _context=context,
         )
         filename = spectrum_export_filename(curve)
         filename = _deduplicate_filename(filename, used_names)

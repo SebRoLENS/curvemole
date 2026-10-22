@@ -38,12 +38,13 @@ a = Analysis(
     excludes=["tkinter"],
     noarchive=False,
 )
+onefile = os.environ.get("CURVEMOLE_ONEFILE") == "1"
 pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    [],
-    exclude_binaries=True,
+    *([a.binaries, a.datas] if onefile else [[]]),
+    exclude_binaries=not onefile,
     name="CurveMole",
     debug=False,
     bootloader_ignore_signals=False,
@@ -52,14 +53,15 @@ exe = EXE(
     console=False,
     icon=str(icon),
 )
-collection = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    name="CurveMole",
-)
+if not onefile:
+    collection = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        name="CurveMole",
+    )
 
 if sys.platform == "darwin":
     app = BUNDLE(

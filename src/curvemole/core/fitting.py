@@ -22,8 +22,14 @@ from scipy.optimize._numdiff import approx_derivative
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
+from curvemole.core.matrices import (
+    BlockDiagonalMatrix,
+    covariance_statistics,
+    matrix_from_value,
+    matrix_payload,
+)
 from curvemole.core.models import Model
-from curvemole.core.parameters import Parameter, resolve_parameter_values
+from curvemole.core.parameters import EqualityParameterResolver, Parameter
 from curvemole.core.process_pool import managed_process_pool
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
@@ -55,9 +61,9 @@ class FitSettings:
     local_method: str = "auto"
     loss: str = "linear"
     f_scale: float = 1.0
-    max_nfev: int = 10_000
+    max_nfev: int = 1000
     ftol: float = 1e-10
-    xtol: float = 1e-10
+    xtol: float = 1e-8
     gtol: float = 1e-10
     x_scale: str | float = "jac"
     seed: int = 1729
@@ -231,8 +237,8 @@ class FitResult:
     warnings: list[str]
     settings: FitSettings
     free_parameter_paths: list[str]
-    covariance: np.ndarray | None = None
-    correlation: np.ndarray | None = None
+    covariance: np.ndarray | BlockDiagonalMatrix | None = None
+    correlation: np.ndarray | BlockDiagonalMatrix | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     elapsed_seconds: float = 0.0
     cancelled: bool = False
@@ -253,8 +259,8 @@ class FitResult:
             "warnings": self.warnings,
             "settings": asdict(self.settings),
             "free_parameter_paths": self.free_parameter_paths,
-            "covariance": self.covariance.tolist() if arrays and self.covariance is not None else None,
-            "correlation": self.correlation.tolist() if arrays and self.correlation is not None else None,
+            "covariance": matrix_payload(self.covariance) if arrays else None,
+            "correlation": matrix_payload(self.correlation) if arrays else None,
             "timestamp": self.timestamp,
             "elapsed_seconds": self.elapsed_seconds,
             "cancelled": self.cancelled,
@@ -298,12 +304,12 @@ class FitResult:
             settings=settings,
             free_parameter_paths=list(value.get("free_parameter_paths", [])),
             covariance=(
-                np.asarray(value["covariance"], dtype=float)
+                matrix_from_value(value["covariance"])
                 if value.get("covariance") is not None
                 else None
             ),
             correlation=(
-                np.asarray(value["correlation"], dtype=float)
+                matrix_from_value(value["correlation"])
                 if value.get("correlation") is not None
                 else None
             ),
@@ -394,7 +400,6 @@ class _Problem:
         self.free_paths: list[str] = []
         self._data: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]] = {}
         self.evaluations = 0
-        self._last_progress = 0.0
         self._jacobian_base: tuple[np.ndarray, np.ndarray] | None = None
 
         for curve in self.curves:
@@ -435,7 +440,8 @@ class _Problem:
                    for parameter in self.parameters.values()) else None
         )
         if self.coordinates is None:
-            resolve_parameter_values(self.parameters)
+            self._parameter_resolver = EqualityParameterResolver(self.parameters)
+            self._parameter_resolver.resolve()
         else:
             # A newly added bound may exclude the previous starting value.
             # Build a feasible starting point before validating the graph.
@@ -459,10 +465,11 @@ class _Problem:
         if self.coordinates is None:
             for path, value in zip(self.free_paths, vector, strict=True):
                 self.parameters[path].value = float(value)
+            values = self._parameter_resolver.resolve()
         else:
-            for path, value in self.coordinates.decode(vector).items():
+            values = self.coordinates.decode(vector)
+            for path, value in values.items():
                 self.parameters[path].value = float(value)
-        values = resolve_parameter_values(self.parameters)
         if commit:
             for path, value in values.items():
                 self.parameters[path].value = float(value)
@@ -517,11 +524,11 @@ class _Problem:
             if self.plan.equal_contribution:
                 residual = residual / math.sqrt(len(residual))
             residuals.append(residual)
-        now = time.monotonic()
-        if report and self.progress and now - self._last_progress > 0.08:
+        from curvemole.core.live_fit_progress import LIVE_REFRESH_EVERY
+        if report and self.progress and (self.evaluations % LIVE_REFRESH_EVERY == 0
+                                         or self.evaluations == self.plan.settings.max_nfev):
             maximum = max(1, self.plan.settings.max_nfev)
             self.progress(min(self.evaluations / maximum, 1.0), f"Evaluation {self.evaluations}")
-            self._last_progress = now
         residual = np.concatenate(residuals)
         if report:
             self._jacobian_base = (vector.copy(), residual)
@@ -949,10 +956,7 @@ class Fitter:
             # paths, so it must not contain latent gaps or fractions.
             transform = problem.physical_free_jacobian(least_squares.x)
             covariance = transform @ covariance @ transform.T
-            errors = np.sqrt(np.clip(np.diag(covariance), 0, math.inf))
-            with np.errstate(divide="ignore", invalid="ignore"):
-                correlation = covariance / np.outer(errors, errors)
-            np.fill_diagonal(correlation, 1.0)
+            errors, correlation = covariance_statistics(covariance)
         statistics = _global_statistics(outputs, len(problem.free_paths), settings.loss)
         if correlation is not None and correlation.size:
             upper_triangle = np.abs(correlation[np.triu_indices_from(correlation, 1)])
@@ -1115,11 +1119,7 @@ def _covariance(
                 covariance = covariance * float(np.dot(weighted_residual, weighted_residual)) / (
                     rows - columns
                 )
-        errors = np.sqrt(np.clip(np.diag(covariance), 0, math.inf))
-        denominator = np.outer(errors, errors)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            correlation = covariance / denominator
-        np.fill_diagonal(correlation, 1.0)
+        errors, correlation = covariance_statistics(covariance)
         return covariance, correlation, errors
     except np.linalg.LinAlgError:
         warnings.append("Covariance calculation failed because the Jacobian is singular.")
@@ -1139,9 +1139,10 @@ def _parameter_estimates(
     z_value = float(stats.norm.ppf(0.5 + settings.confidence_level / 2))
     estimates: dict[str, ParameterEstimate] = {}
     linked_gradients: dict[str, np.ndarray] = {}
-    if covariance is not None:
-        base = np.asarray([values[path] for path in problem.parameters], dtype=float)
-        all_paths = list(problem.parameters)
+    all_paths = [path for path, parameter in problem.parameters.items()
+                 if parameter.link and not (parameter.fixed and parameter.link_relation != "equal")]
+    if covariance is not None and all_paths:
+        base = np.asarray([values[path] for path in all_paths], dtype=float)
         gradients = np.zeros((len(all_paths), len(problem.free_paths)), dtype=float)
         for index in range(len(problem.free_paths)):
             step = math.sqrt(np.finfo(float).eps) * max(1.0, abs(optimum[index]))
@@ -1283,13 +1284,16 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
     covariance = None
     correlation = None
     if all(result.covariance is not None for result in results):
-        from scipy.linalg import block_diag
-
-        covariance = block_diag(*(result.covariance for result in results))
-        errors = np.sqrt(np.clip(np.diag(covariance), 0, math.inf))
-        with np.errstate(divide="ignore", invalid="ignore"):
-            correlation = covariance / np.outer(errors, errors)
-        np.fill_diagonal(correlation, 1.0)
+        blocks = []
+        for result in results:
+            blocks.extend(result.covariance.blocks if isinstance(result.covariance, BlockDiagonalMatrix)
+                          else (result.covariance,))
+        covariance = BlockDiagonalMatrix(blocks)
+        correlations = []
+        for block in blocks:
+            _, corr = covariance_statistics(block)
+            correlations.append(corr)
+        correlation = BlockDiagonalMatrix(correlations)
     return FitResult(
         success=all(result.success for result in results),
         mode=mode,
