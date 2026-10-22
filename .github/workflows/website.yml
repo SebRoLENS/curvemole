@@ -1,15 +1,15 @@
 name: Publish CurveMole website
 
 on:
-  push:
+  workflow_run:
+    workflows: [CI, Automatic release, Sync Zenodo DOI]
+    types: [completed]
     branches: [main]
-    paths:
-      - 'website/**'
-      - '.github/workflows/website.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: github-pages
@@ -17,25 +17,65 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
     permissions:
       contents: read
+      actions: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
+      - name: Checkout current main
         uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Require successful CI, release assets, tag and DOI
+        id: readiness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/website_release.py
+      - name: Install GUI libraries
+        if: steps.readiness.outputs.ready == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        if: steps.readiness.outputs.ready == 'true'
+        with:
+          enable-cache: false
+          python-version: '3.12'
+      - name: Generate screenshots for this exact website snapshot
+        if: steps.readiness.outputs.ready == 'true'
+        env:
+          QT_QPA_PLATFORM: offscreen
+          PYTHONPATH: src
+        run: |
+          uv sync --locked --no-default-groups --group screenshots
+          uv run --no-sync python website/scripts/render_demo_screenshots.py
+          uv run --no-sync python website/scripts/render_project_screenshots.py
+      - name: Reject a superseded snapshot
+        if: steps.readiness.outputs.ready == 'true'
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
       - name: Configure Pages
+        if: steps.readiness.outputs.ready == 'true'
         uses: actions/configure-pages@v5
-      - name: Upload website
+      - name: Upload complete website snapshot
+        if: steps.readiness.outputs.ready == 'true'
         uses: actions/upload-pages-artifact@v4
         with:
           path: website/dist
       - name: Deploy website
+        if: steps.readiness.outputs.ready == 'true'
         id: deployment
         uses: actions/deploy-pages@v4

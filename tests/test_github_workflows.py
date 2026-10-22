@@ -27,13 +27,13 @@ lint = load("lint_workflows")
 
 @pytest.mark.parametrize("paths,event,message,expected", [
     (["src/curvemole/gui/panels.py", "docs/manual.md"], "push", "Fix UI", {"release"}),
-    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins"}),
+    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins", "documentation"}),
     (["docs/manual.md"], "push", "Explain fitting [skip release]", {"documentation"}),
     (["src/curvemole/gui/panels.py"], "push", "Fix UI [skip release]",
      {"documentation", "screenshots", "candidate"}),
     (["src/curvemole/core/fitting.py"], "pull_request", "Fix fit", {"plugins"}),
-    (["README.md"], "push", "Correct spelling", set()),
-    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins"}),
+    (["README.md"], "push", "Correct spelling", {"documentation"}),
+    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins", "documentation"}),
     (["docs/screenshots/import-file-preview.png"], "pull_request", "Preview", {"documentation"}),
 ])
 def test_one_plan_avoids_duplicate_and_unrelated_jobs(paths, event, message, expected):

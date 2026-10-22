@@ -41,7 +41,7 @@ def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bo
     screenshots = push and not release and touches(paths, SCREENSHOT_PATHS)
     return {
         "release": release,
-        "documentation": not release and (screenshots or touches(paths, DOCUMENT_PATHS)),
+        "documentation": not release and (push or screenshots or touches(paths, DOCUMENT_PATHS)),
         "screenshots": screenshots,
         "plugins": touches(paths, PLUGIN_PATHS),
         "candidate": push and "[skip release]" in message and touches(paths, RELEASE_PATHS),

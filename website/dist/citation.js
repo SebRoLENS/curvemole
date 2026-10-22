@@ -1,10 +1,10 @@
-// CITATION.cff is the source of truth; the HTML remains usable offline.
+// Read the citation bundled with this deployment, never a newer main revision.
 (()=>{
  const text=document.getElementById('citationText'),link=document.getElementById('citationDoi'),status=document.getElementById('citationStatus');
  let citation=text.textContent;
  async function refreshCitation(){
   try{
-   const response=await fetch('https://raw.githubusercontent.com/SebRoLENS/curvemole/main/CITATION.cff',{cache:'no-cache',signal:AbortSignal.timeout(8000)});
+   const response=await fetch('CITATION.cff',{cache:'no-cache',signal:AbortSignal.timeout(8000)});
    if(!response.ok)return;
    const cff=await response.text();
    const field=name=>{const match=cff.match(new RegExp('^'+name+':\\s*(.+)$','m'));return match?match[1].trim().replace(/^["']|["']$/g,''):''};
