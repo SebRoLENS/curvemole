@@ -1,0 +1,14 @@
+name: Export redesign AppImage test
+
+on:
+  push:
+    branches: [codex/appimage-exports-test-20261023]
+
+permissions:
+  contents: read
+
+jobs:
+  candidate:
+    uses: ./.github/workflows/test-linux-candidate.yml
+    with:
+      source_ref: ${{ github.sha }}
