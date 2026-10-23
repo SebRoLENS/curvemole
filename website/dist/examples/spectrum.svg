@@ -264,7 +264,7 @@ L 628.56 66.315938
      </g>
     </g>
     <g id="text_8">
-     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="43.679531" y="153.423085" transform="rotate(-90 43.679531 153.423085)">Intensity (a.u.)</text>
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="43.679531" y="153.423085" transform="rotate(-90 43.679531 153.423085)">y</text>
     </g>
    </g>
    <g id="line2d_33">
@@ -917,7 +917,7 @@ L -2 -0
     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #9bf3cd" x="622.9872" y="34.770953" transform="rotate(-0 622.9872 34.770953)">N = 90   ·   χ²ᵣ = 1.05</text>
    </g>
    <g id="text_10">
-    <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #edf3f4" x="71.28" y="28.56" transform="rotate(-0 71.28 28.56)">Overlapping spectral bands</text>
+    <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #edf3f4" x="71.28" y="28.56" transform="rotate(-0 71.28 28.56)">Two Gaussians + linear term</text>
    </g>
    <g id="line2d_37">
     <defs>
@@ -1359,7 +1359,7 @@ L 603.229091 281.896312
      </g>
     </g>
     <g id="text_24">
-     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="349.92" y="376.548594" transform="rotate(-0 349.92 376.548594)">Raman shift (cm⁻¹)</text>
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="349.92" y="376.548594" transform="rotate(-0 349.92 376.548594)">x</text>
     </g>
    </g>
    <g id="matplotlib.axis_4">
