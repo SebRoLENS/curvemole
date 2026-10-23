@@ -149,7 +149,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 0.47.1}
+\ohead{Version 1.0.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -162,7 +162,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Preview 0.47.1\par}
+    {\sffamily\Large\color{CurveMoleGrey}Version 1.0.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -187,9 +187,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Preview 0.47.1}
+\subtitle{Version 1.0.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 0.47.1}
+\date{Updated for CurveMole 1.0.0}
 
 \begin{document}
 \maketitle
@@ -202,17 +202,9 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 0.47.1 Preview. The Markdown file is the authoritative source.
+CurveMole 1.0.0 Stable. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
-
-\begin{quote}
-\textbf{Preview status.} CurveMole 0.47.1 is suitable for evaluation and
-controlled testing. It has not yet completed the scientific validation
-planned for version 1.0.0. Inspect the residuals, parameter
-correlations, constraints, and exported results before using a fit in
-research.
-\end{quote}
 
 Useful links:
 
@@ -270,8 +262,8 @@ manual}\label{version-policy-for-the-manual}}
 
 The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 0.47.1
-describes CurveMole 0.47.1.
+an independent document version. For example, a manual marked 1.0.0
+describes CurveMole 1.0.0.
 
 The release automation performs four checks:
 
@@ -507,10 +499,20 @@ Drag CurveMole to Applications\strut
 \bottomrule
 \end{longtable}
 
-Windows and macOS packages are currently unsigned. The operating system
-may show a warning on first launch. Download only from the official
-GitHub release page and verify the checksum if the application will be
-used for research.
+\begin{quote}
+\textbf{Caution} \textbf{Windows and macOS packages are unsigned.}
+CurveMole is a nonprofit project; these packages do not use
+developer-paid signing or notarization. The operating system may require
+approval on first launch.
+\end{quote}
+
+Download from the official GitHub release page and verify
+\texttt{SHA256SUMS.txt}. On Windows, if SmartScreen displays
+\textbf{Windows protected your PC}, choose \textbf{More info
+\textgreater{} Run anyway}. On macOS, drag CurveMole from the DMG to
+Applications and try opening it once. If blocked, open \textbf{System
+Settings \textgreater{} Privacy \& Security}, choose \textbf{Open
+Anyway}, then \textbf{Open}, and authenticate if asked.
 
 \hypertarget{linux-appimage}{%
 \section{3.3 Linux AppImage}\label{linux-appimage}}
@@ -519,8 +521,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}0.47.1{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}0.47.1{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.0.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}1.0.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -528,7 +530,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}0.47.1{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.0.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -572,7 +574,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}0.47.1{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.0.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +582,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}0.}\FunctionTok{47}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{0}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -597,7 +599,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}0.47.1{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.0.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -608,7 +610,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}0.}\FunctionTok{47}\NormalTok{.}\FunctionTok{1}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{0}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -678,6 +680,23 @@ An automatic notification is shown only once for each newly detected
 release. Click the badge or choose \textbf{Help \textgreater{} Check for
 updates} to check again, inspect the release notes, or reopen the update
 dialog.
+
+The notification identifies the available version and its release type.
+For a version written as \texttt{major.minor.patch}, the first changed
+number determines the type:
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule
+First changed number & Release type & Example\tabularnewline
+\midrule
+\endhead
+Patch (third) & Bugfix & \texttt{1.0.0} to \texttt{1.0.1}\tabularnewline
+Minor (second) & Feature release & \texttt{1.0.1} to
+\texttt{1.1.0}\tabularnewline
+Major (first) & Major update & \texttt{1.1.0} to
+\texttt{2.0.0}\tabularnewline
+\bottomrule
+\end{longtable}
 
 Linux AppImage and Windows desktop packages can normally use
 \textbf{Update now}. CurveMole downloads the matching release asset and
@@ -851,13 +870,16 @@ warnings.
 Save the complete workspace with \textbf{File \textgreater{} Save
 project as}. Use a \texttt{.fitproj} extension.
 
-Then choose \textbf{File \textgreater{} Export analysis bundle}. Select
-a destination and choose both how to save and \textbf{What to export?}.
-The default selection writes only \texttt{fit\_results.csv}, which
-associates every curve with its model functions and lists each parameter
-together with its fitted value and standard error. Data tables, plots,
-reports, JSON, reusable models, project copies, uncertainty matrices,
-and diagnostics are optional.
+Then choose \textbf{File \textgreater{} Export analysis bundle}. All
+available output types are selected by default, and the dialog can
+create a named subfolder to keep the complete export together. The
+bundle includes numeric spectra, function parameters, figures, reports,
+Python analysis tables, reusable models, a project copy, and a README
+that describes the saved files. Clear individual output choices when a
+smaller bundle is needed. The \textbf{File} menu also offers clearly
+labelled \textbf{Quick export} commands for spectra, function
+parameters, and a Matplotlib figure of the current plot view; these
+focused exports are also included in the complete bundle.
 
 \hypertarget{main-window-and-controls}{%
 \chapter{5. Main window and controls}\label{main-window-and-controls}}
@@ -1445,7 +1467,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 0.47.1 optimizer.
+version 1.0.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -2038,7 +2060,7 @@ global factors and convolutions as the full model when their
 contribution is evaluated.
 
 The same global roles apply to every project, model file and workflow,
-including files saved by earlier previews. There is no separate
+including files saved by earlier versions. There is no separate
 ordered-composition mode or first-function restriction. A model
 previously calculated in insertion order can produce a different result
 with global roles: review its expression in Calculation order and refit
@@ -3180,8 +3202,8 @@ residuals. The parameter table shows fitted values and standard errors.
 A curve state changes to Fitted only after solver success.
 
 The full numeric result is stored in the project and written to exports.
-Preview 0.47.1 does not yet provide a single comprehensive on-screen
-results table, so use the analysis bundle for archival inspection.
+The GUI does not provide a single comprehensive on-screen results table;
+use the analysis bundle for archival inspection.
 
 \hypertarget{reported-global-statistics}{%
 \section{11.2 Reported global
@@ -3445,18 +3467,18 @@ given in the tooltip, and are not uncertainties of the current parameter
 values. Refit and rerun the analysis to obtain current intervals.
 Current-parameter CSV errors exclude outdated analyses; the uncertainty
 report retains the historical results and their assessment. In
-\textbf{File \textgreater{} Export functions parameters}, \textbf{Also
-export covariance matrices} is off by default. When selected, a sibling
-\texttt{*\_covariance} folder contains an \texttt{index.csv} and
-labelled matrices: the fit covariance and, separately, sample covariance
-for the selected bootstrap or Monte Carlo analysis when raw samples are
-available. Global fits retain cross-spectrum terms in one joint matrix.
-Profile likelihood provides intervals, not a sample covariance matrix.
-Running an uncertainty analysis never changes the original fit
-covariance. Older projects may need a new fit for spectra whose
-individual baselines were not recorded. Profile likelihood accepts one
-active spectrum at a time; coupled global fits are analyzed together
-when resampling is requested.
+\textbf{File \textgreater{} Quick export: function parameters},
+\textbf{Also export covariance matrices} is off by default. When
+selected, a sibling \texttt{*\_covariance} folder contains an
+\texttt{index.csv} and labelled matrices: the fit covariance and,
+separately, sample covariance for the selected bootstrap or Monte Carlo
+analysis when raw samples are available. Global fits retain
+cross-spectrum terms in one joint matrix. Profile likelihood provides
+intervals, not a sample covariance matrix. Running an uncertainty
+analysis never changes the original fit covariance. Older projects may
+need a new fit for spectra whose individual baselines were not recorded.
+Profile likelihood accepts one active spectrum at a time; coupled global
+fits are analyzed together when resampling is requested.
 
 All methods display a table with spectrum/function names, parameter,
 original fitted value, confidence interval endpoints and assessment.
@@ -3595,8 +3617,8 @@ replicates}\label{reproducibility-and-failed-replicates}}
 The default seed is 1729 unless changed through programmatic settings.
 Resampling outputs record configuration and up to the first 100 failure
 messages. Do not report an empirical interval without also reporting how
-many replicates completed and failed. Selecting \textbf{Uncertainty
-intervals, assessments and matrices} in the export dialog also writes
+many replicates completed and failed. Selecting \textbf{Intervals,
+assessments and matrices} in the export dialog also writes
 \texttt{uncertainty/parameter\_assessments.csv} for the recorded
 analyses, including spectrum/function names, parameter paths, fitted
 values, interval endpoints, confidence level, method and reasons.
@@ -3761,15 +3783,25 @@ bundle}\label{exporting-an-analysis-bundle}}
 \section{14.1 Starting an export}\label{starting-an-export}}
 
 Choose \textbf{File \textgreater{} Export analysis bundle} or press
-\textbf{Ctrl+E}. Export mode and export content are independent.
+\textbf{Ctrl+E}. The complete bundle selects every available output type
+by default, including the outputs offered by the \textbf{Quick export}
+commands. Clear any output types that are not needed. Files that require
+unavailable results or samples are omitted. The choices are grouped as
+\textbf{Figures}, \textbf{Data tables}, \textbf{Fit parameters and
+uncertainty}, \textbf{Project and Python}, and \textbf{Reports and
+documentation}. All figure formats and the current-view figure are
+together in the first group. The option to include full uncertainty
+samples is beside the project-copy option.
 
-The existing save modes remain:
+Select a parent directory and use the named-subfolder option to put the
+export in its own folder. This option is enabled by default; the folder
+name can be edited. The other save modes remain available:
 
 \begin{itemize}
 \tightlist
 \item
-  leave both mode checkboxes clear to create a new export in the
-  selected directory;
+  export directly into the selected directory by disabling the subfolder
+  option;
 \item
   \textbf{Create versioned export} to create a timestamped subdirectory;
 \item
@@ -3778,77 +3810,192 @@ The existing save modes remain:
   project export.
 \end{itemize}
 
-Under \textbf{What to export?}, select the desired outputs. Only
-\textbf{Fit results} is checked by default.
+\hypertarget{detailed-fit-results-file}{%
+\section{14.2 Detailed fit-results
+file}\label{detailed-fit-results-file}}
 
-\hypertarget{default-fit-results-file}{%
-\section{14.2 Default fit-results file}\label{default-fit-results-file}}
-
-The default export creates only \texttt{fit\_results.csv}. No additional
-visible file and no empty subdirectory is created.
+\texttt{fit\_results.csv} associates each spectrum with its model
+functions and parameters.
 
 Each row represents one parameter of one model component and includes
 the series, curve and curve ID, component and component ID, displayed
 function and function ID, enabled/background state, composition
-operator, parameter name and full parameter path, fitted value, standard
-error, confidence interval, bounds, fixed/link state, unit,
-human-readable value with uncertainty, and derived area/FWHM where
+operator, parameter name and full parameter path, current resolved
+value, standard error, confidence interval, bounds, fixed/link state,
+unit, human-readable value with uncertainty, and derived area/FWHM where
 defined.
 
-This format makes the association between every data curve, the
-functions used to fit it, and the fitted parameters explicit in a single
-table.
+This format makes the association between every data curve, its model
+functions, and parameter values explicit in a single table.
 
-\hypertarget{optional-outputs}{%
-\section{14.3 Optional outputs}\label{optional-outputs}}
+Values describe the current model. Error and confidence columns can
+retain recorded fit estimates after a model edit; inspect
+\texttt{curve\_state} before interpreting them as uncertainties of the
+current values. Refit an edited model to obtain current errors.
 
-The dialog can additionally export:
+\hypertarget{bundle-contents}{%
+\section{14.3 Bundle contents}\label{bundle-contents}}
 
-\begin{itemize}
-\tightlist
-\item
-  data plus fitted-function wide CSV tables;
-\item
-  a tidy CSV table for Python;
-\item
-  machine-readable fit results as JSON;
-\item
-  a reusable \texttt{.fitmodel};
-\item
-  a \texttt{.fitproj} project copy, optionally including full
-  uncertainty samples;
-\item
-  the main plot as PNG and/or SVG;
-\item
-  compact HTML and PDF summaries;
-\item
-  a full reproducibility HTML report;
-\item
-  the laboratory notebook as UTF-8 text;
-\item
-  all recorded settings for the last fit as CSV;
-\item
-  covariance and correlation matrices when available;
-\item
-  residual autocorrelation diagnostics when available;
-\item
-  an export README.
-\end{itemize}
+The exported \texttt{README.txt} starts with a table of saved files and
+folders, explaining what each contains and when it is useful. Short
+sections then explain how to read the data, interpret fit results, and
+regenerate the plots in Python. The table describes only selected
+outputs that were actually written.
+
+The main files and folders in a complete bundle are:
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+File or folder\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Contents and purpose\strut
+\end{minipage}\tabularnewline
+\midrule
+\endhead
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{README.txt}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Start here for a readable guide to this export and the meaning of its
+data.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{index.csv}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Matches spectra, names, IDs and source files to their exported
+files.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{manifest.json}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Exact file inventory and export metadata for scripts or archival
+checks.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{spectra/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+One numeric spectrum file per curve, including the available fit and
+component traces; the same output as the spectra quick export.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{data/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Wide CSV tables of measured data and evaluated model functions.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{fit\_results.csv}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Detailed parameter values, errors, constraints and fit state.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{function\_parameters.csv}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Wide function-parameter table, as offered by the parameter quick
+export.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{function\_parameters\_covariance/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Available labelled covariance matrices for the parameter export.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{figures/png/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+One PNG image per spectrum and the current-view image when
+selected.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{figures/svg/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+The corresponding vector SVG figures.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{figures/pdf/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+The corresponding individual PDF figures.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{summary\_report.html}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Compact readable project and parameter summary.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{report/summary.pdf}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+One summary page per spectrum in a single PDF.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{report/full\_reproducibility.html}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Full reproducibility report, including recorded fit settings and project
+metadata.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{python/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Sample data, component and curve-metadata tables, JSON fit results and a
+script to regenerate per-spectrum figures.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{models/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+A reusable \texttt{.fitmodel} for each curve's model.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{\textless{}project\textgreater{}.fitproj}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Portable project snapshot, optionally including full uncertainty
+samples.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{fit\_settings.csv}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+All recorded settings for the last fit.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{uncertainty/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Available uncertainty intervals, assessments, covariance and correlation
+matrices.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{diagnostics/}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Available residual autocorrelation diagnostics.\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{laboratory\_notebook.txt}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Laboratory notebook entries as UTF-8 text.\strut
+\end{minipage}\tabularnewline
+\bottomrule
+\end{longtable}
+
+The numeric data and per-spectrum figures evaluate the current models
+against the current transformed observations, including models that have
+not been fitted or have changed since fitting. Their presence does not
+imply a converged fit. Recorded fit settings, statistics,
+covariance/correlation matrices, and residual diagnostics describe the
+last recorded fit and can cover only part of the project. Keep the
+project copy and inspect recorded curve IDs, timestamps, and fit state
+when comparing these outputs. The current-view figure additionally
+follows the display choices described in Section 14.10.
 
 Directories such as \texttt{data/}, \texttt{python/}, \texttt{figures/},
 \texttt{report/}, \texttt{uncertainty/}, and \texttt{diagnostics/} are
 created only when a selected output actually writes a file there. An
 option whose required fit result is unavailable does not create an empty
-folder.
+folder. \texttt{index.csv} maps curve IDs and names to their exported
+files. When the README is selected, \texttt{manifest.json} also records
+the file inventory in machine-readable form.
 
 \hypertarget{safe-overwrite-policy}{%
 \section{14.4 Safe overwrite policy}\label{safe-overwrite-policy}}
 
 New exports store their ownership list in the project export
-configuration rather than creating a hidden sidecar file. This allows
-the default export to contain truly only \texttt{fit\_results.csv}.
-Existing \texttt{.curvemole-export.json} manifests from older versions
-are still read for backwards-compatible updates.
+configuration rather than creating a hidden sidecar file. Existing
+\texttt{.curvemole-export.json} manifests from older versions are still
+read for backwards-compatible updates.
 
 When \textbf{Update existing} is selected, CurveMole refuses to
 overwrite a colliding file unless it can verify that the file belongs to
@@ -3886,7 +4033,7 @@ invalid entries.
 \section{14.5.1 Exporting optimizer and loss
 settings}\label{exporting-optimizer-and-loss-settings}}
 
-\textbf{Last fit: all solver/loss settings (CSV)} writes
+\textbf{Recorded last-fit settings (CSV)} writes
 \texttt{fit\_settings.csv}, containing all recorded \texttt{FitSettings}
 fields, including advanced solver parameters, loss and
 \texttt{f\_scale}. Each row includes the fit timestamp, mode and curve
@@ -3898,14 +4045,61 @@ values, bounds, links and available errors. The JSON result includes the
 same optimizer settings; the full reproducibility HTML report also shows
 them as a table.
 
-\hypertarget{tidy-data-and-json}{%
-\section{14.6 Tidy data and JSON}\label{tidy-data-and-json}}
+\hypertarget{python-analysis-tables-and-json}{%
+\section{14.6 Python analysis tables and
+JSON}\label{python-analysis-tables-and-json}}
 
-\texttt{python/data\_tidy.csv} stores one quantity per row with series,
-curve, component, x, value, mask, and validity fields.
+The Python export keeps sample data, component evaluations, and curve
+metadata in separate tables:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{python/observations.csv} has one row per sampled point,
+  identified by \texttt{curve\_id} and \texttt{point\_index}. It
+  includes x, measured y, the available fit, residual and background,
+  uncertainty or weight fields, and mask/validity flags.
+\item
+  \texttt{python/components.csv} stores evaluated model components with
+  the same curve and point keys and a component identifier. These are
+  individual function evaluations; multiply, divide, or convolve roles
+  must be respected rather than assuming every component is additive.
+\item
+  \texttt{python/curves.csv} supplies the series/curve names, axis
+  labels and units needed to interpret each curve without repeating them
+  on every sample row.
+\item
+  \texttt{python/replot.py} reads these tables and creates a figure for
+  each curve. Run it with Python and the dependencies described in the
+  exported README. It writes PNG figures to
+  \texttt{python/replotted/png/} and SVG figures to
+  \texttt{python/replotted/svg/}.
+\end{itemize}
+
+Join samples and components using \texttt{curve\_id} and
+\texttt{point\_index}, not x alone: different observations can share the
+same x coordinate. Rows retain masked and invalid observations so their
+original positions remain traceable. Residuals use the data-minus-fit
+convention. A mask flag is metadata on a sample, rather than a separate
+numeric quantity to plot. This replaces the earlier
+\texttt{data\_tidy.csv} table.
+
+\texttt{point\_index} starts at zero in current row order;
+\texttt{original\_row\_index} identifies the imported row.
+\texttt{masked} describes current exclusions, including invalid points,
+and does not reconstruct which points were included in a historical fit.
+\texttt{valid}, \texttt{finite\_xy}, and \texttt{model\_valid} record
+distinct checks of observations/errors/weights, finite coordinates, and
+model evaluations respectively.
+
 \texttt{python/results.json} records schema version, application
 version, result metadata, parameters, statistics, warnings, and settings
-without duplicating large numeric arrays.
+without duplicating large numeric arrays. Its \texttt{result} describes
+the selected last fit, which may cover only a subset of the project
+curves; \texttt{fit\_by\_curve} and \texttt{global\_fit\_baselines}
+retain the other recorded fit baselines. These describe recorded fits,
+while \texttt{observations.csv} contains evaluations of the current
+models. The \texttt{.fitproj} copy retains the full project record.
 
 \hypertarget{reports-and-reusable-files}{%
 \section{14.7 Reports and reusable
@@ -3918,10 +4112,21 @@ files}\label{reports-and-reusable-files}}
 \item
   \texttt{report/full\_reproducibility.html} includes project metadata.
 \item
-  \texttt{report/summary.pdf} contains a summary plot and statistics.
+  \texttt{report/summary.pdf} contains one page per curve. Each page
+  identifies that curve and displays its data, available fit/components,
+  and residuals. Curves with different axes or units are kept on
+  separate pages.
 \item
-  \texttt{.fitmodel} stores the first project model and custom formulas
-  for programmatic reuse.
+  Individual curve figures are saved in \texttt{figures/png/},
+  \texttt{figures/svg/}, and \texttt{figures/pdf/}, using a consistent
+  Matplotlib style with readable labels and restrained legends. Every
+  spectrum has its own file in each selected format; formats are kept in
+  separate subfolders.
+\item
+  \texttt{models/*.fitmodel} stores each curve's model and custom
+  formulas for programmatic reuse. Preserve the complete
+  \texttt{.fitproj} when cross-spectrum relationships or the complete
+  analysis must be restored.
 \item
   \texttt{.fitproj} is a complete portable project snapshot.
 \end{itemize}
@@ -3929,15 +4134,16 @@ files}\label{reports-and-reusable-files}}
 The exported report PDF is an analysis summary, not the CurveMole
 software manual.
 
-\hypertarget{exporting-one-numeric-file-per-spectrum}{%
-\section{14.8 Exporting one numeric file per
-spectrum}\label{exporting-one-numeric-file-per-spectrum}}
+\hypertarget{quick-export-one-numeric-file-per-spectrum}{%
+\section{14.8 Quick export: one numeric file per
+spectrum}\label{quick-export-one-numeric-file-per-spectrum}}
 
-Choose \textbf{File \textgreater{} Export spectra and fit
-curves\ldots{}} or press \textbf{Ctrl+Shift+E} when the result should be
-immediately replottable as one multi-column table per spectrum. This is
-separate from the structured analysis bundle. Choose any project spectra
-and any of these options:
+Choose \textbf{File \textgreater{} Quick export: spectra and fit curves}
+or press \textbf{Ctrl+Shift+E} when the result should be immediately
+replottable as one multi-column table per spectrum. The complete
+analysis bundle includes these numeric spectrum exports too. The quick
+export dialog lets you choose any project spectra and any of these
+options:
 
 \begin{itemize}
 \tightlist
@@ -3963,21 +4169,36 @@ describe axis labels, units, functions, background state, total fit, and
 residuals, and never contain whitespace so they remain safe for
 whitespace parsers. An unknown original extension is preserved.
 
-\hypertarget{exporting-function-parameters}{%
-\section{14.9 Exporting function
-parameters}\label{exporting-function-parameters}}
+\hypertarget{quick-export-function-parameters}{%
+\section{14.9 Quick export: function
+parameters}\label{quick-export-function-parameters}}
 
-\textbf{File \textgreater{} Export functions parameters\ldots{}} writes
-a wide CSV table with one row per project spectrum and two header rows
-identifying functions and parameters. Each parameter has value and
+\textbf{File \textgreater{} Quick export: function parameters} writes a
+wide CSV table with one row per project spectrum and two header rows
+identifying functions and parameters. The complete bundle saves this
+table as \texttt{function\_parameters.csv}. Each parameter has value and
 fit-error columns; functions with the same displayed name align across
 spectra, with duplicate names disambiguated. Spectra that are not
 currently Fitted retain their row but have blank numeric cells. Saved
 selected-analysis errors are added as separate minus/plus columns,
-together with the method. This is a focused numeric export; use the
-analysis bundle for the full constraints and reproducibility record.
-\textbf{Also export covariance matrices} optionally writes the labelled
-sibling matrices described in Section 12.
+together with the method. \textbf{Also export covariance matrices}
+optionally writes the labelled sibling matrices described in Section 12.
+The complete bundle includes available parameter covariance exports
+alongside its full constraints and reproducibility record.
+
+\hypertarget{quick-export-current-plot-view}{%
+\section{14.10 Quick export: current plot
+view}\label{quick-export-current-plot-view}}
+
+Use \textbf{File \textgreater{} Quick export: current view with
+Matplotlib} to save the plot displayed when the command is invoked as a
+styled SVG, PDF, or PNG figure. It uses the visible curves and the
+current plot arrangement, axis scales and displayed ranges, rather than
+combining every curve in the project. This is useful for saving a chosen
+overlay or a zoomed view. The complete bundle includes the current-view
+export as \texttt{current\_view.png}, \texttt{current\_view.svg}, and
+\texttt{current\_view.pdf} in their respective \texttt{figures/} format
+subfolders, alongside the separate figures for every curve.
 
 \hypertarget{command-line-interface}{%
 \chapter{15. Command-line interface}\label{command-line-interface}}
@@ -4351,14 +4572,14 @@ validates the complete graph before optimization.
 \end{Highlighting}
 \end{Shaded}
 
-\hypertarget{api-compatibility-during-preview}{%
-\section{17.6 API compatibility during
-Preview}\label{api-compatibility-during-preview}}
+\hypertarget{api-compatibility-and-reproducibility}{%
+\section{17.6 API compatibility and
+reproducibility}\label{api-compatibility-and-reproducibility}}
 
-The package root is intentionally smaller and more stable than internal
-modules, but version 0.x may still introduce incompatible changes. Pin
-the exact CurveMole version in automated research workflows and record
-it with results.
+Use the documented package-root API for reusable scripts; internal
+modules are implementation details and may evolve. Pin the exact
+CurveMole version in automated research workflows and record it with
+results, together with dependency versions.
 
 \hypertarget{function-builder-and-plugins}{%
 \chapter{18. Function Builder and
@@ -4706,10 +4927,10 @@ https://github.com/SebRoLENS/curvemole/issues
 \section{19.3 Windows SmartScreen or macOS Gatekeeper
 warns}\label{windows-smartscreen-or-macos-gatekeeper-warns}}
 
-The Preview executables are not yet commercially signed or notarized.
-Confirm that the file came from the official release, verify its SHA-256
-checksum, and use the operating system's documented override only if you
-accept the risk.
+Windows and macOS executables are unsigned because CurveMole is a
+nonprofit project and signing requires developer-paid certification.
+Confirm the official release source and SHA-256 checksum, then follow
+the first-launch procedure in Section 3.2.
 
 \hypertarget{import-produces-one-column}{%
 \section{19.4 Import produces one
@@ -4962,8 +5183,8 @@ versioned GitHub release is the authoritative record:
 
 \begin{quote}
 Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 0.47.1) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v0.47.1
+(Version 1.0.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v1.0.0
 \end{quote}
 
 The repository provides \textbf{Cite this repository} from
@@ -5191,16 +5412,14 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-preview-0.47.1-limitations}{%
-\chapter{Appendix D. Preview 0.47.1
-limitations}\label{appendix-d.-preview-0.47.1-limitations}}
+\hypertarget{appendix-d.-version-1.0.0-limitations}{%
+\chapter{Appendix D. Version 1.0.0
+limitations}\label{appendix-d.-version-1.0.0-limitations}}
 
-The following boundaries are important when evaluating this release:
+The following boundaries apply to this release:
 
 \begin{itemize}
 \tightlist
-\item
-  scientific validation toward 1.0.0 is still in progress;
 \item
   local optimizers include nonlinear least squares, Nelder-Mead, Powell,
   and L-BFGS-B; none guarantees the global optimum for an arbitrary
@@ -5218,17 +5437,18 @@ The following boundaries are important when evaluating this release:
   the GUI does not yet provide one consolidated table for every fit
   statistic;
 \item
-  Windows and macOS packages may be unsigned; Linux release provenance
-  is available through GitHub artifact attestation;
+  Windows and macOS packages are unsigned; Linux release provenance is
+  available through GitHub artifact attestation;
 \item
   the interface and manual are currently maintained in English;
 \item
-  plugin API and other 0.x APIs may change before 1.0.0.
+  executable plugins run with the user's permissions; they are not
+  sandboxed.
 \end{itemize}
 
-These limitations are stated so that testing can focus on genuine
-behavior rather than inferred promises. Report unclear workflows and
-reproducible defects through the issue tracker.
+Inspect fit quality and uncertainty for each analysis as described in
+Section 1.4. Report unclear workflows and reproducible defects through
+the issue tracker.
 
 \hypertarget{appendix-e.-building-this-manual}{%
 \chapter{Appendix E. Building this

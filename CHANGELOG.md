@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-23
+
 ### Changed
 
 - Publish CurveMole 1.0.0 as the stable release. Align the manual, Quick Start,
