@@ -105,6 +105,8 @@ def assemble(metadata):
     if count != 1:
         raise ValueError('Missing or ambiguous citation link')
     index = index.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
+    index = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
+                   'style.css?v=' + metadata['source_sha'], index)
     repository = os.environ.get('GITHUB_REPOSITORY', 'SebRoLENS/curvemole')
     index = index.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
     index = index.replace(f'https://github.com/{repository}/blob/main/',

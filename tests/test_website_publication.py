@@ -82,6 +82,7 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     assert '/releases/latest' not in target.read_text(encoding="utf-8")
     assert '/blob/main/' not in target.read_text(encoding="utf-8")
     assert '(v1.2.3)' in target.read_text(encoding="utf-8")
+    assert 'href="style.css?v=abc123"' in target.read_text(encoding="utf-8")
     assert 'https://doi.org/10.5281/zenodo.123' in target.read_text(encoding="utf-8")
     assert (tmp_path / 'website/dist/CITATION.cff').read_text(encoding="utf-8") == citation
     assert json.loads((tmp_path / 'website/dist/publication.json').read_text(encoding="utf-8"))['tag'] == 'v1.2.3'
