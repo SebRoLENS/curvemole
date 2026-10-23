@@ -251,6 +251,16 @@ def test_finalization_uses_current_tools_with_original_tagged_source():
 
 
 def test_finalization_uploads_complete_assets_before_publishing(repository, monkeypatch):
+    # Exercise the Windows legacy locale on every platform. Release notes contain
+    # Unicode installation arrows and may include non-ASCII changelog entries.
+    original_open = Path.open
+
+    def windows_open(path, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+        if "b" not in mode and encoding in (None, "locale"):
+            encoding = "cp1252"
+        return original_open(path, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "open", windows_open)
     directory = repository / "release-assets"
     directory.mkdir()
     version = "0.35.4"
@@ -259,7 +269,10 @@ def test_finalization_uploads_complete_assets_before_publishing(repository, monk
             (directory / name).write_bytes(name.encode())
     for arch in ("arm64", "x86_64"):
         (directory / f"macos-signing-{arch}.json").write_text(json.dumps({"signed": False}))
-    (repository / "CHANGELOG.md").write_text("## [0.35.4] - 2026-10-02\n\n### Fixed\n\n- Useful correction.\n")
+    (repository / "CHANGELOG.md").write_text(
+        "## [0.35.4] - 2026-10-02\n\n### Fixed\n\n- Useful correction — α.\n",
+        encoding="utf-8",
+    )
     current = fixture_release(version, {p.name: assets.digest(p) for p in directory.iterdir()
                                        if "AppImage" in p.name})
     monkeypatch.setattr(assets, "release", lambda tag: current)
@@ -280,8 +293,10 @@ def test_finalization_uploads_complete_assets_before_publishing(repository, monk
             assert "--draft=false" in command
             assert "--prerelease=false" in command
             assert "--latest" in command
-            note = Path("release-notes.md").read_text()
-            assert "Useful correction" in note and "unsigned" in note and "checksums have been verified" in note
+            note = Path("release-notes.md").read_text(encoding="utf-8")
+            assert "Useful correction — α." in note
+            assert "More info → Run anyway" in note
+            assert "unsigned" in note and "checksums have been verified" in note
             commands.append("publish")
             return subprocess.CompletedProcess(command, 0)
         return real_run(command, **kwargs)

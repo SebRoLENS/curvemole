@@ -98,7 +98,7 @@ def installation_notice(signing: dict | None = None) -> str:
 
 
 def notes(version: str, ready: bool, signing: dict | None = None) -> str:
-    text = Path("CHANGELOG.md").read_text()
+    text = Path("CHANGELOG.md").read_text(encoding="utf-8")
     section = re.search(rf"(?ms)^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text)
     changes = section.group(1).strip() if section else "Maintenance release."
     status = ("All desktop packages, Python distributions and the versioned manual are attached. "
@@ -146,7 +146,7 @@ def draft(tag: str) -> None:
     if current is not None:
         print("Release already exists; retaining its metadata and publication state.")
         return
-    Path("release-notes.md").write_text(notes(version, False))
+    Path("release-notes.md").write_text(notes(version, False), encoding="utf-8")
     subprocess.run(["gh", "release", "create", tag, "--draft", "--verify-tag",
                     "--title", f"CurveMole {tag}", "--notes-file", "release-notes.md"], check=True)
 
@@ -174,7 +174,7 @@ def finalize(tag: str, directory: Path) -> None:
     signing = {}
     for arch in ("arm64", "x86_64"):
         status = directory / f"macos-signing-{arch}.json"
-        signing[arch] = json.loads(status.read_text())["signed"]
+        signing[arch] = json.loads(status.read_text(encoding="utf-8"))["signed"]
         status.unlink()
     for ext in ("pdf", "tex"):
         (directory / f"CurveMole-{version}-User-Manual.{ext}").write_bytes(
@@ -184,7 +184,7 @@ def finalize(tag: str, directory: Path) -> None:
         raise ValueError("Build did not produce the exact expected set of release files")
     checks = {name: digest(path) for name, path in files.items()}
     checksum = directory / "SHA256SUMS.txt"
-    checksum.write_text(checksum_text(checks))
+    checksum.write_text(checksum_text(checks), encoding="utf-8")
     checks[checksum.name] = digest(checksum)
     # The attested Linux files were already uploaded by their originating job.
     upload = [str(p) for name, p in files.items() if "-linux-x86_64.AppImage" not in name]
@@ -195,7 +195,7 @@ def finalize(tag: str, directory: Path) -> None:
     doi = re.search(r"(?m)^\*\*Zenodo DOI:\*\* https://doi.org/10\.5281/zenodo\.\d+.*$", current["body"] or "")
     if doi:
         body = re.sub(r"(?m)^\*\*Zenodo DOI:\*\*.*$", doi.group(), body)
-    Path("release-notes.md").write_text(body)
+    Path("release-notes.md").write_text(body, encoding="utf-8")
     subprocess.run(["gh", "release", "edit", tag, "--notes-file", "release-notes.md",
                     "--draft=false", "--prerelease=false", "--latest"], check=True)
     print(f"Published {tag}: all 11 assets and their checksums verified.")
@@ -226,7 +226,7 @@ def repair_manual(tag: str, directory: Path) -> None:
         checks[destination.name] = digest(destination)
         manuals.append(str(destination))
     checksum = directory / "SHA256SUMS.txt"
-    checksum.write_text(checksum_text(checks))
+    checksum.write_text(checksum_text(checks), encoding="utf-8")
     checks[checksum.name] = digest(checksum)
     if any(assets[name].get("digest") != f"sha256:{value}" for name, value in checks.items()):
         subprocess.run(["gh", "release", "upload", tag, *manuals, str(checksum), "--clobber"], check=True)
@@ -247,7 +247,7 @@ def main() -> None:
         current = release(args.tag)
         if current is None:
             raise ValueError("Create a release draft before building a release tag")
-        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
             stream.write(f"build={str(current['draft']).lower()}\n")
     elif args.command == "finalize":
         finalize(args.tag, args.directory)
