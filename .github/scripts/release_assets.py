@@ -64,6 +64,39 @@ def checksum_text(checks: dict[str, str]) -> str:
     return "".join(f"{value}  {name}\n" for name, value in sorted(checks.items()))
 
 
+def installation_notice(signing: dict | None = None) -> str:
+    """Keep signing status and first-launch instructions above release downloads."""
+    unsigned_macos = [arch for arch in ("arm64", "x86_64")
+                      if signing is None or not signing.get(arch)]
+    if len(unsigned_macos) == 2:
+        title = "Windows and macOS downloads are unsigned."
+    elif unsigned_macos:
+        platform = "Apple Silicon" if unsigned_macos[0] == "arm64" else "Intel"
+        title = f"Windows and the macOS {platform} download are unsigned."
+    else:
+        title = "Windows downloads are unsigned."
+    instructions = [
+        "**First launch after an official download**",
+        "Only approve a download from this repository's official release page that you trust; "
+        "verify `SHA256SUMS.txt`.",
+        "- **Windows:** Open the installer or extracted app. If SmartScreen shows "
+        "'Windows protected your PC', choose **More info → Run anyway**.",
+    ]
+    if unsigned_macos:
+        instructions.append(
+            "- **macOS (unsigned downloads):** Open the DMG, drag CurveMole to Applications, "
+            "and try opening it once. If blocked, open **System Settings → Privacy & Security**, "
+            "choose **Open Anyway**, then **Open**, and authenticate if asked."
+        )
+    return (
+        f"> [!CAUTION]\n> **{title}**\n>\n"
+        "> CurveMole is a nonprofit project. To avoid developer-paid signing/certification "
+        "costs, these packages are unsigned. Windows SmartScreen or macOS Gatekeeper may ask you "
+        "to approve the app.\n\n"
+        + "\n\n".join(instructions[:2]) + "\n\n" + "\n".join(instructions[2:]) + "\n"
+    )
+
+
 def notes(version: str, ready: bool, signing: dict | None = None) -> str:
     text = Path("CHANGELOG.md").read_text()
     section = re.search(rf"(?ms)^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## \[|\Z)", text)
@@ -87,7 +120,8 @@ def notes(version: str, ready: bool, signing: dict | None = None) -> str:
         signing_note = ("\n\nApple Developer ID signing and notarization are unavailable for "
                         + ", ".join(unsigned) + "; these macOS downloads are unsigned." if unsigned else
                         "\n\nBoth macOS downloads are signed with Apple Developer ID and notarized.")
-    return (f"## CurveMole v{version}\n\n{changes}\n\n{status}{signing_note}\n\n{table}\n\n"
+    return (installation_notice(signing) + "\n"
+            + f"## CurveMole v{version}\n\n{changes}\n\n{status}{signing_note}\n\n{table}\n\n"
             "**Zenodo DOI:** pending archival or repository integration.\n")
 
 

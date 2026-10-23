@@ -50,12 +50,17 @@ the operating system, so they can be opened by double-clicking or with **Open wi
 CurveMole**. Linux AppImage users can choose **Tools > Integrate CurveMole with the
 desktop**; an existing manual launcher is adopted and backed up instead of duplicated.
 
-> **Windows and macOS security notice**
+> [!CAUTION]
+> **Windows and macOS downloads are unsigned.**
 >
-> Windows and macOS packages may be unsigned. Windows SmartScreen or macOS Gatekeeper
-> can show a warning when a package lacks a recognised signature or notarization.
-> A warning caused by a missing signature is not, by itself, evidence that malware was detected.
-> Download CurveMole only from the official release page and verify `SHA256SUMS.txt`.
+> CurveMole is a nonprofit project. To avoid developer-paid signing/certification costs, these packages are unsigned. Windows SmartScreen or macOS Gatekeeper may ask you to approve the app.
+
+**First launch after an official download**
+
+Only approve a download from this repository's official release page that you trust; verify `SHA256SUMS.txt`.
+
+- **Windows:** Open the installer or extracted app. If SmartScreen shows 'Windows protected your PC', choose **More info → Run anyway**.
+- **macOS (unsigned downloads):** Open the DMG, drag CurveMole to Applications, and try opening it once. If blocked, open **System Settings → Privacy & Security**, choose **Open Anyway**, then **Open**, and authenticate if asked.
 
 The Linux AppImage is cryptographically signed using the free, open-source Sigstore
 infrastructure through GitHub Actions. Every release includes a detached
