@@ -82,3 +82,17 @@ remains removed.
 ## Search engine verification
 
 Google Search Console ownership is verified using `website/dist/google06874d56da4b828b.html`. Keep this file in the published `website/dist/` directory so verification remains valid.
+
+## Customization examples
+
+The customization section uses real GUI captures of composite-model controls,
+the Function Builder with a damped-cosine formula, and the Plugin Manager with
+the bundled TSV exporter discovered but not loaded. Regenerate them with:
+
+```sh
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_customization_screenshots.py
+```
+
+The capture script uses temporary settings, reads the experimental project without
+resaving it, and never loads plugin code. Source paths are displayed relative to
+the repository. Publication regenerates these screenshots from the deployed checkout.

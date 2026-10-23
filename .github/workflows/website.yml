@@ -64,6 +64,7 @@ jobs:
           uv run --no-sync pytest -q tests/test_website_publication.py
           uv run --no-sync python website/scripts/render_demo_screenshots.py
           uv run --no-sync python website/scripts/render_project_screenshots.py
+          uv run --no-sync python website/scripts/render_customization_screenshots.py
       - name: Reject a superseded snapshot
         if: steps.readiness.outputs.ready == 'true'
         run: |
