@@ -80,6 +80,8 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     target.write_text(index.read_text(encoding="utf-8"), encoding="utf-8")
     website.assemble({'version': '1.2.3', 'tag': 'v1.2.3', 'doi': '10.5281/zenodo.123', 'source_sha': 'abc123'})
     assert '/releases/latest' not in target.read_text(encoding="utf-8")
+    assert 'href="https://github.com/SebRoLENS/curvemole/releases/download/v1.2.3/CurveMole-1.2.3-User-Manual.pdf"' in target.read_text(encoding="utf-8")
+    assert '/releases/download/v1.0.0/' not in target.read_text(encoding="utf-8")
     assert '/blob/main/' not in target.read_text(encoding="utf-8")
     assert '(v1.2.3)' in target.read_text(encoding="utf-8")
     assert 'href="style.css?v=abc123"' in target.read_text(encoding="utf-8")

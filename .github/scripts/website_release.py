@@ -108,6 +108,12 @@ def assemble(metadata):
     index = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
                    'style.css?v=' + metadata['source_sha'], index)
     repository = os.environ.get('GITHUB_REPOSITORY', 'SebRoLENS/curvemole')
+    manual_url = (f'https://github.com/{repository}/releases/download/{metadata["tag"]}/'
+                  f'CurveMole-{metadata["version"]}-User-Manual.pdf')
+    index, count = re.subn(r'(<a\b[^>]*id="manualPdf"[^>]*href=")[^"]*(")',
+                          lambda m: m[1] + manual_url + m[2], index)
+    if count != 1:
+        raise ValueError('Missing or ambiguous manual PDF download')
     index = index.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
     index = index.replace(f'https://github.com/{repository}/blob/main/',
                           f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')

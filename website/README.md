@@ -61,7 +61,9 @@ when the app or original example changes. The website retains one experimental
 screenshot, without an experimental notebook, uncertainty or trend gallery.
 
 The deployment bundles CITATION.cff, updates the HTML citation and pins download
-links to the verified release tag. It never fetches citation metadata from a newer
+links to the verified release tag. The Manual PDF download uses the versioned PDF
+asset from that same release and is updated automatically for each publication.
+It never fetches citation metadata from a newer
 main revision. publication.json records the source SHA, tag SHA, DOI and CI run.
 
 Every non-release push to main validates the development manual, so a later
