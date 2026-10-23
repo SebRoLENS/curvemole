@@ -1,0 +1,35 @@
+name: Recover test AppImage
+
+on:
+  push:
+    branches: [codex/appimage-download-20261023]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: CurveMole-linux-test-2
+          path: candidate
+          github-token: ${{ github.token }}
+          run-id: 39927347939
+      - name: Verify candidate and retain AppImage checksum
+        working-directory: candidate
+        run: |
+          sha256sum --check SHA256SUMS.txt
+          sha256sum CurveMole-*-linux-x86_64.AppImage > AppImage-SHA256SUMS.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CurveMole-AppImage-only
+          path: |
+            candidate/CurveMole-*-linux-x86_64.AppImage
+            candidate/AppImage-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
