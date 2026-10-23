@@ -5,6 +5,15 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Changed
+
+- Export a complete analysis bundle by default, including the spectra, function
+  parameters and current-view figures also available as Quick export commands.
+  Add a named destination subfolder and a detailed README while retaining export
+  ownership checks. Give every curve its own styled Matplotlib PNG/SVG/PDF and a
+  separate summary-PDF page. Replace the repetitive Python tidy table with keyed
+  observation/component tables, curve metadata and a ready-to-run replot script.
+
 ## [0.47.1] - 2026-10-22
 
 ## [0.47.0] - 2026-10-22

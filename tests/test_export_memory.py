@@ -121,20 +121,15 @@ def test_failed_graphic_exports_close_figures_and_remove_temporary_files(tmp_pat
     assert sentinel.read_bytes() == b"user file"
 
 
-def test_pdf_report_keeps_embedded_raster_as_byte_pixels(tmp_path, monkeypatch) -> None:
-    import numpy as np
+def test_pdf_report_does_not_allocate_an_embedded_raster(tmp_path, monkeypatch) -> None:
     from matplotlib.axes import Axes
 
     project = Project("report")
     project.add_curve(Curve("example", [0., 1.], [1., 2.]))
-    original_imshow = Axes.imshow
-    dtypes = []
 
-    def imshow(axis, pixels, *args, **kwargs):
-        dtypes.append(pixels.dtype)
-        return original_imshow(axis, pixels, *args, **kwargs)
+    def unexpected_raster(*args, **kwargs):
+        raise AssertionError("PDF reports must draw vector traces without an intermediate raster")
 
-    monkeypatch.setattr(Axes, "imshow", imshow)
+    monkeypatch.setattr(Axes, "imshow", unexpected_raster)
     destination = generate_pdf_report(project, tmp_path / "report.pdf")
     assert destination.read_bytes().startswith(b"%PDF-")
-    assert dtypes == [np.uint8]

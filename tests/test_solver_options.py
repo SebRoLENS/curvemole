@@ -115,8 +115,8 @@ def test_all_recorded_settings_export_and_round_trip(gaussian_curve, tmp_path):
     result = Fitter().fit_single(gaussian_curve, model, settings)
     p.results["last_fit"] = result
     assert asdict(FitResult.from_dict(result.to_dict()).settings) == asdict(settings)
-    export_bundle(p, tmp_path / "export", selection=BundleExportSelection(
-        fit_settings=True, results_json=True, html_reproducibility=True))
+    export_bundle(p, tmp_path / "export", selection=BundleExportSelection.none(
+        fit_results=True, fit_settings=True, results_json=True, html_reproducibility=True))
     root = tmp_path / "export"
     df = pd.read_csv(root / "fit_settings.csv", keep_default_na=False)
     exported = {row.setting: json.loads(row.value) for row in df.itertuples()}

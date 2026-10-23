@@ -107,7 +107,7 @@ def test_names_are_undoable_and_survive_reopen_and_reports(gaussian_curve, monke
     assert len(shown) == 1 and "diagnostic issue" in shown[0]
     assert other.uncertainty_panel.results.table.item(0,0).text() == "NH2 stretching α"
     assert other.uncertainty_panel.results.table.item(1,0).text() in {"area", "center", "sigma"}
-    export_bundle(reopened, tmp_path / "export", selection=BundleExportSelection(fit_results=False, uncertainty=True))
+    export_bundle(reopened, tmp_path / "export", selection=BundleExportSelection.none(uncertainty=True))
     assert "NH2 stretching α" in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8")
     assert "target" not in (tmp_path / "export/uncertainty/parameter_assessments.csv").read_text(encoding="utf-8").splitlines()[0]
     p.dirty = reopened.dirty = False

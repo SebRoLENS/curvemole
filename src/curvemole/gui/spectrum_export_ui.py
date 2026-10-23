@@ -48,6 +48,7 @@ class SpectrumExportDialog(QDialog):
 
         info = QLabel(
             self.tr(
+                "Quick export: these files are also included in the complete analysis bundle. "
                 "CurveMole writes one numeric, multi-column file for each selected spectrum. "
                 "The first column is x; the other columns are spectrum/fit y values and have descriptive headers."
             )
@@ -194,7 +195,7 @@ class SpectrumExportDialog(QDialog):
 def _build_actions(window: MainWindow) -> None:
     _ORIGINAL_BUILD_ACTIONS(window)
     window.export_spectra_action = QAction(
-        window.tr("Export spectra and fit curves…"), window
+        window.tr("Quick export: spectra and fit curves…"), window
     )
     window.export_spectra_action.setShortcut("Ctrl+Shift+E")
     window.export_spectra_action.triggered.connect(
@@ -207,7 +208,7 @@ def _build_menus(window: MainWindow) -> None:
     for menu_action in window.menuBar().actions():
         menu = menu_action.menu()
         if menu is not None and window.export_action in menu.actions():
-            menu.insertAction(window.export_action, window.export_spectra_action)
+            menu.insertAction(window.export_parameters_action, window.export_spectra_action)
             break
 
 
