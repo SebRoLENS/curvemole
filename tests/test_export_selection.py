@@ -48,11 +48,12 @@ def test_default_export_is_a_complete_analysis_bundle(gaussian_curve, tmp_path: 
     assert (root / "summary_report.html").is_file()
     assert (root / "report/full_reproducibility.html").is_file()
     assert (root / "laboratory_notebook.txt").is_file()
-    assert len(list((root / "figures").glob("*.png"))) == 1
-    assert len(list((root / "figures").glob("*.svg"))) == 1
+    assert len(list((root / "figures/png").glob("*.png"))) == 1
+    assert len(list((root / "figures/svg").glob("*.svg"))) == 1
+    assert len(list((root / "figures/pdf").glob("*.pdf"))) == 1
     assert len(list((root / "models").glob("*.fitmodel"))) == 1
     assert len(list((root / "spectra").iterdir())) == 1
-    assert len(list((root / "report").glob("*.pdf"))) == 2
+    assert len(list((root / "report").glob("*.pdf"))) == 1
     assert not (root / "python/data_tidy.csv").exists()
     assert not (root / "uncertainty").exists()
     assert not (root / ".curvemole-export.json").exists()
@@ -61,7 +62,8 @@ def test_default_export_is_a_complete_analysis_bundle(gaussian_curve, tmp_path: 
         path.relative_to(root).as_posix() for path in summary.created
     }
     readme = (root / "README.txt").read_text()
-    assert "figures/ (2 files)" in readme
+    for extension in ("png", "svg", "pdf"):
+        assert f"figures/{extension}/*.{extension} (1 file)" in readme
     assert "manifest.json contains its exact file inventory" in readme
     assert "point_index" in readme and "not a historical fit-inclusion flag" in readme
     assert "CURRENT model" in readme and "LAST fit" in readme
@@ -104,7 +106,8 @@ def test_optional_export_creates_only_needed_directories(gaussian_curve, tmp_pat
     export_bundle(project, root, selection=selection)
 
     assert (root / "python" / "observations.csv").is_file()
-    assert len(list((root / "figures").glob("*.svg"))) == 1
+    assert len(list((root / "figures/svg").glob("*.svg"))) == 1
+    assert {path.name for path in (root / "figures").iterdir()} == {"svg"}
     assert not (root / "data").exists()
     assert not (root / "report").exists()
     assert not (root / "uncertainty").exists()
@@ -148,6 +151,13 @@ def test_duplicate_names_have_separate_files_and_indexed_source_metadata(tmp_pat
     for column in ("spectrum_file", "wide_file", "png_file", "svg_file", "pdf_file", "model_file"):
         assert index[column].nunique() == 2
         assert all((root / path).is_file() for path in index[column])
+    for row in index.itertuples(index=False):
+        for extension in ("png", "svg", "pdf"):
+            relative = Path(getattr(row, f"{extension}_file"))
+            assert relative.parent == Path("figures") / extension
+            assert relative.name == f"{row.file_stem}.{extension}"
+    assert {path.name for path in (root / "figures").iterdir()} == {"png", "svg", "pdf"}
+    assert {path.name for path in (root / "report").glob("*.pdf")} == {"summary.pdf"}
     assert not (root / "figures/main_plot.svg").exists()
     assert not (root / "main_plot.png").exists()
 
@@ -183,7 +193,12 @@ def test_python_tables_keep_repeated_x_and_duplicate_components_distinct(tmp_pat
     root = tmp_path / "bundle"
     export_bundle(project, root, delimiter=";", selection=BundleExportSelection.none(tidy_table=True))
     subprocess.run([sys.executable, str(root / "python/replot.py")], check=True, timeout=60)
-    assert len(list((root / "python/replotted").glob("*.svg"))) == 1
+    replotted = root / "python/replotted"
+    assert {path.name for path in replotted.iterdir()} == {"svg", "png"}
+    for extension in ("svg", "png"):
+        figures = list((replotted / extension).glob(f"*.{extension}"))
+        assert len(figures) == 1
+        assert figures[0].stem == metadata.iloc[0].file_stem
 
 
 def test_bundle_retains_per_curve_fit_records_and_labeled_covariances(gaussian_curve, tmp_path):
@@ -230,10 +245,36 @@ def test_current_view_is_optional_and_its_files_are_preflighted(tmp_path, monkey
     root = tmp_path / "bundle"
     summary = export_bundle(project, root, selection=selection, current_view=snapshot)
     assert {path.relative_to(root).as_posix() for path in summary.created} == {
-        "figures/current_view.png", "figures/current_view.svg", "report/current_view.pdf"}
+        "figures/png/current_view.png", "figures/svg/current_view.svg", "figures/pdf/current_view.pdf"}
+    assert not (root / "report").exists()
     with pytest.raises(FileExistsError):
         export_bundle(project, root, selection=selection, current_view=snapshot)
     assert len(calls) == 3
+    update = export_bundle(project, root, selection=selection, current_view=snapshot, overwrite=True)
+    assert len(update.unchanged) == 3
+    assert not update.created and not update.updated
+    assert len(calls) == 6
+
+
+@pytest.mark.parametrize("extension", ["png", "svg", "pdf"])
+def test_current_view_checks_every_format_before_writing(tmp_path, monkeypatch, extension):
+    from curvemole.core import figure_export
+
+    project = Project()
+    selection = BundleExportSelection.none(current_view=True)
+    root = tmp_path / "bundle"
+    occupied = root / "figures" / extension / f"current_view.{extension}"
+    occupied.parent.mkdir(parents=True)
+    occupied.write_text("unrelated figure")
+    calls = []
+    monkeypatch.setattr(figure_export, "export_plot_snapshot", lambda *args: calls.append(args))
+
+    with pytest.raises(FileExistsError, match="overwrite existing files"):
+        export_bundle(project, root, selection=selection, current_view=object())
+
+    assert not calls
+    assert [path for path in root.rglob("*") if path.is_file()] == [occupied]
+    assert occupied.read_text() == "unrelated figure"
 
 
 def test_data_only_fit_results_have_readable_empty_schema(tmp_path):

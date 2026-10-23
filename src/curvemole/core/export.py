@@ -830,16 +830,16 @@ def export_bundle(
 
     if selection.main_plot_png:
         for curve in project.curves:
-            export_figure([curve], project.models, root / "figures" / f"{stems[curve.id]}.png", registry=registry)
+            export_figure([curve], project.models, root / "figures" / "png" / f"{stems[curve.id]}.png", registry=registry)
 
     if selection.main_plot_svg:
         for curve in project.curves:
-            export_figure([curve], project.models, root / "figures" / f"{stems[curve.id]}.svg", registry=registry)
+            export_figure([curve], project.models, root / "figures" / "svg" / f"{stems[curve.id]}.svg", registry=registry)
 
     if selection.current_view and current_view is not None:
         from curvemole.core.figure_export import export_plot_snapshot
 
-        for relative in ("figures/current_view.png", "figures/current_view.svg", "report/current_view.pdf"):
+        for relative in ("figures/png/current_view.png", "figures/svg/current_view.svg", "figures/pdf/current_view.pdf"):
             export_plot_snapshot(current_view, root / relative)
 
     if selection.html_summary:
@@ -861,7 +861,7 @@ def export_bundle(
 
     if selection.pdf_summary:
         for curve in project.curves:
-            export_figure([curve], project.models, root / "report" / f"{stems[curve.id]}.pdf", registry=registry)
+            export_figure([curve], project.models, root / "figures" / "pdf" / f"{stems[curve.id]}.pdf", registry=registry)
         generate_pdf_report(
             project,
             root / "report" / "summary.pdf",
@@ -978,18 +978,18 @@ def _bundle_paths(
     if selection.project_copy:
         paths.append(f"{base}.fitproj")
     if selection.main_plot_png:
-        paths.extend(f"figures/{stems[curve.id]}.png" for curve in project.curves)
+        paths.extend(f"figures/png/{stems[curve.id]}.png" for curve in project.curves)
     if selection.main_plot_svg:
-        paths.extend(f"figures/{stems[curve.id]}.svg" for curve in project.curves)
+        paths.extend(f"figures/svg/{stems[curve.id]}.svg" for curve in project.curves)
     if selection.current_view and current_view is not None:
-        paths.extend(("figures/current_view.png", "figures/current_view.svg", "report/current_view.pdf"))
+        paths.extend(("figures/png/current_view.png", "figures/svg/current_view.svg", "figures/pdf/current_view.pdf"))
     if selection.html_summary:
         paths.append("summary_report.html")
     if selection.html_reproducibility:
         paths.append("report/full_reproducibility.html")
     if selection.pdf_summary:
         paths.append("report/summary.pdf")
-        paths.extend(f"report/{stems[curve.id]}.pdf" for curve in project.curves)
+        paths.extend(f"figures/pdf/{stems[curve.id]}.pdf" for curve in project.curves)
     if selection.uncertainty and result:
         if result.covariance is not None:
             paths.append("uncertainty/covariance.csv")
@@ -1054,9 +1054,9 @@ def _bundle_curve_index(
             for key, enabled, relative in (
                 ("spectrum_file", selection.spectra, f"spectra/{spectra.get(curve.id, '')}"),
                 ("wide_file", selection.wide_tables, f"data/{stem}_wide.csv"),
-                ("png_file", selection.main_plot_png, f"figures/{stem}.png"),
-                ("svg_file", selection.main_plot_svg, f"figures/{stem}.svg"),
-                ("pdf_file", selection.pdf_summary, f"report/{stem}.pdf"),
+                ("png_file", selection.main_plot_png, f"figures/png/{stem}.png"),
+                ("svg_file", selection.main_plot_svg, f"figures/svg/{stem}.svg"),
+                ("pdf_file", selection.pdf_summary, f"figures/pdf/{stem}.pdf"),
                 ("model_file", selection.fitmodel, f"models/{stem}.fitmodel"),
             ):
                 row[key] = relative if enabled and (root / relative).is_file() else ""
@@ -1070,113 +1070,215 @@ def _bundle_curve_index(
 
 def _bundle_file_description(relative: str) -> str:
     descriptions = {
-        "fit_results.csv": "One row per current model parameter, with stable curve/component IDs, links, bounds, units and recorded fit errors.",
-        "fit_settings.csv": "Recorded solver and loss settings for the last fit; current dialog edits are excluded.",
-        "function_parameters.csv": "Exact quick-export function-parameter matrix: two header rows; one row per spectrum; unfitted spectra have empty parameter cells.",
-        "index.csv": "Map stable curve and series IDs, names, source paths, labels and units to each spectrum's exported files.",
-        "manifest.json": "Machine-readable inventory, selected export options, delimiter, application version and curve-to-file mapping.",
-        "README.txt": "Contents, data schema, units, mask and model-state interpretation, and Python instructions for this export.",
-        "python/observations.csv": "One row per curve/point: transformed x/y, current model, residual, background, errors, weights, mask and validity flags.",
-        "python/components.csv": "One row per enabled component/point, joined by curve_id and point_index; includes stable component IDs and composition operators.",
-        "python/curves.csv": "Curve/series identities, axis labels and units, source, fit state, original row metadata and transformations.",
-        "python/replot.py": "Standalone pandas/Matplotlib loader and per-spectrum replot script using the exported numeric evaluations; no CurveMole installation needed.",
-        "python/results.json": "Last fit plus per-curve stored fit records and global fit baselines; includes solver settings, statistics, warnings and parameter estimates.",
-        "summary_report.html": "Readable project and parameter summary with last-fit statistics; numeric figures are exported separately per spectrum.",
-        "report/full_reproducibility.html": "Expanded HTML summary with recorded last-fit settings and project metadata.",
-        "report/summary.pdf": "Multi-page vector report with a separate page for every spectrum.",
-        "laboratory_notebook.txt": "Project laboratory notebook, notes and recorded analysis history.",
-        "uncertainty/covariance.csv": "Last-fit covariance matrix with free_parameter_paths on both axes; cross-spectrum terms are retained.",
-        "uncertainty/correlation.csv": "Last-fit correlation matrix with free_parameter_paths on both axes.",
-        "uncertainty/parameter_assessments.csv": "Recorded parameter uncertainty assessments, method, bounds and diagnostics.",
+        "fit_results.csv": "Current parameter values, units, bounds and links, with recorded fit errors. One row per parameter.",
+        "fit_settings.csv": "Solver and loss settings recorded for the last fit.",
+        "function_parameters.csv": "Quick-export parameter table: one row per spectrum, with function and parameter names in two header rows.",
+        "index.csv": "Look up each spectrum's name, source, axis units and exported filenames using its stable ID.",
+        "manifest.json": "Exact file inventory and export settings for software or automated processing.",
+        "README.txt": "This guide to the exported files, their interpretation and use.",
+        "python/observations.csv": "Measured points, current model, residuals, background, errors, weights and exclusion flags. One row per point.",
+        "python/components.csv": "Evaluated values for each enabled model component, with its identity and composition operator.",
+        "python/curves.csv": "Spectrum names, sources, axis labels and units, fit state and applied transformations.",
+        "python/replot.py": "Run this pandas/Matplotlib script to redraw each spectrum from the exported tables, without CurveMole.",
+        "python/results.json": "Stored fit records, including settings, statistics, warnings and parameter estimates, with their scope and timestamps.",
+        "summary_report.html": "Open in a browser to read the project, parameter and last-fit statistics summary.",
+        "report/full_reproducibility.html": "Extended browser report with recorded fit settings and project metadata.",
+        "report/summary.pdf": "Combined PDF report, with one page for each spectrum.",
+        "laboratory_notebook.txt": "Project notes and recorded analysis history.",
+        "uncertainty/covariance.csv": "Last-fit parameter covariance matrix, including relationships across jointly fitted spectra.",
+        "uncertainty/correlation.csv": "Last-fit parameter correlation matrix, labeled by parameter path.",
+        "uncertainty/parameter_assessments.csv": "Recorded uncertainty estimates, methods, bounds and diagnostic information for parameters.",
     }
     if relative in descriptions:
         return descriptions[relative]
-    if "current_view" in relative:
-        return "Matplotlib rendering of the screen view captured when Export was pressed, including its visible traces and view settings."
+    if relative.startswith("figures/") and Path(relative).stem == "current_view":
+        return "Snapshot of the visible plot when Export was pressed, redrawn with Matplotlib using the captured traces and view settings."
     if relative.startswith("spectra/"):
-        return "Exact quick-export spectrum table, retaining the source extension and delimiter; all rows, data, errors, enabled components, current total model and residual."
+        return "Quick-export spectrum tables with data, errors, current model, components and residuals; source extensions and delimiters are retained."
     if relative.startswith("data/"):
-        return "One spectrum in a wide CSV: current transformed data and model evaluations, components, residual, data errors, weights and effective mask."
+        return "One CSV per spectrum, with measured data, current model and components, residuals, errors, weights and exclusion flags in columns."
     if relative.startswith("models/"):
-        return "Reusable model for the spectrum identified in index.csv, including its components and project custom-function definitions."
+        return "One reusable model per spectrum, including its components and custom-function definitions."
     if relative.startswith("function_parameters_covariance/"):
-        return ("Index linking fitted scope, fit/analysis source, uncertainty method, matrix file and sample count."
+        return ("Guide to the covariance files: fitted spectra, fit or analysis source, method, matrix filename and sample count."
                 if relative.endswith("index.csv") else
-                "Labeled fit covariance or selected sample-analysis covariance; independent estimates remain separate, coupled global terms remain together.")
+                "Parameter covariance matrices from fits or selected sample analyses; joint fits retain cross-spectrum relationships.")
     if relative.startswith("figures/") or relative.startswith("report/") and relative.endswith(".pdf"):
-        return "Separate spectrum figure: transformed observations, current model and enabled components, masks, data errors and residual panel."
+        image_format = Path(relative).suffix.lstrip(".").upper()
+        format_note = {
+            "PNG": "PNG images for documents and presentations.",
+            "SVG": "Editable SVG vector images that stay sharp when resized.",
+            "PDF": "Vector PDF figures for printing and sharing.",
+        }.get(image_format, "Spectrum figures.")
+        return f"{format_note} One file per spectrum, with data, current model, components, errors and residuals."
     if relative.startswith("diagnostics/"):
-        return "Residual autocorrelation versus lag from the recorded last-fit output for this curve ID."
+        return "Residual autocorrelation versus lag, one CSV per spectrum covered by the last fit."
     if relative.endswith(".fitproj"):
-        return "Complete reopenable CurveMole project snapshot, including all spectra, models, transformations, masks, links, fit records and selected uncertainty samples."
+        return "Open in CurveMole to resume the analysis: spectra, models, transformations, masks, parameter links, fit records and saved uncertainty samples."
     return "Selected CurveMole export output."
 
 
-def _bundle_readme(project: Project, paths: list[str], delimiter: str) -> str:
-    grouped: dict[str, list[str]] = {}
-    individual = []
-    for relative in paths:
-        directory = relative.split("/", 1)[0]
-        if directory in {"spectra", "data", "models", "figures", "diagnostics", "function_parameters_covariance"}:
-            grouped.setdefault(directory + "/", []).append(relative)
-        elif relative.startswith("report/") and relative.endswith(".pdf") and Path(relative).name not in {"summary.pdf", "current_view.pdf"}:
-            grouped.setdefault("report/<spectrum>.pdf", []).append(relative)
+def _bundle_readme_text(value: str) -> str:
+    """Keep user-controlled names on one line without breaking table columns."""
+    escapes = {"\n": r"\n", "\r": r"\r", "\t": r"\t", "|": r"\u007c"}
+    return "".join(escapes.get(char, char if char.isprintable() else f"\\u{ord(char):04x}")
+                   for char in str(value))
+
+
+def _bundle_readme_inventory(paths: list[str]) -> list[tuple[str, list[tuple[str, str]]]]:
+    """Group repeated per-spectrum files while keeping snapshots and metadata explicit."""
+    categories: dict[str, list[tuple[str, str]]] = {
+        "Figures": [],
+        "Data tables": [],
+        "Fit parameters and uncertainty": [],
+        "Project and Python": [],
+        "Reports and documentation": [],
+    }
+    families: dict[str, list[str]] = {}
+    for relative in sorted(set(paths)):
+        family = None
+        if relative.startswith("figures/"):
+            category = "Figures"
+            if Path(relative).stem != "current_view":
+                family = str(Path(relative).parent.as_posix()) + "/*" + Path(relative).suffix
+        elif relative.startswith(("spectra/", "data/")):
+            category = "Data tables"
+            family = "spectra/*" if relative.startswith("spectra/") else "data/*_wide.csv"
+        elif relative in {"fit_results.csv", "fit_settings.csv", "function_parameters.csv"} or relative.startswith(("function_parameters_covariance/", "uncertainty/", "diagnostics/")):
+            category = "Fit parameters and uncertainty"
+            if relative.startswith("diagnostics/"):
+                family = "diagnostics/*_autocorrelation.csv"
+            elif relative.startswith("function_parameters_covariance/") and not relative.endswith("/index.csv"):
+                family = "function_parameters_covariance/[0-9]*.csv"
+        elif relative.endswith(".fitproj") or relative.startswith(("models/", "python/")) or relative == "index.csv":
+            category = "Project and Python"
+            if relative.startswith("models/"):
+                family = "models/*.fitmodel"
         else:
-            individual.append(relative)
-    inventory = "\n".join([
-        *(f"  {relative}\n    {_bundle_file_description(relative)}" for relative in individual),
-        *(f"  {directory} ({len(files)} files)\n    {_bundle_file_description(files[0])} See index.csv and manifest.json for individual filenames."
-          for directory, files in grouped.items()),
-    ])
-    return (
-        f"CurveMole analysis bundle — {project.name}\n"
-        f"Application version: {__version__}\n"
-        f"Spectra: {len(project.curves)}. CSV delimiter: {delimiter!r}; encoding: UTF-8.\n\n"
-        "START HERE\n"
-        "Open the .fitproj to resume the whole analysis. Use per-spectrum figures for sharing, spectra/ for quick numeric exchange, "
-        "or python/observations.csv with python/replot.py for independent analysis. "
-        "Only selected and available outputs are written. The compact contents list below describes this export; manifest.json contains its exact file inventory.\n\n"
-        "IDENTITIES AND FILES\n"
-        "index.csv and manifest.json map files to curve_id/series_id, display names, source paths, axis labels and units. "
-        "Per-spectrum CSVs, PNGs, SVGs, PDFs and models use a readable name plus a stable ID digest; duplicate names never share files. "
-        "The spectra/ folder uses exactly the Quick export spectra format and its source delimiter/extension (a vendor extension still contains a plain text table). "
-        "The two header rows of function_parameters.csv are function name and parameter/error name; rows follow project spectrum order, which index.csv also records.\n\n"
-        "CURRENT DATA AND RECORDED FITS\n"
-        "Wide tables, observations, component samples and per-spectrum figures evaluate the CURRENT model on the CURRENT transformed observations, including unfitted or modified models. "
-        "model_y and Total fit are model evaluations, not proof of a converged or up-to-date fit. Check curve_state/state in fit_results.csv or index.csv. "
-        "fit_results.csv values are the current resolved model parameters, while its error and confidence columns may retain recorded fit estimates. "
-        "Recorded errors should not be interpreted as uncertainties of an unfitted or modified model. "
-        "Function quick-export values are populated only for spectra in the Fitted state. "
-        "results.json contains the recorded last fit AND fit_by_curve/global_fit_baselines, whose curve IDs and timestamps define their scope. "
-        "The fit settings, HTML fit statistics, uncertainty/covariance.csv, uncertainty/correlation.csv and residual autocorrelation describe the LAST fit only. "
-        "A last fit can cover a subset of the project. Selected per-curve/sample covariance exports live separately in function_parameters_covariance/. "
-        "A .fitmodel contains one spectrum model; use the .fitproj to preserve cross-spectrum relationships and the complete analysis.\n\n"
-        "PYTHON TABLE SCHEMA\n"
-        "python/observations.csv has exactly one row per CURRENT point. Its unique key is (curve_id, point_index), with point_index zero-based in current row order. "
-        "original_row_index is zero-based in the imported data. X values may repeat: never join on x alone. "
-        "x/y are transformed observations; model_y is the current total; residual = y - model_y; background is the current background evaluation. "
-        "Absent errors, weights or model values are empty, not zero. python/curves.csv supplies series/name/source, axis units, transformations and state. "
-        "python/components.csv joins on (curve_id, point_index), with component_id distinguishing duplicate component names. "
-        "Component values are individual function evaluations; follow their composition operators (add/multiply/divide/convolve) rather than summing them blindly. "
-        "Background subtraction is not applied to the exported observations.\n\n"
-        "UNITS, ERRORS AND MASKS\n"
-        "x and sigma_x use x_unit; y, model_y, residual, background, sigma_y and error_y_minus/plus use y_unit. "
-        "Component values carry their curve's axis units as context; multiplicative or divisive factors may have different dimensional meaning according to the model. "
-        "Parameter units are in fit_results.csv; covariance entry (i,j) has parameter-unit(i) times parameter-unit(j), and correlation is dimensionless. "
-        "sigma_y is a standard deviation; error_y_minus/plus are confidence-interval half-widths at curves.csv error_confidence_level, not standard deviations. "
-        "weight follows weights_are_inverse_variance: true means inverse variance; false means a direct residual multiplier. "
-        "masked=true is the CURRENT effective exclusion, combining all masks, nonfinite/invalid observations or Y errors/weights, and fit ranges. "
-        "valid checks current observation/Y-error/weight validity; finite_xy only checks x and y; model_valid checks the current total evaluation. "
-        "All points remain in the tables, including exclusions. masked is not a historical fit-inclusion flag: recorded solver options may have ignored data errors, or masks may have changed since fitting.\n\n"
-        "RELOAD AND REPLOT\n"
-        "Install pandas and matplotlib, then run: python python/replot.py\n"
-        "The script resolves tables relative to itself and writes separate SVG/PNG figures into python/replotted/. "
-        "It uses exported evaluated arrays and therefore does not require CurveMole or rerun a fit. "
-        "Residuals exclude currently masked points; models with multiplication, division or convolution show their total without misleading raw-operand overlays. "
-        "To resume or refit the full analysis, open the .fitproj in CurveMole. "
-        "The legacy tidy_dataframe Python API remains available; the bundle uses observations/components tables to avoid repeated masks, weights and observations as artificial traces.\n\n"
-        "CONTENTS OF THIS EXPORT\n" + inventory + "\n"
-    )
+            category = "Reports and documentation"
+        if family is None:
+            categories[category].append((relative, _bundle_file_description(relative)))
+        else:
+            families.setdefault(family, []).append(relative)
+            if len(families[family]) == 1:
+                categories[category].append((family, _bundle_file_description(relative)))
+
+    output = []
+    for category, rows in categories.items():
+        if not rows:
+            continue
+        expanded = []
+        for name, description in sorted(rows):
+            if name in families:
+                count = len(families[name])
+                name += f" ({count} {'file' if count == 1 else 'files'})"
+            expanded.append((name, description))
+        output.append((category, expanded))
+    return output
+
+
+def _bundle_readme_table(rows: list[tuple[str, str]]) -> str:
+    from textwrap import wrap
+
+    name_width, description_width = 48, 66
+    lines = [f"{'File or folder':<{name_width}} | What it contains",
+             f"{'-' * name_width}-+-{'-' * description_width}"]
+    for name, description in rows:
+        names = wrap(_bundle_readme_text(name), name_width, break_on_hyphens=False) or [""]
+        descriptions = wrap(_bundle_readme_text(description), description_width,
+                            break_on_hyphens=False) or [""]
+        for index in range(max(len(names), len(descriptions))):
+            name_line = names[index] if index < len(names) else ""
+            description_line = descriptions[index] if index < len(descriptions) else ""
+            lines.append(f"{name_line:<{name_width}} | {description_line}")
+    return "\n".join(lines)
+
+
+def _bundle_readme(project: Project, paths: list[str], delimiter: str) -> str:
+    from textwrap import fill
+
+    available = set(paths)
+    lines = [f"CurveMole analysis bundle — {_bundle_readme_text(project.name)}",
+             f"Application version: {__version__}",
+             f"Spectra: {len(project.curves)}. CSV delimiter: {delimiter!r}; encoding: UTF-8.",
+             "", "This folder contains the selected, available outputs of your analysis.",
+             "Only files included in this export are listed below.", "", "Contents of this export", "======================="]
+    for category, rows in _bundle_readme_inventory(paths):
+        lines.extend(("", category, _bundle_readme_table(rows)))
+    if any(path.startswith("figures/") and Path(path).stem == "current_view" for path in paths):
+        lines.extend(("", "Figure groups (*) cover per-spectrum images; current_view files are listed separately."))
+
+    def section(title: str, paragraphs: list[str]) -> None:
+        if paragraphs:
+            lines.extend(("", title, "-" * len(title)))
+            lines.extend(fill(paragraph, width=100, initial_indent="- ", subsequent_indent="  ",
+                              break_long_words=False, break_on_hyphens=False)
+                         for paragraph in paragraphs)
+
+    start = []
+    project_files = sorted(path for path in paths if path.endswith(".fitproj"))
+    if project_files:
+        start.append(f"Open {_bundle_readme_text(project_files[0])} in CurveMole to resume or refit the complete analysis.")
+    figure_formats = [(extension, explanation) for extension, explanation in (
+        ("png", "convenient image sharing"), ("svg", "editable vector graphics"),
+        ("pdf", "individual printable figures"),
+    ) if any(path.startswith(f"figures/{extension}/") for path in paths)]
+    if figure_formats:
+        choices = "; ".join(f"figures/{extension} for {explanation}"
+                            for extension, explanation in figure_formats)
+        start.append(f"Use {choices}. Each format has its own folder.")
+    if "index.csv" in available:
+        start.append("Use index.csv to find the files belonging to a spectrum. Names include a stable ID suffix, so spectra with the same display name still have different files.")
+    if "manifest.json" in available:
+        start.append("manifest.json contains its exact file inventory, export settings and curve-to-file mapping.")
+    if any(path.startswith("spectra/") for path in paths):
+        start.append("spectra/ contains the same tables as Quick export spectra. A vendor extension still contains a plain-text table; its delimiter follows the source file.")
+    if "function_parameters.csv" in available:
+        start.append("function_parameters.csv is the Quick export function parameters table. The first two rows name the function and parameter/error; spectra follow project order. Parameter cells are empty unless the spectrum is in the Fitted state.")
+    section("Using these files", start)
+
+    interpretation = []
+    if any(path.startswith(("data/", "spectra/")) or path == "python/observations.csv"
+           or path.startswith("figures/") and Path(path).stem != "current_view" for path in paths):
+        interpretation.append("Data tables and per-spectrum figures use the CURRENT model and CURRENT transformed observations, even if a model is unfitted or has changed. A model curve is not proof of a converged or up-to-date fit. Background subtraction is not applied to the exported observations.")
+    if "fit_results.csv" in available:
+        interpretation.append("fit_results.csv gives current resolved parameter values. Its error and confidence columns may retain recorded fit estimates; these are not uncertainties of a model changed since fitting. Check curve_state/state for the spectrum's fit status.")
+    recorded = {"fit_settings.csv", "python/results.json", "summary_report.html",
+                "report/full_reproducibility.html", "uncertainty/covariance.csv", "uncertainty/correlation.csv"}
+    if available & recorded or any(path.startswith("diagnostics/") for path in paths):
+        interpretation.append("Recorded settings, fit statistics, covariance/correlation matrices and residual autocorrelation describe the LAST fit. It may cover only part of the project. Stored fit records in results.json, when included, identify their curve IDs, scope and timestamps (fit_by_curve/global_fit_baselines).")
+    if any(path.startswith("function_parameters_covariance/") for path in paths):
+        interpretation.append("function_parameters_covariance/ keeps selected fit or sample-analysis covariance estimates separate. Its index identifies their source and scope; jointly fitted parameters keep their cross-spectrum terms.")
+    if any(path.endswith(".fitmodel") for path in paths):
+        interpretation.append("Each .fitmodel stores one spectrum's model. A complete .fitproj project snapshot is needed to preserve cross-spectrum relationships and resume the whole analysis.")
+    section("Current model and recorded fits", interpretation)
+
+    if "python/observations.csv" in available:
+        section("Understanding the Python tables", [
+            "observations.csv has one row per current point. Join tables using (curve_id, point_index): point_index starts at zero in current row order. original_row_index starts at zero in the imported data. X values can repeat, so never join on x alone.",
+            "x/y are transformed measurements; model_y is the current total model; residual = y - model_y; background is the evaluated background. Missing model values, errors or weights are empty, not zero. curves.csv holds the names, sources, transformations, state and units.",
+            "components.csv uses the same point keys plus component_id to distinguish components with the same name. Values are individual function evaluations: follow add/multiply/divide/convolve operators rather than blindly summing them.",
+        ])
+        section("Units, errors and excluded points", [
+            "x and sigma_x use x_unit. y, model_y, residual, background, sigma_y and error_y_minus/plus use y_unit. Component units provide axis context; multiplication or division factors can have a different dimensional meaning.",
+            "sigma_y is a standard deviation. error_y_minus/plus are confidence-interval half-widths at error_confidence_level in curves.csv. For weight, weights_are_inverse_variance=true means inverse variance; false means a direct residual multiplier.",
+            "masked=true marks a CURRENT exclusion: masks, fit ranges or invalid observations, Y errors or weights. All points stay in the tables. masked is not a historical fit-inclusion flag: masks or solver options may have changed since fitting.",
+            "valid checks observations, Y errors and weights; finite_xy checks only x/y; model_valid checks the current model evaluation. These flags describe different checks and are not interchangeable.",
+        ])
+    if "fit_results.csv" in available or any(path.startswith(("uncertainty/", "function_parameters_covariance/")) for path in paths):
+        unit_notes = []
+        if "fit_results.csv" in available:
+            unit_notes.append("Parameter units are listed in fit_results.csv.")
+        if any(path.startswith(("uncertainty/", "function_parameters_covariance/")) for path in paths):
+            unit_notes.append("Covariance entry (i,j) has parameter-unit(i) times parameter-unit(j). Correlations are dimensionless; matrix labels identify the parameters.")
+        section("Parameter units", unit_notes)
+    if "python/replot.py" in available:
+        section("Redraw the figures in Python", [
+            "Install pandas and matplotlib, then run: python python/replot.py",
+            "The script locates its tables relative to itself and writes PNG images in python/replotted/png/ and SVG images in python/replotted/svg/. It redraws exported values without installing CurveMole or rerunning a fit.",
+            "Replotted residuals exclude currently masked points. Models using multiplication, division or convolution show their total without misleading raw-component overlays.",
+        ])
+    return "\n".join(lines) + "\n"
 
 
 def _replot_script(delimiter: str) -> str:
@@ -1208,7 +1310,8 @@ def replot():
 
     observations, components, curves = load()
     destination = ROOT / "replotted"
-    destination.mkdir(exist_ok=True)
+    for extension in ("svg", "png"):
+        (destination / extension).mkdir(parents=True, exist_ok=True)
     with plt.rc_context({"font.family": "DejaVu Sans", "font.size": 10,
                          "axes.spines.top": False, "axes.spines.right": False,
                          "axes.edgecolor": "#A7B4BC", "axes.labelcolor": "#263D48",
@@ -1244,7 +1347,7 @@ def replot():
             for panel in (axis, residual):
                 panel.grid(axis="y", color="#E6ECEF", lw=.6)
             for extension in ("svg", "png"):
-                figure.savefig(destination / (str(curve.file_stem) + "." + extension), dpi=240)
+                figure.savefig(destination / extension / (str(curve.file_stem) + "." + extension), dpi=240)
             plt.close(figure)
     return destination
 
