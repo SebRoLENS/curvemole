@@ -7,6 +7,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Changed
 
+- Publish CurveMole 1.0.0 as the stable release. Align the manual, Quick Start,
+  README and website with the current application and its stable status.
+  Update notifications identify the available version and classify
+  its first changed number as a bugfix, feature release or major update.
 - Export a complete analysis bundle by default, including the spectra, function
   parameters and current-view figures also available as Quick export commands.
   Add a named destination subfolder and a detailed README while retaining export

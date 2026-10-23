@@ -20,7 +20,7 @@ all_data=[]; summaries=[]
 for key in ['spectrum','oscillation','kinetics']:
     project=Project('CurveMole scientific example: '+key)
     if key=='spectrum':
-        title='Overlapping spectral bands'; xlabel='Raman shift (cm⁻¹)'; ylabel='Intensity (a.u.)'
+        title='Two Gaussians + linear term'; xlabel='x'; ylabel='y'
         x=np.linspace(600,1400,90); sigma=.025+.018*(x-x.min())/np.ptp(x)
         def gauss(x,a,c,s): return a*np.exp(-.5*((x-c)/s)**2)/(s*np.sqrt(2*np.pi))
         truth=.12+.00013*x+gauss(x,110,880,44)+gauss(x,145,1000,65)
@@ -31,14 +31,14 @@ for key in ['spectrum','oscillation','kinetics']:
         formula='Linear background + two area-normalized Gaussian bands'
     else:
         if key=='oscillation':
-            title='Damped oscillatory response'; xlabel='Time (ps)'; ylabel='Response (a.u.)'
+            title='Exponentially damped cosine'; xlabel='x'; ylabel='y'
             x=np.linspace(0,12,85);sigma=.038+.022*x/12
             formula='offset + A*exp(-x/tau)*cos(omega*x + phi)'
             truth=.18+1.25*np.exp(-x/5.2)*np.cos(2.5*x+.3)
             initial={'offset':.15,'A':1.1,'tau':4.5,'omega':2.45,'phi':.2}
             bounds={'A':(0,3),'tau':(.2,20),'omega':(1.8,3.2),'phi':(-3.14,3.14),'offset':(-1,1)}
         else:
-            title='Formation and decay kinetics'; xlabel='Time (s)'; ylabel='Signal (a.u.)'
+            title='Difference of exponentials'; xlabel='x'; ylabel='y'
             x=np.linspace(0,16,75);sigma=.025+.035*x/16
             formula='offset + A*(exp(-k_slow*x) - exp(-k_fast*x))'
             truth=.1+2.4*(np.exp(-.16*x)-np.exp(-1.05*x))

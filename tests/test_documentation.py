@@ -42,7 +42,7 @@ def test_manual_is_detailed_and_matches_package_version() -> None:
         "## 12. Explicit uncertainty analyses",
         "## 15. Command-line interface",
         "## 19. Troubleshooting",
-        f"## Appendix D. Preview {version} limitations",
+        f"## Appendix D. Version {version} limitations",
     ):
         assert heading in text
 
@@ -99,8 +99,11 @@ def test_release_bump_updates_every_manual_version(
     module.update_manual(new_version)
 
     updated = temporary_manual.read_text(encoding="utf-8")
-    assert old_version not in updated
-    assert f"# CurveMole User Manual - Preview {new_version}" in updated
+    assert f"**Current manual version: {new_version}**" in updated
+    assert f"CurveMole {new_version} Stable." in updated
+    assert f"CurveMole-{old_version}-linux-x86_64.AppImage" not in updated
+    assert "version requires CurveMole 0.47.1 or later." in updated
+    assert f"# CurveMole User Manual - {new_version}" in updated
     assert f"releases/tag/v{new_version}" in updated
     assert "[Computer software]. GitHub." in updated
 

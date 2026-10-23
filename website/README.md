@@ -47,14 +47,18 @@ GPL-3.0-or-later license.
 
 ## Application screenshots
 
-The main workspace and Overlay / Waterfall / Fit tabs use the original Raman
-example from scripts/generate_screenshots.py, captured in the actual GUI. Every
-workspace tab uses dark mode. The main screenshot has a matching light/dark pair
-controlled by an accessible comparison slider. website/scripts/render_demo_screenshots.py
-regenerates these four assets when the app or original example changes.
-One additional dark screenshot of the renamed experimental project illustrates
-the complexity of a full workspace. The website has no experimental notebook,
-modelling-notes, uncertainty or trend gallery, and retains only that single experimental screenshot.
+The first application example shows the renamed experimental fluorescence project:
+five pseudo-Voigt bands multiplied by filter transmittance, with residuals and saved
+parameter results visible. It introduces multi-component fitting before display options.
+The numerical-methods overview and downloadable synthetic examples follow it.
+
+Overlay / Waterfall / Fit tabs use the original Raman example from
+scripts/generate_screenshots.py, captured in the actual GUI. Every workspace tab
+uses dark mode. The matching light/dark comparison is a later display-options
+section, after the fitting examples, controlled by an accessible comparison slider.
+website/scripts/render_demo_screenshots.py regenerates these four Raman assets
+when the app or original example changes. The website retains one experimental
+screenshot, without an experimental notebook, uncertainty or trend gallery.
 
 The deployment bundles CITATION.cff, updates the HTML citation and pins download
 links to the verified release tag. It never fetches citation metadata from a newer
@@ -78,3 +82,17 @@ remains removed.
 ## Search engine verification
 
 Google Search Console ownership is verified using `website/dist/google06874d56da4b828b.html`. Keep this file in the published `website/dist/` directory so verification remains valid.
+
+## Customization examples
+
+The customization section uses real GUI captures of composite-model controls,
+the Function Builder with a damped-cosine formula, and the Plugin Manager with
+the bundled TSV exporter discovered but not loaded. Regenerate them with:
+
+```sh
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_customization_screenshots.py
+```
+
+The capture script uses temporary settings, reads the experimental project without
+resaving it, and never loads plugin code. Source paths are displayed relative to
+the repository. Publication regenerates these screenshots from the deployed checkout.

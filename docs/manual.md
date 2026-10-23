@@ -1,16 +1,11 @@
-# CurveMole User Manual - Preview 0.47.1
+# CurveMole User Manual - 0.47.1
 
 **Current manual version: 0.47.1**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.47.1 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.47.1 Stable.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
-
-> **Preview status.** CurveMole 0.47.1 is suitable for evaluation and controlled
-> testing. It has not yet completed the scientific validation planned for version
-> 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
-> results before using a fit in research.
 
 Useful links:
 
@@ -176,9 +171,16 @@ and select the package for your system.
 | macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Drag CurveMole to Applications |
 | macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Drag CurveMole to Applications |
 
-Windows and macOS packages are currently unsigned. The operating system may show a
-warning on first launch. Download only from the official GitHub release page and
-verify the checksum if the application will be used for research.
+> [!CAUTION]
+> **Windows and macOS packages are unsigned.** CurveMole is a nonprofit project;
+> these packages do not use developer-paid signing or notarization. The operating
+> system may require approval on first launch.
+
+Download from the official GitHub release page and verify `SHA256SUMS.txt`.
+On Windows, if SmartScreen displays **Windows protected your PC**, choose
+**More info > Run anyway**. On macOS, drag CurveMole from the DMG to Applications
+and try opening it once. If blocked, open **System Settings > Privacy & Security**,
+choose **Open Anyway**, then **Open**, and authenticate if asked.
 
 ### 3.3 Linux AppImage
 
@@ -298,6 +300,15 @@ release at startup and once per hour while the application remains open. The bad
 An automatic notification is shown only once for each newly detected release. Click
 the badge or choose **Help > Check for updates** to check again, inspect the release
 notes, or reopen the update dialog.
+
+The notification identifies the available version and its release type. For a
+version written as `major.minor.patch`, the first changed number determines the type:
+
+| First changed number | Release type | Example |
+|---|---|---|
+| Patch (third) | Bugfix | `1.0.0` to `1.0.1` |
+| Minor (second) | Feature release | `1.0.1` to `1.1.0` |
+| Major (first) | Major update | `1.1.0` to `2.0.0` |
 
 Linux AppImage and Windows desktop packages can normally use **Update now**.
 CurveMole downloads the matching release asset and verifies the SHA-256 digest supplied
@@ -1188,7 +1199,7 @@ Marked additive backgrounds receive the same global factors and convolutions as 
 full model when their contribution is evaluated.
 
 The same global roles apply to every project, model file and workflow, including
-files saved by earlier previews. There is no separate ordered-composition mode or
+files saved by earlier versions. There is no separate ordered-composition mode or
 first-function restriction. A model previously calculated in insertion order can
 produce a different result with global roles: review its expression in Calculation
 order and refit after opening it.
@@ -1941,9 +1952,9 @@ The main plot shows data, total model, individual component curves, and residual
 The parameter table shows fitted values and standard errors. A curve state changes to
 Fitted only after solver success.
 
-The full numeric result is stored in the project and written to exports. Preview
-0.47.1 does not yet provide a single comprehensive on-screen results table, so use the
-analysis bundle for archival inspection.
+The full numeric result is stored in the project and written to exports. The GUI
+does not provide a single comprehensive on-screen results table; use the analysis
+bundle for archival inspection.
 
 ### 11.2 Reported global statistics
 
@@ -2247,7 +2258,7 @@ considered when interpreting endpoints.
 The default seed is 1729 unless changed through programmatic settings. Resampling
 outputs record configuration and up to the first 100 failure messages. Do not report
 an empirical interval without also reporting how many replicates completed and
-failed. Selecting **Uncertainty intervals, assessments and matrices** in the export
+failed. Selecting **Intervals, assessments and matrices** in the export
 dialog also writes `uncertainty/parameter_assessments.csv` for the recorded analyses,
 including spectrum/function names, parameter paths, fitted values, interval endpoints,
 confidence level, method and reasons. Covariance/correlation matrices remain available
@@ -2370,8 +2381,8 @@ Quit ask whether to save, discard, or cancel when unsaved changes exist.
 
 Choose **File > Export analysis bundle** or press **Ctrl+E**. The complete bundle
 selects every available output type by default, including the outputs offered by
-the **Quick export** commands. Under **What to export?**, clear any output types that
-are not needed. Files that require unavailable results or samples are omitted.
+the **Quick export** commands. Clear any output types that are not needed. Files
+that require unavailable results or samples are omitted.
 The choices are grouped as **Figures**, **Data tables**, **Fit parameters and
 uncertainty**, **Project and Python**, and **Reports and documentation**. All figure
 formats and the current-view figure are together in the first group. The option to
@@ -2393,11 +2404,15 @@ The other save modes remain available:
 Each row represents one parameter of one model component and includes the series,
 curve and curve ID, component and component ID, displayed function and function ID,
 enabled/background state, composition operator, parameter name and full parameter
-path, fitted value, standard error, confidence interval, bounds, fixed/link state,
+path, current resolved value, standard error, confidence interval, bounds, fixed/link state,
 unit, human-readable value with uncertainty, and derived area/FWHM where defined.
 
-This format makes the association between every data curve, the functions used to fit
-it, and the fitted parameters explicit in a single table.
+This format makes the association between every data curve, its model functions,
+and parameter values explicit in a single table.
+
+Values describe the current model. Error and confidence columns can retain recorded
+fit estimates after a model edit; inspect `curve_state` before interpreting them as
+uncertainties of the current values. Refit an edited model to obtain current errors.
 
 ### 14.3 Bundle contents
 
@@ -2431,6 +2446,15 @@ The main files and folders in a complete bundle are:
 | `uncertainty/` | Available uncertainty intervals, assessments, covariance and correlation matrices. |
 | `diagnostics/` | Available residual autocorrelation diagnostics. |
 | `laboratory_notebook.txt` | Laboratory notebook entries as UTF-8 text. |
+
+The numeric data and per-spectrum figures evaluate the current models against the
+current transformed observations, including models that have not been fitted or
+have changed since fitting. Their presence does not imply a converged fit. Recorded
+fit settings, statistics, covariance/correlation matrices, and residual diagnostics
+describe the last recorded fit and can cover only part of the project. Keep the
+project copy and inspect recorded curve IDs, timestamps, and fit state when comparing
+these outputs. The current-view figure additionally follows the display choices
+described in Section 14.10.
 
 Directories such as `data/`, `python/`, `figures/`, `report/`, `uncertainty/`, and
 `diagnostics/` are created only when a selected output actually writes a file there.
@@ -2483,7 +2507,9 @@ separate tables:
   and `point_index`. It includes x, measured y, the available fit, residual and
   background, uncertainty or weight fields, and mask/validity flags.
 - `python/components.csv` stores evaluated model components with the same curve and
-  point keys and a component identifier.
+  point keys and a component identifier. These are individual function evaluations;
+  multiply, divide, or convolve roles must be respected rather than assuming every
+  component is additive.
 - `python/curves.csv` supplies the series/curve names, axis labels and units needed
   to interpret each curve without repeating them on every sample row.
 - `python/replot.py` reads these tables and creates a figure for each curve. Run it
@@ -2495,6 +2521,12 @@ different observations can share the same x coordinate. Rows retain masked and
 invalid observations so their original positions remain traceable. Residuals use
 the data-minus-fit convention. A mask flag is metadata on a sample, rather than a
 separate numeric quantity to plot. This replaces the earlier `data_tidy.csv` table.
+
+`point_index` starts at zero in current row order; `original_row_index` identifies
+the imported row. `masked` describes current exclusions, including invalid points,
+and does not reconstruct which points were included in a historical fit. `valid`,
+`finite_xy`, and `model_valid` record distinct checks of observations/errors/weights,
+finite coordinates, and model evaluations respectively.
 
 `python/results.json` records schema version, application version, result metadata,
 parameters, statistics, warnings, and settings without duplicating large numeric
@@ -2516,7 +2548,8 @@ project record.
   restrained legends. Every spectrum has its own file in each selected format;
   formats are kept in separate subfolders.
 - `models/*.fitmodel` stores each curve's model and custom formulas for
-  programmatic reuse.
+  programmatic reuse. Preserve the complete `.fitproj` when cross-spectrum
+  relationships or the complete analysis must be restored.
 - `.fitproj` is a complete portable project snapshot.
 
 The exported report PDF is an analysis summary, not the CurveMole software manual.
@@ -2861,11 +2894,11 @@ result = Fitter().fit(
 )
 ```
 
-### 17.6 API compatibility during Preview
+### 17.6 API compatibility and reproducibility
 
-The package root is intentionally smaller and more stable than internal modules, but
-version 0.x may still introduce incompatible changes. Pin the exact CurveMole version
-in automated research workflows and record it with results.
+Use the documented package-root API for reusable scripts; internal modules are
+implementation details and may evolve. Pin the exact CurveMole version in automated
+research workflows and record it with results, together with dependency versions.
 
 ## 18. Function Builder and plugins
 
@@ -3133,9 +3166,9 @@ https://github.com/SebRoLENS/curvemole/issues
 
 ### 19.3 Windows SmartScreen or macOS Gatekeeper warns
 
-The Preview executables are not yet commercially signed or notarized. Confirm that
-the file came from the official release, verify its SHA-256 checksum, and use the
-operating system's documented override only if you accept the risk.
+Windows and macOS executables are unsigned because CurveMole is a nonprofit project
+and signing requires developer-paid certification. Confirm the official release
+source and SHA-256 checksum, then follow the first-launch procedure in Section 3.2.
 
 ### 19.4 Import produces one column
 
@@ -3383,11 +3416,10 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.47.1 limitations
+## Appendix D. Version 0.47.1 limitations
 
-The following boundaries are important when evaluating this release:
+The following boundaries apply to this release:
 
-- scientific validation toward 1.0.0 is still in progress;
 - local optimizers include nonlinear least squares, Nelder-Mead, Powell, and L-BFGS-B;
   none guarantees the global optimum for an arbitrary nonlinear model;
 - `sigma_x` is stored but not used in optimization;
@@ -3395,14 +3427,13 @@ The following boundaries are important when evaluating this release:
   references inserted through the source picker and **Add**;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
-- Windows and macOS packages may be unsigned; Linux release provenance is available
+- Windows and macOS packages are unsigned; Linux release provenance is available
   through GitHub artifact attestation;
 - the interface and manual are currently maintained in English;
-- plugin API and other 0.x APIs may change before 1.0.0.
+- executable plugins run with the user's permissions; they are not sandboxed.
 
-These limitations are stated so that testing can focus on genuine behavior rather
-than inferred promises. Report unclear workflows and reproducible defects through
-the issue tracker.
+Inspect fit quality and uncertainty for each analysis as described in Section 1.4.
+Report unclear workflows and reproducible defects through the issue tracker.
 
 ## Appendix E. Building this manual
 

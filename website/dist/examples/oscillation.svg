@@ -210,7 +210,7 @@ L 628.56 50.066855
      </g>
     </g>
     <g id="text_6">
-     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="36.137812" y="153.423085" transform="rotate(-90 36.137812 153.423085)">Response (a.u.)</text>
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="36.137812" y="153.423085" transform="rotate(-90 36.137812 153.423085)">y</text>
     </g>
    </g>
    <g id="patch_3">
@@ -667,7 +667,7 @@ L -2 -0
     <text style="font-size: 10px; font-family: 'DejaVu Sans'; text-anchor: end; fill: #9bf3cd" x="622.9872" y="34.770953" transform="rotate(-0 622.9872 34.770953)">N = 85   ·   χ²ᵣ = 0.89</text>
    </g>
    <g id="text_8">
-    <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #edf3f4" x="71.28" y="28.56" transform="rotate(-0 71.28 28.56)">Damped oscillatory response</text>
+    <text style="font-size: 15px; font-family: 'DejaVu Sans'; text-anchor: start; fill: #edf3f4" x="71.28" y="28.56" transform="rotate(-0 71.28 28.56)">Exponentially damped cosine</text>
    </g>
    <g id="line2d_27">
     <defs>
@@ -1166,7 +1166,7 @@ L 603.229091 281.896312
      </g>
     </g>
     <g id="text_18">
-     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="349.92" y="376.548594" transform="rotate(-0 349.92 376.548594)">Time (ps)</text>
+     <text style="font-size: 11px; font-family: 'DejaVu Sans'; text-anchor: middle; fill: #b8c8d6" x="349.92" y="376.548594" transform="rotate(-0 349.92 376.548594)">x</text>
     </g>
    </g>
    <g id="matplotlib.axis_4">
