@@ -85,6 +85,12 @@ remains removed.
 
 Google Search Console ownership is verified using `website/dist/google06874d56da4b828b.html`. Keep this file in the published `website/dist/` directory so verification remains valid.
 
+The home page identifies CurveMole in its title and main heading, with the software
+downloads as its primary action. Keep its canonical URL set to
+`https://sebrolens.github.io/curvemole/`, and use that same official website URL
+in the repository’s About section, README and archival records. Download links
+point to GitHub releases; Zenodo links identify archived versions for citation.
+
 ## Customization examples
 
 The customization section uses real GUI captures of composite-model controls,

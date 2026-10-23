@@ -56,7 +56,10 @@ def test_release_notes_lead_with_signing_alert_and_first_launch_steps(
 
     body = assets.notes("0.47.1", True, signing)
 
-    assert body.startswith("> [!CAUTION]\n> **" + title + "**\n")
+    assert body.startswith("**Official website:** [CurveMole](https://sebrolens.github.io/curvemole/)")
+    assert "[Windows, macOS and Linux](https://github.com/owner/example/releases/latest)" in body
+    assert body.index("Download the latest version") < body.index("> [!CAUTION]")
+    assert "> [!CAUTION]\n> **" + title + "**\n" in body
     assert "nonprofit project" in body and "developer-paid signing/certification costs" in body
     assert (body.index("> [!CAUTION]") < body.index("**First launch after an official download**")
             < body.index("More info → Run anyway") < body.index("## CurveMole v0.47.1")
@@ -81,7 +84,8 @@ def test_doi_update_preserves_release_installation_notice(tmp_path, monkeypatch)
 
     updated = doi_workflow.updated_body(body, "10.5281/zenodo.1234567")
 
-    assert updated.startswith(assets.installation_notice({"arm64": False, "x86_64": False}))
+    assert updated.startswith("**Official website:** [CurveMole](https://sebrolens.github.io/curvemole/)")
+    assert assets.installation_notice({"arm64": False, "x86_64": False}) in updated
     assert updated == body.replace("**Zenodo DOI:** pending archival or repository integration.",
                                    "**Zenodo DOI:** https://doi.org/10.5281/zenodo.1234567")
 
@@ -297,6 +301,10 @@ def test_finalization_uploads_complete_assets_before_publishing(repository, monk
             assert "Useful correction — α." in note
             assert "More info → Run anyway" in note
             assert "unsigned" in note and "checksums have been verified" in note
+            assert note.startswith("**Official website:** [CurveMole](https://sebrolens.github.io/curvemole/)")
+            assert "[Windows, macOS and Linux](https://github.com/owner/example/releases/latest)" in note
+            assert note.index("Download the latest version") < note.index("> [!CAUTION]")
+            assert "/releases/download/v0.35.4/CurveMole-0.35.4-windows-x86_64-setup.exe" in note
             commands.append("publish")
             return subprocess.CompletedProcess(command, 0)
         return real_run(command, **kwargs)

@@ -114,3 +114,41 @@ without creating a new software version.
 
 No Zenodo token is stored in this repository. The synchronisation uses only the
 public records API and requests no more than 25 records per page.
+
+### Official website and downloads in archived records
+
+`CITATION.cff` is the single source for software metadata used by the GitHub–Zenodo
+integration. Its `abstract` starts with the official website and latest-download
+URLs, followed by a software description and the purpose of the archived release.
+Its `url` always points to the official website; the separate `version` and `doi`
+fields continue to identify the exact release. Release preparation and DOI
+synchronisation preserve these links. GitHub release notes also begin with links
+to the website and latest downloads, followed by installation instructions and
+downloads pinned to that release.
+
+Do not add `.zenodo.json` merely to repeat this description: Zenodo would ignore
+the entire `CITATION.cff` when both files are present. See
+[Zenodo's supported CFF fields](https://help.zenodo.org/docs/github/describe-software/citation-file/).
+The revised metadata is picked up when a future GitHub release is archived; it
+does not update records that have already been published.
+
+For an existing record, sign into its owning Zenodo account, choose **Edit** from
+the record or **My dashboard → My uploads**, and prepend these links to the
+description, keeping the release's existing description below them:
+
+```html
+<p><strong>Official website:</strong>
+<a href="https://sebrolens.github.io/curvemole/">CurveMole</a><br>
+<strong>Download the latest version:</strong>
+<a href="https://github.com/SebRoLENS/curvemole/releases/latest">Windows, macOS and Linux downloads</a></p>
+```
+
+Choose **Publish** to make the metadata correction visible. This preserves the
+record's DOI and files; do not create a new version for a description correction.
+See [Zenodo's instructions for editing published records](https://help.zenodo.org/docs/deposit/manage-records/#edit-published-records).
+For many records, the authenticated
+[Zenodo deposition API](https://developers.zenodo.org/#deposition-actions) supports
+an edit, metadata update and publish cycle for each owned deposition. Any bulk
+update must retain every record's version, DOI, files and other metadata, change
+only the description prefix, and be idempotent. It requires the owner's Zenodo
+credentials; the public DOI synchronisation workflow cannot perform these edits.

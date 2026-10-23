@@ -240,12 +240,8 @@ def update_citation(version: str) -> None:
         text,
         flags=re.M,
     )
-    text = re.sub(
-        r'^url:\s*.*$',
-        f'url: "https://github.com/SebRoLENS/curvemole/releases/tag/v{version}"',
-        text,
-        flags=re.M,
-    )
+    # Keep the official project URL and description across release bumps. The
+    # version field (and, after archival, doi) identifies the citable release.
     CITATION.write_text(text, encoding="utf-8")
 
 

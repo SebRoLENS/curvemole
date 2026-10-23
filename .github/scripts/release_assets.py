@@ -120,7 +120,12 @@ def notes(version: str, ready: bool, signing: dict | None = None) -> str:
         signing_note = ("\n\nApple Developer ID signing and notarization are unavailable for "
                         + ", ".join(unsigned) + "; these macOS downloads are unsigned." if unsigned else
                         "\n\nBoth macOS downloads are signed with Apple Developer ID and notarized.")
-    return (installation_notice(signing) + "\n"
+    links = (
+        "**Official website:** [CurveMole](https://sebrolens.github.io/curvemole/)\n\n"
+        "**Download the latest version:** "
+        f"[Windows, macOS and Linux](https://github.com/{repository}/releases/latest)\n\n"
+    )
+    return (links + installation_notice(signing) + "\n"
             + f"## CurveMole v{version}\n\n{changes}\n\n{status}{signing_note}\n\n{table}\n\n"
             "**Zenodo DOI:** pending archival or repository integration.\n")
 

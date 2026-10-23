@@ -1,6 +1,20 @@
 cff-version: 1.2.0
 message: "If you use CurveMole in scientific work, please cite the exact release used."
 title: "CurveMole: Modular Scientific Curve Fitting"
+abstract: |-
+  Official website: https://sebrolens.github.io/curvemole/
+  Download the latest version: https://github.com/SebRoLENS/curvemole/releases/latest
+
+  CurveMole is free, open-source desktop software for scientific curve fitting
+  and data analysis on Windows, macOS and Linux. It supports nonlinear and
+  global fitting, custom models, parameter constraints and uncertainty analysis.
+  This Zenodo record preserves a specific release for citation and reproducibility.
+keywords:
+  - scientific curve fitting
+  - nonlinear fitting
+  - global fitting
+  - data analysis
+  - desktop software
 type: software
 version: "1.0.0"
 date-released: 2026-10-23
@@ -11,5 +25,5 @@ authors:
     email: romi@lens.unifi.it
 repository-code: "https://github.com/SebRoLENS/curvemole"
 doi: "10.5281/zenodo.23592060"
-url: "https://doi.org/10.5281/zenodo.23592060"
+url: "https://sebrolens.github.io/curvemole/"
 license: GPL-3.0-or-later

@@ -4,7 +4,7 @@
 
 <h1 align="center">CurveMole</h1>
 
-<p align="center"><strong><a href="https://sebrolens.github.io/curvemole/">Official CurveMole Website</a></strong></p>
+<p align="center"><strong><a href="https://sebrolens.github.io/curvemole/">Official CurveMole website</a> · <a href="https://github.com/SebRoLENS/curvemole/releases/latest">Download the latest release</a> · <a href="docs/manual.md">User manual</a></strong><br>Desktop downloads for Linux, Windows and macOS.</p>
 
 <p align="center">
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" alt="Version"></a>

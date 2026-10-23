@@ -151,7 +151,7 @@ DOI: [**{doi}**]({doi_url})
     cff = CITATION.read_text(encoding="utf-8")
     cff = re.sub(r"^doi:\s*.*\n", "", cff, flags=re.M)
     cff = re.sub(r'^version:\s*.*$', f'version: "{version}"', cff, flags=re.M)
-    cff = re.sub(r'^url:\s*.*$', f'url: "{doi_url}"', cff, flags=re.M)
+    # The DOI identifies the archived release; url remains the official website.
     lines = cff.splitlines()
     repository_index = next(
         (index + 1 for index, line in enumerate(lines) if line.startswith("repository-code:")),
