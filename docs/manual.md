@@ -1,16 +1,11 @@
-# CurveMole User Manual - Preview 0.47.1
+# CurveMole User Manual - 0.47.1
 
 **Current manual version: 0.47.1**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. This manual describes the behavior of CurveMole 0.47.1 Preview.
+scientific curves. This manual describes the behavior of CurveMole 0.47.1 Stable.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
-
-> **Preview status.** CurveMole 0.47.1 is suitable for evaluation and controlled
-> testing. It has not yet completed the scientific validation planned for version
-> 1.0.0. Inspect the residuals, parameter correlations, constraints, and exported
-> results before using a fit in research.
 
 Useful links:
 
@@ -176,9 +171,16 @@ and select the package for your system.
 | macOS Apple Silicon | `CurveMole-VERSION-macos-arm64.dmg` | Drag CurveMole to Applications |
 | macOS Intel | `CurveMole-VERSION-macos-x86_64.dmg` | Drag CurveMole to Applications |
 
-Windows and macOS packages are currently unsigned. The operating system may show a
-warning on first launch. Download only from the official GitHub release page and
-verify the checksum if the application will be used for research.
+> [!CAUTION]
+> **Windows and macOS packages are unsigned.** CurveMole is a nonprofit project;
+> these packages do not use developer-paid signing or notarization. The operating
+> system may require approval on first launch.
+
+Download from the official GitHub release page and verify `SHA256SUMS.txt`.
+On Windows, if SmartScreen displays **Windows protected your PC**, choose
+**More info > Run anyway**. On macOS, drag CurveMole from the DMG to Applications
+and try opening it once. If blocked, open **System Settings > Privacy & Security**,
+choose **Open Anyway**, then **Open**, and authenticate if asked.
 
 ### 3.3 Linux AppImage
 
@@ -299,6 +301,15 @@ An automatic notification is shown only once for each newly detected release. Cl
 the badge or choose **Help > Check for updates** to check again, inspect the release
 notes, or reopen the update dialog.
 
+The notification identifies the available version and its release type. For a
+version written as `major.minor.patch`, the first changed number determines the type:
+
+| First changed number | Release type | Example |
+|---|---|---|
+| Patch (third) | Bugfix | `1.0.0` to `1.0.1` |
+| Minor (second) | Feature release | `1.0.1` to `1.1.0` |
+| Major (first) | Major update | `1.1.0` to `2.0.0` |
+
 Linux AppImage and Windows desktop packages can normally use **Update now**.
 CurveMole downloads the matching release asset and verifies the SHA-256 digest supplied
 by GitHub. Linux replaces the AppImage, Windows portable installations update from the
@@ -394,12 +405,14 @@ is available. Open
 Save the complete workspace with **File > Save project as**. Use a `.fitproj`
 extension.
 
-Then choose **File > Export analysis bundle**. Select a destination and choose both
-how to save and **What to export?**. The default selection writes only
-`fit_results.csv`, which associates every curve with its model functions and lists
-each parameter together with its fitted value and standard error. Data tables, plots,
-reports, JSON, reusable models, project copies, uncertainty matrices, and diagnostics
-are optional.
+Then choose **File > Export analysis bundle**. All available output types are
+selected by default, and the dialog can create a named subfolder to keep the complete
+export together. The bundle includes numeric spectra, function parameters, figures,
+reports, Python analysis tables, reusable models, a project copy, and a README that
+describes the saved files. Clear individual output choices when a smaller bundle is
+needed. The **File** menu also offers clearly labelled **Quick export** commands for
+spectra, function parameters, and a Matplotlib figure of the current plot view;
+these focused exports are also included in the complete bundle.
 
 ## 5. Main window and controls
 
@@ -1186,7 +1199,7 @@ Marked additive backgrounds receive the same global factors and convolutions as 
 full model when their contribution is evaluated.
 
 The same global roles apply to every project, model file and workflow, including
-files saved by earlier previews. There is no separate ordered-composition mode or
+files saved by earlier versions. There is no separate ordered-composition mode or
 first-function restriction. A model previously calculated in insertion order can
 produce a different result with global roles: review its expression in Calculation
 order and refit after opening it.
@@ -1939,9 +1952,9 @@ The main plot shows data, total model, individual component curves, and residual
 The parameter table shows fitted values and standard errors. A curve state changes to
 Fitted only after solver success.
 
-The full numeric result is stored in the project and written to exports. Preview
-0.47.1 does not yet provide a single comprehensive on-screen results table, so use the
-analysis bundle for archival inspection.
+The full numeric result is stored in the project and written to exports. The GUI
+does not provide a single comprehensive on-screen results table; use the analysis
+bundle for archival inspection.
 
 ### 11.2 Reported global statistics
 
@@ -2147,7 +2160,7 @@ to the earlier fitted value, given in the tooltip, and are not uncertainties of
 the current parameter values. Refit and rerun the analysis to obtain current
 intervals. Current-parameter CSV errors exclude outdated analyses; the uncertainty
 report retains the historical results and their assessment.
-In **File > Export functions parameters**, **Also export covariance matrices**
+In **File > Quick export: function parameters**, **Also export covariance matrices**
 is off by default. When selected, a sibling `*_covariance` folder contains an
 `index.csv` and labelled matrices: the fit covariance and, separately, sample
 covariance for the selected bootstrap or Monte Carlo analysis when raw samples
@@ -2245,7 +2258,7 @@ considered when interpreting endpoints.
 The default seed is 1729 unless changed through programmatic settings. Resampling
 outputs record configuration and up to the first 100 failure messages. Do not report
 an empirical interval without also reporting how many replicates completed and
-failed. Selecting **Uncertainty intervals, assessments and matrices** in the export
+failed. Selecting **Intervals, assessments and matrices** in the export
 dialog also writes `uncertainty/parameter_assessments.csv` for the recorded analyses,
 including spectrum/function names, parameter paths, fitted values, interval endpoints,
 confidence level, method and reasons. Covariance/correlation matrices remain available
@@ -2366,61 +2379,94 @@ Quit ask whether to save, discard, or cancel when unsaved changes exist.
 
 ### 14.1 Starting an export
 
-Choose **File > Export analysis bundle** or press **Ctrl+E**. Export mode and export
-content are independent.
+Choose **File > Export analysis bundle** or press **Ctrl+E**. The complete bundle
+selects every available output type by default, including the outputs offered by
+the **Quick export** commands. Clear any output types that are not needed. Files
+that require unavailable results or samples are omitted.
+The choices are grouped as **Figures**, **Data tables**, **Fit parameters and
+uncertainty**, **Project and Python**, and **Reports and documentation**. All figure
+formats and the current-view figure are together in the first group. The option to
+include full uncertainty samples is beside the project-copy option.
 
-The existing save modes remain:
+Select a parent directory and use the named-subfolder option to put the export in
+its own folder. This option is enabled by default; the folder name can be edited.
+The other save modes remain available:
 
-- leave both mode checkboxes clear to create a new export in the selected directory;
+- export directly into the selected directory by disabling the subfolder option;
 - **Create versioned export** to create a timestamped subdirectory;
 - **Update existing CurveMole-owned files after confirmation** to update files that
   CurveMole can verify as belonging to the current project export.
 
-Under **What to export?**, select the desired outputs. Only **Fit results** is checked
-by default.
+### 14.2 Detailed fit-results file
 
-### 14.2 Default fit-results file
-
-The default export creates only `fit_results.csv`. No additional visible file and no
-empty subdirectory is created.
+`fit_results.csv` associates each spectrum with its model functions and parameters.
 
 Each row represents one parameter of one model component and includes the series,
 curve and curve ID, component and component ID, displayed function and function ID,
 enabled/background state, composition operator, parameter name and full parameter
-path, fitted value, standard error, confidence interval, bounds, fixed/link state,
+path, current resolved value, standard error, confidence interval, bounds, fixed/link state,
 unit, human-readable value with uncertainty, and derived area/FWHM where defined.
 
-This format makes the association between every data curve, the functions used to fit
-it, and the fitted parameters explicit in a single table.
+This format makes the association between every data curve, its model functions,
+and parameter values explicit in a single table.
 
-### 14.3 Optional outputs
+Values describe the current model. Error and confidence columns can retain recorded
+fit estimates after a model edit; inspect `curve_state` before interpreting them as
+uncertainties of the current values. Refit an edited model to obtain current errors.
 
-The dialog can additionally export:
+### 14.3 Bundle contents
 
-- data plus fitted-function wide CSV tables;
-- a tidy CSV table for Python;
-- machine-readable fit results as JSON;
-- a reusable `.fitmodel`;
-- a `.fitproj` project copy, optionally including full uncertainty samples;
-- the main plot as PNG and/or SVG;
-- compact HTML and PDF summaries;
-- a full reproducibility HTML report;
-- the laboratory notebook as UTF-8 text;
-- all recorded settings for the last fit as CSV;
-- covariance and correlation matrices when available;
-- residual autocorrelation diagnostics when available;
-- an export README.
+The exported `README.txt` starts with a table of saved files and folders, explaining
+what each contains and when it is useful. Short sections then explain how to read
+the data, interpret fit results, and regenerate the plots in Python. The table
+describes only selected outputs that were actually written.
+
+The main files and folders in a complete bundle are:
+
+| File or folder | Contents and purpose |
+| --- | --- |
+| `README.txt` | Start here for a readable guide to this export and the meaning of its data. |
+| `index.csv` | Matches spectra, names, IDs and source files to their exported files. |
+| `manifest.json` | Exact file inventory and export metadata for scripts or archival checks. |
+| `spectra/` | One numeric spectrum file per curve, including the available fit and component traces; the same output as the spectra quick export. |
+| `data/` | Wide CSV tables of measured data and evaluated model functions. |
+| `fit_results.csv` | Detailed parameter values, errors, constraints and fit state. |
+| `function_parameters.csv` | Wide function-parameter table, as offered by the parameter quick export. |
+| `function_parameters_covariance/` | Available labelled covariance matrices for the parameter export. |
+| `figures/png/` | One PNG image per spectrum and the current-view image when selected. |
+| `figures/svg/` | The corresponding vector SVG figures. |
+| `figures/pdf/` | The corresponding individual PDF figures. |
+| `summary_report.html` | Compact readable project and parameter summary. |
+| `report/summary.pdf` | One summary page per spectrum in a single PDF. |
+| `report/full_reproducibility.html` | Full reproducibility report, including recorded fit settings and project metadata. |
+| `python/` | Sample data, component and curve-metadata tables, JSON fit results and a script to regenerate per-spectrum figures. |
+| `models/` | A reusable `.fitmodel` for each curve's model. |
+| `<project>.fitproj` | Portable project snapshot, optionally including full uncertainty samples. |
+| `fit_settings.csv` | All recorded settings for the last fit. |
+| `uncertainty/` | Available uncertainty intervals, assessments, covariance and correlation matrices. |
+| `diagnostics/` | Available residual autocorrelation diagnostics. |
+| `laboratory_notebook.txt` | Laboratory notebook entries as UTF-8 text. |
+
+The numeric data and per-spectrum figures evaluate the current models against the
+current transformed observations, including models that have not been fitted or
+have changed since fitting. Their presence does not imply a converged fit. Recorded
+fit settings, statistics, covariance/correlation matrices, and residual diagnostics
+describe the last recorded fit and can cover only part of the project. Keep the
+project copy and inspect recorded curve IDs, timestamps, and fit state when comparing
+these outputs. The current-view figure additionally follows the display choices
+described in Section 14.10.
 
 Directories such as `data/`, `python/`, `figures/`, `report/`, `uncertainty/`, and
 `diagnostics/` are created only when a selected output actually writes a file there.
 An option whose required fit result is unavailable does not create an empty folder.
+`index.csv` maps curve IDs and names to their exported files. When the README is
+selected, `manifest.json` also records the file inventory in machine-readable form.
 
 ### 14.4 Safe overwrite policy
 
 New exports store their ownership list in the project export configuration rather
-than creating a hidden sidecar file. This allows the default export to contain truly
-only `fit_results.csv`. Existing `.curvemole-export.json` manifests from older
-versions are still read for backwards-compatible updates.
+than creating a hidden sidecar file. Existing `.curvemole-export.json` manifests from
+older versions are still read for backwards-compatible updates.
 
 When **Update existing** is selected, CurveMole refuses to overwrite a colliding file
 unless it can verify that the file belongs to the current project export. Unrelated
@@ -2443,7 +2489,7 @@ Rows remain aligned with the complete curve, including masked and invalid entrie
 
 ### 14.5.1 Exporting optimizer and loss settings
 
-**Last fit: all solver/loss settings (CSV)** writes `fit_settings.csv`, containing
+**Recorded last-fit settings (CSV)** writes `fit_settings.csv`, containing
 all recorded `FitSettings` fields, including advanced solver parameters, loss and
 `f_scale`. Each row includes the fit timestamp, mode and curve IDs. It describes the
 selected last fit result, not unsaved edits in the Fit dialog; fields for inactive
@@ -2452,30 +2498,68 @@ fit result. `fit_results.csv` separately contains all model parameter values, bo
 links and available errors. The JSON result includes the same optimizer settings;
 the full reproducibility HTML report also shows them as a table.
 
-### 14.6 Tidy data and JSON
+### 14.6 Python analysis tables and JSON
 
-`python/data_tidy.csv` stores one quantity per row with series, curve, component, x,
-value, mask, and validity fields. `python/results.json` records schema version,
-application version, result metadata, parameters, statistics, warnings, and settings
-without duplicating large numeric arrays.
+The Python export keeps sample data, component evaluations, and curve metadata in
+separate tables:
+
+- `python/observations.csv` has one row per sampled point, identified by `curve_id`
+  and `point_index`. It includes x, measured y, the available fit, residual and
+  background, uncertainty or weight fields, and mask/validity flags.
+- `python/components.csv` stores evaluated model components with the same curve and
+  point keys and a component identifier. These are individual function evaluations;
+  multiply, divide, or convolve roles must be respected rather than assuming every
+  component is additive.
+- `python/curves.csv` supplies the series/curve names, axis labels and units needed
+  to interpret each curve without repeating them on every sample row.
+- `python/replot.py` reads these tables and creates a figure for each curve. Run it
+  with Python and the dependencies described in the exported README. It writes PNG
+  figures to `python/replotted/png/` and SVG figures to `python/replotted/svg/`.
+
+Join samples and components using `curve_id` and `point_index`, not x alone:
+different observations can share the same x coordinate. Rows retain masked and
+invalid observations so their original positions remain traceable. Residuals use
+the data-minus-fit convention. A mask flag is metadata on a sample, rather than a
+separate numeric quantity to plot. This replaces the earlier `data_tidy.csv` table.
+
+`point_index` starts at zero in current row order; `original_row_index` identifies
+the imported row. `masked` describes current exclusions, including invalid points,
+and does not reconstruct which points were included in a historical fit. `valid`,
+`finite_xy`, and `model_valid` record distinct checks of observations/errors/weights,
+finite coordinates, and model evaluations respectively.
+
+`python/results.json` records schema version, application version, result metadata,
+parameters, statistics, warnings, and settings without duplicating large numeric
+arrays. Its `result` describes the selected last fit, which may cover only a subset
+of the project curves; `fit_by_curve` and `global_fit_baselines` retain the other
+recorded fit baselines. These describe recorded fits, while `observations.csv`
+contains evaluations of the current models. The `.fitproj` copy retains the full
+project record.
 
 ### 14.7 Reports and reusable files
 
 - `summary_report.html` is a compact human-readable report.
 - `report/full_reproducibility.html` includes project metadata.
-- `report/summary.pdf` contains a summary plot and statistics.
-- `.fitmodel` stores the first project model and custom formulas for programmatic
-  reuse.
+- `report/summary.pdf` contains one page per curve. Each page identifies that curve
+  and displays its data, available fit/components, and residuals. Curves with
+  different axes or units are kept on separate pages.
+- Individual curve figures are saved in `figures/png/`, `figures/svg/`, and
+  `figures/pdf/`, using a consistent Matplotlib style with readable labels and
+  restrained legends. Every spectrum has its own file in each selected format;
+  formats are kept in separate subfolders.
+- `models/*.fitmodel` stores each curve's model and custom formulas for
+  programmatic reuse. Preserve the complete `.fitproj` when cross-spectrum
+  relationships or the complete analysis must be restored.
 - `.fitproj` is a complete portable project snapshot.
 
 The exported report PDF is an analysis summary, not the CurveMole software manual.
 
-### 14.8 Exporting one numeric file per spectrum
+### 14.8 Quick export: one numeric file per spectrum
 
-Choose **File > Export spectra and fit curves...** or press **Ctrl+Shift+E** when the
-result should be immediately replottable as one multi-column table per spectrum. This
-is separate from the structured analysis bundle. Choose any project spectra and any
-of these options:
+Choose **File > Quick export: spectra and fit curves** or press **Ctrl+Shift+E** when
+the result should be immediately replottable as one multi-column table per spectrum.
+The complete analysis bundle includes these numeric spectrum exports too. The quick
+export dialog lets you choose any project spectra and any of these options:
 
 - export the measured spectrum with its fitted background subtracted;
 - omit masked rows;
@@ -2491,17 +2575,29 @@ tab-delimited. Headers describe axis labels, units, functions, background state,
 fit, and residuals, and never contain whitespace so they remain safe for whitespace
 parsers. An unknown original extension is preserved.
 
-### 14.9 Exporting function parameters
+### 14.9 Quick export: function parameters
 
-**File > Export functions parameters…** writes a wide CSV table with one row per
-project spectrum and two header rows identifying functions and parameters.
+**File > Quick export: function parameters** writes a wide CSV table
+with one row per project spectrum and two header rows identifying functions and
+parameters. The complete bundle saves this table as `function_parameters.csv`.
 Each parameter has value and fit-error columns; functions with the same displayed
 name align across spectra, with duplicate names disambiguated. Spectra that are
 not currently Fitted retain their row but have blank numeric cells. Saved
 selected-analysis errors are added as separate minus/plus columns, together with
-the method. This is a focused numeric export; use the analysis bundle for
-the full constraints and reproducibility record. **Also export covariance matrices**
-optionally writes the labelled sibling matrices described in Section 12.
+the method. **Also export covariance matrices** optionally writes the labelled
+sibling matrices described in Section 12. The complete bundle includes available
+parameter covariance exports alongside its full constraints and reproducibility
+record.
+
+### 14.10 Quick export: current plot view
+
+Use **File > Quick export: current view with Matplotlib** to save the plot displayed
+when the command is invoked as a styled SVG, PDF, or PNG figure. It uses the visible
+curves and the current plot arrangement, axis scales and displayed ranges, rather
+than combining every curve in the project. This is useful for saving a chosen
+overlay or a zoomed view. The complete bundle includes the current-view export as
+`current_view.png`, `current_view.svg`, and `current_view.pdf` in their respective
+`figures/` format subfolders, alongside the separate figures for every curve.
 
 ## 15. Command-line interface
 
@@ -2798,11 +2894,11 @@ result = Fitter().fit(
 )
 ```
 
-### 17.6 API compatibility during Preview
+### 17.6 API compatibility and reproducibility
 
-The package root is intentionally smaller and more stable than internal modules, but
-version 0.x may still introduce incompatible changes. Pin the exact CurveMole version
-in automated research workflows and record it with results.
+Use the documented package-root API for reusable scripts; internal modules are
+implementation details and may evolve. Pin the exact CurveMole version in automated
+research workflows and record it with results, together with dependency versions.
 
 ## 18. Function Builder and plugins
 
@@ -3070,9 +3166,9 @@ https://github.com/SebRoLENS/curvemole/issues
 
 ### 19.3 Windows SmartScreen or macOS Gatekeeper warns
 
-The Preview executables are not yet commercially signed or notarized. Confirm that
-the file came from the official release, verify its SHA-256 checksum, and use the
-operating system's documented override only if you accept the risk.
+Windows and macOS executables are unsigned because CurveMole is a nonprofit project
+and signing requires developer-paid certification. Confirm the official release
+source and SHA-256 checksum, then follow the first-launch procedure in Section 3.2.
 
 ### 19.4 Import produces one column
 
@@ -3320,11 +3416,10 @@ Shortcuts use the platform's standard key sequence where applicable.
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Preview 0.47.1 limitations
+## Appendix D. Version 0.47.1 limitations
 
-The following boundaries are important when evaluating this release:
+The following boundaries apply to this release:
 
-- scientific validation toward 1.0.0 is still in progress;
 - local optimizers include nonlinear least squares, Nelder-Mead, Powell, and L-BFGS-B;
   none guarantees the global optimum for an arbitrary nonlinear model;
 - `sigma_x` is stored but not used in optimization;
@@ -3332,14 +3427,13 @@ The following boundaries are important when evaluating this release:
   references inserted through the source picker and **Add**;
 - fit ranges exist in the core model but do not yet have a complete graphical editor;
 - the GUI does not yet provide one consolidated table for every fit statistic;
-- Windows and macOS packages may be unsigned; Linux release provenance is available
+- Windows and macOS packages are unsigned; Linux release provenance is available
   through GitHub artifact attestation;
 - the interface and manual are currently maintained in English;
-- plugin API and other 0.x APIs may change before 1.0.0.
+- executable plugins run with the user's permissions; they are not sandboxed.
 
-These limitations are stated so that testing can focus on genuine behavior rather
-than inferred promises. Report unclear workflows and reproducible defects through
-the issue tracker.
+Inspect fit quality and uncertainty for each analysis as described in Section 1.4.
+Report unclear workflows and reproducible defects through the issue tracker.
 
 ## Appendix E. Building this manual
 

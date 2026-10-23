@@ -47,7 +47,7 @@ def test_reordered_exports_follow_display_names_and_keep_numeric_fit(tmp_path, o
     model = project.model_for(curve.id)
     before_export = model.to_dict()
     root = tmp_path / "bundle"
-    export_bundle(project, root, selection=BundleExportSelection(wide_tables=True, tidy_table=True))
+    export_bundle(project, root, selection=BundleExportSelection.none(fit_results=True, wide_tables=True, tidy_table=True))
 
     results = pd.read_csv(root / "fit_results.csv")
     assert results["component_id"].drop_duplicates().tolist() == expected_ids
@@ -55,14 +55,14 @@ def test_reordered_exports_follow_display_names_and_keep_numeric_fit(tmp_path, o
     centers = results.loc[results["parameter"] == "center"]
     np.testing.assert_allclose(centers["value"], [0, 1, 2])
     np.testing.assert_allclose(centers["standard_error"], .01)
-    wide = pd.read_csv(root / "data" / "spectrum_wide.csv")
+    wide = pd.read_csv(next((root / "data").glob("*_wide.csv")))
     headers = [f"Component | {name} | gaussian" for name in expected_names]
     assert [column for column in wide if column.startswith("Component | ")] == headers
     np.testing.assert_allclose(wide["Total fit"], total)
     for header, component_id in zip(headers, expected_ids, strict=True):
         np.testing.assert_allclose(wide[header], arrays[component_id], atol=1e-15)
-    tidy = pd.read_csv(root / "python" / "data_tidy.csv")
-    assert tidy.loc[tidy["quantity"] == "component", "component"].drop_duplicates().tolist() == expected_names
+    tidy = pd.read_csv(root / "python" / "components.csv")
+    assert tidy["component"].drop_duplicates().tolist() == expected_names
 
     matrix_path = export_function_parameters(project, tmp_path / "parameters.csv")
     with matrix_path.open(encoding="utf-8-sig", newline="") as stream:
@@ -100,9 +100,9 @@ def test_export_keeps_reordered_custom_names_and_skips_disabled_traces(tmp_path)
     project.models[curve.id] = model
     reorder_component_names(model, default_registry(), {})
     root = tmp_path / "bundle"
-    export_bundle(project, root, selection=BundleExportSelection(wide_tables=True))
+    export_bundle(project, root, selection=BundleExportSelection.none(fit_results=True, wide_tables=True))
     results = pd.read_csv(root / "fit_results.csv")
     assert results["component"].drop_duplicates().tolist() == ["Left peak", "Hidden peak", "Right peak"]
-    wide = pd.read_csv(root / "data" / "custom_wide.csv")
+    wide = pd.read_csv(next((root / "data").glob("*_wide.csv")))
     assert [column for column in wide if column.startswith("Component | ")] == [
         "Component | Left peak | gaussian", "Component | Right peak | gaussian"]

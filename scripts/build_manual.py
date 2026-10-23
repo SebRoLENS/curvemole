@@ -22,7 +22,7 @@ LOGO = Path("src/curvemole/resources/curvemole.png")
 
 SEMVER = r"\d+\.\d+\.\d+"
 PACKAGE_VERSION_RE = re.compile(rf'^__version__\s*=\s*"({SEMVER})"', re.MULTILINE)
-TITLE_RE = re.compile(rf"^# CurveMole User Manual - Preview ({SEMVER})$", re.MULTILINE)
+TITLE_RE = re.compile(rf"^# CurveMole User Manual - ({SEMVER})$", re.MULTILINE)
 MANUAL_VERSION_RE = re.compile(
     rf"^\*\*Current manual version: ({SEMVER})\*\*$", re.MULTILINE
 )
@@ -102,6 +102,12 @@ def prepare_pandoc_source(text: str) -> str:
             continue
         if not in_fence and re.match(r"^#{2,6}\s", line):
             line = line[1:]
+        if not in_fence:
+            line = re.sub(
+                r"^> \[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$",
+                lambda match: "> **" + match[1].capitalize() + "**",
+                line,
+            )
         promoted.append(line)
     return "\n".join(promoted).rstrip() + "\n"
 
@@ -176,7 +182,7 @@ def build(source: Path, tex_output: Path, pdf_output: Path) -> None:
                 "--resource-path=" + os.pathsep.join((str(ROOT), str(source.parent))),
                 "--include-in-header=" + str(prepared_header),
                 "--metadata=title:CurveMole User Manual",
-                f"--metadata=subtitle:Preview {version}",
+                f"--metadata=subtitle:Version {version}",
                 "--metadata=author:Sebastiano Romi",
                 f"--metadata=date:Updated for CurveMole {version}",
                 "--metadata=toc-title:Contents",

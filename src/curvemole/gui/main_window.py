@@ -1021,8 +1021,11 @@ class MainWindow(QMainWindow):
         self.export_action = QAction(self.tr("Export analysis bundle…"), self)
         self.export_action.setShortcut("Ctrl+E")
         self.export_action.triggered.connect(self.export_analysis)
-        self.export_parameters_action = QAction(self.tr("Export functions parameters…"), self)
+        self.export_parameters_action = QAction(self.tr("Quick export: function parameters…"), self)
         self.export_parameters_action.triggered.connect(self.export_parameters)
+        self.export_view_action = QAction(self.tr("Quick export: current view with Matplotlib…"), self)
+        self.export_view_action.triggered.connect(self.export_current_view)
+        self.export_view_action.setToolTip(self.tr("Save the visible curves, offsets, background display, log scales and zoom as PNG, SVG or PDF."))
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
         self.notebook_action.setCheckable(True)
@@ -1179,6 +1182,7 @@ class MainWindow(QMainWindow):
         file_menu.addActions([self.save_action, self.save_as_action, self.portable_action])
         file_menu.addAction(self.export_action)
         file_menu.addAction(self.export_parameters_action)
+        file_menu.addAction(self.export_view_action)
         file_menu.addAction(self.notebook_action)
         file_menu.addAction(self.recovery_action)
         file_menu.addAction(self.plugins_action)
@@ -1661,8 +1665,14 @@ class MainWindow(QMainWindow):
                 self.refresh_all()
 
     def export_analysis(self) -> None:
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the current task to finish before exporting."), warning=True)
+            return
+        self.plot_workspace.point_editor.finish()
+        from curvemole.gui.current_view_export import capture_plot_snapshot
+        snapshot = capture_plot_snapshot(self.plot_workspace) if self.project.curves else None
         remembered = self.project.export_config.get("directory")
-        with transient_widget(ExportBundleDialog(remembered, self)) as dialog:
+        with transient_widget(ExportBundleDialog(remembered, self, project_name=self.project.name)) as dialog:
             if dialog.exec() != dialog.DialogCode.Accepted:
                 return
             overwrite = dialog.overwrite.isChecked()
@@ -1681,8 +1691,9 @@ class MainWindow(QMainWindow):
                 result = self._last_fit_result()
                 summary = export_bundle(
                     self.project,
-                    dialog.directory.text(),
+                    dialog.destination(),
                     result=result,
+                    current_view=snapshot,
                     versioned=dialog.versioned.isChecked(),
                     overwrite=overwrite,
                     include_uncertainty_samples=dialog.full_samples.isChecked(),
@@ -1695,6 +1706,32 @@ class MainWindow(QMainWindow):
                 )
             except Exception as exc:
                 self._show_error(self.tr("Export analysis"), exc)
+
+    def export_current_view(self) -> None:
+        from curvemole.core.figure_export import export_plot_snapshot
+        from curvemole.gui.current_view_export import capture_plot_snapshot
+
+        self.plot_workspace.point_editor.finish()
+        snapshot = capture_plot_snapshot(self.plot_workspace) if self.project.curves else None
+        if snapshot is None or not snapshot.traces:
+            self._notify(self.tr("There are no visible curves to export."), warning=True)
+            return
+        suggested = (self.project.path.parent if self.project.path else Path.cwd()) / "current_view.svg"
+        selected, selected_filter = QFileDialog.getSaveFileName(
+            self, self.tr("Quick export: current view with Matplotlib"), str(suggested),
+            self.tr("SVG figure (*.svg);;PDF figure (*.pdf);;PNG image (*.png)"),
+        )
+        if not selected:
+            return
+        destination = Path(selected)
+        if destination.suffix.lower() not in {".svg", ".pdf", ".png"}:
+            suffix = ".pdf" if "*.pdf" in selected_filter else (".png" if "*.png" in selected_filter else ".svg")
+            destination = destination.with_suffix(suffix)
+        try:
+            export_plot_snapshot(snapshot, destination)
+            self._notify(self.tr("Current view exported: ") + str(destination))
+        except Exception as exc:
+            self._show_error(self.tr("Export current view"), exc)
 
     def export_parameters(self) -> None:
         if not self.project.curves:

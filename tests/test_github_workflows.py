@@ -41,6 +41,51 @@ def test_one_plan_avoids_duplicate_and_unrelated_jobs(paths, event, message, exp
     assert {key for key, enabled in result.items() if enabled} == expected
 
 
+@pytest.mark.parametrize("signing,title,macos_instructions", [
+    (None, "Windows and macOS downloads are unsigned.", True),
+    ({"arm64": False, "x86_64": False}, "Windows and macOS downloads are unsigned.", True),
+    ({"arm64": True, "x86_64": False}, "Windows and the macOS Intel download are unsigned.", True),
+    ({"arm64": True, "x86_64": True}, "Windows downloads are unsigned.", False),
+])
+def test_release_notes_lead_with_signing_alert_and_first_launch_steps(
+    tmp_path, monkeypatch, signing, title, macos_instructions,
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    (tmp_path / "CHANGELOG.md").write_text("## [0.47.1] - 2026-10-22\n\nUseful changes.\n")
+
+    body = assets.notes("0.47.1", True, signing)
+
+    assert body.startswith("> [!CAUTION]\n> **" + title + "**\n")
+    assert "nonprofit project" in body and "developer-paid signing/certification costs" in body
+    assert (body.index("> [!CAUTION]") < body.index("**First launch after an official download**")
+            < body.index("More info → Run anyway") < body.index("## CurveMole v0.47.1")
+            < body.index("| Platform | Recommended download |"))
+    assert "official release page that you trust" in body and "`SHA256SUMS.txt`" in body
+    assert ("System Settings → Privacy & Security" in body) == macos_instructions
+    if macos_instructions:
+        assert "**Open Anyway**, then **Open**, and authenticate if asked" in body
+    else:
+        assert "Both macOS downloads are signed with Apple Developer ID and notarized." in body
+    assert "Useful changes." in body
+    assert "**Zenodo DOI:** pending archival or repository integration." in body
+
+
+def test_doi_update_preserves_release_installation_notice(tmp_path, monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / ".github/scripts"))
+    doi_workflow = load("doi_workflow")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    (tmp_path / "CHANGELOG.md").write_text("## [0.47.1] - 2026-10-22\n\nUseful changes.\n")
+    body = assets.notes("0.47.1", True, {"arm64": False, "x86_64": False})
+
+    updated = doi_workflow.updated_body(body, "10.5281/zenodo.1234567")
+
+    assert updated.startswith(assets.installation_notice({"arm64": False, "x86_64": False}))
+    assert updated == body.replace("**Zenodo DOI:** pending archival or repository integration.",
+                                   "**Zenodo DOI:** https://doi.org/10.5281/zenodo.1234567")
+
+
 def git(cwd, *args):
     return subprocess.check_output(["git", "-C", str(cwd), *args], text=True).strip()
 
@@ -206,6 +251,16 @@ def test_finalization_uses_current_tools_with_original_tagged_source():
 
 
 def test_finalization_uploads_complete_assets_before_publishing(repository, monkeypatch):
+    # Exercise the Windows legacy locale on every platform. Release notes contain
+    # Unicode installation arrows and may include non-ASCII changelog entries.
+    original_open = Path.open
+
+    def windows_open(path, mode="r", buffering=-1, encoding=None, errors=None, newline=None):
+        if "b" not in mode and encoding in (None, "locale"):
+            encoding = "cp1252"
+        return original_open(path, mode, buffering, encoding, errors, newline)
+
+    monkeypatch.setattr(Path, "open", windows_open)
     directory = repository / "release-assets"
     directory.mkdir()
     version = "0.35.4"
@@ -214,7 +269,10 @@ def test_finalization_uploads_complete_assets_before_publishing(repository, monk
             (directory / name).write_bytes(name.encode())
     for arch in ("arm64", "x86_64"):
         (directory / f"macos-signing-{arch}.json").write_text(json.dumps({"signed": False}))
-    (repository / "CHANGELOG.md").write_text("## [0.35.4] - 2026-10-02\n\n### Fixed\n\n- Useful correction.\n")
+    (repository / "CHANGELOG.md").write_text(
+        "## [0.35.4] - 2026-10-02\n\n### Fixed\n\n- Useful correction — α.\n",
+        encoding="utf-8",
+    )
     current = fixture_release(version, {p.name: assets.digest(p) for p in directory.iterdir()
                                        if "AppImage" in p.name})
     monkeypatch.setattr(assets, "release", lambda tag: current)
@@ -233,8 +291,12 @@ def test_finalization_uploads_complete_assets_before_publishing(repository, monk
         if command[:3] == ["gh", "release", "edit"]:
             assert commands == ["upload"]
             assert "--draft=false" in command
-            note = Path("release-notes.md").read_text()
-            assert "Useful correction" in note and "unsigned" in note and "checksums have been verified" in note
+            assert "--prerelease=false" in command
+            assert "--latest" in command
+            note = Path("release-notes.md").read_text(encoding="utf-8")
+            assert "Useful correction — α." in note
+            assert "More info → Run anyway" in note
+            assert "unsigned" in note and "checksums have been verified" in note
             commands.append("publish")
             return subprocess.CompletedProcess(command, 0)
         return real_run(command, **kwargs)

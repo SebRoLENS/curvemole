@@ -24,8 +24,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **0.47.1 Preview**. The scientific core and desktop workflow
-> are usable, but this is not yet the validated 1.0 Stable release.
+> **Status:** Version **0.47.1 Stable**.
 
 **AI-assisted development:** CurveMole is developed with extensive use of AI tools,
 under human direction. The software undergoes extensive hands-on human testing,
@@ -50,12 +49,17 @@ the operating system, so they can be opened by double-clicking or with **Open wi
 CurveMole**. Linux AppImage users can choose **Tools > Integrate CurveMole with the
 desktop**; an existing manual launcher is adopted and backed up instead of duplicated.
 
-> **Windows and macOS security notice**
+> [!CAUTION]
+> **Windows and macOS downloads are unsigned.**
 >
-> Windows and macOS packages may be unsigned. Windows SmartScreen or macOS Gatekeeper
-> can show a warning when a package lacks a recognised signature or notarization.
-> A warning caused by a missing signature is not, by itself, evidence that malware was detected.
-> Download CurveMole only from the official release page and verify `SHA256SUMS.txt`.
+> CurveMole is a nonprofit project. To avoid developer-paid signing/certification costs, these packages are unsigned. Windows SmartScreen or macOS Gatekeeper may ask you to approve the app.
+
+**First launch after an official download**
+
+Only approve a download from this repository's official release page that you trust; verify `SHA256SUMS.txt`.
+
+- **Windows:** Open the installer or extracted app. If SmartScreen shows 'Windows protected your PC', choose **More info → Run anyway**.
+- **macOS (unsigned downloads):** Open the DMG, drag CurveMole to Applications, and try opening it once. If blocked, open **System Settings → Privacy & Security**, choose **Open Anyway**, then **Open**, and authenticate if asked.
 
 The Linux AppImage is cryptographically signed using the free, open-source Sigstore
 infrastructure through GitHub Actions. Every release includes a detached
@@ -71,6 +75,9 @@ and hourly. **Help > Check for updates** checks again. Linux AppImage and Window
 installed/portable packages support **Update now**, with SHA-256 verification of the
 matching download; save your project before restarting. macOS, Python and source
 installations are updated manually from the release page or their source checkout.
+Update notifications show the available version and its release type: **bugfix**
+when the patch number changes, **feature release** when the minor number changes,
+or **major update** when the major number changes.
 
 ## Custom plugins: install or share yours
 
@@ -195,8 +202,15 @@ to releases.
   Undo/Redo for fits and model edits, and recovery after an abnormal exit
 - a **Laboratory notebook** for project notes and descriptions of series, spectra,
   and functions, saved in the project and exportable as TXT
-- human-friendly Wide exports, Python-friendly Tidy exports, and one-file-per-spectrum
-  numeric export of data, components, total fit, background, and residuals
+- a complete **Export analysis bundle** in its own named folder, with a readable
+  file guide, numeric spectra, parameters, uncertainty, reports, reusable models,
+  and a portable project copy; related export choices are grouped together
+- styled Matplotlib figures saved separately for every spectrum, with PNG, SVG,
+  and PDF in their own subfolders, plus a combined PDF report
+- **Quick export** commands for numeric spectra, function parameters, and the
+  current plot view, also available in the complete bundle
+- wide CSV tables for direct inspection, plus keyed Python observation, component,
+  and curve-metadata tables with a ready-to-run `replot.py` script
 - a separate **Run automation** button with a remembered YAML workflow
 - Python API, CLI, YAML workflows, custom formulas, and trusted additive plugins
 - **File > Plugin Manager** for catalog browsing, persistent loading, selected updates,

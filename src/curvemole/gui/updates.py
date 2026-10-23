@@ -261,17 +261,16 @@ class UpdateController(QObject):
 
     def _badge_tooltip(self, latest: str, kind: str) -> str:
         if kind == "patch":
-            detail = self.window.tr("bug-fix update")
+            detail = self.window.tr("bugfix")
         elif kind == "minor":
-            detail = self.window.tr("feature update")
+            detail = self.window.tr("feature release")
         else:
             detail = self.window.tr("major update")
-        return (
-            self.window.tr("Installed: ")
-            + __version__
-            + self.window.tr(" · Latest: ")
-            + latest
-            + f" ({detail})"
+        return self.window.tr(
+            "CurveMole {version} is available ({kind})."
+        ).format(
+            version=latest,
+            kind=detail,
         )
 
     def _badge_clicked(self) -> None:
@@ -360,46 +359,19 @@ class UpdateController(QObject):
         latest: str,
         kind: str,
     ) -> None:
-        if kind == "patch":
-            description = self.window.tr(
-                "A bug-fix update is available (x.x.y)."
-            )
-        elif kind == "minor":
-            description = self.window.tr(
-                "A feature update is available (x.y.x)."
-            )
-        else:
-            description = self.window.tr(
-                "WARNING: the major version has changed (y.x.x). Review compatibility and release notes before updating."
-            )
-
         asset = self._release_asset(payload)
-        message = (
-            self.window.tr("CurveMole ")
-            + latest
-            + self.window.tr(" is available. ")
-            + description
-            + "\n\n"
-            + self.window.tr("Updating is recommended.")
-        )
-        if asset is None:
-            message += "\n\n" + self.window.tr(
-                "Automatic replacement is not available for this installation. Use the release page instead."
-            )
-
         with transient_widget(QMessageBox(secondary_window_parent(self.window))) as box:
-            box.setIcon(
-                QMessageBox.Icon.Warning if kind == "major" else QMessageBox.Icon.Information
-            )
+            box.setIcon(QMessageBox.Icon.Information)
             box.setWindowTitle(self.window.tr("CurveMole update available"))
-            box.setText(message)
+            box.setText(self._badge_tooltip(latest, kind))
             update_button = None
             if asset is not None:
                 update_button = box.addButton(
                     self.window.tr("Update now"), QMessageBox.ButtonRole.AcceptRole
                 )
             release_button = box.addButton(
-                self.window.tr("Release notes"), QMessageBox.ButtonRole.ActionRole
+                self.window.tr("Download page") if asset is None else self.window.tr("Release notes"),
+                QMessageBox.ButtonRole.ActionRole,
             )
             box.addButton(self.window.tr("Later"), QMessageBox.ButtonRole.RejectRole)
             box.exec()

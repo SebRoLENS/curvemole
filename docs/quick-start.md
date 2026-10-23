@@ -82,7 +82,7 @@ There are two distinct workflows:
   background values from the curve and disables those functions to avoid counting
   them twice. This changes the data supplied to subsequent fits and normal exports.
 
-For this Quick Start, use the second workflow and subtract the spline. If the result
+For this Quick Start, use **Data > Subtract background** to subtract the spline. If the result
 is unsatisfactory, press **Ctrl+Z** immediately or choose **Data → Revert
 background...** later. The imported original data remain retained.
 
@@ -227,14 +227,31 @@ list and its current names while preserving the mathematical fit.
 Residuals appear under the curve. Open **View → Diagnostics** for interpretable
 warnings and **Fit → Uncertainty Analysis** for explicit resampling.
 
-Choose **File → Export analysis bundle**. Root files are intended for quick use in
-Origin/QtiPlot and human inspection; `python/` contains Tidy data and versioned JSON.
-The first export records its directory. Later updates overwrite only files owned by
-the CurveMole export manifest and only after confirmation.
+Choose **File → Export analysis bundle**. Every output type is selected by default,
+including the outputs available as quick exports; clear any that you do not need.
+Related choices are grouped together, with all figure choices in **Figures**. Choose
+a parent directory and edit the proposed bundle-folder name to keep the analysis
+together in its own folder.
 
-For directly replottable numeric tables, choose **File → Export spectra and fit
-curves**. CurveMole writes one file per selected spectrum and can include the measured
-data, individual functions, combined background, total fit, and residuals.
+Start with the exported `README.txt`: its contents tables explain the saved files
+and folders. Numeric spectra are in `spectra/`; wide CSV tables for Origin/QtiPlot
+are in `data/`. PNG, SVG, and PDF figures each have a separate folder under
+`figures/`, with one file per spectrum. `report/summary.pdf` combines one page per
+spectrum. The `python/` folder contains keyed observations, components and curve
+metadata, recorded-fit JSON, and `replot.py` to regenerate the figures.
+
+For focused output, use **File → Quick export: spectra and fit curves**, **Quick
+export: function parameters**, or **Quick export: current view with Matplotlib**.
+The spectra command writes one numeric file per chosen spectrum, with optional
+individual functions, background, total fit, and residuals. The current-view command
+saves the visible curves and current zoom/display arrangement as PNG, SVG, or PDF.
+
+Numeric data and individual figures use the current transformed observations and
+current model; recorded statistics and uncertainty describe saved fits. Check fit
+state after edits and refit when current uncertainties are needed. Later bundle
+updates replace only verified CurveMole-owned files after confirmation; unrelated
+files are preserved. See the [manual's export guide](manual.md#14-exporting-an-analysis-bundle)
+for formats, settings and safe updates.
 
 Save the complete workspace as `.fitproj`. Original values, masks, transformations,
 models, custom functions, results, and history are embedded without pickle.

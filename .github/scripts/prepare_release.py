@@ -27,10 +27,10 @@ MANUAL_VERSION_RE = re.compile(
     r"^\*\*Current manual version:\s*\d+\.\d+\.\d+\*\*$", re.M
 )
 MANUAL_TITLE_RE = re.compile(
-    r"^# CurveMole User Manual (?:-|–|—) Preview (\d+\.\d+\.\d+)$", re.M
+    r"^# CurveMole User Manual (?:-|–|—) (?:(?:Preview|Stable) )?(\d+\.\d+\.\d+)$", re.M
 )
 STATUS_RE = re.compile(
-    r"> \*\*Status:\*\* Version \*\*\d+\.\d+\.\d+ Preview\*\*\."
+    r"> \*\*Status:\*\* Version \*\*\d+\.\d+\.\d+(?: (?:Preview|Stable))?\*\*\."
 )
 PUBLIC_VERSION_RE = re.compile(
     r"^Current public version: \*\*\d+\.\d+\.\d+\*\*$", re.M
@@ -153,7 +153,7 @@ def update_readme(version: str) -> None:
     text = README.read_text(encoding="utf-8")
     text = pending_badges(text)
     text, status_count = STATUS_RE.subn(
-        f"> **Status:** Version **{version} Preview**.", text, count=1
+        f"> **Status:** Version **{version} Stable**.", text, count=1
     )
     text, public_count = PUBLIC_VERSION_RE.subn(
         f"Current public version: **{version}**", text, count=1
@@ -183,7 +183,27 @@ def update_manual(version: str) -> None:
         raise SystemExit("Could not find the manual title version")
     previous_version = title_match.group(1)
     if previous_version != version:
-        text = text.replace(previous_version, version)
+        # Only current-release metadata and download examples advance here.
+        # Historical compatibility requirements and semantic-version examples
+        # may deliberately mention the same number and must remain accurate.
+        previous = re.escape(previous_version)
+        for pattern in (
+            rf"(This manual describes the behavior of CurveMole ){previous}\b",
+            rf"((?:CurveMole|curvemole)-){previous}(?=[-.])",
+            rf"(version ){previous}(?= optimizer\b)",
+        ):
+            text = re.sub(pattern, lambda match: match[1] + version, text)
+        text = re.sub(
+            rf"a manual marked {previous} describes CurveMole {previous}\.",
+            f"a manual marked {version} describes CurveMole {version}.",
+            text,
+        )
+        text = re.sub(
+            rf"^## Appendix D\. (?:Preview |Version )?{previous} limitations$",
+            f"## Appendix D. Version {version} limitations",
+            text,
+            flags=re.M,
+        )
         citation = f"""### 20.3 Citation
 
 If CurveMole contributes to published work, cite the exact version used. The release
@@ -198,7 +218,7 @@ The repository provides **Cite this repository** from `CITATION.cff`.
 """
         text = replace_section(text, "### 20.3 Citation", "### 20.4 Author and contact", citation)
     text = MANUAL_TITLE_RE.sub(
-        f"# CurveMole User Manual - Preview {version}",
+        f"# CurveMole User Manual - {version}",
         text,
         count=1,
     )

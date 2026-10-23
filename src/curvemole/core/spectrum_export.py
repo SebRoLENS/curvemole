@@ -93,13 +93,20 @@ def spectrum_export_dataframe(
         columns["Background"] = background
 
     if options.include_components and model is not None:
+        component_headers: set[str] = set()
         for component in model.display_components:
             if not component.enabled or component.id not in components:
                 continue
             parts = ["Component", component.name, component.function_id]
             if component.is_background:
                 parts.append("background")
-            columns[_header_token(*parts)] = components[component.id]
+            header = _header_token(*parts)
+            # Name/function pairs are display labels, not unique identities.
+            # Retain every trace when users give two components the same name.
+            if header in component_headers:
+                header = _header_token(header, component.id)
+            component_headers.add(header)
+            columns[header] = components[component.id]
 
     if total is not None and options.include_total_fit:
         displayed_total = total - background if options.subtract_background else total

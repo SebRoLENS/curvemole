@@ -77,7 +77,7 @@ def test_descriptions_follow_identity_moves_renames_deletions_and_restoration(tm
 def test_notebook_export_is_selectable_without_fit_and_respects_ownership(tmp_path):
     project, _, _, _ = annotated_project()
     direct = export_notebook(project, tmp_path / "direct.txt")
-    selection = BundleExportSelection(fit_results=False, laboratory_notebook=True)
+    selection = BundleExportSelection.none(laboratory_notebook=True)
     root = tmp_path / "bundle"
     summary = export_bundle(project, root, selection=selection)
     assert [path.name for path in summary.created] == ["laboratory_notebook.txt"]

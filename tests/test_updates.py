@@ -10,6 +10,7 @@ import pytest
 
 from curvemole.gui.updates import (
     ReleaseAsset,
+    UpdateController,
     asset_suffix,
     asset_suffixes,
     semantic_version,
@@ -32,6 +33,68 @@ def test_semantic_version_and_update_kind() -> None:
     assert update_kind(current, (0, 8, 6)) == "patch"
     assert update_kind(current, (0, 9, 0)) == "minor"
     assert update_kind(current, (1, 0, 0)) == "major"
+
+
+@pytest.mark.parametrize(
+    ("current", "latest", "expected"),
+    [
+        ((1, 0, 0), (1, 0, 1), "patch"),
+        ((1, 0, 0), (1, 0, 12), "patch"),
+        ((1, 0, 9), (1, 1, 0), "minor"),
+        ((1, 1, 9), (1, 8, 3), "minor"),
+        ((0, 47, 1), (1, 0, 0), "major"),
+        ((1, 9, 9), (3, 2, 1), "major"),
+    ],
+)
+def test_update_kind_uses_highest_changed_component(current, latest, expected) -> None:
+    assert update_kind(current, latest) == expected
+
+
+@pytest.mark.parametrize(
+    ("latest", "kind", "label"),
+    [
+        ("1.0.1", "patch", "bugfix"),
+        ("1.1.0", "minor", "feature release"),
+        ("2.0.0", "major", "major update"),
+    ],
+)
+@pytest.mark.parametrize("has_asset", [True, False])
+def test_available_update_only_describes_version_and_kind(
+    monkeypatch, latest, kind, label, has_asset
+) -> None:
+    from PySide6.QtGui import QAction
+    from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox
+
+    app = QApplication.instance() or QApplication([])
+    window = QMainWindow()
+    window.update_action = QAction(window)
+    window.update_action.triggered.connect(lambda: None)
+    controller = UpdateController(window)
+    asset = ReleaseAsset("CurveMole.AppImage", "https://example.invalid/app")
+    monkeypatch.setattr(
+        controller, "_release_asset", lambda payload: asset if has_asset else None
+    )
+    shown = []
+
+    def inspect_dialog(box):
+        shown.append((box.text(), box.icon(), {button.text() for button in box.buttons()}))
+        return 0
+
+    monkeypatch.setattr(QMessageBox, "exec", inspect_dialog)
+    controller._show_update_available({}, latest, kind)
+
+    expected_text = f"CurveMole {latest} is available ({label})."
+    expected_buttons = (
+        {"Update now", "Release notes", "Later"}
+        if has_asset
+        else {"Download page", "Later"}
+    )
+    assert shown == [(expected_text, QMessageBox.Icon.Information, expected_buttons)]
+    assert controller._badge_tooltip(latest, kind) == expected_text
+    controller.timer.stop()
+    window.close()
+    window.deleteLater()
+    app.processEvents()
 
 
 def test_automatic_notification_is_once_per_release() -> None:

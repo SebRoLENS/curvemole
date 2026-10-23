@@ -119,3 +119,15 @@ def test_unknown_source_extension_is_preserved(tmp_path: Path) -> None:
 
     assert created[0].suffix == ".vendorformat"
     assert created[0].name == "vendor spectrum_curvemole.vendorformat"
+
+
+def test_duplicate_component_names_keep_every_numeric_trace() -> None:
+    project, curve = _project_with_background()
+    model = project.models[curve.id]
+    model.components[0].name = model.components[1].name = "Same name"
+    model.components[0].is_background = False
+    frame = spectrum_export_dataframe(project, curve.id)
+    components = [column for column in frame if column.startswith("Component_")]
+    assert len(components) == 2
+    np.testing.assert_allclose(frame[components[0]], 1.)
+    np.testing.assert_allclose(frame[components[1]], 2.)
