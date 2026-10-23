@@ -102,6 +102,12 @@ def prepare_pandoc_source(text: str) -> str:
             continue
         if not in_fence and re.match(r"^#{2,6}\s", line):
             line = line[1:]
+        if not in_fence:
+            line = re.sub(
+                r"^> \[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$",
+                lambda match: "> **" + match[1].capitalize() + "**",
+                line,
+            )
         promoted.append(line)
     return "\n".join(promoted).rstrip() + "\n"
 
