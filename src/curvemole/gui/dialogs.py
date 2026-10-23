@@ -1111,62 +1111,84 @@ class ExportBundleDialog(QDialog):
         mode_layout.addWidget(self.overwrite)
         layout.addWidget(mode_box)
 
-        export_box = QGroupBox(self.tr("What to export?"))
-        export_layout = QGridLayout(export_box)
+        export_box = QWidget()
+        export_layout = QVBoxLayout(export_box)
+        export_layout.setContentsMargins(0, 0, 0, 0)
         self.fit_results = QCheckBox(
-            self.tr("Fit results (functions, parameters and errors) — fit_results.csv")
+            self.tr("Detailed fit parameters (CSV)")
         )
+        self.fit_results.setToolTip(self.tr("fit_results.csv: functions, parameters, errors, bounds and links for each curve."))
         self.fit_results.setChecked(True)
-        self.fit_settings = QCheckBox(self.tr("Last fit: all solver/loss settings (CSV)"))
+        self.fit_settings = QCheckBox(self.tr("Recorded last-fit settings (CSV)"))
         self.fit_settings.setToolTip(self.tr(
             "Export every recorded optimizer and loss parameter, with the fit timestamp and curve IDs. "
             "Model parameter values are in fit_results.csv."))
-        self.wide_tables = QCheckBox(self.tr("Data + fitted curves tables (CSV)"))
-        self.tidy_table = QCheckBox(self.tr("Python data package: observations, components, metadata + replot.py"))
-        self.results_json = QCheckBox(self.tr("Machine-readable fit result (JSON)"))
-        self.fitmodel = QCheckBox(self.tr("Reusable models, one per curve (.fitmodel)"))
+        self.wide_tables = QCheckBox(self.tr("Data and fitted curves (CSV)"))
+        self.tidy_table = QCheckBox(self.tr("Python tables + replot.py"))
+        self.results_json = QCheckBox(self.tr("Recorded fit results (JSON)"))
+        self.fitmodel = QCheckBox(self.tr("Reusable models (.fitmodel)"))
         self.project_copy = QCheckBox(self.tr("Project copy (.fitproj)"))
-        self.main_plot_png = QCheckBox(self.tr("One figure per curve (PNG)"))
-        self.main_plot_svg = QCheckBox(self.tr("One figure per curve (SVG)"))
+        self.main_plot_png = QCheckBox(self.tr("PNG figures (one per curve)"))
+        self.main_plot_svg = QCheckBox(self.tr("SVG figures (one per curve)"))
         self.html_summary = QCheckBox(self.tr("Summary report (HTML)"))
         self.html_reproducibility = QCheckBox(self.tr("Full reproducibility report (HTML)"))
-        self.pdf_summary = QCheckBox(self.tr("Individual PDF figures + report with one page per curve"))
-        self.uncertainty = QCheckBox(self.tr("Uncertainty intervals, assessments and matrices"))
+        self.pdf_summary = QCheckBox(self.tr("PDF figures + combined report"))
+        self.uncertainty = QCheckBox(self.tr("Intervals, assessments and matrices"))
         self.diagnostics = QCheckBox(self.tr("Residual diagnostics"))
         self.readme = QCheckBox(self.tr("Export README"))
         self.laboratory_notebook = QCheckBox(self.tr("Laboratory notebook (TXT)"))
-        self.spectra = QCheckBox(self.tr("Spectra and fitted traces — same as quick export"))
-        self.function_parameters = QCheckBox(self.tr("Function parameter matrix — same as quick export"))
-        self.parameter_covariances = QCheckBox(self.tr("Function parameter covariance matrices"))
-        self.current_view = QCheckBox(self.tr("Current view with Matplotlib (PNG, SVG, PDF)"))
+        self.spectra = QCheckBox(self.tr("Spectra and fitted traces (quick export)"))
+        self.function_parameters = QCheckBox(self.tr("Function parameter matrix (quick export)"))
+        self.parameter_covariances = QCheckBox(self.tr("Parameter covariance matrices"))
+        self.current_view = QCheckBox(self.tr("Current view (PNG, SVG, PDF)"))
 
-        choices = [
-            self.spectra,
-            self.function_parameters,
-            self.parameter_covariances,
-            self.current_view,
-            self.fit_results,
-            self.fit_settings,
-            self.wide_tables,
-            self.tidy_table,
-            self.results_json,
-            self.fitmodel,
-            self.project_copy,
-            self.main_plot_png,
-            self.main_plot_svg,
-            self.html_summary,
-            self.html_reproducibility,
-            self.pdf_summary,
-            self.uncertainty,
-            self.diagnostics,
-            self.readme,
-            self.laboratory_notebook,
+        self.main_plot_png.setToolTip(self.tr("Separate PNG figures in figures/png/."))
+        self.main_plot_svg.setToolTip(self.tr("Separate SVG figures in figures/svg/."))
+        self.pdf_summary.setToolTip(self.tr("Separate PDF figures in figures/pdf/ and the combined report at report/summary.pdf."))
+        self.current_view.setToolTip(self.tr("The visible plot, including zoom and display settings. Each format has its own figures/png/, figures/svg/ or figures/pdf/ folder."))
+        self.tidy_table.setToolTip(self.tr("Observation and component tables, curve metadata, and a script to regenerate the figures with Python."))
+        self.fitmodel.setToolTip(self.tr("One reusable .fitmodel file per curve, inside models/."))
+        self.full_samples = QCheckBox(
+            self.tr("Include full uncertainty samples in the project copy")
+        )
+        self.full_samples.setChecked(True)
+        self.project_copy.toggled.connect(self.full_samples.setEnabled)
+
+        groups = [
+            ("export_figures", self.tr("Figures"), [
+                self.main_plot_png, self.main_plot_svg, self.pdf_summary, self.current_view,
+            ]),
+            ("export_data", self.tr("Data tables"), [
+                self.spectra, self.wide_tables,
+            ]),
+            ("export_parameters", self.tr("Fit parameters and uncertainty"), [
+                self.function_parameters, self.fit_results, self.fit_settings,
+                self.parameter_covariances, self.uncertainty, self.diagnostics,
+            ]),
+            ("export_project", self.tr("Project and Python"), [
+                self.project_copy, self.fitmodel, self.tidy_table, self.results_json,
+            ]),
+            ("export_reports", self.tr("Reports and documentation"), [
+                self.html_summary, self.html_reproducibility, self.readme, self.laboratory_notebook,
+            ]),
         ]
+        choices = [widget for _, _, widgets in groups for widget in widgets]
         defaults = BundleExportSelection().to_dict()
         for field_name, checked in defaults.items():
             getattr(self, field_name).setChecked(checked)
-        for index, widget in enumerate(choices):
-            export_layout.addWidget(widget, index // 2, index % 2)
+        self.full_samples.setEnabled(self.project_copy.isChecked())
+        for object_name, title, widgets in groups:
+            group_box = QGroupBox(title)
+            group_box.setObjectName(object_name)
+            group_layout = QGridLayout(group_box)
+            for index, widget in enumerate(widgets):
+                group_layout.addWidget(widget, index // 2, index % 2)
+            if self.project_copy in widgets:
+                group_layout.addWidget(self.full_samples, 2, 0, 1, 2)
+            group_layout.setColumnStretch(0, 1)
+            group_layout.setColumnStretch(1, 1)
+            export_layout.addWidget(group_box)
+        export_layout.addStretch()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(export_box)
@@ -1180,14 +1202,6 @@ class ExportBundleDialog(QDialog):
         selection_row.addWidget(clear_all)
         selection_row.addStretch()
         layout.addLayout(selection_row)
-
-        self.full_samples = QCheckBox(
-            self.tr("Include full uncertainty samples in the .fitproj copy")
-        )
-        self.full_samples.setChecked(True)
-        self.full_samples.setEnabled(self.project_copy.isChecked())
-        self.project_copy.toggled.connect(self.full_samples.setEnabled)
-        layout.addWidget(self.full_samples)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -1250,7 +1264,7 @@ class ExportBundleDialog(QDialog):
             QMessageBox.warning(
                 self,
                 self.tr("Export"),
-                self.tr("Select at least one item under 'What to export?'."),
+                self.tr("Select at least one item to export."),
             )
             return
         self.accept()

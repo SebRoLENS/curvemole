@@ -2372,6 +2372,10 @@ Choose **File > Export analysis bundle** or press **Ctrl+E**. The complete bundl
 selects every available output type by default, including the outputs offered by
 the **Quick export** commands. Under **What to export?**, clear any output types that
 are not needed. Files that require unavailable results or samples are omitted.
+The choices are grouped as **Figures**, **Data tables**, **Fit parameters and
+uncertainty**, **Project and Python**, and **Reports and documentation**. All figure
+formats and the current-view figure are together in the first group. The option to
+include full uncertainty samples is beside the project-copy option.
 
 Select a parent directory and use the named-subfolder option to put the export in
 its own folder. This option is enabled by default; the folder name can be edited.
@@ -2397,25 +2401,36 @@ it, and the fitted parameters explicit in a single table.
 
 ### 14.3 Bundle contents
 
-The complete bundle includes:
+The exported `README.txt` starts with a table of saved files and folders, explaining
+what each contains and when it is useful. Short sections then explain how to read
+the data, interpret fit results, and regenerate the plots in Python. The table
+describes only selected outputs that were actually written.
 
-- data plus fitted-function wide CSV tables;
-- one numeric spectrum file per curve, as offered by the spectra quick export;
-- the wide function-parameter table and available labelled covariance matrices;
-- Python observation, component, and curve-metadata tables with a replot script;
-- machine-readable fit results as JSON;
-- a reusable `.fitmodel` for each curve's model;
-- a `.fitproj` project copy, optionally including full uncertainty samples;
-- separate PNG, SVG, and PDF figures for each curve;
-- a Matplotlib figure of the current plot view;
-- compact HTML and PDF summaries;
-- a full reproducibility HTML report;
-- the laboratory notebook as UTF-8 text;
-- all recorded settings for the last fit as CSV;
-- covariance and correlation matrices when available;
-- residual autocorrelation diagnostics when available;
-- an export README with the actual file inventory, table schemas, conventions, and
-  Python usage examples.
+The main files and folders in a complete bundle are:
+
+| File or folder | Contents and purpose |
+| --- | --- |
+| `README.txt` | Start here for a readable guide to this export and the meaning of its data. |
+| `index.csv` | Matches spectra, names, IDs and source files to their exported files. |
+| `manifest.json` | Exact file inventory and export metadata for scripts or archival checks. |
+| `spectra/` | One numeric spectrum file per curve, including the available fit and component traces; the same output as the spectra quick export. |
+| `data/` | Wide CSV tables of measured data and evaluated model functions. |
+| `fit_results.csv` | Detailed parameter values, errors, constraints and fit state. |
+| `function_parameters.csv` | Wide function-parameter table, as offered by the parameter quick export. |
+| `function_parameters_covariance/` | Available labelled covariance matrices for the parameter export. |
+| `figures/png/` | One PNG image per spectrum and the current-view image when selected. |
+| `figures/svg/` | The corresponding vector SVG figures. |
+| `figures/pdf/` | The corresponding individual PDF figures. |
+| `summary_report.html` | Compact readable project and parameter summary. |
+| `report/summary.pdf` | One summary page per spectrum in a single PDF. |
+| `report/full_reproducibility.html` | Full reproducibility report, including recorded fit settings and project metadata. |
+| `python/` | Sample data, component and curve-metadata tables, JSON fit results and a script to regenerate per-spectrum figures. |
+| `models/` | A reusable `.fitmodel` for each curve's model. |
+| `<project>.fitproj` | Portable project snapshot, optionally including full uncertainty samples. |
+| `fit_settings.csv` | All recorded settings for the last fit. |
+| `uncertainty/` | Available uncertainty intervals, assessments, covariance and correlation matrices. |
+| `diagnostics/` | Available residual autocorrelation diagnostics. |
+| `laboratory_notebook.txt` | Laboratory notebook entries as UTF-8 text. |
 
 Directories such as `data/`, `python/`, `figures/`, `report/`, `uncertainty/`, and
 `diagnostics/` are created only when a selected output actually writes a file there.
@@ -2450,7 +2465,7 @@ Rows remain aligned with the complete curve, including masked and invalid entrie
 
 ### 14.5.1 Exporting optimizer and loss settings
 
-**Last fit: all solver/loss settings (CSV)** writes `fit_settings.csv`, containing
+**Recorded last-fit settings (CSV)** writes `fit_settings.csv`, containing
 all recorded `FitSettings` fields, including advanced solver parameters, loss and
 `f_scale`. Each row includes the fit timestamp, mode and curve IDs. It describes the
 selected last fit result, not unsaved edits in the Fit dialog; fields for inactive
@@ -2472,7 +2487,8 @@ separate tables:
 - `python/curves.csv` supplies the series/curve names, axis labels and units needed
   to interpret each curve without repeating them on every sample row.
 - `python/replot.py` reads these tables and creates a figure for each curve. Run it
-  with Python and the dependencies described in the exported README.
+  with Python and the dependencies described in the exported README. It writes PNG
+  figures to `python/replotted/png/` and SVG figures to `python/replotted/svg/`.
 
 Join samples and components using `curve_id` and `point_index`, not x alone:
 different observations can share the same x coordinate. Rows retain masked and
@@ -2495,8 +2511,10 @@ project record.
 - `report/summary.pdf` contains one page per curve. Each page identifies that curve
   and displays its data, available fit/components, and residuals. Curves with
   different axes or units are kept on separate pages.
-- Individual curve figures are saved separately in PNG, SVG, and PDF, using a
-  consistent Matplotlib style with readable labels and restrained legends.
+- Individual curve figures are saved in `figures/png/`, `figures/svg/`, and
+  `figures/pdf/`, using a consistent Matplotlib style with readable labels and
+  restrained legends. Every spectrum has its own file in each selected format;
+  formats are kept in separate subfolders.
 - `models/*.fitmodel` stores each curve's model and custom formulas for
   programmatic reuse.
 - `.fitproj` is a complete portable project snapshot.
@@ -2545,7 +2563,8 @@ when the command is invoked as a styled SVG, PDF, or PNG figure. It uses the vis
 curves and the current plot arrangement, axis scales and displayed ranges, rather
 than combining every curve in the project. This is useful for saving a chosen
 overlay or a zoomed view. The complete bundle includes the current-view export as
-well as the separate figures for every curve.
+`current_view.png`, `current_view.svg`, and `current_view.pdf` in their respective
+`figures/` format subfolders, alongside the separate figures for every curve.
 
 ## 15. Command-line interface
 

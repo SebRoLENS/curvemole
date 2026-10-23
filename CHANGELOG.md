@@ -13,6 +13,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   ownership checks. Give every curve its own styled Matplotlib PNG/SVG/PDF and a
   separate summary-PDF page. Replace the repetitive Python tidy table with keyed
   observation/component tables, curve metadata and a ready-to-run replot script.
+- Group related bundle choices together and keep all figure exports adjacent.
+  Separate PNG, SVG and PDF figures into format subfolders, including current-view
+  figures. Start the export README with a readable file-and-folder contents table
+  and retain the exact machine-readable inventory in `manifest.json`.
 
 ## [0.47.1] - 2026-10-22
 
