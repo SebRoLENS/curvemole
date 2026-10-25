@@ -8,9 +8,12 @@ from __future__ import annotations
 
 import struct
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from curvemole.core.errors import DataValidationError
 
@@ -22,6 +25,8 @@ def is_spe(path: str | Path) -> bool:
 
 
 def read_spe_frame(path: str | Path, *, nrows: int | None = None) -> pd.DataFrame:
+    import pandas as pd
+
     source = Path(path)
     with source.open("rb") as stream:
         h = stream.read(4100)

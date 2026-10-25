@@ -8,9 +8,12 @@ from collections import Counter
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from curvemole.core.data import Curve, ImmutableColumns, Series
 from curvemole.core.errors import DataValidationError
@@ -358,6 +361,8 @@ def _read_frame(
     *,
     nrows: int | None = None,
 ) -> tuple[pd.DataFrame, list[str]]:
+    import pandas as pd
+
     from curvemole.core.spe import is_spe, read_spe_frame
     if is_spe(path):
         frame = read_spe_frame(path, nrows=nrows)
@@ -432,6 +437,8 @@ def _optional_numeric(
 
 
 def _numeric(series: pd.Series, decimal: str) -> np.ndarray:
+    import pandas as pd
+
     values = series.astype(str).str.strip()
     if decimal == ",":
         values = values.str.replace(",", ".", regex=False)

@@ -5,9 +5,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from curvemole.core.data import Curve
 from curvemole.core.errors import CurveMoleError
@@ -36,6 +39,8 @@ def spectrum_export_dataframe(
     _context: tuple[dict, dict] | None = None,
 ) -> pd.DataFrame:
     """Build a wide x/y table that can be replotted directly."""
+    import pandas as pd
+
     options = options or SpectrumExportOptions()
     registry = registry or default_registry()
     needs_model = any((options.subtract_background, options.include_background, options.include_components,

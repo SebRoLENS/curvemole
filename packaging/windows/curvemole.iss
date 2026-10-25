@@ -1,8 +1,10 @@
 #ifndef MyAppVersion
   #error MyAppVersion must be provided to ISCC
 #endif
-#ifndef SourceExe
-  #error SourceExe must be provided to ISCC
+#ifndef SourceDir
+  #ifndef SourceExe
+    #error SourceDir or legacy SourceExe must be provided to ISCC
+  #endif
 #endif
 #ifndef RootDir
   #error RootDir must be provided to ISCC
@@ -45,7 +47,11 @@ Name: "italian"; MessagesFile: "compiler:Languages\Italian.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
+#ifdef SourceDir
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+#else
 Source: "{#SourceExe}"; DestDir: "{app}"; DestName: "CurveMole.exe"; Flags: ignoreversion
+#endif
 Source: "{#RootDir}\packaging\windows\curvemole-installed.marker"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]

@@ -229,6 +229,24 @@ jobs:
           $version = uv run --no-sync python -c "from curvemole.version import __version__; print(__version__)"
           "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
+      - name: Build installed application without per-launch extraction
+        shell: pwsh
+        run: |
+          $env:CURVEMOLE_ONEFILE = "0"
+          $env:CURVEMOLE_ICON = Join-Path $env:GITHUB_WORKSPACE "generated-icons/curvemole.ico"
+          uv run --no-sync pyinstaller --noconfirm --clean packaging/curvemole.spec
+          $env:CURVEMOLE_SMOKE_TEST = "1"
+          $env:CURVEMOLE_PACKAGING_SMOKE = "1"
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $process = Start-Process -FilePath ".\dist\CurveMole\CurveMole.exe" -PassThru
+          if (-not $process.WaitForExit(120000)) {
+            Stop-Process -Id $process.Id -Force
+            throw "Installed application smoke test timed out"
+          }
+          $process.Refresh()
+          if ($process.ExitCode -ne 0) { throw "Installed GUI exited with $($process.ExitCode)" }
+          Move-Item ".\dist\CurveMole" ".\installed-bundle"
+
       - name: Build standalone executable
         shell: pwsh
         run: |
@@ -261,7 +279,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $output | Out-Null
           $isccArgs = @(
             "/DMyAppVersion=$env:VERSION",
-            "/DSourceExe=$source",
+            "/DSourceDir=$(Join-Path $root 'installed-bundle')",
             "/DRootDir=$root",
             "/DOutputDir=$output",
             "packaging\windows\curvemole.iss"
