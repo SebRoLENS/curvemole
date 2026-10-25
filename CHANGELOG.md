@@ -5,6 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-25
+
 ### Fixed
 
 - Reduce startup work on all platforms by loading pandas only when needed for
