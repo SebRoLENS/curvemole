@@ -69,9 +69,12 @@ main revision. publication.json records the source SHA, tag SHA, DOI and CI run.
 Every non-release push to main validates the development manual, so a later
 website-only commit cannot bypass an earlier manual failure.
 
-Successful CI, Automatic release and Sync Zenodo DOI runs request publication.
+Successful CI and Automatic release runs request publication. DOI synchronisation
+explicitly dispatches publication in integrated mode after its metadata write job
+has succeeded (or was skipped because metadata was already complete). This also
+retries publication on hourly DOI runs without relying on a second workflow-run event.
 If the DOI is still pending, deployment is skipped and the previous site remains
-online; the hourly DOI synchronisation retries. Manual publication and the legacy
+online; a workflow warning reports the skip and the hourly DOI synchronisation retries. Manual publication and the legacy
 screenshot entry point use standalone mode: they do not wait for the full CI.
 They still check the published release, tag, packages/manual and DOI, and execute
 the website tests and render fresh screenshots. Automatic publication keeps the

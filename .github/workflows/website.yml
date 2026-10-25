@@ -2,10 +2,16 @@ name: Publish CurveMole website
 
 on:
   workflow_run:
-    workflows: [CI, Automatic release, Sync Zenodo DOI]
+    workflows: [CI, Automatic release]
     types: [completed]
     branches: [main]
   workflow_dispatch:
+    inputs:
+      mode:
+        description: Publication validation mode
+        type: choice
+        options: [standalone, integrated]
+        default: standalone
 
 permissions:
   contents: read
@@ -42,7 +48,7 @@ jobs:
         id: readiness
         env:
           GH_TOKEN: ${{ github.token }}
-          WEBSITE_PUBLICATION_MODE: ${{ github.event_name == 'workflow_dispatch' && 'standalone' || 'integrated' }}
+          WEBSITE_PUBLICATION_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'integrated' }}
         run: python .github/scripts/website_release.py
       - name: Install GUI libraries
         if: steps.readiness.outputs.ready == 'true'
