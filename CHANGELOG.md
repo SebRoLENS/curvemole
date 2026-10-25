@@ -5,6 +5,21 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Reduce startup work on all platforms by loading pandas only when needed for
+  data import or export. Windows installations now keep their dependencies
+  unpacked, avoiding extraction on every launch while retaining the installation
+  path, shortcuts, settings and existing projects. Portable Windows downloads
+  retain their single-executable format for compatibility with existing updaters.
+
+### Known limitations
+
+- A Windows portable executable named exactly `CurveMole.exe` may not reopen
+  automatically after an in-app update. If it stays closed, double-click the
+  executable to start the updated application; settings and projects are preserved.
+  The installer and versioned portable filename passed the tested upgrade paths.
+
 ## [1.0.0] - 2026-10-23
 
 ### Changed
