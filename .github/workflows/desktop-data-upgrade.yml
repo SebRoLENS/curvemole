@@ -1,13 +1,7 @@
 name: Preserve projects and settings across desktop updates
 
 on:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'packaging/**'
-      - 'scripts/test_*upgrade*'
-      - 'scripts/build_appimage.sh'
-      - '.github/workflows/desktop-data-upgrade.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read
