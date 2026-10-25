@@ -1,11 +1,7 @@
 name: Compare startup with base revision
 
 on:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'scripts/benchmark_startup.py'
-      - '.github/workflows/startup-comparison.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

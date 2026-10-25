@@ -12,6 +12,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import time
 import zipfile
 from pathlib import Path
@@ -19,6 +20,8 @@ from pathlib import Path
 from test_macos_app_upgrade import PROBE, digest, run
 
 UPDATE_PROBE = PROBE.replace(
+    '"stage": stage,', '"stage": stage, "pid": os.getpid(),',
+).replace(
     '        import json\n',
     '''        import json
         project_path = os.environ.get("CURVEMOLE_UPGRADE_PROJECT")
@@ -137,7 +140,32 @@ def updater_case(kind: str, old: Path, new: Path, work: Path, project: Path,
     run(str(current), str(project), env=test_env)
     if windows:
         # The real helper waits for the old bootloader and restarts the new app.
-        wait_for_report(after)
+        try:
+            wait_for_report(after)
+        except AssertionError:
+            baseline_record = assert_report(before, 'baseline')
+            helper_log = Path(tempfile.gettempdir()) / f"CurveMole-update-{baseline_record['pid']}.log"
+            diagnostic = {
+                'kind': case.name, 'passed': False, 'baseline': baseline_record,
+                'error': 'Automatic restart did not produce a candidate report',
+                'helper_log': helper_log.read_text(encoding='utf-8-sig', errors='replace')
+                if helper_log.exists() else 'No helper log',
+                'candidate_installed': destination.exists() and digest(destination) == digest(new),
+                'project_unchanged': digest(project) == project_hash,
+            }
+            # Separately test a fresh user launch; never count it as a successful
+            # automatic restart. This distinguishes replacement from restart bugs.
+            manual = case / 'manual-candidate.json'
+            if diagnostic['candidate_installed']:
+                try:
+                    run(str(destination), str(project), env=dict(
+                        env, CURVEMOLE_UPGRADE_STAGE='candidate',
+                        CURVEMOLE_UPGRADE_REPORT=str(manual)))
+                    diagnostic['manual_launch'] = assert_report(manual, 'candidate')
+                except Exception as exc:
+                    diagnostic['manual_launch_error'] = str(exc)
+            print(json.dumps(diagnostic, indent=2), flush=True)
+            return diagnostic
         wait_windows()
     else:
         # Linux intentionally asks the user to close and reopen after replacing.
@@ -149,8 +177,10 @@ def updater_case(kind: str, old: Path, new: Path, work: Path, project: Path,
     assert os.access(destination, os.X_OK)
     if not canonical:
         assert not current.exists(), 'Old versioned executable was left behind'
-    return {'kind': case.name, 'passed': True, 'launches': reports,
-            'project_sha256': project_hash}
+    result = {'kind': case.name, 'passed': True, 'launches': reports,
+              'project_sha256': project_hash}
+    print(json.dumps(result, indent=2), flush=True)
+    return result
 
 
 def installer_case(baseline: Path, candidate: Path, old: Path, new: Path,
@@ -185,8 +215,10 @@ def installer_case(baseline: Path, candidate: Path, old: Path, new: Path,
             assert (installed / '_internal').is_dir()
         assert (installed / 'curvemole-installed.marker').is_file()
         assert digest(project) == project_hash
-    return {'kind': 'installer', 'passed': True, 'launches': reports,
-            'project_sha256': project_hash}
+    result = {'kind': 'installer', 'passed': True, 'launches': reports,
+              'project_sha256': project_hash}
+    print(json.dumps(result, indent=2), flush=True)
+    return result
 
 
 def main() -> None:
@@ -211,7 +243,7 @@ def main() -> None:
         installed_bundle = build(candidate, env, onefile=False)
         results.append(installer_case(baseline, candidate, old, installed_bundle, work, project, env))
         new = build(candidate, env, onefile=True)
-        for canonical in (True, False):
+        for canonical in (False, True):
             results.append(updater_case('portable', old, new, work, project, env, canonical=canonical))
     else:
         images = []
@@ -223,10 +255,12 @@ def main() -> None:
             images.append(image)
         for canonical in (True, False):
             results.append(updater_case('appimage', *images, work, project, env, canonical=canonical))
-    output = {'platform': sys.platform, 'passed': True, 'cases': results,
+    output = {'platform': sys.platform, 'passed': all(r['passed'] for r in results), 'cases': results,
               'limitations': 'Test-instrumented builds; downloads and modal confirmations bypassed. No signing test.'}
     (candidate / 'desktop-data-upgrade.json').write_text(json.dumps(output, indent=2) + '\n')
     print(json.dumps(output, indent=2))
+    if not output['passed']:
+        raise SystemExit('At least one upgrade case failed; see desktop-data-upgrade.json')
 
 
 if __name__ == '__main__':

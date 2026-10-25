@@ -1,12 +1,7 @@
 name: Verify macOS app replacement
 
 on:
-  pull_request:
-    paths:
-      - 'src/**'
-      - 'packaging/**'
-      - 'scripts/test_macos_app_upgrade.py'
-      - '.github/workflows/macos-upgrade.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

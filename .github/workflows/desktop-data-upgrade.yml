@@ -44,6 +44,7 @@ jobs:
         working-directory: candidate
         run: uv run --no-sync python scripts/test_desktop_data_upgrade.py --baseline ../baseline --candidate . --work "$RUNNER_TEMP/CurveMole data upgrade test"
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: data-upgrade-${{ matrix.os }}
           path: candidate/desktop-data-upgrade.json
