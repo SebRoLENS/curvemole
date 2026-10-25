@@ -63,3 +63,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python .github/scripts/doi_workflow.py apply
+
+  website:
+    needs: [discover, apply]
+    if: >-
+      always() && needs.discover.result == 'success' &&
+      (needs.apply.result == 'success' || needs.apply.result == 'skipped')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Request website publication after DOI metadata is committed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run website.yml --repo "$GITHUB_REPOSITORY" --ref main -f mode=integrated
