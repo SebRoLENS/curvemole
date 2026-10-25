@@ -126,7 +126,7 @@ def main():
     if metadata:
         assemble(metadata)
     else:
-        print(reason)
+        print(f'::warning::Website deployment skipped: {reason}')
     with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding="utf-8") as output:
         output.write(f'ready={str(metadata is not None).lower()}\n')
     with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding="utf-8") as summary:
