@@ -93,7 +93,7 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
 def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in workflow['on']
-    assert set(workflow['on']['workflow_run']['workflows']) == {'CI', 'Automatic release', 'Sync Zenodo DOI'}
+    assert set(workflow['on']['workflow_run']['workflows']) == {'CI', 'Automatic release'}
     steps = workflow['jobs']['deploy']['steps']
     render = next(i for i, s in enumerate(steps) if 'render_demo_screenshots.py' in s.get('run', ''))
     deploy = next(i for i, s in enumerate(steps) if s.get('id') == 'deployment')
@@ -103,6 +103,22 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     legacy = yaml.load((ROOT / '.github/workflows/website-screenshots.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in legacy['on']
     assert 'raw.githubusercontent.com' not in (ROOT / 'website/dist/citation.js').read_text(encoding="utf-8")
+
+
+def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
+    workflow = yaml.load((ROOT / '.github/workflows/sync-zenodo-doi.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+    publish = workflow['jobs']['website']
+    assert set(publish['needs']) == {'discover', 'apply'}
+    condition = publish['if']
+    assert "needs.discover.result == 'success'" in condition
+    assert "needs.apply.result == 'success'" in condition
+    assert "needs.apply.result == 'skipped'" in condition
+    assert publish['permissions']['actions'] == 'write'
+    assert '-f mode=integrated' in publish['steps'][0]['run']
+    website = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+    assert website['on']['workflow_dispatch']['inputs']['mode']['default'] == 'standalone'
+    check = next(s for s in website['jobs']['deploy']['steps'] if s.get('id') == 'readiness')
+    assert check['env']['WEBSITE_PUBLICATION_MODE'] == "${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'integrated' }}"
 
 
 @pytest.mark.parametrize('doi_ready', [True, False])
