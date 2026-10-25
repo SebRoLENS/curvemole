@@ -12,10 +12,12 @@ from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.diagnostics import residual_diagnostics
@@ -128,6 +130,8 @@ def wide_dataframe(
     selection: ExportSelection | None = None,
     parameter_values: Mapping[str, float] | None = None,
 ) -> pd.DataFrame:
+    import pandas as pd
+
     selection = selection or ExportSelection()
     registry = registry or default_registry()
     columns: dict[str, Any] = {}
@@ -182,6 +186,8 @@ def tidy_dataframe(
     registry: FunctionRegistry | None = None,
     selection: ExportSelection | None = None,
 ) -> pd.DataFrame:
+    import pandas as pd
+
     registry = registry or default_registry()
     selection = selection or ExportSelection()
     frames: list[pd.DataFrame] = []
@@ -228,6 +234,8 @@ def analysis_dataframes(
     A point is identified by (curve_id, point_index), never by its X value.
     The original row index also survives sorting and row transformations.
     """
+    import pandas as pd
+
     registry = registry or _registry_for_project(project)
     values = project.resolved_parameter_values()
     observations: list[pd.DataFrame] = []
@@ -312,6 +320,8 @@ def parameter_dataframe(
     *,
     registry: FunctionRegistry | None = None,
 ) -> pd.DataFrame:
+    import pandas as pd
+
     registry = registry or default_registry()
     rows: list[dict[str, Any]] = []
     estimates: Mapping[str, Any] = result.parameters if isinstance(result, FitResult) else {}
@@ -559,6 +569,8 @@ def _write_labeled_matrix(
 
 def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:
     """Export the recorded fit configuration, never the current dialog edits."""
+    import pandas as pd
+
     columns = ["timestamp", "curve_ids", "mode", "setting", "value"]
     if result is None:
         return pd.DataFrame(columns=columns)
@@ -570,6 +582,8 @@ def fit_settings_dataframe(result: FitResult | None) -> pd.DataFrame:
 
 
 def uncertainty_dataframe(project: Project) -> pd.DataFrame:
+    import pandas as pd
+
     from curvemole.core.uncertainty_summary import summarize
     rows = []
     by_curve = project.results.get("uncertainty_reports_by_curve", {})
@@ -616,6 +630,8 @@ def generate_html_report(
     full: bool = False,
     registry: FunctionRegistry | None = None,
 ) -> Path:
+    import pandas as pd
+
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     parameters = parameter_dataframe(project, result, registry=registry)
@@ -679,6 +695,8 @@ def export_bundle(
     selection: BundleExportSelection | None = None,
     current_view: Any | None = None,
 ) -> ExportSummary:
+    import pandas as pd
+
     selection = selection or BundleExportSelection()
     if result is None and isinstance(project.results.get("last_fit"), FitResult):
         result = project.results["last_fit"]
@@ -1038,6 +1056,8 @@ def _spectrum_export_names(project: Project) -> dict[str, str]:
 def _bundle_curve_index(
     project: Project, selection: BundleExportSelection, root: Path,
 ) -> pd.DataFrame:
+    import pandas as pd
+
     stems = _curve_export_stems(project)
     spectra = _spectrum_export_names(project) if selection.spectra else {}
     rows = []
