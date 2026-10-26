@@ -61,6 +61,36 @@ def test_unvalidated_source_blocks_publication(website, monkeypatch):
     assert website.ready()[0] is None
 
 
+@pytest.mark.parametrize('conclusion', ['success', 'failure', None])
+def test_manual_promotion_is_a_validated_website_source_only_after_success(
+        website, release, monkeypatch, tmp_path, conclusion):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(website, 'ROOT', tmp_path)
+    (tmp_path / 'src/curvemole').mkdir(parents=True)
+    (tmp_path / 'src/curvemole/version.py').write_text('__version__ = "1.2.3"', encoding='utf-8')
+    (tmp_path / 'CITATION.cff').write_text('version: "1.2.3"\ndoi: "10.5281/zenodo.123"', encoding='utf-8')
+    (tmp_path / 'README.md').write_text('https://doi.org/10.5281/zenodo.123', encoding='utf-8')
+
+    def api(path):
+        if 'ci.yml/runs?' in path:
+            return {'workflow_runs': [{'id': 1, 'conclusion': 'success', 'head_sha': 'old'}]}
+        if 'branch=testing' in path:
+            return {'workflow_runs': [{'id': 2, 'status': 'completed' if conclusion else 'in_progress',
+                                       'conclusion': conclusion, 'head_sha': 'tested'}]}
+        return [release] if path.startswith('releases?') else {'workflow_runs': []}
+
+    monkeypatch.setattr(website, 'api', api)
+    monkeypatch.setattr(website, 'generated_since', lambda source: source == 'tested')
+    monkeypatch.setattr(website, 'git', lambda *args: 'abc123')
+    monkeypatch.setattr(website.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=0))
+    metadata, reason = website.ready()
+    if conclusion == 'success':
+        assert metadata['ci_run_id'] == 2 and not reason
+    else:
+        assert metadata is None and 'promotion' in reason
+
+
 def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypatch, tmp_path):
     # Emulate the Windows legacy locale even when this regression runs on Linux.
     original_open = Path.open
@@ -115,6 +145,9 @@ def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
     assert "needs.apply.result == 'skipped'" in condition
     assert publish['permissions']['actions'] == 'write'
     assert '-f mode=integrated' in publish['steps'][0]['run']
+    metadata_sync = workflow['jobs']['apply']['steps'][-1]
+    assert 'isDraft == false and .isPrerelease == false' in metadata_sync['run']
+    assert 'promote_testing.py sync' in metadata_sync['run']
     website = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
     assert website['on']['workflow_dispatch']['inputs']['mode']['default'] == 'standalone'
     check = next(s for s in website['jobs']['deploy']['steps'] if s.get('id') == 'readiness')

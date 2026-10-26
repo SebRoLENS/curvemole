@@ -25,12 +25,39 @@ publishing must be explicitly selected. Windows/macOS signing follows the stable
 pipeline. Beta packages bundle the stable baseline manual; the updated Markdown
 manual and in-app channel dialog describe the beta channel changes.
 
-To promote testing, review a pull request from `testing` into `main`, let the tests
-pass, and merge only when the maintainer approves the tested code. Use a merge title
-without `[skip release]`; `[minor]`, `[major]`, or `[release X.Y.Z]` select the stable
-release increment. After the release preparation commit, merge `main` back into
-`testing` so the next beta starts above the new stable version. Never reset testing
-or force-push over unpublished work. No automatic testing-to-main promotion occurs.
+All development, including documentation and automation changes, happens exclusively
+on `testing`. `main` is updated only by an explicitly requested stable promotion.
+
+To promote the current testing version from the GitHub website:
+
+1. Open **Actions > Automatic release > Run workflow**.
+2. Under **Use workflow from**, select **testing**. This is essential: the testing
+   version of this existing workflow contains the promotion entry point.
+3. Choose `patch` (bugfix), `minor` (feature release), or `major` (major update).
+   Optionally enter an exact stable version such as `1.1.0`; otherwise leave it blank.
+4. Click **Run workflow** when satisfied with the tested beta. The run is named
+   **Promote testing to stable**.
+
+The workflow snapshots that testing commit, verifies the requested version and
+branch ancestry, runs the full validation matrix, and fast-forwards `main` only if
+neither branch has changed. It then prepares the stable version, manuals and
+screenshots, validates them, builds all desktop/Python packages and publishes the
+verified stable release. The existing website/DOI publication flow is notified.
+After successful publication it merges the released metadata back into `testing`,
+preserving work added since promotion. DOI metadata discovered later is synchronized
+back as well, once the corresponding stable release is published. Merge conflicts or concurrent branch updates
+stop the affected step instead of overwriting work. Never force-push either branch.
+
+The existing `automatic-release.yml` path is used so the manual launch is already
+available on GitHub without installing a new workflow on `main`. Creating or
+updating this workflow on `testing` does **not** execute a promotion. No push to
+`testing` promotes it automatically. During setup, no stable release is published.
+
+If `main` already contains metadata or corrections absent from `testing`, merge it
+into `testing` and resolve conflicts there before launching a promotion. A workflow
+rerun resumes its own prepared release; it never silently promotes newer testing
+commits. If publication succeeded but the final sync has conflicts, resolve that
+merge on `testing`; the published stable package remains available.
 
 The app's **Help > Update channel…** setting is reversible. Switching to Stable
 waits for a stable version at least as new as the installed beta. Updates never

@@ -1,0 +1,60 @@
+name: Validate and promote testing
+
+on:
+  workflow_call:
+    inputs:
+      bump:
+        type: string
+        default: patch
+      version:
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    runs-on: ubuntu-22.04
+    outputs:
+      main_sha: ${{ steps.snapshot.outputs.main_sha }}
+      source_sha: ${{ steps.snapshot.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - id: snapshot
+        env:
+          PROMOTION_SOURCE: ${{ github.sha }}
+          REQUESTED_BUMP: ${{ inputs.bump }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: python .github/scripts/promote_testing.py snapshot
+
+  validate:
+    needs: snapshot
+    uses: ./.github/workflows/validate.yml
+    with:
+      source_ref: ${{ needs.snapshot.outputs.source_sha }}
+
+  promote:
+    needs: [snapshot, validate]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    concurrency:
+      group: curvemole-main-write
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.snapshot.outputs.source_sha }}
+          fetch-depth: 0
+      - name: Promote only the validated snapshot without overwriting branch changes
+        env:
+          PROMOTION_SOURCE: ${{ needs.snapshot.outputs.source_sha }}
+          PROMOTION_MAIN: ${{ needs.snapshot.outputs.main_sha }}
+        run: python .github/scripts/promote_testing.py promote

@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: [CI, Automatic release]
     types: [completed]
-    branches: [main]
+    branches: [main, testing]
   workflow_dispatch:
     inputs:
       mode:

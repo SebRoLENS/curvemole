@@ -1,4 +1,5 @@
 name: Automatic release
+run-name: ${{ github.event_name == 'workflow_dispatch' && github.ref_name == 'testing' && 'Promote testing to stable' || 'Stable release' }}
 
 on:
   workflow_call:
@@ -9,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Version part to increment
+        description: Stable version increment (select testing to promote it)
         required: true
         default: patch
         type: choice
@@ -31,7 +32,19 @@ concurrency:
   queue: max
 
 jobs:
+  promotion:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    uses: ./.github/workflows/promote-testing.yml
+    with:
+      bump: ${{ inputs.bump || 'patch' }}
+      version: ${{ inputs.version || '' }}
+
   plan:
+    needs: promotion
+    if: >-
+      always() && !cancelled() &&
+      (needs.promotion.result == 'success' ||
+       (needs.promotion.result == 'skipped' && github.ref == 'refs/heads/main'))
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     outputs:
@@ -154,3 +167,19 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: gh workflow run sync-zenodo-doi.yml --repo "$GITHUB_REPOSITORY" --ref main -f "version=$VERSION"
+
+  sync-testing:
+    needs: [commit, packages]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.commit.outputs.commit_sha }}
+          fetch-depth: 0
+      - name: Bring the released version back to testing while preserving new work
+        env:
+          PROMOTION_SOURCE: ${{ needs.commit.outputs.commit_sha }}
+        run: python .github/scripts/promote_testing.py sync

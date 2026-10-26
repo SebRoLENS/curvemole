@@ -67,7 +67,12 @@ def ready(*, require_ci=True):
         # Automatic publication must not fall back to an older successful source.
         runs = api('actions/workflows/ci.yml/runs?branch=main&event=push&per_page=1')['workflow_runs']
         if not runs or runs[0]['conclusion'] != 'success' or not generated_since(runs[0]['head_sha']):
-            return None, 'Waiting for successful CI, including the manual, for the current source.'
+            # A manual testing promotion validates and releases that exact snapshot
+            # itself; its GITHUB_TOKEN push deliberately does not start main CI.
+            runs = api('actions/workflows/automatic-release.yml/runs?branch=testing&event=workflow_dispatch&per_page=1')['workflow_runs']
+            if (not runs or runs[0].get('status') != 'completed' or runs[0]['conclusion'] != 'success'
+                    or not generated_since(runs[0]['head_sha'])):
+                return None, 'Waiting for successful CI or a completed testing promotion for the current source.'
         ci_run_id = runs[0]['id']
     manual_releases = api('actions/workflows/automatic-release.yml/runs?branch=main&event=workflow_dispatch&per_page=1')['workflow_runs']
     if manual_releases and manual_releases[0]['status'] != 'completed':
