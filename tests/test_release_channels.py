@@ -260,7 +260,10 @@ def test_beta_plan_runs_before_installing_project_dependencies(tmp_path, monkeyp
     import sys
 
     script = beta_script()
-    monkeypatch.chdir(ROOT)
+    version_file = tmp_path / "src/curvemole/version.py"
+    version_file.parent.mkdir(parents=True)
+    version_file.write_text('__version__ = "1.0.1"\n', encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GITHUB_RUN_NUMBER", "2")
     output = tmp_path / "outputs"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
