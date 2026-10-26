@@ -11,8 +11,6 @@ from enum import StrEnum
 from typing import Any
 
 import numpy as np
-from scipy import integrate
-from scipy.special import ndtri
 
 from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression
@@ -136,6 +134,7 @@ class Transformation:
             if sigma_new is not None:
                 sigma_new /= scale
         elif op == "normalize_area":
+            from scipy import integrate
             finite = np.isfinite(x_new) & np.isfinite(y_new)
             area = float(integrate.trapezoid(y_new[finite], x_new[finite]))
             if not np.isfinite(area) or area == 0:
@@ -359,6 +358,7 @@ class Curve:
     def y_error_scales(self) -> tuple[np.ndarray, np.ndarray] | None:
         """Gaussian tail scales; asymmetric intervals use their declared confidence."""
         if self._error_y_minus_current is not None:
+            from scipy.special import ndtri
             z = ndtri((1 + self.error_confidence_level) / 2)
             return self._error_y_minus_current / z, self._error_y_plus_current / z
         if self._sigma_y_current is not None:
@@ -668,6 +668,7 @@ class Curve:
                     elif op == "y_divide":
                         factor[:] = 1 / float(p["value"])
                     elif op == "normalize_area":
+                        from scipy import integrate
                         finite = np.isfinite(x) & np.isfinite(y)
                         factor[:] = float(integrate.trapezoid(y[finite], x[finite]))
                     elif op in {"curve_multiply", "curve_divide"}:

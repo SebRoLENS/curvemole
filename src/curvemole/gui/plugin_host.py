@@ -111,7 +111,11 @@ class PluginHost:
                              services=PluginServices(self, owner) if with_services else None)
 
     def refresh(self) -> None:
-        self._refresh_help()
+        # Manuals may live on a slow/removable plugin drive. Discover their
+        # files only when Help is actually opened (aboutToShow above).
+        self.help_menu.clear()
+        self.help_menu.setEnabled(any(key not in self.window.plugin_manager.errors
+                                      for key in self.window.plugin_manager.loaded))
         self._auto_opened.intersection_update(extensions.entries)
         for identifier, dialog in list(self.dialogs.items()):
             entry = extensions.entries.get(identifier)

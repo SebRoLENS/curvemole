@@ -279,6 +279,15 @@ class NativeFileOpenFilter(QObject):
 
 def _open_paths(window: MainWindow, values: Sequence[str]) -> None:
     """Open one project or import file paths supplied by the operating system."""
+    if getattr(window, "_startup_pending", False):
+        paths = tuple(values)
+
+        def after_plugins():
+            window.plugins_ready.disconnect(after_plugins)
+            _open_paths(window, paths)
+
+        window.plugins_ready.connect(after_plugins)
+        return
     paths = [Path(value) for value in values if value and Path(value).exists()]
     projects = [path for path in paths if path.suffix.lower() == ".fitproj"]
     if projects:
@@ -464,6 +473,7 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
 
 def create_main_window(*args: Any, **kwargs: Any) -> CurveMoleMainWindow:
     """Compose the desktop window identically for launchers and integration tests."""
+    kwargs.setdefault("defer_plugins", True)
     window = CurveMoleMainWindow(*args, **kwargs)
     from curvemole.gui.plugin_updates import PluginUpdateController
     window.plugin_update_controller = PluginUpdateController(window)
@@ -514,7 +524,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             window._crashed_recovery_projects = window._recovery_session.crashed_projects
         except OSError as exc:
             window._log(f"Recovery session tracking failed: {exc}")
-        QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
+        if window._startup_pending:
+            window.plugins_ready.connect(lambda: window.show_recovery_sessions(startup=True))
+        else:
+            QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
     return app.exec()
 
 

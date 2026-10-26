@@ -11,7 +11,6 @@ import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox
-from scipy.optimize import least_squares
 
 from curvemole.core.initialization import (
     PeakSuggestion,
@@ -130,6 +129,7 @@ def initialise_component_from_points(
         return result
 
     if names:
+        from scipy.optimize import least_squares
         fitted = least_squares(residual, initial, bounds=(lower, upper), max_nfev=5000)
         if fitted.success and np.all(np.isfinite(fitted.x)):
             for name, value in zip(names, fitted.x, strict=True):

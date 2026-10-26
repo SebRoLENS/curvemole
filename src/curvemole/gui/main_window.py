@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import os
 import re
 import time
 import traceback
@@ -705,10 +706,11 @@ class DockTabTitleFilter(QObject):
 
 
 class MainWindow(QMainWindow):
+    plugins_ready = Signal()
     _LAYOUT_SCHEMA_VERSION = 2
     _TASK_CANCEL_GRACE_SECONDS = 5
 
-    def __init__(self, project: Project | None = None) -> None:
+    def __init__(self, project: Project | None = None, *, defer_plugins: bool = False) -> None:
         from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
         ensure_gui_garbage_collection()
         super().__init__()
@@ -732,6 +734,8 @@ class MainWindow(QMainWindow):
         self._task_watchdog.timeout.connect(self._poll_task)
         self._project_lock: ProjectLock | None = None
         self._session_finished = False
+        self._startup_pending = False
+        self._plugin_startup = None
         self._pending_component: Component | None = None
         self._pending_component_curve_id: str | None = None
         self.settings = QSettings("CurveMole", "CurveMole")
@@ -784,23 +788,49 @@ class MainWindow(QMainWindow):
         self.plugin_manager = PluginManager(self.registry, storage=user_config_path("CurveMole") / "plugins")
         plugin_recovery = self.plugin_manager.start_session()
         self._load_custom_functions()
-        plugin_load_failures = self.plugin_manager.autoload()
+        # Existing callers passing a project need its plugin functions immediately.
+        self._startup_pending = (defer_plugins and not self.project.curves
+                                 and os.environ.get("CURVEMOLE_DISABLE_PLUGINS") != "1"
+                                 and any(record.get("enabled") for record in self.plugin_manager.installed.values()))
+        plugin_load_failures = set() if self._startup_pending else self.plugin_manager.autoload()
         from curvemole.gui.plugin_host import PluginHost
         self.plugin_host = PluginHost(self)
-        self.plugin_host.startup_notice(plugin_recovery, plugin_load_failures)
-        self.plugin_host.emit("startup")
         from curvemole.gui.automation import AutomationRunner
         self.automation_runner = AutomationRunner(self)
         from curvemole.gui.folder_import import FolderImportController
         self.folder_import = FolderImportController(self)
         self._normalise_component_names()
         self._normalise_spectrum_colours()
-        # Plugin docks must exist before restoreState(), especially on Windows.
-        self.plugin_host.finish_startup()
-        self._restore_layout()
-        self.refresh_all()
+        if self._startup_pending:
+            geometry = self.settings.value("geometry")
+            if geometry:
+                self.restoreGeometry(geometry)
+            self.apply_theme(str(self.settings.value("theme", "system")))
+            self.refresh_all()
+            from curvemole.gui.plugin_startup import PluginStartup
+            self._plugin_startup = PluginStartup(self, plugin_recovery)
+        else:
+            self._complete_plugin_startup(plugin_recovery, plugin_load_failures)
         from curvemole.gui.updates import UpdateController
         self._release_update_controller = UpdateController(self)
+
+    def _complete_plugin_startup(self, recovered: bool, failures: set[str]) -> None:
+        if self._session_finished:
+            return
+        self.plugin_host.refresh()
+        self.plugin_host.startup_notice(recovered, failures)
+        self.plugin_host.emit("startup")
+        if self._session_finished:
+            return
+        # Plugin docks must exist before restoreState(), especially on Windows.
+        self.plugin_host.finish_startup()
+        if self._session_finished:
+            return
+        self._restore_layout()
+        self.refresh_all()
+        self._startup_pending = False
+        self.statusBar().showMessage(self.tr("Ready"), 4000)
+        self.plugins_ready.emit()
 
     def _build_docks(self) -> None:
         left_container = QWidget()
@@ -4468,8 +4498,9 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard_or_save():
             event.ignore()
             return
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("window_state", self.saveState())
+        if not self._startup_pending:
+            self.settings.setValue("geometry", self.saveGeometry())
+            self.settings.setValue("window_state", self.saveState())
         self._finish_session()
         event.accept()
 
@@ -4478,6 +4509,8 @@ class MainWindow(QMainWindow):
         if self._session_finished:
             return
         self._session_finished = True
+        if self._plugin_startup is not None:
+            self._plugin_startup.cancel()
         self.recovery_monitor_timer.stop()
         self.autosave_timer.stop()
         self._manual_save_controller.shutdown()

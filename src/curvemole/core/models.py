@@ -10,7 +10,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from scipy.signal import fftconvolve
 
 from curvemole.core.errors import DataValidationError
 from curvemole.core.parameters import Parameter, resolve_parameter_values
@@ -241,6 +240,7 @@ class Model:
         while index < len(operations):
             component = operations[index]
             if component.operator == "convolve":
+                from scipy.signal import fftconvolve
                 # Crop once per consecutive convolution block. Repeated 'same'
                 # cropping would make three kernels depend on their insertion order.
                 arrays = [] if total is None else [total]

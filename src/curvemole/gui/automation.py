@@ -10,7 +10,6 @@ from PySide6.QtCore import QProcess, QSize, Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFileDialog, QMenu, QMessageBox, QToolBar, QToolButton
 
-from curvemole.core.automation_job import prepare_job
 from curvemole.gui.icons import vector_icon
 
 
@@ -56,6 +55,7 @@ class AutomationRunner:
         if not path:
             return False
         try:
+            from curvemole.core.automation_job import prepare_job
             prepare_job(path, self.window.plugin_manager)
         except Exception as exc:
             QMessageBox.warning(self.window, "Invalid automation", str(exc))
@@ -73,6 +73,7 @@ class AutomationRunner:
                 return
             path = str(self.window.settings.value("automation/file"))
         try:
+            from curvemole.core.automation_job import prepare_job
             request = prepare_job(path, self.window.plugin_manager)
             self.temporary = tempfile.TemporaryDirectory(prefix="curvemole-automation-")
             self.request_path = Path(self.temporary.name) / "job.json"

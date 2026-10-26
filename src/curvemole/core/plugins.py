@@ -8,8 +8,9 @@ import importlib.util
 import json
 import os
 import re
+import time
 import uuid
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import ModuleType
@@ -84,6 +85,8 @@ class PluginManager:
         self.symbols: dict[str, str] = {}
         self.names: dict[str, str] = {}
         self.session_path: Path | None = None
+        self.load_timings: dict[str, float] = {}
+        self._saved_payload: str | None = None
         if self.storage:
             self.storage.mkdir(parents=True, exist_ok=True)
             try:
@@ -92,6 +95,7 @@ class PluginManager:
                     self.installed = {}
                 self.installed = {key: value for key, value in self.installed.items()
                                   if isinstance(key, str) and isinstance(value, dict)}
+                self._saved_payload = json.dumps(self.installed, indent=2)
             except (OSError, ValueError):
                 self.installed = {}
 
@@ -119,10 +123,14 @@ class PluginManager:
 
     def _save(self) -> None:
         if self.storage:
+            payload = json.dumps(self.installed, indent=2)
+            if payload == self._saved_payload:
+                return
             destination = self.storage / "installed.json"
             temporary = destination.with_suffix(f".{uuid.uuid4().hex}.tmp")
-            temporary.write_text(json.dumps(self.installed, indent=2), encoding="utf-8")
+            temporary.write_text(payload, encoding="utf-8")
             temporary.replace(destination)
+            self._saved_payload = payload
 
     def start_session(self) -> bool:
         """Quarantine persisted plugins after an unclean *previous process* exit."""
@@ -178,21 +186,35 @@ class PluginManager:
         return list(candidates.values()) + self.discover_entry_points()
 
     def autoload(self) -> set[str]:
-        failed: set[str] = set()
+        """Synchronous loading for headless clients and existing integrations."""
+        return {identifier for identifier, success in self.autoload_steps() if not success}
+
+    def autoload_steps(self) -> Iterator[tuple[str, bool]]:
+        """Load one enabled plugin per iteration, retaining the source trust check.
+
+        The desktop advances this iterator on the Qt thread between event turns.
+        Disabled plugins are never inspected or imported. Recheck the record when
+        advancing so a plugin disabled while startup is pending stays disabled.
+        """
         if os.environ.get("CURVEMOLE_DISABLE_PLUGINS") == "1":
-            return failed
-        for candidate in self.installed_candidates():
-            record = self.installed[candidate.metadata.identifier]
-            if not record.get("enabled"):
+            return
+        for identifier in tuple(self.installed):
+            record = self.installed.get(identifier, {})
+            if not record.get("enabled") or identifier in self.loaded:
                 continue
+            started = time.perf_counter()
+            success = False
             try:
-                if record.get("fingerprint") != self._fingerprint(candidate):
-                    raise CurveMoleError("Plugin source changed; review and trust it again.")
-                self.load(candidate, trust=True)
+                candidate = PluginCandidate(PluginMetadata(**record["metadata"]),
+                                            record["reference"], record["kind"])
+                if candidate.metadata.identifier != identifier:
+                    raise CurveMoleError("Plugin identifier does not match its installed record.")
+                self.load(candidate, trust=True, expected_fingerprint=record.get("fingerprint", ""))
+                success = True
             except Exception as exc:
-                self.disable(candidate.metadata.identifier, str(exc))
-                failed.add(candidate.metadata.identifier)
-        return failed
+                self.disable(identifier, str(exc))
+            self.load_timings[identifier] = time.perf_counter() - started
+            yield identifier, success
 
     def _fingerprint(self, candidate: PluginCandidate) -> str:
         if candidate.kind != "local":
@@ -278,7 +300,8 @@ class PluginManager:
             result.append(PluginCandidate(metadata, entry_point.name, "entry_point"))
         return result
 
-    def load(self, candidate: PluginCandidate, *, trust: bool = False) -> PluginMetadata:
+    def load(self, candidate: PluginCandidate, *, trust: bool = False,
+             expected_fingerprint: str | None = None) -> PluginMetadata:
         metadata = candidate.metadata
         if metadata.api_compatibility != PLUGIN_API_VERSION:
             raise CurveMoleError(
@@ -294,6 +317,8 @@ class PluginManager:
             raise CurveMoleError("Plugin already loaded; disable it before reloading.")
         from curvemole.core.extensions import PluginAPI
         fingerprint = self._fingerprint(candidate)
+        if expected_fingerprint is not None and fingerprint != expected_fingerprint:
+            raise CurveMoleError("Plugin source changed; review and trust it again.")
         self.errors.pop(metadata.identifier, None)
         self.names[metadata.identifier] = metadata.name or metadata.identifier
         try:

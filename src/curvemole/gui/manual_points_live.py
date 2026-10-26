@@ -11,7 +11,6 @@ from typing import Any
 import numpy as np
 import pyqtgraph as pg
 from PySide6.QtCore import QPointF
-from scipy.optimize import least_squares
 
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError
@@ -167,6 +166,7 @@ def _generic_fit_component(
             return np.full(len(x_values), 1e12, dtype=float)
         return result
 
+    from scipy.optimize import least_squares
     try:
         result = least_squares(
             residual,

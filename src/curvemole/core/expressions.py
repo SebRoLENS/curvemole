@@ -16,11 +16,21 @@ from functools import lru_cache
 from typing import Any
 
 import numpy as np
-from scipy import special
 
 from curvemole.core.errors import ExpressionError
 
 _REFERENCE = re.compile(r"\$\{([^{}]+)\}")
+
+
+def _erf(value):
+    from scipy.special import erf
+    return erf(value)
+
+
+def _erfc(value):
+    from scipy.special import erfc
+    return erfc(value)
+
 
 _FUNCTIONS = {
     "abs": np.abs,
@@ -37,8 +47,8 @@ _FUNCTIONS = {
     "sinh": np.sinh,
     "cosh": np.cosh,
     "tanh": np.tanh,
-    "erf": special.erf,
-    "erfc": special.erfc,
+    "erf": _erf,
+    "erfc": _erfc,
     "minimum": np.minimum,
     "maximum": np.maximum,
     "clip": np.clip,

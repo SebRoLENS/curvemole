@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from scipy import stats
 
 
 @dataclass(slots=True)
@@ -55,7 +54,8 @@ def residual_diagnostics(
     counts, edges = np.histogram(values, bins=histogram_bins)
     ordered = np.sort(standardised)
     probabilities = (np.arange(len(ordered)) + 0.5) / len(ordered)
-    theoretical = stats.norm.ppf(probabilities)
+    from scipy.special import ndtri
+    theoretical = ndtri(probabilities)
     lag_limit = min(max_lag or max(1, min(100, len(values) // 4)), len(values) - 1)
     demeaned = values - centre
     denominator = float(np.dot(demeaned, demeaned))
@@ -65,7 +65,8 @@ def residual_diagnostics(
             autocorrelation[lag] = float(np.dot(demeaned[:-lag], demeaned[lag:]) / denominator)
     else:
         autocorrelation[1:] = np.nan
-    squared_difference = float(np.dot(np.diff(values), np.diff(values)))
+    differences = np.diff(values)
+    squared_difference = float(np.dot(differences, differences))
     durbin_watson = squared_difference / float(np.dot(values, values)) if np.any(values) else None
     outlier_local = np.flatnonzero(np.abs(standardised) >= 3)
     outlier_indices = finite_indices[outlier_local]

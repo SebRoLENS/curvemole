@@ -232,6 +232,7 @@ class PlotWorkspace(QWidget):
         self._selected_curve_ids: set[str] = set()
         self._selected_component_id: str | None = None
         self._data_items: dict[str, pg.PlotDataItem] = {}
+        self._render_items: dict[tuple, tuple[pg.PlotItem, pg.PlotDataItem]] = {}
         self._error_items: dict[str, pg.PlotDataItem] = {}
         self._component_items: dict[tuple[str, str], pg.PlotDataItem] = {}
         self._sum_items: dict[str, pg.PlotDataItem] = {}
@@ -511,6 +512,7 @@ class PlotWorkspace(QWidget):
         draw_lines, draw_points = plot_mode_flags(mode)
         rendered_colour = colour_with_opacity(colour, opacity)
         options: dict[str, Any] = {
+            "symbol": None,
             "pen": (
                 pg.mkPen(
                     rendered_colour,
@@ -637,9 +639,29 @@ class PlotWorkspace(QWidget):
         # Placement may span many refreshes; do not retain removed scene items
         # (and their complete data arrays) in the mouse-state snapshot.
         self._restore_placement_mouse_targets()
-        self.plot.clear()
+        previous = self._render_items
+        self._render_items = {}
+        retained = {item for _, item in previous.values()}
+        for plot in (self.plot, self.residual_plot):
+            for item in tuple(plot.items):
+                if item not in retained:
+                    plot.removeItem(item)
         self.plot.setToolTip("")
-        self.residual_plot.clear()
+
+        def draw(key, plot, *data, **options):
+            entry = previous.pop(key, None)
+            if entry is not None and entry[0] is plot and entry[1] in plot.items:
+                item = entry[1]
+                item.setData(*data, **options)
+                item.setVisible(True)
+            else:
+                item = plot.plot(*data, **options)
+            self._render_items[key] = (plot, item)
+            return item
+
+        def remove_unused():
+            for plot, item in previous.values():
+                plot.removeItem(item)
         self._data_items.clear()
         self._error_items.clear()
         self._component_items.clear()
@@ -651,6 +673,7 @@ class PlotWorkspace(QWidget):
         self._placement_items.clear()
         project = self._project
         if project is None or not project.curves:
+            remove_unused()
             for session in list(self._plugin_plot_sessions.values()):
                 session._invalidate()
             self.plot.setTitle(self.tr("Import data to begin"))
@@ -675,14 +698,16 @@ class PlotWorkspace(QWidget):
             y = curve.y + index * y_step
             from curvemole.gui.background_navigation import background_removed
             subtract = background_removed(self, curve.id)
-            background = getattr(self, "_curvemole_background_cache", {}).get(curve.id, np.zeros_like(curve.y))
+            background = getattr(self, "_curvemole_background_cache", {}).get(curve.id)
+            if background is None:
+                background = np.zeros_like(curve.y)
             data_y = y - background if subtract else y
             unmasked = ~curve.effective_mask
             symbol = marker_for_curve(appearance, index)
             data_width = float(appearance["data_line_width"]) * (
                 1.35 if curve.id == self._active_curve_id else 1.0
             )
-            item = self.plot.plot(
+            item = draw(("data", curve.id), self.plot,
                 x[unmasked],
                 data_y[unmasked],
                 name=curve.name,
@@ -743,7 +768,7 @@ class PlotWorkspace(QWidget):
                     )
                     continue
                 total = total + index * y_step
-                sum_item = self.plot.plot(
+                sum_item = draw(("sum", curve.id), self.plot,
                     x,
                     total - background if subtract else total,
                     name=f"{curve.name} Model sum",
@@ -760,7 +785,7 @@ class PlotWorkspace(QWidget):
                 sum_item.curve_id = curve.id
                 self._sum_items[curve.id] = sum_item
                 residual = curve.y - (total - index * y_step)
-                self.residual_plot.plot(
+                draw(("residual", curve.id), self.residual_plot,
                     x[unmasked],
                     residual[unmasked],
                     **self._plot_options(
@@ -796,7 +821,7 @@ class PlotWorkspace(QWidget):
                         if selected
                         else float(appearance["function_component_line_width"])
                     )
-                    component_item = self.plot.plot(
+                    component_item = draw(("component", curve.id, component.id), self.plot,
                         x,
                         component_y,
                         **self._plot_options(
@@ -819,11 +844,13 @@ class PlotWorkspace(QWidget):
                             float(appearance["function_point_size"]) + 4.0,
                         ),
                     )
-                    component_item.sigClicked.connect(
-                        lambda item, event, curve_id=curve.id, component_id=component.id: (
-                            self.componentOnCurveSelected.emit(curve_id, component_id)
+                    if not getattr(component_item, "_curvemole_selection_connected", False):
+                        component_item.sigClicked.connect(
+                            lambda item, event, curve_id=curve.id, component_id=component.id: (
+                                self.componentOnCurveSelected.emit(curve_id, component_id)
+                            )
                         )
-                    )
+                        component_item._curvemole_selection_connected = True
                     key = (curve.id, component.id)
                     self._component_items[key] = component_item
                     if self._show_component_labels:
@@ -837,6 +864,7 @@ class PlotWorkspace(QWidget):
                         index * x_step,
                         index * y_step,
                     )
+        remove_unused()
         if curves:
             first = curves[0]
             self.plot.setLabel("bottom", first.x_label, units=first.x_unit or None)

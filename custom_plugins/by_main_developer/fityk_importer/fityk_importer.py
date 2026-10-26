@@ -9,7 +9,6 @@ import shlex
 from pathlib import Path
 
 import numpy as np
-from scipy.special import voigt_profile
 
 from curvemole.core.data import Curve, Series
 from curvemole.core.models import Component
@@ -152,6 +151,8 @@ def _model_component(name, definition, variables):
         initial = {"area": values["area"], "center": values["center"],
                    "fwhm": 2 * width, "eta": shape}
     elif kind in ("Voigt", "VoigtA"):
+        from scipy.special import voigt_profile
+
         # Fityk: gwidth = sqrt(2)*sigma; shape = gamma/gwidth.
         sigma = width / math.sqrt(2)
         gamma = width * abs(values["shape"])

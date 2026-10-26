@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from PySide6.QtCore import QObject, Qt, QTimer, QUrl
 from PySide6.QtGui import QFont
@@ -70,7 +71,14 @@ class PluginUpdateController(QObject):
         self.timer.setInterval(CHECK_INTERVAL_MS)
         self.timer.timeout.connect(self.check)
         self.timer.start()
-        QTimer.singleShot(0, self.check)
+        self.startup_timer = QTimer(self)
+        self.startup_timer.setSingleShot(True)
+        self.startup_timer.setInterval(3000)
+        self.startup_timer.timeout.connect(self.check)
+        if hasattr(window, "plugins_ready"):
+            window.plugins_ready.connect(self.startup_timer.start)
+        if not getattr(window, "_startup_pending", False):
+            self.startup_timer.start()
 
     def _pending(self):
         return {key: record["metadata"]["version"]
@@ -122,6 +130,11 @@ class PluginUpdateController(QObject):
         reply.finished.connect(finished)
 
     def check(self, *, force=False):
+        if (getattr(self.window, "_session_finished", False)
+                or (getattr(self.window, "_startup_pending", False) and not force)):
+            return
+        if not force and os.environ.get("CURVEMOLE_DISABLE_UPDATE_CHECK", "").strip().lower() in {"1", "true", "yes"}:
+            return
         if self.busy:
             return
         if not any(key not in self.plugins.errors for key in self.plugins.loaded):

@@ -13,8 +13,6 @@ import json
 from pathlib import Path
 
 import numpy as np
-from scipy.ndimage import gaussian_filter1d
-from scipy.signal import find_peaks, peak_widths
 
 OWNER = "org.curvemole.community.ruby_fluo_pressure_monitor"
 DEFAULTS = {
@@ -258,6 +256,9 @@ def pressure_warnings(value, s):
 
 
 def analyse_curve(curve, s, cancellation=None):
+    from scipy.ndimage import gaussian_filter1d
+    from scipy.signal import find_peaks, peak_widths
+
     from curvemole.core.fitting import FitSettings, Fitter
     from curvemole.core.models import Component, Model
 

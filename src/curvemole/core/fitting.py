@@ -16,8 +16,6 @@ from enum import StrEnum
 from typing import Any
 
 import numpy as np
-from scipy import optimize, stats
-from scipy.optimize._numdiff import approx_derivative
 
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
@@ -490,6 +488,7 @@ class _Problem:
             values = self.values(point)
             return np.asarray([values[path] for path in self.free_paths])
 
+        from scipy.optimize._numdiff import approx_derivative
         try:
             return np.atleast_2d(approx_derivative(
                 physical,
@@ -537,6 +536,7 @@ class _Problem:
     def jacobian(self, vector: np.ndarray) -> np.ndarray:
         # Keep numerical-difference probes out of the solver's nfev budget.
         # Use SciPy's bound-aware two-point routine, as least_squares does.
+        from scipy.optimize._numdiff import approx_derivative
         base = self._jacobian_base
         f0 = base[1] if base is not None and np.array_equal(base[0], vector) else None
         try:
@@ -804,6 +804,8 @@ class Fitter:
         cancellation: CancellationToken,
         progress: ProgressCallback | None,
     ) -> FitResult:
+        from scipy import optimize
+
         original_states = {curve.id: curve.state for curve in curves}
         original_parameter_state = {
             path: (
@@ -1136,7 +1138,8 @@ def _parameter_estimates(
     warnings: list[str],
 ) -> dict[str, ParameterEstimate]:
     free_index = {path: index for index, path in enumerate(problem.free_paths)}
-    z_value = float(stats.norm.ppf(0.5 + settings.confidence_level / 2))
+    from scipy.special import ndtri
+    z_value = float(ndtri(0.5 + settings.confidence_level / 2))
     estimates: dict[str, ParameterEstimate] = {}
     linked_gradients: dict[str, np.ndarray] = {}
     all_paths = [path for path, parameter in problem.parameters.items()

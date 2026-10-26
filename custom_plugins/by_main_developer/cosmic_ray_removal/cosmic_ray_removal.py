@@ -5,9 +5,6 @@ from __future__ import annotations
 import copy
 
 import numpy as np
-from scipy.interpolate import PchipInterpolator
-from scipy.ndimage import median_filter
-from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 OWNER = "org.curvemole.community.cosmic_ray_removal"
 METADATA_KEY = "cosmic_ray_removal"
@@ -81,6 +78,7 @@ def interpolate_interval(x, y, start, end, support=4):
         raise ValueError("Not enough surrounding points to repair this interval.")
     order = np.argsort(x[indexes])
     if len(indexes) >= 3:
+        from scipy.interpolate import PchipInterpolator
         return np.asarray(
             PchipInterpolator(x[indexes][order], y[indexes][order])(x[start : end + 1])
         )
@@ -114,6 +112,8 @@ def _peak_morphology(y, start, end, max_width, peaks=None):
     band. Measuring width on the original signal rejects that high-pass
     artefact before it becomes a candidate.
     """
+    from scipy.signal import find_peaks, peak_prominences, peak_widths
+
     y = np.asarray(y, dtype=float)
     if peaks is None:
         peaks, _ = find_peaks(y)
@@ -152,6 +152,9 @@ def _confidence(score, threshold, width, max_width, repeated=False):
 def detect_single(x, y, threshold=10.0, window=11, max_width=5, grow=1):
     """Whitaker–Hayes style modified-Z detection of positive, narrow spikes."""
     x, y = _validate_xy(x, y)
+    from scipy.ndimage import median_filter
+    from scipy.signal import find_peaks
+
     window = max(3, int(window) | 1)
     residual_z = robust_z(y - median_filter(y, size=window, mode="nearest"))
     derivative_z = np.abs(robust_z(np.diff(y)))
@@ -185,6 +188,8 @@ def detect_single(x, y, threshold=10.0, window=11, max_width=5, grow=1):
 
 
 def _onto_grid(curve, target_x):
+    from scipy.interpolate import PchipInterpolator
+
     x, y = _validate_xy(curve.x, curve.y)
     order = np.argsort(x)
     if target_x.min() < x.min() or target_x.max() > x.max():
@@ -215,6 +220,8 @@ def ensemble_reference(target, selected):
 
 
 def detect_ensemble(target, selected, threshold=10.0, window=11, max_width=5, grow=1):
+    from scipy.signal import find_peaks
+
     x, y = _validate_xy(target.x, target.y)
     reference = ensemble_reference(target, selected)
     residual_z = robust_z(y - reference)

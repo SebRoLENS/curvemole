@@ -87,6 +87,8 @@ def test_help_menu_tracks_active_plugins_and_multiple_manuals(help_window, tmp_p
     (tmp_path / 'second' / 'docs').mkdir()
     (tmp_path / 'second' / 'docs' / 'usage.md').write_text('# Usage')
     host = PluginHost(window)
+    assert not host.help_menu.actions()  # Filesystem discovery waits for the menu.
+    host.help_menu.aboutToShow.emit()
     actions = host.help_menu.actions()
     assert len(actions) == 3
     assert 'First' in actions[0].text()
@@ -104,6 +106,7 @@ def test_help_menu_tracks_active_plugins_and_multiple_manuals(help_window, tmp_p
     manager.disable('first')
     manager.errors['second'] = 'Failed callback'
     host.refresh()
+    host.help_menu.aboutToShow.emit()
     assert len(host.help_menu.actions()) == 1
     assert 'Missing' in host.help_menu.actions()[0].text()
     manager.disable('missing')
@@ -113,6 +116,7 @@ def test_help_menu_tracks_active_plugins_and_multiple_manuals(help_window, tmp_p
     manager.load(manager.discover_local(tmp_path / 'first')[0], trust=True)
     host.refresh()
     assert host.help_menu.isEnabled()
+    host.help_menu.aboutToShow.emit()
     assert len(host.help_menu.actions()) == 2
 
 

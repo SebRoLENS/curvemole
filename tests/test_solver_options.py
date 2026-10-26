@@ -61,15 +61,15 @@ def test_invalid_advanced_options_rejected(kwargs):
     ("lbfgsb", "maxls", 30),
 ])
 def test_minimize_options_reach_scipy(monkeypatch, gaussian_curve, solver, key, value):
-    from curvemole.core import fitting
-    real = fitting.optimize.minimize
+    from scipy import optimize
+    real = optimize.minimize
     captured = {}
 
     def run(*args, **kwargs):
         captured.update(kwargs["options"])
         return real(*args, **kwargs)
 
-    monkeypatch.setattr(fitting.optimize, "minimize", run)
+    monkeypatch.setattr(optimize, "minimize", run)
     s = FitSettings(solver=solver, nm_xatol=2e-5, powell_xtol=3e-5, lbfgsb_maxls=30,
                     minimize_maxiter=500, max_nfev=3000)
     model = Model(components=[Component.create("gaussian", initial={"area": 3, "center": .7, "sigma": .8})])
@@ -79,8 +79,8 @@ def test_minimize_options_reach_scipy(monkeypatch, gaussian_curve, solver, key, 
 
 
 def test_de_and_least_squares_options_reach_scipy(monkeypatch, gaussian_curve):
-    from curvemole.core import fitting
-    real_de, real_ls = fitting.optimize.differential_evolution, fitting.optimize.least_squares
+    from scipy import optimize
+    real_de, real_ls = optimize.differential_evolution, optimize.least_squares
     seen = {}
 
     def de(*args, **kwargs):
@@ -91,8 +91,8 @@ def test_de_and_least_squares_options_reach_scipy(monkeypatch, gaussian_curve):
         seen["ls"] = kwargs.copy()
         return real_ls(*args, **kwargs)
 
-    monkeypatch.setattr(fitting.optimize, "differential_evolution", de)
-    monkeypatch.setattr(fitting.optimize, "least_squares", ls)
+    monkeypatch.setattr(optimize, "differential_evolution", de)
+    monkeypatch.setattr(optimize, "least_squares", ls)
     s = FitSettings(solver="differential_evolution", loss="soft_l1", f_scale=2,
                     de_maxiter=2, de_popsize=5, de_mutation_min=.4, de_mutation_max=.9,
                     de_recombination=.6, de_tol=.02, de_atol=.001, xtol=1e-7)

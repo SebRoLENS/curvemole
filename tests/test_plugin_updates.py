@@ -393,6 +393,10 @@ def controller_case(update_case, tmp_path, monkeypatch):
     monkeypatch.setattr(PluginUpdateController, "_fetch", lambda self, url, limit, callback:
                         requests.append((url, callback)))
     controller = PluginUpdateController(window)
+    # Advance the delayed automatic check without sleeping in the test suite.
+    monkeypatch.delenv("CURVEMOLE_DISABLE_UPDATE_CHECK", raising=False)
+    controller.startup_timer.stop()
+    controller.startup_timer.timeout.emit()
     app.processEvents()
     yield app, controller, requests, catalog, update, data
     controller.timer.stop()

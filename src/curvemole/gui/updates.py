@@ -184,10 +184,20 @@ class UpdateController(QObject):
         self.timer.setInterval(CHECK_INTERVAL_MS)
         self.timer.timeout.connect(self.check)
         self.timer.start()
-        QTimer.singleShot(0, self.check)
+        self.startup_timer = QTimer(self)
+        self.startup_timer.setSingleShot(True)
+        self.startup_timer.setInterval(2000)
+        self.startup_timer.timeout.connect(self.check)
+        if hasattr(window, "plugins_ready"):
+            window.plugins_ready.connect(self.startup_timer.start)
+        if not getattr(window, "_startup_pending", False):
+            self.startup_timer.start()
 
     def check(self, *, force: bool = False) -> None:
         """Check GitHub now; automatic calls are never throttled below one hour."""
+        if (getattr(self.window, "_session_finished", False)
+                or (getattr(self.window, "_startup_pending", False) and not force)):
+            return
         if not force and os.environ.get("CURVEMOLE_DISABLE_UPDATE_CHECK", "").strip().lower() in {"1", "true", "yes"}:
             return
         if self._release_reply is not None:

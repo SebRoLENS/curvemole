@@ -7,7 +7,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.signal import find_peaks, peak_widths
 
 from curvemole.core.data import Curve
 from curvemole.core.errors import DataValidationError
@@ -54,6 +53,7 @@ def find_peak_suggestions(
     x, y = curve.x[keep], curve.y[keep]
     if len(x) < 3:
         return []
+    from scipy.signal import find_peaks, peak_widths
     baseline = float(np.nanmedian(y))
     centred = y - baseline
     noise = float(np.nanmedian(np.abs(centred - np.nanmedian(centred))) * 1.4826)

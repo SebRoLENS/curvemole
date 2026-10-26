@@ -133,10 +133,16 @@ def test_refresh_during_placement_releases_removed_plot_mouse_targets() -> None:
         count = len(workspace._placement_mouse_targets)
         assert count
         for _ in range(12):
-            previous = set(workspace._placement_mouse_targets)
+            previous = list(workspace._component_items.values())
+            # Components may be replaced by undo or a detached plugin project.
+            # Keep reused data items, but release removed components and children.
+            project.model_for(curve.id).components = [Component.create("linear")]
             workspace.refresh()
             assert len(workspace._placement_mouse_targets) == count
-            assert not previous.intersection(workspace._placement_mouse_targets)
+            for item in previous:
+                assert item not in workspace._placement_mouse_targets
+                assert item.curve not in workspace._placement_mouse_targets
+                assert item.scatter not in workspace._placement_mouse_targets
         workspace.cancel_placement()
         assert not workspace._placement_mouse_targets
     finally:

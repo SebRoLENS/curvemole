@@ -8,8 +8,6 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-from scipy.interpolate import CubicSpline
-from scipy.special import voigt_profile
 
 from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression
@@ -111,6 +109,7 @@ def _lorentzian(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> 
 
 
 def _voigt(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np.ndarray:
+    from scipy.special import voigt_profile
     return p["area"] * voigt_profile(x - p["center"], p["sigma"], p["gamma"])
 
 
@@ -158,6 +157,7 @@ def _spline(x: np.ndarray, p: Mapping[str, float], metadata: Mapping[str, Any]) 
     y_nodes = np.asarray([p[f"y{index}"] for index in range(len(x_nodes))], dtype=float)
     if len(x_nodes) == 2:
         return np.interp(x, x_nodes, y_nodes)
+    from scipy.interpolate import CubicSpline
     return CubicSpline(x_nodes, y_nodes, bc_type="natural", extrapolate=True)(x)
 
 
