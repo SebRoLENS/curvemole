@@ -436,6 +436,7 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
     actions = {
         "open-project.svg": window.open_action,
         "save-project.svg": window.save_action,
+        "restore-original.svg": window.restore_original_action,
         "calculator.png": window.calculator_action,
         "subtract-background.png": window.subtract_background_action,
         "function-info.svg": window.function_info_action,

@@ -142,7 +142,7 @@ def test_visual_subtraction_frames_transformed_experimental_samples(plotted):
 
 def test_spectrum_switch_autoscale_is_optional_and_uses_all_or_active_points():
     app = QApplication.instance() or QApplication([])
-    project = Project("autoscale")
+    project = Project("autoscale", ui_state={"autoscale_enabled": False})
     first = Curve("first", np.array([0., 1., 2.]), np.array([0., 1., 0.]))
     second = Curve("second", np.array([100., 150., 200.]), np.array([10., 20., 1000.]))
     project.add_curve(first)

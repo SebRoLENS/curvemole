@@ -1421,9 +1421,18 @@ not a fit to the measured spectrum. Linear requires at least two points. Other
 non-spline functions require at least two points and at least as many points as
 parameters. Cubic spline requires at least two distinct x positions.
 
-Use **Finish** or double-click to commit after the minimum number of points;
-**Undo point** removes the most recent point, right-click removes the nearest
-point, and **Esc** cancels insertion. The resulting parameters are fixed by default.
+The placement bar offers **Add points**, **Delete points** and **Move points**.
+Delete points removes the point you click; clicking empty space does nothing.
+Move points lets you click and drag a point to a new x/y position, with a live
+function preview. Drag empty space to pan and use the mouse wheel to zoom.
+**Undo point** reverses the last addition, deletion or completed move. These edits
+affect the function's initialization points, leaving the experimental data unchanged.
+
+Use **Finish** (or double-click in Add points mode) to commit after the minimum
+number of points. Deleting below that minimum disables Finish until enough points
+are restored or added. In Quick Add, right-click or Enter also finishes; in the
+advanced Add component flow, right-click removes the nearest point. **Esc** cancels
+the whole insertion. The resulting parameters are fixed by default.
 Use **Unlock all** or individual **Fixed** checkboxes before optimizing them.
 Points and the corresponding controls are stored with the component and project.
 

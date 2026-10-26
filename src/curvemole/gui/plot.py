@@ -67,6 +67,7 @@ class MaskViewBox(pg.ViewBox):
         self.interaction_mode: str | None = None
         self.plugin_marker_callback = lambda scene_position: False
         self.quick_add_placement = False
+        self.placement_editor = None
         self._context_menu_event = None
         self._context_menu_timer = QTimer(self)
         self._context_menu_timer.setSingleShot(True)
@@ -106,6 +107,9 @@ class MaskViewBox(pg.ViewBox):
             return
         if self.interaction_mode == "spline":
             if event.button() == Qt.MouseButton.LeftButton:
+                if self.placement_editor is not None and self.placement_editor.click_at(event.scenePos()):
+                    event.accept()
+                    return
                 if event.double():
                     self.placementFinishRequested.emit()
                     event.accept()
@@ -173,7 +177,10 @@ class MaskViewBox(pg.ViewBox):
             event.accept()
             return
         if self.interaction_mode == "spline" and event.button() == Qt.MouseButton.LeftButton:
-            # Preserve normal ViewBox left-drag panning while spline placement is active.
+            if self.placement_editor is not None and self.placement_editor.drag(event):
+                event.accept()
+                return
+            # Empty-space drags keep normal ViewBox panning in every point mode.
             super().mouseDragEvent(event, axis=axis)
             return
         if self.mask_mode and self.interaction_mode is None and event.button() == Qt.MouseButton.RightButton:
@@ -381,6 +388,7 @@ class PlotWorkspace(QWidget):
         placement_layout.addWidget(self.placement_label, 1)
         self.undo_point_button = QToolButton()
         self.undo_point_button.setText(self.tr("Undo point"))
+        self.undo_point_button.setToolTip(self.tr("Undo the last point addition, deletion or move."))
         self.undo_point_button.clicked.connect(lambda: self.undo_spline_point())
         placement_layout.addWidget(self.undo_point_button)
         self.finish_placement_button = QToolButton()
@@ -453,6 +461,9 @@ class PlotWorkspace(QWidget):
             shortcut.activated.connect(lambda: self.finish_placement())
         from curvemole.gui.data_point_editor import DataPointEditor
         self.point_editor = DataPointEditor(self)
+        from curvemole.gui.point_placement_editor import PointPlacementEditor
+        self.placement_editor = PointPlacementEditor(self, placement_layout)
+        self.view_box.placement_editor = self.placement_editor
         layout.insertWidget(layout.indexOf(self.graphics), self.point_editor)
         self._plugin_plot_sessions = {}
         self.view_box.plugin_marker_callback = self._plugin_marker_clicked
@@ -1080,6 +1091,7 @@ class PlotWorkspace(QWidget):
         self._placement_mode = "spline"
         self._placement_name = name
         self._spline_points = []
+        self.placement_editor.start()
         self.view_box.interaction_mode = "spline"
         # Placement graphics must never force a new view range. Manual pan/zoom stays active.
         self.view_box.disableAutoRange()
@@ -1130,11 +1142,8 @@ class PlotWorkspace(QWidget):
         self.splinePlacementFinished.emit(points)
 
     def undo_spline_point(self) -> None:
-        if self._placement_mode != "spline" or not self._spline_points:
-            return
-        self._spline_points.pop()
-        self._render_placement_preview()
-        self._update_spline_instruction()
+        if self._placement_mode == "spline":
+            self.placement_editor.undo()
 
     def _preview_peak_placement(self, x: float, y: float, fwhm: float) -> None:
         if self._placement_mode != "peak":
@@ -1154,15 +1163,19 @@ class PlotWorkspace(QWidget):
     def _add_spline_point(self, x: float, y: float) -> None:
         if self._placement_mode != "spline":
             return
-        x, y = self._from_display_coordinates(x, y)
+        x, y = self.placement_editor.data_position(QPointF(x, y), scene=False)
         if not math.isfinite(x) or not math.isfinite(y):
             return
         tolerance = max(self._active_x_span(), 1.0) * 1e-12
         for index, (existing_x, _) in enumerate(self._spline_points):
             if math.isclose(x, existing_x, rel_tol=0.0, abs_tol=tolerance):
+                if self._spline_points[index] == (x, y):
+                    return
+                self.placement_editor.record()
                 self._spline_points[index] = (x, y)
                 break
         else:
+            self.placement_editor.record()
             self._spline_points.append((x, y))
         self._render_placement_preview()
         self._update_spline_instruction()
@@ -1170,7 +1183,7 @@ class PlotWorkspace(QWidget):
     def _remove_spline_point(self, x: float, y: float) -> None:
         if self._placement_mode != "spline" or not self._spline_points:
             return
-        x, y = self._from_display_coordinates(x, y)
+        x, y = self.placement_editor.data_position(QPointF(x, y), scene=False)
         x_scale = max(self._active_x_span(), np.finfo(float).eps)
         y_scale = max(self._active_y_span(), np.finfo(float).eps)
         index = min(
@@ -1180,6 +1193,7 @@ class PlotWorkspace(QWidget):
                 + ((self._spline_points[item][1] - y) / y_scale) ** 2
             ),
         )
+        self.placement_editor.record()
         self._spline_points.pop(index)
         self._render_placement_preview()
         self._update_spline_instruction()
@@ -1254,11 +1268,20 @@ class PlotWorkspace(QWidget):
 
     def _clear_placement_items(self) -> None:
         for item in self._placement_items:
+            # Live dragging replaces preview graphics repeatedly. Retaining their
+            # mouse-state snapshots would also retain every discarded preview.
+            pending = [item]
+            while pending:
+                target = pending.pop()
+                if isValid(target):
+                    pending.extend(target.childItems())
+                self._placement_mouse_targets.pop(target, None)
             with suppress(RuntimeError):
                 self.plot.removeItem(item)
         self._placement_items.clear()
 
     def _end_placement(self) -> None:
+        self.placement_editor.stop()
         self._clear_placement_items()
         self._placement_mode = None
         self._quick_add_placement = False
@@ -1321,32 +1344,18 @@ class PlotWorkspace(QWidget):
 
     def _update_spline_instruction(self) -> None:
         count = len(self._spline_points)
-        if self._quick_add_placement:
-            self.placement_label.setText(
-                self.tr(
-                    "Place spline nodes anywhere: left-click adds a point, "
-                    "left-drag pans, and the mouse wheel zooms. "
-                    "Adding points never changes the current zoom. The curve updates live. "
-                )
-                + f"{count} "
-                + self.tr(
-                    "point(s). Add at least two, then right-click, press Enter or Finish, "
-                    "or left double-click. Esc cancels."
-                )
-            )
-            self.undo_point_button.setEnabled(count > 0)
-            self.finish_placement_button.setEnabled(count >= 2)
-            return
-        self.placement_label.setText(
-            self.tr(
-                "Place spline nodes anywhere: left-click adds a point, right-click removes the nearest point, "
-                "left-drag pans, the mouse wheel zooms, and a left double-click accepts the spline. "
-                "Adding points never changes the current zoom. The curve updates live. "
-            )
-            + f"{count} "
-            + self.tr("point(s). Add at least two, then double-click or press Finish. Esc cancels.")
+        finish = (
+            self.tr("Right-click, press Enter or Finish when done; Esc cancels.")
+            if self._quick_add_placement else
+            self.tr("Press Finish when done; Esc cancels. Right-click removes the nearest point.")
         )
-        self.undo_point_button.setEnabled(count > 0)
+        self.placement_label.setText(
+            self.tr("Place spline nodes: ")
+            + self.placement_editor.instruction()
+            + self.tr("The mouse wheel zooms. The curve updates live. ")
+            + f"{count}/2 " + self.tr("minimum points. ") + finish
+        )
+        self.undo_point_button.setEnabled(self.placement_editor.can_undo)
         self.finish_placement_button.setEnabled(count >= 2)
 
     def _active_display_offsets(self) -> tuple[float, float]:

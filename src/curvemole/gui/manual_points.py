@@ -253,26 +253,23 @@ def _install_plot_workspace() -> None:
         count = len(workspace._spline_points)
         required = int(getattr(workspace, "_manual_points_minimum", 2))
         if workspace._quick_add_placement:
-            mouse_instruction = workspace.tr(
-                ": left-click adds a point, left-drag pans, and the mouse wheel zooms. "
-            )
             finish_instruction = workspace.tr(
                 "minimum points. Right-click or press Enter or Finish when done; Esc cancels."
             )
         else:
-            mouse_instruction = workspace.tr(
-                ": left-click adds a point, right-click removes the nearest point, "
-                "left-drag pans, and the mouse wheel zooms. "
+            finish_instruction = workspace.tr(
+                "minimum points. Press Finish when done; Esc cancels. "
+                "Right-click removes the nearest point."
             )
-            finish_instruction = workspace.tr("minimum points. Press Finish when done; Esc cancels.")
         workspace.placement_label.setText(
             workspace.tr("Place explicit points for ")
-            + workspace._placement_name
-            + mouse_instruction
+            + workspace._placement_name + ": "
+            + workspace.placement_editor.instruction()
+            + workspace.tr("The mouse wheel zooms. The curve updates live. ")
             + f"{count}/{required} "
             + finish_instruction
         )
-        workspace.undo_point_button.setEnabled(count > 0)
+        workspace.undo_point_button.setEnabled(workspace.placement_editor.can_undo)
         workspace.finish_placement_button.setEnabled(count >= required)
 
     def render(workspace: PlotWorkspace) -> None:

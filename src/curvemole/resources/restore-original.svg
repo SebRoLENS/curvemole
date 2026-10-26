@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect x="5" y="7" width="43" height="49" rx="4" fill="#F5FBFF" stroke="#172735" stroke-width="4"/>
+  <path d="M8 10h37v10H8Z" fill="#DDF3FF"/>
+  <path d="M7 21h39M7 32h39M21 9v22M35 9v22" fill="none" stroke="#0877F9" stroke-width="3"/>
+  <text x="26" y="49" fill="#172735" font-family="Arial,sans-serif" font-size="15" font-weight="bold" text-anchor="middle">RAW</text>
+  <path d="M59 42H45m8-8-8 8 8 8" fill="none" stroke="#FF7A00" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

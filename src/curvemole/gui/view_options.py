@@ -331,6 +331,8 @@ def _install():
     def init(window, *args, **kwargs):
         original(window, *args, **kwargs)
         ViewOptionsController(window)
+        from curvemole.gui.original_data import OriginalDataController
+        OriginalDataController(window)
 
     MainWindow.__init__ = init
     MainWindow._curvemole_view_options = True

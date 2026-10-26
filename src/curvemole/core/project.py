@@ -30,7 +30,7 @@ class Project:
     fit_history: CompactHistory = field(default_factory=CompactHistory)
     custom_functions: list[dict[str, Any]] = field(default_factory=list)
     custom_formulas: list[dict[str, Any]] = field(default_factory=list)
-    ui_state: dict[str, Any] = field(default_factory=dict)
+    ui_state: dict[str, Any] = field(default_factory=lambda: {"autoscale_enabled": True, "autoscale_mode": "all"})
     export_config: dict[str, Any] = field(default_factory=dict)
     id: str = field(default_factory=lambda: f"project_{uuid.uuid4().hex[:12]}")
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())

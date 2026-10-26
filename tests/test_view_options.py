@@ -42,12 +42,14 @@ def plotted(window, curve):
     return window.plot_workspace._data_items[curve.id].getOriginalDataset()
 
 
-def test_view_options_has_its_own_toolbar_group_and_opens_a_menu(view_window):
+def test_view_options_shares_a_group_with_restore_and_opens_a_menu(view_window):
     app, window, controller, _ = view_window
     toolbar = window.findChild(QToolBar, 'Main_toolbar')
     actions = toolbar.actions()
     index = actions.index(window.view_options_action)
-    assert actions[index - 1].isSeparator() and actions[index + 1].isSeparator()
+    assert actions[index - 1].isSeparator()
+    assert actions[index + 1] is window.restore_original_action
+    assert actions[index + 2].isSeparator()
     assert actions.index(window.revert_background_action) < index < actions.index(window.plot_workspace.mask_action)
     assert window.background_subtracted_view_action not in actions
     button = toolbar.widgetForAction(window.view_options_action)

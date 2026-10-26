@@ -1436,7 +1436,9 @@ class MainWindow(QMainWindow):
             selected,
             self.selected_component_id,
         )
-        self.calculator.set_curves(self.project, self.active_curve_id)
+        self.calculator.set_curves(self.project, self.active_curve_id, selected)
+        if hasattr(self, "restore_original_controller"):
+            self.restore_original_controller.sync()
         self.function_builder.set_project(self.project)
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
         self.refresh_worksheet()
@@ -3448,7 +3450,8 @@ class MainWindow(QMainWindow):
                     curve.transformations, curve.redo_transformations, curve.state = copy.deepcopy(state)
                     curve._recompute()
 
-            self._push_change(self.tr("Data calculation"), lambda: restore(after), lambda: restore(before),
+            self._push_change(self.tr("Restore original data") if request.get("restore") else self.tr("Data calculation"),
+                              lambda: restore(after), lambda: restore(before),
                               modified_curve_ids=set(after), preserve_curve_ids=set(after))
         except Exception as exc:
             self._show_error(self.tr("Data Calculator"), exc)
@@ -3652,6 +3655,9 @@ class MainWindow(QMainWindow):
             selected,
             self.selected_component_id,
         )
+        self.calculator.set_selection_context(self.project, self.active_curve_id, selected)
+        if hasattr(self, "restore_original_controller"):
+            self.restore_original_controller.sync()
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
 
     def remove_selected_curves(self) -> None:
@@ -4230,19 +4236,23 @@ class MainWindow(QMainWindow):
             ids = {curve.id for curve in self.plot_workspace.displayed_curves()}
         return [curve for curve in self.project.curves if curve.id in ids]
 
-    def _calculator_targets(self, scope: int) -> list[Curve]:
-        if not self.active_curve_id:
-            return []
-        if scope == 0:
-            return [self.project.dataset.curve(self.active_curve_id)]
-        if scope == 1:
+    def _calculator_targets(self, scope: int | str) -> list[Curve]:
+        if scope == "selected":
+            selected = self.curve_tree.selected_curve_ids()
+            return [curve for curve in self.project.curves if curve.id in selected]
+        if scope == 1 and self.project.curves:
             from curvemole.gui.series_groups import SpectrumSelectionDialog
             with transient_widget(SpectrumSelectionDialog(self.project, self.active_curve_id, self)) as dialog:
                 if dialog.exec() != QDialog.DialogCode.Accepted:
                     return []
                 return [self.project.dataset.curve(identifier) for identifier in dialog.selected_ids()]
-        series = self.project.dataset.series_for(self.active_curve_id)
-        return list(series.curves)
+        if not self.active_curve_id:
+            return []
+        if scope == 0:
+            return [self.project.dataset.curve(self.active_curve_id)]
+        if scope == 2:  # Retain the legacy programmatic whole-series scope.
+            return list(self.project.dataset.series_for(self.active_curve_id).curves)
+        return []
 
     def _mask_tolerance(self) -> float:
         return float(self.project.ui_state.get("mask_transfer_tolerance", 0.0))
