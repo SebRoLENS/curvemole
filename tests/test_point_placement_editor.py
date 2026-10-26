@@ -64,10 +64,14 @@ def click(app, workspace, x, y):
 
 def drag(app, workspace, origin, destination):
     begin, end = pixel(workspace, *origin), pixel(workspace, *destination)
+    # Compare with the actual pixel destination, including rounding on small or
+    # high-DPI canvases. A fixed data-unit tolerance depends on the screen size.
+    expected = workspace.placement_editor.data_position(workspace.graphics.mapToScene(end))
     QTest.mousePress(workspace.graphics.viewport(), Qt.MouseButton.LeftButton, pos=begin)
     QTest.mouseMove(workspace.graphics.viewport(), end, delay=30)
     QTest.mouseRelease(workspace.graphics.viewport(), Qt.MouseButton.LeftButton, pos=end)
     app.processEvents()
+    return expected
 
 
 def mode(workspace, value):
@@ -122,9 +126,9 @@ def test_move_point_live_preview_one_undo_and_cancel(window, function_id):
     mode(w, "move")
     click(app, w, 8, 8)
     assert w._spline_points == before
-    drag(app, w, before[1], (5, 6))
+    expected = drag(app, w, before[1], (5, 6))
     assert len(w._spline_points) == 3
-    np.testing.assert_allclose(w._spline_points[1], (5, 6), atol=.05)
+    np.testing.assert_allclose(w._spline_points[1], expected, atol=1e-8)
     assert not np.array_equal(w._placement_items[-1].getData()[1], old_preview)
     np.testing.assert_allclose(w.view_box.viewRange(), view)
     assert main.undo_stack.count() == 0  # Temporary edits are not project mutations.
@@ -192,9 +196,24 @@ def test_point_hit_testing_respects_plot_coordinates(window, axes):
     click(app, w, 2, 2)
     click(app, w, 4, 7)
     mode(w, "move")
-    drag(app, w, (4, 7), (5, 6))
-    np.testing.assert_allclose(w._spline_points[1], (5, 6), atol=.08)
+    expected = drag(app, w, (4, 7), (5, 6))
+    np.testing.assert_allclose(w._spline_points[1], expected, atol=1e-8)
     mode(w, "delete")
     click(app, w, 5, 6)
     assert len(w._spline_points) == 1
+    w.cancel_placement()
+
+
+def test_large_font_instructions_leave_a_usable_canvas(window):
+    app, main, _ = window
+    font = main.font()
+    font.setPointSize(16)
+    main.setFont(font)
+    w = start(app, main)
+    for value in ("add", "delete", "move"):
+        mode(w, value)
+        app.processEvents()
+        assert w.view_box.height() > 50
+        # Distinct y values must retain distinct clickable screen positions.
+        assert abs(pixel(w, 2, 8).y() - pixel(w, 2, 2).y()) > 20
     w.cancel_placement()
