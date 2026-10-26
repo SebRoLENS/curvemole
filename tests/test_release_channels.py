@@ -254,3 +254,16 @@ def test_bootstrap_is_artifacts_only_and_testing_cannot_publish_stable():
     assert "[beta artifacts only]" in workflow["jobs"]["publish"]["if"]
     assert workflow["jobs"]["plan"]["if"] == "github.ref == 'refs/heads/testing'"
     assert "automatic-release.yml" not in (ROOT / ".github/workflows/testing.yml").read_text()
+
+
+def test_beta_plan_runs_before_installing_project_dependencies(tmp_path, monkeypatch):
+    import sys
+
+    script = beta_script()
+    monkeypatch.chdir(ROOT)
+    monkeypatch.setenv("GITHUB_RUN_NUMBER", "2")
+    output = tmp_path / "outputs"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setattr(sys, "argv", ["beta_release.py", "plan"])
+    script.main()
+    assert output.read_text() == "version=1.0.2b2\n"

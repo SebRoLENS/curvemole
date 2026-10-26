@@ -116,9 +116,9 @@ def main() -> None:
     parser.add_argument("--directory", type=Path, default=Path("beta-assets"))
     args = parser.parse_args()
     if args.command == "plan":
-        import tomllib
+        import runpy
 
-        base = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+        base = runpy.run_path("src/curvemole/version.py")["__version__"]
         version = beta_version(base, os.environ["GITHUB_RUN_NUMBER"])
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
             output.write(f"version={version}\n")
