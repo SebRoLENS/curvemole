@@ -79,6 +79,20 @@ Update notifications show the available version and its release type: **bugfix**
 when the patch number changes, **feature release** when the minor number changes,
 or **major update** when the major number changes.
 
+**Help > Update channel…** selects **Stable** or **Beta** and saves the preference.
+Stable receives approved releases. Beta receives fixes and features earlier, may
+update very frequently, and may introduce new bugs. You can change channels at any
+time. Selecting Stable from a beta keeps the installed version until an equal or
+newer stable release is available; it never downgrades automatically. Installed beta
+packages always show **Beta** in the status-bar version badge, regardless of the
+selected update channel. Older versions are not recommended, but advanced users who
+know what they are doing can download and install any version from the GitHub repository.
+
+Development takes place on `testing`; `main` is the stable publication branch.
+The initial beta is available as an Actions build download and creates no release.
+Subsequent testing builds can be published as prereleases without replacing the
+latest stable release or changing the public website. See [release workflow](docs/releasing.md).
+
 ## Custom plugins: install or share yours
 
 Open **File > Plugin Manager > Browse validated plugins…** to view the online catalog,

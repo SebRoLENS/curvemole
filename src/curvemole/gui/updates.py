@@ -17,13 +17,16 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import QObject, QSettings, QTimer, QUrl
+from PySide6.QtGui import QAction
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QMessageBox, QToolButton
 
+from curvemole.core.release_channels import ReleaseVersion, default_channel, select_release
 from curvemole.gui.windowing import secondary_window_parent, transient_widget
 from curvemole.version import __version__
 
 RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases/latest"
+BETA_RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases?per_page=100"
 RELEASE_PAGE = "https://github.com/SebRoLENS/curvemole/releases"
 CHECK_INTERVAL_MS = 60 * 60 * 1000
 
@@ -136,6 +139,10 @@ class UpdateController(QObject):
         super().__init__(window)
         self.window = window
         self.settings = QSettings("CurveMole", "CurveMole")
+        channel = str(self.settings.value("updates/channel", default_channel(__version__)))
+        self.channel = channel if channel in {"stable", "beta"} else default_channel(__version__)
+        # Keep an initial beta opt-in when a final package is later installed.
+        self.settings.setValue("updates/channel", self.channel)
         self.manager = QNetworkAccessManager(self)
         self._release_reply: QNetworkReply | None = None
         self._download_reply: QNetworkReply | None = None
@@ -144,7 +151,7 @@ class UpdateController(QObject):
         self._download_asset: ReleaseAsset | None = None
         self._download_version = ""
         self._latest_payload: dict[str, Any] | None = None
-        self._latest_version: tuple[int, int, int] | None = None
+        self._latest_version: ReleaseVersion | None = None
 
         # MainWindow versions before this controller had a separate checker. Stop
         # its periodic timer and make its already-scheduled startup callback a no-op.
@@ -155,7 +162,7 @@ class UpdateController(QObject):
 
         self.badge = QToolButton(window)
         self.badge.setAutoRaise(False)
-        self.badge.setText(f"v{__version__}")
+        self.badge.setText(self._version_label())
         self.badge.setToolTip(window.tr("Checking the latest CurveMole version…"))
         self.badge.setStyleSheet(self._BADGE_STYLES["checking"])
         self.badge.clicked.connect(lambda checked=False: self._badge_clicked())
@@ -167,6 +174,11 @@ class UpdateController(QObject):
         window.update_action.triggered.connect(
             lambda checked=False: self.check(force=True)
         )
+        help_menu = getattr(window, "help_menu", None)
+        if help_menu is not None:
+            window.update_channel_action = QAction(window.tr("Update channel…"), window)
+            window.update_channel_action.triggered.connect(lambda checked=False: self.choose_channel())
+            help_menu.insertAction(getattr(window, "report_action", None), window.update_channel_action)
 
         self.timer = QTimer(self)
         self.timer.setInterval(CHECK_INTERVAL_MS)
@@ -184,18 +196,23 @@ class UpdateController(QObject):
             return
 
         self.settings.setValue("updates/last_check", time.time())
-        request = QNetworkRequest(QUrl(RELEASE_API))
+        request = QNetworkRequest(QUrl(BETA_RELEASE_API if self.channel == "beta" else RELEASE_API))
         request.setRawHeader(b"Accept", b"application/vnd.github+json")
         request.setRawHeader(b"User-Agent", f"CurveMole/{__version__}".encode("ascii"))
         request.setTransferTimeout(10_000)
         reply = self.manager.get(request)
         self._release_reply = reply
         reply.finished.connect(
-            lambda reply=reply, force=force: self._release_finished(reply, force)
+            lambda reply=reply, force=force, channel=self.channel:
+            self._release_finished(reply, force, channel)
         )
 
-    def _release_finished(self, reply: QNetworkReply, force: bool) -> None:
+    def _release_finished(
+        self, reply: QNetworkReply, force: bool, channel: str | None = None
+    ) -> None:
         try:
+            if channel is not None and channel != self.channel:
+                return
             if reply.error() != QNetworkReply.NetworkError.NoError:
                 message = self.window.tr("Could not check for CurveMole updates: ") + reply.errorString()
                 self.window._log(message)
@@ -206,43 +223,53 @@ class UpdateController(QObject):
                     QMessageBox.warning(self.window, self.window.tr("Check for updates"), message)
                 return
 
-            payload = json.loads(bytes(reply.readAll()).decode("utf-8"))
-            current = semantic_version(__version__)
-            latest = semantic_version(str(payload.get("tag_name", "")))
+            payload = select_release(json.loads(bytes(reply.readAll()).decode("utf-8")), self.channel)
+            if payload is None:
+                self._set_badge("current", self.window.tr("No releases are available for this channel."))
+                if force:
+                    QMessageBox.information(self.window, self.window.tr("Check for updates"),
+                                            self.badge.toolTip())
+                return
+            current = ReleaseVersion.parse(__version__)
+            latest = ReleaseVersion.parse(str(payload.get("tag_name", "")))
             if current is None or latest is None:
                 raise ValueError(self.window.tr("GitHub returned an unrecognised release version."))
 
             self._latest_payload = payload
             self._latest_version = latest
-            latest_text = ".".join(str(value) for value in latest)
+            latest_text = latest.text
             if latest <= current:
+                message = self.window.tr("CurveMole is up to date. Installed version: ") + current.label
+                if self.channel == "stable" and not current.final:
+                    message = self.window.tr(
+                        "Stable channel selected. This beta stays installed until an equal or "
+                        "newer stable release is available. No downgrade will be performed."
+                    )
                 self._set_badge(
                     "current",
-                    self.window.tr("CurveMole is up to date. Installed version: ") + __version__,
+                    message,
                 )
                 if force:
                     QMessageBox.information(
                         self.window,
                         self.window.tr("Check for updates"),
-                        self.window.tr("CurveMole is up to date. Installed version: ") + __version__,
+                        message,
                     )
                 if latest == current:
                     self._offer_windows_installer(payload, latest_text)
                 return
 
-            kind = update_kind(current, latest)
+            kind = update_kind(current.numbers, latest.numbers)
             self._set_badge(kind, self._badge_tooltip(latest_text, kind))
 
             notified = str(
-                self.settings.value("updates/notified_version", "")
-                or self.settings.value("updates/last_notified_version", "")
+                self.settings.value(f"updates/{self.channel}/notified_version", "")
                 or ""
             )
             if force or should_notify(latest_text, notified):
                 self._show_update_available(payload, latest_text, kind)
                 # Being shown the dialog counts as the one notification for this release.
-                self.settings.setValue("updates/notified_version", latest_text)
-                self.settings.setValue("updates/last_notified_version", latest_text)
+                self.settings.setValue(f"updates/{self.channel}/notified_version", latest_text)
         except Exception as exc:
             self.window._log(f"Update check failed: {exc}")
             if self._latest_version is None:
@@ -251,15 +278,55 @@ class UpdateController(QObject):
             if force:
                 QMessageBox.warning(self.window, self.window.tr("Check for updates"), str(exc))
         finally:
-            self._release_reply = None
+            if self._release_reply is reply:
+                self._release_reply = None
             reply.deleteLater()
 
+    def choose_channel(self) -> None:
+        from PySide6.QtWidgets import QDialog
+
+        from curvemole.gui.update_channel_dialog import UpdateChannelDialog
+
+        if self._download_reply is not None:
+            self.window._notify(self.window.tr("Wait for the update download to finish before changing channel."))
+            return
+        with transient_widget(UpdateChannelDialog(self.channel, secondary_window_parent(self.window))) as dialog:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self.set_channel(dialog.selected_channel())
+
+    def set_channel(self, channel: str) -> None:
+        if channel not in {"stable", "beta"}:
+            raise ValueError("Unknown update channel")
+        if self._download_reply is not None:
+            raise RuntimeError("Cannot change channel during an update download")
+        self.settings.setValue("updates/channel", channel)
+        self.settings.sync()
+        if channel == self.channel:
+            return
+        self.channel = channel
+        self._latest_payload = None
+        self._latest_version = None
+        if self._release_reply is not None:
+            reply = self._release_reply
+            self._release_reply = None
+            reply.abort()
+        self._set_badge("checking", self.window.tr("Checking the selected update channel…"))
+        self.check()
+
+    @staticmethod
+    def _version_label() -> str:
+        version = ReleaseVersion.parse(__version__)
+        return f"v{version.label if version is not None else __version__}"
+
     def _set_badge(self, state: str, tooltip: str) -> None:
-        self.badge.setText(f"v{__version__}")
+        self.badge.setText(self._version_label())
         self.badge.setStyleSheet(self._BADGE_STYLES[state])
         self.badge.setToolTip(tooltip)
 
     def _badge_tooltip(self, latest: str, kind: str) -> str:
+        parsed = ReleaseVersion.parse(latest)
+        if parsed is not None and not parsed.final:
+            return self.window.tr("CurveMole {version} is available (beta).").format(version=parsed.label)
         if kind == "patch":
             detail = self.window.tr("bugfix")
         elif kind == "minor":
@@ -274,18 +341,17 @@ class UpdateController(QObject):
         )
 
     def _badge_clicked(self) -> None:
-        current = semantic_version(__version__)
+        current = ReleaseVersion.parse(__version__)
         if (
             current is not None
             and self._latest_version is not None
             and self._latest_version > current
             and self._latest_payload is not None
         ):
-            latest_text = ".".join(str(value) for value in self._latest_version)
-            kind = update_kind(current, self._latest_version)
+            latest_text = self._latest_version.text
+            kind = update_kind(current.numbers, self._latest_version.numbers)
             self._show_update_available(self._latest_payload, latest_text, kind)
-            self.settings.setValue("updates/notified_version", latest_text)
-            self.settings.setValue("updates/last_notified_version", latest_text)
+            self.settings.setValue(f"updates/{self.channel}/notified_version", latest_text)
             return
         self.check(force=True)
 

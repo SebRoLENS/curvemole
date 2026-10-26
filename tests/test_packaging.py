@@ -50,7 +50,7 @@ def test_all_desktop_builds_explicitly_collect_dynamic_svg_renderer() -> None:
     assert "packaging/curvemole.spec" in build
 
 
-def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:
+def test_stable_appimage_is_direct_and_beta_artifact_requires_beta_version() -> None:
     desktop = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "build-desktop.yml").read_text(encoding="utf-8")
     )
@@ -60,9 +60,10 @@ def test_actions_appimage_artifact_is_limited_to_skip_release() -> None:
         )
     )
     linux_steps = desktop["jobs"]["linux"]["steps"]
-    assert not any(
-        step.get("uses", "").startswith("actions/upload-artifact") for step in linux_steps
-    )
+    artifacts = [step for step in linux_steps
+                 if step.get("uses", "").startswith("actions/upload-artifact")]
+    assert len(artifacts) == 1
+    assert artifacts[0]["if"] == "inputs.beta_version != ''"
     direct_upload = next(
         step for step in linux_steps if step.get("name") == "Attach Linux files directly to tagged release"
     )

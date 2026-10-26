@@ -6,6 +6,10 @@ on:
       source_ref:
         required: true
         type: string
+      beta_version:
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       source_ref:
@@ -113,6 +117,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Stamp beta package version
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py stamp
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           enable-cache: false
@@ -141,6 +150,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Stamp beta package version
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py stamp
       - uses: actions/download-artifact@v7
         with:
           name: build-icons
@@ -189,6 +203,17 @@ jobs:
           cp "${{ steps.attest.outputs.bundle-path }}" "$SIGNATURE"
           echo "path=$SIGNATURE" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/upload-artifact@v7
+        if: inputs.beta_version != ''
+        with:
+          name: release-linux-x86_64
+          path: |
+            ${{ steps.appimage.outputs.path }}
+            ${{ steps.signature.outputs.path }}
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
       # The AppImage is a release asset, not a reusable Actions test artifact.
       # test-linux-candidate.yml provides the latter only for [skip release].
       - name: Attach Linux files directly to tagged release
@@ -209,6 +234,11 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.source_ref || github.ref }}
+      - name: Stamp beta package version
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py stamp
       - uses: actions/download-artifact@v7
         with:
           name: build-icons
@@ -279,6 +309,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $output | Out-Null
           $isccArgs = @(
             "/DMyAppVersion=$env:VERSION",
+            "/DMyAppNumericVersion=$($env:VERSION -replace 'b[0-9]+$', '')",
             "/DSourceDir=$(Join-Path $root 'installed-bundle')",
             "/DRootDir=$root",
             "/DOutputDir=$output",
@@ -325,6 +356,11 @@ jobs:
           ref: ${{ inputs.source_ref || github.ref }}
       - name: Use current build checks with the selected application source
         run: cp "$RUNNER_TEMP/build_desktop.py" scripts/build_desktop.py
+      - name: Stamp beta package version
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py stamp
       - uses: actions/download-artifact@v7
         with:
           name: build-icons

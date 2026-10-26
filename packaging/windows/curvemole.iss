@@ -1,6 +1,9 @@
 #ifndef MyAppVersion
   #error MyAppVersion must be provided to ISCC
 #endif
+#ifndef MyAppNumericVersion
+  #define MyAppNumericVersion MyAppVersion
+#endif
 #ifndef SourceDir
   #ifndef SourceExe
     #error SourceDir or legacy SourceExe must be provided to ISCC
@@ -17,6 +20,7 @@
 AppId={{D73E23AD-A748-4C43-A2EF-09608497017E}
 AppName=CurveMole
 AppVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppNumericVersion}
 AppPublisher=Sebastiano Romi
 AppPublisherURL=https://github.com/SebRoLENS/curvemole
 AppSupportURL=https://github.com/SebRoLENS/curvemole/issues

@@ -7,6 +7,7 @@ import sys
 root = Path(SPEC).resolve().parents[1]
 version_text = (root / "src" / "curvemole" / "version.py").read_text(encoding="utf-8")
 version = re.search(r'^__version__\s*=\s*"([^"]+)"', version_text, re.M).group(1)
+numeric_version = version.split("b", 1)[0]
 icon = Path(os.environ.get(
     "CURVEMOLE_ICON",
     root / "src" / "curvemole" / "resources" / "curvemole.png",
@@ -71,8 +72,8 @@ if sys.platform == "darwin":
         bundle_identifier="it.unifi.lens.curvemole",
         info_plist={
             "NSHighResolutionCapable": True,
-            "CFBundleShortVersionString": version,
-            "CFBundleVersion": version,
+            "CFBundleShortVersionString": numeric_version,
+            "CFBundleVersion": numeric_version,
             "CFBundleDocumentTypes": [
                 {
                     "CFBundleTypeName": "CurveMole Project",

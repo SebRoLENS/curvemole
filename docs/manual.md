@@ -289,8 +289,24 @@ metadata.
 
 ### 3.8 Version badge and updates
 
+Choose **Help > Update channel…** to select **Stable** (approved releases for normal
+use) or **Beta** (the `testing` branch). Beta receives bug fixes sooner and may receive
+new features earlier. It may update very frequently and introduce new bugs. The
+selection is saved and can be changed at any time. A new beta installation defaults
+to Beta unless a channel preference was already saved; stable installations default
+to Stable.
+
+Switching from Beta to Stable stops beta updates. CurveMole keeps the installed
+version until an equal or newer stable release is available; it does not downgrade.
+Going back to an older version is not recommended, but advanced users who know what
+they are doing can download and install any version from the GitHub repository. The
+channel dialog includes a link to the download page. The badge continues to show
+**Beta** while a beta package is installed, even when the selected channel is Stable.
+
 The status bar contains a clickable version badge. CurveMole checks the latest GitHub
-release at startup and once per hour while the application remains open. The badge is:
+release for the selected channel at startup and once per hour while the application
+remains open. Stable checks exclude prereleases; Beta checks consider both stable
+and beta releases in version order. The badge is:
 
 - green when the installed release is current;
 - yellow when a bug-fix update (`x.x.y`) is available;

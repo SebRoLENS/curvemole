@@ -10,6 +10,34 @@ The project policy is:
 
 ## Normal development
 
+Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
+Python beta packages. Build versions are stamped only in the package workspace,
+for example `1.0.2b1` / `v1.0.2-beta.1` from the `1.0.1` stable baseline. The beta
+sequence is the Testing builds workflow run number. Source version metadata stays
+stable so promoting the code does not propagate a beta version into stable releases.
+
+The bootstrap commit contains `[beta artifacts only]`: it builds downloadable Actions
+artifacts but creates no tag or GitHub Release. The same marker can be used on future
+pushes for an unpublished trial. Later pushes without that marker publish verified
+prereleases with `--latest=false`. They do not change the stable release, website,
+DOI, manual version, or `main`. Manual Testing builds default to artifacts only;
+publishing must be explicitly selected. Windows/macOS signing follows the stable
+pipeline. Beta packages bundle the stable baseline manual; the updated Markdown
+manual and in-app channel dialog describe the beta channel changes.
+
+To promote testing, review a pull request from `testing` into `main`, let the tests
+pass, and merge only when the maintainer approves the tested code. Use a merge title
+without `[skip release]`; `[minor]`, `[major]`, or `[release X.Y.Z]` select the stable
+release increment. After the release preparation commit, merge `main` back into
+`testing` so the next beta starts above the new stable version. Never reset testing
+or force-push over unpublished work. No automatic testing-to-main promotion occurs.
+
+The app's **Help > Update channel…** setting is reversible. Switching to Stable
+waits for a stable version at least as new as the installed beta. Updates never
+downgrade. A matching final version sorts after its beta, beta sequences compare
+numerically, and all prereleases are excluded from the Stable feed. The installed
+version badge identifies beta packages independently of the channel preference.
+
 A push to `main` that changes application source, packaging, dependencies, or
 `.release-trigger` starts the release workflow. The default increment is `PATCH`, so
 ordinary corrective commits are treated as bug-fix releases.
@@ -42,7 +70,8 @@ All downloadable files and `SHA256SUMS.txt` are attached to the same release.
 The Linux AppImage and its detached signature are attached directly to the tagged
 release. They are downloaded briefly to calculate the release checksums, without
 creating a separate Actions AppImage artifact. A downloadable Actions AppImage test
-artifact is built only from a human-triggered `main` commit containing `[skip release]`.
+artifact is built from a human-triggered `main` commit containing `[skip release]`,
+or as part of a `testing` beta build.
 
 The first installer-enabled release also publishes the legacy raw Windows executable
 so older self-updaters can reach the transition release. Remove that raw executable
