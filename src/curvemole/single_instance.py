@@ -116,14 +116,18 @@ class DesktopInstance(QObject):
             socket.write(struct.pack("!I", len(body)) + body)
             while socket.bytesToWrite():
                 remaining = int((deadline - time.monotonic()) * 1000)
-                if remaining <= 0 or not socket.waitForBytesWritten(remaining):
+                if remaining <= 0:
                     raise RuntimeError("Could not send files to the running CurveMole.")
+                written = socket.waitForBytesWritten(remaining)
+                if not written and socket.bytesToWrite():
+                    raise RuntimeError(f"Could not send files to CurveMole: {socket.errorString()}")
             response = bytearray()
             while b"\n" not in response:
                 remaining = int((deadline - time.monotonic()) * 1000)
                 if remaining <= 0:
                     raise RuntimeError("CurveMole did not acknowledge the file-open request. Please retry.")
-                if not socket.bytesAvailable() and not socket.waitForReadyRead(remaining):
+                if (not socket.bytesAvailable() and not socket.waitForReadyRead(remaining)
+                        and not socket.bytesAvailable()):
                     raise RuntimeError("CurveMole did not acknowledge the file-open request. Please retry.")
                 response.extend(bytes(socket.readAll()))
                 if len(response) > 256:
@@ -176,7 +180,7 @@ class DesktopInstance(QObject):
         except (ValueError, KeyError, TypeError, UnicodeError):
             socket.abort()
             return
-        self._buffers.pop(socket, None)
+        self._buffers[socket] = None  # Keep ownership until the client closes.
         if request_id not in self._recent:
             self._recent[request_id] = None
             if len(self._recent) > 8192:
@@ -185,7 +189,9 @@ class DesktopInstance(QObject):
                 self.paths_received.emit(paths)
             self.activate_requested.emit()
         socket.write(b"OK:" + request_id.encode() + b"\n")
-        socket.disconnectFromServer()
+        # The client closes after reading the ACK. On Windows, closing the
+        # server end of a named pipe can discard data the client has not read.
+        socket.flush()
 
     def close(self):
         if self.server is not None:

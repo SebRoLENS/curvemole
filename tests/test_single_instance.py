@@ -85,6 +85,10 @@ def test_partial_frames_and_duplicate_requests_are_acknowledged_once(broker, tmp
             peer.flush()
             app.processEvents()
         pump(app, lambda peer=peer: peer.bytesAvailable() > 0)
+        # Keep the pipe alive until the client consumes the ACK, even if the
+        # server has already finished writing it (critical on Windows).
+        app.processEvents()
+        assert peer.state() == QLocalSocket.LocalSocketState.ConnectedState
         assert bytes(peer.readAll()) == b'OK:' + identifier.encode() + b'\n'
         peer.abort()
         app.processEvents()
