@@ -1537,8 +1537,13 @@ class MainWindow(QMainWindow):
         shared_mapping = None
         shared_config = None
         apply_all = False
+        batch = getattr(self, "_external_import_batch", None)
+        if batch is not None and paths is not batch.paths:
+            batch = None
         try:
             for index, path in enumerate(paths):
+                if batch is not None:
+                    batch.index = index
                 if index == 0 or not apply_all:
                     with transient_widget(ImportMappingDialog(path, batch_size=len(paths), parent=self)) as dialog:
                         choice = (preview_columns or {}).get(str(Path(path).resolve()))
@@ -1555,7 +1560,14 @@ class MainWindow(QMainWindow):
                             dialog.destination_series.setEnabled(False)
                             dialog.series_name.setEnabled(False)
                         dialog.existing_series_names = {item.name for item in self.project.dataset.series}
-                        if dialog.exec() != dialog.DialogCode.Accepted:
+                        if batch is not None:
+                            batch.dialog = dialog
+                        try:
+                            accepted = dialog.exec() == dialog.DialogCode.Accepted
+                        finally:
+                            if batch is not None:
+                                batch.dialog = None
+                        if not accepted:
                             return
                         if index == 0:
                             destination_id = dialog.destination_series.currentData()
@@ -1569,6 +1581,8 @@ class MainWindow(QMainWindow):
                     if len(paths) > 1 and not (shared_mapping.as_separated_files or shared_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
                     series.add(curve)
+            if batch is not None:
+                batch.accepting = False
             if destination_id is None:
                 self.project.add_series(series)
             else:

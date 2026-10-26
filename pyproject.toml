@@ -42,7 +42,7 @@ Issues = "https://github.com/SebRoLENS/curvemole/issues"
 
 [project.scripts]
 curvemole = "curvemole.cli:main"
-curvemole-gui = "curvemole.gui.app:main"
+curvemole-gui = "curvemole.desktop:main"
 
 [project.entry-points."curvemole.functions"]
 

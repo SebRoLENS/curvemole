@@ -20,7 +20,7 @@ datas = [
 ]
 
 a = Analysis(
-    [str(root / "src" / "curvemole" / "gui" / "app.py")],
+    [str(root / "src" / "curvemole" / "desktop.py")],
     pathex=[str(root / "src")],
     binaries=[],
     datas=datas,
@@ -81,6 +81,23 @@ if sys.platform == "darwin":
                     "CFBundleTypeExtensions": ["fitproj"],
                     "LSItemContentTypes": ["it.unifi.lens.curvemole.fitproj"],
                     "LSHandlerRank": "Owner",
+                },
+                {
+                    "CFBundleTypeName": "Scientific text data",
+                    "CFBundleTypeRole": "Viewer",
+                    "LSItemContentTypes": [
+                        "public.plain-text", "public.comma-separated-values-text",
+                        "public.tab-separated-values-text", "it.unifi.lens.curvemole.xy-data",
+                    ],
+                    "LSHandlerRank": "Alternate",
+                }
+            ],
+            "UTImportedTypeDeclarations": [
+                {
+                    "UTTypeIdentifier": "it.unifi.lens.curvemole.xy-data",
+                    "UTTypeDescription": "XY text data",
+                    "UTTypeConformsTo": ["public.plain-text"],
+                    "UTTypeTagSpecification": {"public.filename-extension": ["xy", "dat"]},
                 }
             ],
             "UTExportedTypeDeclarations": [

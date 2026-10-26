@@ -104,6 +104,33 @@ def linux_integration_is_current(
     )
 
 
+def upgrade_linux_multi_file_launcher(*, data_home: Path | None = None, home: Path | None = None) -> bool:
+    """Migrate only our managed launcher, preserving custom/unmanaged commands."""
+    root = data_home or _xdg_data_home()
+    desktop = root / "applications" / DESKTOP_FILENAME
+    managed = (home or Path.home()) / ".local" / "opt" / "CurveMole" / "CurveMole.AppImage"
+    try:
+        text = desktop.read_text(encoding="utf-8")
+        command = _desktop_exec(desktop)
+        executable = Path(shlex.split(command or "")[0])
+        if MANAGED_MARKER not in text or executable.resolve() != managed.resolve():
+            return False
+        lines = text.splitlines(keepends=True)
+        changed = [line.replace(" %f", " %F") if line.startswith("Exec=") else line for line in lines]
+        if changed == lines:
+            return False
+        backup = desktop.with_suffix(".desktop.pre-multi-file.bak")
+        if not backup.exists():
+            shutil.copy2(desktop, backup)
+        temporary = desktop.with_suffix(".desktop.new")
+        temporary.write_text("".join(changed), encoding="utf-8")
+        temporary.chmod(stat.S_IMODE(desktop.stat().st_mode))
+        temporary.replace(desktop)
+        return True
+    except (OSError, ValueError, IndexError):
+        return False
+
+
 def integrate_linux_desktop(
     *,
     appimage: Path | None = None,
@@ -177,7 +204,7 @@ def integrate_linux_desktop(
 Type=Application
 Name=CurveMole
 Comment=Modular Scientific Curve Fitting
-Exec={launch_command} %f
+Exec={launch_command} %F
 Icon=curvemole
 Categories=Science;Education;
 Terminal=false

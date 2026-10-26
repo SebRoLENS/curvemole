@@ -43,7 +43,7 @@ def test_linux_integration_installs_stable_appimage_and_is_idempotent(tmp_path: 
     assert result.appimage.read_text(encoding="utf-8") == "data"
     assert result.appimage.stat().st_mode & stat.S_IXUSR
     desktop = result.desktop_file.read_text(encoding="utf-8")
-    assert f'Exec="{result.appimage}" %f' in desktop
+    assert f'Exec="{result.appimage}" %F' in desktop
     assert "MimeType=application/x-curvemole-project;" in desktop
     assert result.mime_file.is_file()
     assert result.icon_file.is_file()
@@ -84,7 +84,7 @@ def test_linux_integration_adopts_and_backs_up_manual_launcher(tmp_path: Path) -
     assert result.appimage == tmp_path / "home" / ".local" / "opt" / "CurveMole" / "CurveMole.AppImage"
     assert result.appimage.read_text(encoding="utf-8") == "data"
     assert result.backup_file is not None and result.backup_file.is_file()
-    assert f'Exec="{result.appimage}" %f' in desktop.read_text(encoding="utf-8")
+    assert f'Exec="{result.appimage}" %F' in desktop.read_text(encoding="utf-8")
     assert launcher.read_text(encoding="utf-8") == "#!/bin/sh\n"
     assert linux_integration_is_current(data_home=data, home=tmp_path / "home")
 
@@ -169,3 +169,27 @@ def test_accepting_desktop_integration_prompt_records_choice_and_integrates(
     window.project.dirty = False
     window.close()
     app.processEvents()
+
+
+@pytest.mark.skipif(platform.system() != "Linux", reason="Linux desktop integration")
+def test_managed_launcher_upgrades_multi_file_exec_with_one_backup(tmp_path):
+    from curvemole.gui.desktop_integration import MANAGED_MARKER, upgrade_linux_multi_file_launcher
+    home = tmp_path / 'home'
+    data = tmp_path / 'data'
+    appimage = home / '.local/opt/CurveMole/CurveMole.AppImage'
+    original = f'[Desktop Entry]\n{MANAGED_MARKER}\nExec="{appimage}" %f\nName=CurveMole\n'
+    desktop = _file(data / 'applications/curvemole.desktop', original)
+    desktop.chmod(0o755)
+    assert upgrade_linux_multi_file_launcher(data_home=data, home=home)
+    assert desktop.read_text() == original.replace(' %f', ' %F')
+    backup = desktop.with_suffix('.desktop.pre-multi-file.bak')
+    assert backup.read_text() == original
+    assert desktop.stat().st_mode & stat.S_IXUSR
+    assert not upgrade_linux_multi_file_launcher(data_home=data, home=home)
+    assert backup.read_text() == original
+    desktop.write_text(original.replace(str(appimage), '/custom/curvemole'))
+    assert not upgrade_linux_multi_file_launcher(data_home=data, home=home)
+    assert '/custom/curvemole" %f' in desktop.read_text()
+    desktop.write_text(original.replace(MANAGED_MARKER, ''))
+    assert not upgrade_linux_multi_file_launcher(data_home=data, home=home)
+    assert ' %f' in desktop.read_text()

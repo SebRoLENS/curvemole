@@ -39,7 +39,45 @@ def _smoke_graphic_exports(project, directory, *, registry=None) -> None:
         raise RuntimeError("Frozen PDF export produced no output")
 
 
-def run_packaging_smoke() -> None:
+def _smoke_desktop_forwarding(instance) -> None:
+    """Exercise the installed entry point, not just source-level Qt sockets."""
+    import subprocess
+    import sys
+    import tempfile
+    import time
+    from pathlib import Path
+
+    from PySide6.QtCore import QCoreApplication
+
+    received = []
+    instance.paths_received.connect(received.extend)
+    # Nonexistent files test exact transport without opening another modal dialog.
+    with tempfile.TemporaryDirectory(prefix="curvemole-open-smoke-") as directory:
+        paths = [str(Path(directory) / f"data λ {index}.xy") for index in range(100)]
+        command = [sys.executable]
+        if not getattr(sys, "frozen", False):
+            command += ["-m", "curvemole.desktop"]
+        child = subprocess.Popen([*command, *paths], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        try:
+            deadline = time.monotonic() + 30
+            while child.poll() is None and time.monotonic() < deadline:
+                QCoreApplication.processEvents()
+                time.sleep(.01)
+            if child.poll() is None:
+                raise RuntimeError("Frozen file-open forwarding timed out")
+            output, error = child.communicate(timeout=5)
+            if child.returncode != 0 or received != paths:
+                raise RuntimeError(f"Frozen file-open forwarding failed: {output!r} {error!r}")
+        finally:
+            if child.poll() is None:
+                child.kill()
+            child.wait()
+            instance.paths_received.disconnect(received.extend)
+
+
+def run_packaging_smoke(*, instance=None) -> None:
+    if instance is not None:
+        _smoke_desktop_forwarding(instance)
     registry = FunctionRegistry()
     registry.extend(builtin_definitions())
     registry.register(formula_definition(

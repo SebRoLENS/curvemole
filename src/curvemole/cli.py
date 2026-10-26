@@ -133,7 +133,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 def _dispatch(args: argparse.Namespace) -> Any:
     if args.command == "gui":
-        from curvemole.gui.app import main as gui_main
+        from curvemole.desktop import main as gui_main
 
         return {"exit_code": gui_main([])}
     if args.command == "functions":

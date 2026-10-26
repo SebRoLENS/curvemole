@@ -5,16 +5,15 @@ from __future__ import annotations
 import math
 import os
 import platform
-import sys
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QCoreApplication, QEvent, QLocale, QObject, Qt, QTimer
-from PySide6.QtGui import QAction, QFileOpenEvent
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import QLocale, Qt, QTimer
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QMessageBox
 
 from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.models import Component
@@ -23,7 +22,7 @@ from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols
 from curvemole.gui.windowing import transient_widget
-from curvemole.version import __version__
+from curvemole.single_instance import NativeFileOpenFilter  # noqa: F401
 
 PlotViewState = tuple[
     tuple[float, float],
@@ -251,32 +250,6 @@ _install_continuous_peak_placement()
 install_manual_point_support()
 
 
-class NativeFileOpenFilter(QObject):
-    """Accept native Finder file-open events without overriding QApplication."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self._file_open_handler: Any | None = None
-        self._pending_file_opens: list[str] = []
-
-    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
-        if event.type() == QEvent.Type.FileOpen and isinstance(event, QFileOpenEvent):
-            path = event.file()
-            if path:
-                if self._file_open_handler is None:
-                    self._pending_file_opens.append(path)
-                else:
-                    self._file_open_handler(path)
-                return True
-        return super().eventFilter(watched, event)
-
-    def set_file_open_handler(self, handler: Any) -> None:
-        self._file_open_handler = handler
-        pending, self._pending_file_opens = self._pending_file_opens, []
-        for path in pending:
-            handler(path)
-
-
 def _open_paths(window: MainWindow, values: Sequence[str]) -> None:
     """Open one project or import file paths supplied by the operating system."""
     if getattr(window, "_startup_pending", False):
@@ -308,9 +281,11 @@ class CurveMoleMainWindow(MainWindow):
             from curvemole.gui.desktop_integration import (
                 current_appimage,
                 linux_integration_is_current,
+                upgrade_linux_multi_file_launcher,
             )
 
             if current_appimage() is not None:
+                upgrade_linux_multi_file_launcher()
                 self.desktop_integration_action = QAction(
                     self.tr("Integrate CurveMole with the desktop…"), self
                 )
@@ -481,30 +456,23 @@ def create_main_window(*args: Any, **kwargs: Any) -> CurveMoleMainWindow:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    # PyInstaller's spawned fit processes enter through this executable.
-    import multiprocessing
-    multiprocessing.freeze_support()
-    arguments = list(argv) if argv is not None else sys.argv
-    if len(arguments) == 3 and arguments[1] == "--run-automation-job":
-        from curvemole.core.automation_job import run_job
-        return run_job(arguments[2])
+    # Preserve the historical import path while using the lightweight launcher.
+    from curvemole.desktop import main as desktop_main
+    return desktop_main(argv)
+
+
+def run_primary(app, paths, instance, file_open_filter) -> int:
+    """Only the elected desktop reaches GUI construction and plugin loading."""
     _configure_gui_defaults()
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
-    app = QApplication(arguments)
-    file_open_filter: NativeFileOpenFilter | None = None
-    if platform.system() == "Darwin":
-        file_open_filter = NativeFileOpenFilter()
-        app.installEventFilter(file_open_filter)
-    QCoreApplication.setOrganizationName("CurveMole")
-    QCoreApplication.setApplicationName("CurveMole")
-    QCoreApplication.setApplicationVersion(__version__)
     window = create_main_window()
     app.aboutToQuit.connect(window._finish_session)
     window.show()
-    if file_open_filter is not None:
-        file_open_filter.set_file_open_handler(lambda path: _open_paths(window, [path]))
+    from curvemole.gui.external_files import ExternalFileController
+    controller = ExternalFileController(window)
+    window.external_files = controller
+    instance.activate_requested.connect(controller.activate)
+    file_open_filter.set_file_open_handler(lambda path: controller.enqueue([path]))
+    controller.enqueue(paths)
     if os.environ.get("CURVEMOLE_SMOKE_TEST") == "1":
         missing_icons = _missing_toolbar_icons(window)
         if missing_icons:
@@ -512,10 +480,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if os.environ.get("CURVEMOLE_PACKAGING_SMOKE") == "1":
             from curvemole.core.packaging_smoke import run_packaging_smoke
 
-            run_packaging_smoke()
+            run_packaging_smoke(instance=instance)
         QTimer.singleShot(0, app.quit)
-    if len(arguments) > 1:
-        _open_paths(window, arguments[1:])
     if os.environ.get("CURVEMOLE_SMOKE_TEST") != "1":
         from curvemole.gui.recovery_session import RecoverySession
 

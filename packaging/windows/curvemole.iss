@@ -65,12 +65,24 @@ Name: "{autodesktop}\CurveMole"; Filename: "{app}\CurveMole.exe"; WorkingDir: "{
 [Registry]
 Root: HKCU; Subkey: "Software\Classes\CurveMole.Project"; ValueType: string; ValueName: ""; ValueData: "CurveMole Project"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\CurveMole.Project\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\CurveMole.exe,0"
+Root: HKCU; Subkey: "Software\Classes\CurveMole.Project\shell\open"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Player"
 Root: HKCU; Subkey: "Software\Classes\CurveMole.Project\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\CurveMole.exe"" ""%1"""
 Root: HKCU; Subkey: "Software\Classes\.fitproj\OpenWithProgids"; ValueType: string; ValueName: "CurveMole.Project"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\CurveMole\Capabilities"; ValueType: string; ValueName: "ApplicationName"; ValueData: "CurveMole"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\CurveMole\Capabilities"; ValueType: string; ValueName: "ApplicationDescription"; ValueData: "Modular Scientific Curve Fitting"
 Root: HKCU; Subkey: "Software\CurveMole\Capabilities\FileAssociations"; ValueType: string; ValueName: ".fitproj"; ValueData: "CurveMole.Project"
 Root: HKCU; Subkey: "Software\RegisteredApplications"; ValueType: string; ValueName: "CurveMole"; ValueData: "Software\CurveMole\Capabilities"; Flags: uninsdeletevalue
+
+; Register as an optional Open with handler; never take over data-file defaults.
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "CurveMole"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\shell\open"; ValueType: string; ValueName: "MultiSelectModel"; ValueData: "Player"
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\CurveMole.exe"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".fitproj"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".txt"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".dat"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".csv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".tsv"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\Applications\CurveMole.exe\SupportedTypes"; ValueType: string; ValueName: ".xy"; ValueData: ""
 
 [Run]
 Filename: "{app}\CurveMole.exe"; Description: "{cm:LaunchProgram,CurveMole}"; WorkingDir: "{app}"; Flags: nowait postinstall

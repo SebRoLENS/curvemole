@@ -49,7 +49,14 @@ def _import_data_natural_order(self: MainWindow, paths: list[str] | None = None)
             return
 
     existing_ids = {curve.id for curve in self.project.curves}
-    _ORIGINAL_IMPORT_DATA(self, sort_import_paths(list(paths)), preview_columns=preview_columns)
+    ordered = sort_import_paths(list(paths))
+    batch = getattr(self, "_external_import_batch", None)
+    if batch is not None and paths is batch.paths:
+        # Keep the live list: other OS requests can extend it while the normal
+        # mapping dialog runs its nested Qt event loop.
+        batch.paths[:] = ordered
+        ordered = batch.paths
+    _ORIGINAL_IMPORT_DATA(self, ordered, preview_columns=preview_columns)
 
     # The core importer owns imported-data names.  MainWindow still contains a
     # legacy multi-file prefix from before that rule was centralised, so discard
