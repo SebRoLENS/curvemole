@@ -9,6 +9,11 @@ on:
         description: Release version to synchronise
         required: true
         type: string
+      channel:
+        description: Stable updates repository citation; Beta updates only beta release notes
+        type: choice
+        options: [stable, beta]
+        default: stable
 
 permissions:
   contents: read
@@ -20,6 +25,7 @@ concurrency:
 
 jobs:
   discover:
+    if: inputs.channel != 'beta'
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     outputs:
@@ -87,3 +93,23 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run website.yml --repo "$GITHUB_REPOSITORY" --ref main -f mode=integrated
+
+  beta:
+    if: github.event_name == 'schedule' || inputs.channel == 'beta'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: zenodo-beta-releases
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: testing
+      - name: Update only published beta release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BETA_VERSION: ${{ inputs.channel == 'beta' && inputs.version || '' }}
+        run: python .github/scripts/beta_doi.py --version "$BETA_VERSION"

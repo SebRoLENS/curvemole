@@ -74,7 +74,9 @@ def publish(version: str, directory: Path) -> None:
         f"Source: `{source}` on `testing`. Verify downloads against `SHA256SUMS.txt`.\n\n"
         "Windows and macOS packages are unsigned, as with the stable channel. "
         "The bundled manual describes the stable baseline; beta-specific channel behavior is "
-        "documented here and in the channel dialog.\n",
+        "documented here and in the channel dialog.\n\n"
+        "**Zenodo DOI:** pending archival. The beta's specific DOI is linked automatically "
+        "after Zenodo has archived this release.\n",
         encoding="utf-8",
     )
     existing = subprocess.run(["gh", "release", "view", tag, "--repo", repository,

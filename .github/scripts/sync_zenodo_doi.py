@@ -66,8 +66,11 @@ def extract_doi(record: dict) -> str | None:
     return str(metadata["doi"]) if metadata.get("doi") else None
 
 
-def zenodo_records(query: str) -> list[dict]:
-    params = urllib.parse.urlencode({"q": query, "size": 25})
+def zenodo_records(query: str, *, all_versions: bool = False) -> list[dict]:
+    parameters = {"q": query, "size": 25}
+    if all_versions:
+        parameters["all_versions"] = "true"
+    params = urllib.parse.urlencode(parameters)
     request = urllib.request.Request(
         f"https://zenodo.org/api/records?{params}",
         headers={"Accept": "application/json", "User-Agent": "curvemole-release-bot/0.1"},

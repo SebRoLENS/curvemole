@@ -17,6 +17,9 @@
 - Beta versions are stamped at build time by `.github/scripts/beta_release.py`.
   Keep tracked source, citation and stable manual version metadata unchanged until
   stable release preparation. Do not hand-edit a beta version into those files.
+- Link each published beta's verified Zenodo version DOI only in its release
+  notes. Never replace stable README/CITATION metadata with a beta DOI. Match the
+  exact beta version and repository tag before linking an existing archive.
 - Preserve the reversible Stable/Beta setting. Switching to Stable waits for an
   equal or newer final version and never downgrades automatically. The status badge
   must identify the installed beta independently of the selected channel.

@@ -20,7 +20,8 @@ The bootstrap commit contains `[beta artifacts only]`: it builds downloadable Ac
 artifacts but creates no tag or GitHub Release. The same marker can be used on future
 pushes for an unpublished trial. Later pushes without that marker publish verified
 prereleases with `--latest=false`. They do not change the stable release, website,
-DOI, manual version, or `main`. Manual Testing builds default to artifacts only;
+stable DOI, manual version, or `main`. Each published beta's own Zenodo DOI is
+linked in that beta's release notes. Manual Testing builds default to artifacts only;
 publishing must be explicitly selected. Windows/macOS signing follows the stable
 pipeline. Beta packages bundle the stable baseline manual; the updated Markdown
 manual and in-app channel dialog describe the beta channel changes.
@@ -170,6 +171,32 @@ without creating a new software version.
 
 No Zenodo token is stored in this repository. The synchronisation uses only the
 public records API and requests no more than 25 records per page.
+
+### Beta version DOIs
+
+Zenodo's existing GitHub integration also archives beta prereleases. The beta DOI
+synchroniser uses those records; it does not create duplicate deposits or require
+a Zenodo token. A record must identify both the exact beta version and this
+repository's exact release tag. A stable DOI, a concept DOI, a similarly named
+fork, or a different beta cannot stand in for the requested beta.
+
+After publishing a beta, **Testing builds** links its verified version DOI in the
+GitHub release notes. It polls up to ten times, thirty seconds apart, while
+archival is pending. It preserves the release's existing notes, assets, tag,
+prerelease status and latest-stable designation. It never commits to either
+branch, changes `README.md` or `CITATION.cff`, or publishes the website.
+
+If Zenodo takes longer, the job reports the pending version in its summary rather
+than inventing or reusing a DOI. To retry, run **Sync Zenodo DOI**, select the
+**testing** branch, choose channel **beta**, and enter a version such as
+`1.0.2-beta.8` or `1.0.2b8`. Selecting Beta skips stable citation and website jobs.
+The workflow also contains an hourly beta backfill; GitHub activates scheduled
+workflow changes only after a normal stable promotion brings them to the default
+branch. Until then, beta publication and manual runs on testing provide the sync.
+
+Infrastructure commits marked `[skip release]` still run all source checks, skip
+duplicate application builds, and backfill missing DOI links on existing published
+betas. This allows DOI maintenance without publishing another software version.
 
 ### Official website and downloads in archived records
 
