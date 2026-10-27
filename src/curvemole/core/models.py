@@ -45,7 +45,7 @@ class Component:
     ) -> Component:
         registry = registry or default_registry()
         definition = registry.get(function_id)
-        meta = dict(metadata or {})
+        meta = definition.configuration(metadata)
         return cls(
             function_id=function_id,
             name=name or definition.display_name,

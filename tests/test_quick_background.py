@@ -56,7 +56,8 @@ def test_add_choices_do_not_change_quick_add_options(monkeypatch, tmp_path) -> N
 
         monkeypatch.setattr(AddComponentDialog, "exec", accept_plain)
         window.add_component()
-        assert not window._pending_component.is_background
+        assert window._pending_component is None
+        assert not project.model_for(curve.id).components[-1].is_background
         assert not window._pending_manual_points
         assert window.quick_add_background.isChecked()
         assert window.quick_add_manual_points.isChecked()

@@ -166,7 +166,13 @@ def _install_add_component_dialog() -> None:
             dialog.manual_points.setChecked(manual_points_default(definition))
 
         dialog.function.currentIndexChanged.connect(lambda *_: sync_default())
+        def sync_parameter_mode(checked):
+            dialog.parameter_table.setEnabled(not checked)
+            dialog.estimate_parameters.setEnabled(not checked and dialog.curve is not None)
+            dialog.reset_parameters.setEnabled(not checked)
+        dialog.manual_points.toggled.connect(sync_parameter_mode)
         sync_default()
+        sync_parameter_mode(dialog.manual_points.isChecked())
 
     def use_manual_points(dialog: AddComponentDialog) -> bool:
         return bool(dialog.manual_points.isChecked())
@@ -400,29 +406,6 @@ def _install_main_window() -> None:
                     return
 
                 window._pending_manual_points = False
-                if definition.kind == "peak":
-                    window._pending_component = component
-                    window._pending_component_curve_id = window.active_curve_id
-                    window.plot_workspace.begin_peak_placement(definition.display_name)
-                    window._notify(
-                        window.tr("Click the peak centre and drag horizontally to set its initial FWHM.")
-                    )
-                    return
-
-                if component.function_id == "cubic_spline":
-                    # Free-mode spline: initialize the dialog's default x nodes from
-                    # the active curve, but leave y parameters free for fitting.
-                    nodes = np.asarray(component.metadata.get("x_nodes", []), dtype=float)
-                    finite = np.isfinite(curve.x) & np.isfinite(curve.y)
-                    if len(nodes) >= 2 and np.any(finite):
-                        order = np.argsort(curve.x[finite])
-                        xs = curve.x[finite][order]
-                        ys = curve.y[finite][order]
-                        for index, node in enumerate(nodes):
-                            parameter = component.parameters.get(f"y{index}")
-                            if parameter is not None:
-                                parameter.value = float(np.interp(node, xs, ys))
-                                parameter.fixed = False
                 window._commit_component(component, window.active_curve_id)
             except Exception as exc:
                 window._show_error(window.tr("Add component"), exc)

@@ -37,6 +37,38 @@ class ParameterSpec:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class FunctionOptionSpec:
+    """A construction option, distinct from an optimizable parameter."""
+
+    name: str
+    label: str
+    default: int | float | str | bool
+    kind: str = "integer"
+    minimum: float | None = None
+    maximum: float | None = None
+    choices: tuple[str, ...] = ()
+    description: str = ""
+
+    def validate(self, value: Any) -> Any:
+        valid = {
+            "integer": isinstance(value, int) and not isinstance(value, bool),
+            "number": isinstance(value, (int, float)) and not isinstance(value, bool),
+            "boolean": isinstance(value, bool),
+            "text": isinstance(value, str),
+            "choice": isinstance(value, str) and value in self.choices,
+        }
+        if not valid.get(self.kind, False):
+            raise DataValidationError(f"Invalid {self.label}: {value!r}.")
+        if self.kind in {"integer", "number"} and (
+            not math.isfinite(value)
+            or (self.minimum is not None and value < self.minimum)
+            or (self.maximum is not None and value > self.maximum)
+        ):
+            raise DataValidationError(f"{self.label} is outside its allowed range.")
+        return value
+
+
 @dataclass(slots=True)
 class FunctionDefinition:
     identifier: str
@@ -49,9 +81,18 @@ class FunctionDefinition:
     description: str = ""
     custom_metadata: dict[str, Any] = field(default_factory=dict)
 
+    configuration_specs: tuple[FunctionOptionSpec, ...] = ()
+
+    def configuration(self, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
+        configured = dict(metadata or {})
+        for option in self.configuration_specs:
+            configured[option.name] = option.validate(configured.get(option.name, option.default))
+        return configured
+
     def specs(self, metadata: Mapping[str, Any] | None = None) -> tuple[ParameterSpec, ...]:
+        configured = self.configuration(metadata)
         if self.parameter_factory:
-            return self.parameter_factory(metadata or {})
+            return self.parameter_factory(configured)
         return self.parameter_specs
 
     def make_parameters(
@@ -228,6 +269,7 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
             "generic",
             _polynomial,
             parameter_factory=_polynomial_specs,
+            configuration_specs=(FunctionOptionSpec("order", "Polynomial degree", 2, minimum=0, maximum=50),),
         ),
         FunctionDefinition(
             "cubic_spline",

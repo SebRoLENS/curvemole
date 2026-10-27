@@ -355,9 +355,17 @@ def _quick_add_function(window: MainWindow) -> None:
         if not ensure_insertion_operator(window):
             return
         operator = selected_operator(window)
+        metadata = {}
+        if definition.configuration_specs:
+            from curvemole.gui.function_configuration import FunctionOptionsDialog
+            with transient_widget(FunctionOptionsDialog(definition, window)) as dialog:
+                if dialog.exec() != dialog.DialogCode.Accepted:
+                    return
+                metadata = dialog.options.metadata()
+                dialog.options.remember()
 
         if definition.kind == "peak":
-            component = Component.create(function_id, registry=window.registry, operator=operator)
+            component = Component.create(function_id, registry=window.registry, metadata=metadata, operator=operator)
             component.is_background = _quick_add_option(window, function_id, "background")
             if not _quick_add_option(window, function_id, "manual_points"):
                 initialise_peak_component(component, _guess_quick_peak(window), registry=window.registry)
@@ -417,7 +425,7 @@ def _quick_add_function(window: MainWindow) -> None:
             )
             return
 
-        component = Component.create(function_id, registry=window.registry, operator=operator)
+        component = Component.create(function_id, registry=window.registry, metadata=metadata, operator=operator)
         component.is_background = _quick_add_option(window, function_id, "background")
         from curvemole.gui.manual_points import minimum_manual_points
 

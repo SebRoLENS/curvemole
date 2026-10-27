@@ -1392,7 +1392,8 @@ point placement, right-click continues to remove the nearest point.
 
 ### 8.5 Adding a peak with the pointer
 
-After choosing a peak and pressing **OK**:
+In the toolbar Functions group, choose a peak, enable **Initialize with points**,
+and press **Add function**:
 
 1. click the intended center;
 2. drag horizontally to either half-height edge;
@@ -1407,6 +1408,35 @@ area and width parameters. New custom peaks should declare explicit semantic rol
 their position, intensity, and width parameters in Function Builder. Older custom
 functions without role metadata retain compatibility through conventional names such
 as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`, `amplitude`, or `height`.
+
+#### Construction options and initial parameters
+
+**Add function** asks for construction options when the selected function declares
+them. For **Polynomial**, choose its degree (0–50) before adding it. Cancel leaves
+the model unchanged. The last confirmed construction options are remembered per
+function and shared with the advanced Add dialog. Background and point-initialization
+choices still apply. Functions without construction options retain immediate insertion.
+
+In the advanced **Add component** dialog, the parameter table provides **Initial
+value**, **Minimum**, **Maximum**, and **Fixed** for every parameter. Construction
+options update the table; changing polynomial degree preserves edits to coefficients
+that remain present. Limits apply to the subsequent fit as well as initialization.
+Use `-inf` and `inf` for unbounded limits within the function's allowed domain.
+Invalid values are highlighted and prevent insertion until corrected.
+
+**Restore defaults** restores the selected configuration's parameter values, bounds,
+and fixed states. **Estimate from data** estimates values using usable, unmasked
+points of the active spectrum, respecting bounds and leaving fixed parameters
+unchanged. This is a standalone component estimate against the spectrum, not a
+fit of the complete composed model. Inspect and edit the estimate before adding.
+With manual-point initialization disabled, **OK** inserts exactly the displayed
+configuration, including for peaks and splines; no later automatic or graphical
+estimate replaces it. Enabling manual-point initialization disables the table and
+its estimation controls because the selected graph points determine those values.
+
+Developers and plugin authors can declare `FunctionDefinition.configuration_specs`
+using `FunctionOptionSpec` (integer, number, boolean, text, or choice). The same
+controls, validation and component metadata are used by quick and advanced insertion.
 
 ### 8.6 Initializing any function from manually selected points
 
