@@ -32,8 +32,9 @@ def repo(tmp_path, monkeypatch):
     git("config", "user.email", "test@example.invalid")
     (checkout / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
     (checkout / ".github/scripts").mkdir(parents=True)
-    for name in ("promote_testing.py", "release_state.py", "prepare_release.py", "readme_sections.py"):
+    for name in ("promote_testing.py", "release_state.py", "prepare_release.py", "readme_sections.py", "release_target.py"):
         shutil.copy2(ROOT / ".github/scripts" / name, checkout / ".github/scripts" / name)
+    (checkout / ".github/release-target.json").write_text('{"version": "1.1.0"}\n')
     (checkout / "src/curvemole").mkdir(parents=True)
     (checkout / "src/curvemole/version.py").write_text('__version__ = "1.0.1"\n', encoding="utf-8")
     git("add", ".")
@@ -57,7 +58,7 @@ def repo(tmp_path, monkeypatch):
 
 def prepared_release(source):
     git("switch", "-C", "main", "origin/main")
-    prepared = commit("src/curvemole/version.py", '__version__ = "1.0.2"\n',
+    prepared = commit("src/curvemole/version.py", '__version__ = "1.1.0"\n',
                       f"Prepare stable\n\nRelease-Run: 123\nRelease-Source: {source}")
     git("push", "origin", "main")
     return prepared
@@ -99,7 +100,7 @@ def test_main_change_during_validation_is_never_overwritten(repo):
 
 def test_invalid_requested_version_fails_before_modifying_main(repo):
     module, source, baseline, _ = repo
-    with pytest.raises(SystemExit, match="newer than"):
+    with pytest.raises(ValueError, match="must match the tested target"):
         module.snapshot(source, "123", "patch", "1.0.1")
     assert git("ls-remote", "origin", "refs/heads/main").split()[0] == baseline
 
@@ -129,7 +130,8 @@ def test_sync_keeps_new_testing_work_and_imports_released_version(repo):
     assert module.ancestor(newer, updated)
     assert module.ancestor(prepared, updated)
     assert git("show", f"{updated}:later.txt") == "keep this work"
-    assert git("show", f"{updated}:src/curvemole/version.py") == '__version__ = "1.0.2"'
+    assert git("show", f"{updated}:src/curvemole/version.py") == '__version__ = "1.1.0"'
+    assert '"1.1.1"' in git("show", f"{updated}:.github/release-target.json")
     assert git("ls-remote", "origin", "refs/heads/main").split()[0] == prepared
     module.sync_testing(prepared)
     assert git("rev-parse", "origin/testing") == updated
@@ -167,3 +169,29 @@ def test_only_exact_commit_identifiers_are_accepted(repo, reference):
     module, _, _, _ = repo
     with pytest.raises(ValueError, match="exact commit"):
         module.sha(reference)
+
+
+def test_promotion_plan_uses_target_even_with_default_patch_bump(repo, monkeypatch):
+    import argparse
+    import runpy
+
+    module, source, baseline, output = repo
+    module.snapshot(source, "123", "patch", "")
+    module.promote(source, baseline, "123")
+    monkeypatch.setenv("GITHUB_REF", "refs/heads/testing")
+    plan = runpy.run_path(".github/scripts/release_state.py")["plan"]
+    plan(argparse.Namespace(run_id="123", version="", bump="patch", message="Feature on testing"))
+    assert "version=1.1.0\n" in output.read_text()
+    assert git("show", "origin/main:src/curvemole/version.py") == '__version__ = "1.0.1"'
+
+
+def test_sync_preserves_newer_explicit_target(repo):
+    module, source, baseline, _ = repo
+    module.promote(source, baseline, "123")
+    prepared = prepared_release(source)
+    git("switch", "testing")
+    commit(".github/release-target.json", '{"version": "1.2.0"}\n', "Plan next feature cycle")
+    git("push", "origin", "testing")
+    module.sync_testing(prepared)
+    assert '"1.2.0"' in git("show", "origin/testing:.github/release-target.json")
+    assert git("ls-remote", "origin", "refs/heads/main").split()[0] == prepared

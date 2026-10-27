@@ -11,11 +11,14 @@ import subprocess
 from pathlib import Path
 
 
-def beta_version(base: str, sequence: str) -> str:
-    if not re.fullmatch(r"\d+\.\d+\.\d+", base) or not sequence.isdecimal() or int(sequence) < 1:
-        raise ValueError("Expected a stable base version and a positive beta sequence")
-    major, minor, patch = map(int, base.split("."))
-    return f"{major}.{minor}.{patch + 1}b{int(sequence)}"
+def beta_version(target: str, sequence: str) -> str:
+    from runpy import run_path
+
+    validate = run_path(str(Path(__file__).with_name("release_target.py")))["version_tuple"]
+    validate(target)
+    if not sequence.isdecimal() or int(sequence) < 1:
+        raise ValueError("Expected a positive beta sequence")
+    return f"{target}b{int(sequence)}"
 
 
 def stamp(version: str, root: Path = Path(".")) -> None:
@@ -121,7 +124,9 @@ def main() -> None:
         import runpy
 
         base = runpy.run_path("src/curvemole/version.py")["__version__"]
-        version = beta_version(base, os.environ["GITHUB_RUN_NUMBER"])
+        targets = runpy.run_path(str(Path(__file__).with_name("release_target.py")))
+        target = targets["beta_target"](base)
+        version = beta_version(target, os.environ["GITHUB_RUN_NUMBER"])
         with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
             output.write(f"version={version}\n")
     elif args.command == "stamp":

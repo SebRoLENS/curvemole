@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       bump:
-        description: Stable version increment (select testing to promote it)
+        description: Stable increment on main (testing uses release-target.json)
         required: true
         default: patch
         type: choice
         options: [patch, minor, major]
       version:
-        description: Optional exact new version
+        description: Optional exact version (testing must match release-target.json)
         required: false
         type: string
 

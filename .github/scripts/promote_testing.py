@@ -61,7 +61,8 @@ def snapshot(source: str, run_id: str, bump: str, version: str) -> None:
             raise ValueError("Merge main into testing and resolve conflicts before promoting; no branch was changed")
     # Reject invalid/existing versions before touching main.
     prepare = run_path(str(Path(__file__).with_name("prepare_release.py")))
-    prepare["choose_version"](bump, version or None)
+    targets = run_path(str(Path(__file__).with_name("release_target.py")))
+    prepare["choose_version"](bump, targets["promotion_target"](version))
     output(main_sha=current_main, source_sha=source)
 
 
@@ -83,18 +84,33 @@ def promote(source: str, expected_main: str, run_id: str) -> None:
     subprocess.run(["git", "push", "origin", f"{source}:refs/heads/main"], check=True)
 
 
+def advance_testing_target(released: str) -> bool:
+    text = git("show", f"{released}:src/curvemole/version.py")
+    match = re.search(r'^__version__ = "(\d+\.\d+\.\d+)"', text, re.M)
+    if not match:
+        raise ValueError("The released commit has no final version")
+    targets = run_path(str(Path(__file__).with_name("release_target.py")))
+    if not targets["advance_target"](match.group(1)):
+        return False
+    subprocess.run(["git", "add", str(targets["TARGET_FILE"])], check=True)
+    subprocess.run(["git", "commit", "-m", "Start next beta cycle [beta artifacts only]"], check=True)
+    return True
+
+
 def sync_testing(released: str) -> None:
     released = sha(released)
     refresh()
     if not ancestor(released, "origin/main"):
         raise ValueError("The release commit is no longer part of main")
     subprocess.run(["git", "checkout", "--detach", "origin/testing"], check=True)
-    if ancestor(released, "HEAD"):
-        print("testing already contains the released version metadata.")
-        return
     subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
     subprocess.run(["git", "config", "user.email",
                     "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+    if ancestor(released, "HEAD"):
+        if advance_testing_target(released):
+            subprocess.run(["git", "push", "origin", "HEAD:refs/heads/testing"], check=True)
+        print("testing already contains the released version metadata.")
+        return
     # Include any metadata-only DOI updates already on main, but no later app work.
     generated = run_path(str(Path(__file__).with_name("release_state.py")))["FILES"]
     target = released
@@ -111,6 +127,7 @@ def sync_testing(released: str) -> None:
     if result.returncode:
         subprocess.run(["git", "merge", "--abort"], check=True)
         raise ValueError("Stable was published, but testing has merge conflicts; resolve them on testing")
+    advance_testing_target(released)
     subprocess.run(["git", "push", "origin", "HEAD:refs/heads/testing"], check=True)
 
 

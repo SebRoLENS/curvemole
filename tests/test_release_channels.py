@@ -191,7 +191,7 @@ def test_beta_stamping_preserves_dependencies_and_does_not_mutate_stable_metadat
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes((ROOT / name).read_bytes())
     original_lock = tomllib.loads((tmp_path / "uv.lock").read_text())
-    assert beta.beta_version("1.0.1", "10") == "1.0.2b10"
+    assert beta.beta_version("1.1.0", "10") == "1.1.0b10"
     beta.stamp("1.0.2b10", tmp_path)
     assert '__version__ = "1.0.2b10"' in (tmp_path / "src/curvemole/version.py").read_text()
     assert tomllib.loads((tmp_path / "pyproject.toml").read_text())["project"]["version"] == "1.0.2b10"
@@ -263,10 +263,12 @@ def test_beta_plan_runs_before_installing_project_dependencies(tmp_path, monkeyp
     version_file = tmp_path / "src/curvemole/version.py"
     version_file.parent.mkdir(parents=True)
     version_file.write_text('__version__ = "1.0.1"\n', encoding="utf-8")
+    (tmp_path / ".github").mkdir()
+    (tmp_path / ".github/release-target.json").write_text('{"version": "1.1.0"}\n')
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GITHUB_RUN_NUMBER", "2")
     output = tmp_path / "outputs"
     monkeypatch.setenv("GITHUB_OUTPUT", str(output))
     monkeypatch.setattr(sys, "argv", ["beta_release.py", "plan"])
     script.main()
-    assert output.read_text() == "version=1.0.2b2\n"
+    assert output.read_text() == "version=1.1.0b2\n"

@@ -12,9 +12,20 @@ The project policy is:
 
 Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
 Python beta packages. Build versions are stamped only in the package workspace,
-for example `1.0.2b1` / `v1.0.2-beta.1` from the `1.0.1` stable baseline. The beta
-sequence is the Testing builds workflow run number. Source version metadata stays
-stable so promoting the code does not propagate a beta version into stable releases.
+using the final destination recorded in `.github/release-target.json`. The current
+target is `1.1.0`, producing `1.1.0bN` / `v1.1.0-beta.N` while stable remains `1.0.1`.
+The beta sequence is the Testing builds workflow run number; gaps are normal and
+it need not restart at 1 when the target changes. Previously published beta tags
+and assets remain unchanged. Failed older runs should be replaced by a new push
+using the new configuration; rerunning an old commit retains its old workflow.
+Source version metadata stays stable so promoting the code does not propagate a
+beta version into stable releases.
+
+Change only the target file on `testing` when the intended final version changes:
+use the next patch for corrections, next minor for compatible new features, or next
+major for incompatible changes. The target must be newer than the stable source
+baseline. Further fixes during a beta cycle increment `N`, keeping the same target.
+Do not edit stable source, citation, lock file or manual version fields to label betas.
 
 The bootstrap commit contains `[beta artifacts only]`: it builds downloadable Actions
 artifacts but creates no tag or GitHub Release. The same marker can be used on future
@@ -34,8 +45,10 @@ To promote the current testing version from the GitHub website:
 1. Open **Actions > Automatic release > Run workflow**.
 2. Under **Use workflow from**, select **testing**. This is essential: the testing
    version of this existing workflow contains the promotion entry point.
-3. Choose `patch` (bugfix), `minor` (feature release), or `major` (major update).
-   Optionally enter an exact stable version such as `1.1.0`; otherwise leave it blank.
+3. The final version comes from `.github/release-target.json`; the bump selector
+   applies only to direct stable releases on `main`. Leave the exact version blank,
+   or enter the same target as a confirmation. A different exact version is rejected;
+   change and test the target on `testing` first.
 4. Click **Run workflow** when satisfied with the tested beta. The run is named
    **Promote testing to stable**.
 
@@ -45,7 +58,10 @@ neither branch has changed. It then prepares the stable version, manuals and
 screenshots, validates them, builds all desktop/Python packages and publishes the
 verified stable release. The existing website/DOI publication flow is notified.
 After successful publication it merges the released metadata back into `testing`,
-preserving work added since promotion. DOI metadata discovered later is synchronized
+preserving work added since promotion. This sync advances an exhausted target to
+its next patch (`1.1.0` → `1.1.1`), so later testing builds cannot publish betas of an
+already released version. A newer target already set on testing is preserved; set
+`1.2.0` instead when the next cycle includes new features. DOI metadata discovered later is synchronized
 back as well, once the corresponding stable release is published. Merge conflicts or concurrent branch updates
 stop the affected step instead of overwriting work. Never force-push either branch.
 

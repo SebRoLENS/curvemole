@@ -69,6 +69,11 @@ def plan(args: argparse.Namespace) -> None:
     requested = re.search(r"\[release\s+(\d+\.\d+\.\d+)\]", args.message)
     if not exact and requested:
         exact = requested.group(1)
+    if os.environ.get("GITHUB_REF") == "refs/heads/testing":
+        from runpy import run_path
+
+        targets = run_path(str(Path(__file__).with_name("release_target.py")))
+        exact = targets["promotion_target"](exact or "")
     bump = args.bump or ("major" if "[major]" in args.message else
                          "minor" if "[minor]" in args.message else "patch")
     version = module.choose_version(bump, exact)

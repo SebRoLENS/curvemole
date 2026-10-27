@@ -1412,7 +1412,7 @@ as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`, `amplitude`, or `height`.
 #### Construction options and initial parameters
 
 **Add function** asks for construction options when the selected function declares
-them. For **Polynomial**, choose its degree (0–50) before adding it. Cancel leaves
+them. For **Polynomial**, choose its degree (0-50) before adding it. Cancel leaves
 the model unchanged. The last confirmed construction options are remembered per
 function and shared with the advanced Add dialog. Background and point-initialization
 choices still apply. Functions without construction options retain immediate insertion.
