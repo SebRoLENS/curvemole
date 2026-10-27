@@ -63,8 +63,7 @@ def test_quick_polynomial_options_cancel_and_confirm(configured_window, monkeypa
     assert remembered.metadata()["order"] == 4
     window.quick_add_manual_points.setChecked(True)
     window.quick_peak()
-    assert window._pending_component.metadata["order"] == 4
-    assert window.plot_workspace._manual_points_minimum == 5
+    assert window.plot_workspace._manual_points_minimum == 2
 
 
 def test_advanced_polynomial_preserves_common_edits_and_rejects_invalid(configured_window):
@@ -172,3 +171,107 @@ def test_estimate_and_restore_buttons(configured_window):
     dialog.reset_parameters.click()
     assert all(p.value == 0 for p in dialog.component().parameters.values())
     dialog.close()
+
+
+def test_manual_polynomial_skips_options_and_updates_degree_with_points(configured_window, monkeypatch):
+    app, window = configured_window
+    monkeypatch.setattr(FunctionOptionsDialog, "exec", lambda d: pytest.fail("No degree dialog in point mode"))
+    window.quick_function_selector.setCurrentIndex(window.quick_function_selector.findData("polynomial"))
+    window.quick_add_manual_points.setChecked(True)
+    window.quick_peak()
+    workspace = window.plot_workspace
+    for x, y in ((-1., 1.), (0., 0.), (1., 1.)):
+        workspace._add_spline_point(x, y)
+        app.processEvents()
+    assert workspace.finish_placement_button.isEnabled()
+    assert "Polynomial degree: 2" in workspace.placement_label.text()
+    workspace._remove_spline_point(1., 1.)
+    assert "Polynomial degree: 1" in workspace.placement_label.text()
+    workspace.finish_placement()
+    component = window.project.model_for(window.active_curve_id).components[-1]
+    assert component.metadata["order"] == 1
+    assert all(p.fixed for p in component.parameters.values())
+    assert window.undo_stack.canUndo()
+    window.undo_stack.undo()
+    assert not window.project.model_for(window.active_curve_id).components
+
+
+def test_advanced_point_mode_hides_inferred_option(configured_window):
+    _, window = configured_window
+    dialog = AddComponentDialog(window.registry, window.project.dataset.curve(window.active_curve_id), window)
+    dialog.function.setCurrentIndex(dialog.function.findData("polynomial"))
+    dialog.manual_points.setChecked(True)
+    assert dialog.polynomial_order.isHidden()
+    assert "order" not in dialog.options_widget.metadata()
+    dialog.manual_points.setChecked(False)
+    assert not dialog.polynomial_order.isHidden()
+    dialog.close()
+
+
+def test_future_function_infers_options_but_asks_only_remaining_options(configured_window, monkeypatch):
+    from curvemole.gui.manual_points import initialise_component_from_points, minimum_manual_points
+    from curvemole.gui.manual_points_live import preview_component_from_points
+    from curvemole.gui.quick_function_library import _refresh_quick_function_selector
+
+    _, window = configured_window
+    definition = FunctionDefinition(
+        "future_points", "Future points", "generic",
+        lambda x, p, m: np.polynomial.polynomial.polyval(x, list(p.values())),
+        parameter_factory=lambda m: tuple(ParameterSpec(f"a{i}", 0) for i in range(m["count"])),
+        configuration_specs=(
+            FunctionOptionSpec("count", "Count", 5, minimum=1, maximum=8, from_points=lambda x, y: len(x)),
+            FunctionOptionSpec("mode", "Mode", "a", kind="choice", choices=("a", "b")),
+        ),
+        point_initializer=lambda x, y, m: {f"a{i}": float(v) for i, v in enumerate(np.polynomial.polynomial.polyfit(x, y, len(x)-1))},
+    )
+    window.registry.register(definition)
+    _refresh_quick_function_selector(window)
+    window.quick_function_selector.setCurrentIndex(window.quick_function_selector.findData("future_points"))
+    window.quick_add_manual_points.setChecked(True)
+
+    def choose(dialog):
+        assert dialog.options.controls["count"].isHidden()
+        assert not dialog.options.controls["mode"].isHidden()
+        dialog.options.controls["mode"].setCurrentText("b")
+        return dialog.DialogCode.Accepted
+
+    monkeypatch.setattr(FunctionOptionsDialog, "exec", choose)
+    window.quick_peak()
+    component = window._pending_component
+    assert component.metadata["mode"] == "b"
+    assert minimum_manual_points(component, registry=window.registry) == 2
+    preview = preview_component_from_points(component, [(0, 1), (1, 3)], registry=window.registry)
+    assert preview.metadata["count"] == 2
+    assert len(preview.parameters) == 2
+    initialise_component_from_points(component, [(0, 1), (1, 3)], registry=window.registry)
+    assert component.metadata["count"] == 2
+    assert [p.value for p in component.parameters.values()] == pytest.approx([1, 2])
+
+
+def test_point_inference_errors_keep_placement_editable_and_block_finish(configured_window):
+    from curvemole.gui.quick_function_library import _refresh_quick_function_selector
+
+    _, window = configured_window
+
+    def unavailable(x, y):
+        raise RuntimeError("Unable to infer the configuration from these points.")
+
+    window.registry.register(FunctionDefinition(
+        "invalid_point_options", "Invalid point options", "generic",
+        lambda x, p, m: np.full_like(x, p["offset"]), (ParameterSpec("offset", 0),),
+        configuration_specs=(FunctionOptionSpec("count", "Count", 1, from_points=unavailable),),
+    ))
+    _refresh_quick_function_selector(window)
+    window.quick_function_selector.setCurrentIndex(window.quick_function_selector.findData("invalid_point_options"))
+    window.quick_add_manual_points.setChecked(True)
+    window.quick_peak()
+    workspace = window.plot_workspace
+    workspace._add_spline_point(0., 1.)
+    workspace._add_spline_point(1., 2.)
+    assert "Unable to infer" in workspace.placement_label.text()
+    assert not workspace.finish_placement_button.isEnabled()
+    workspace.finish_placement()
+    assert workspace._manual_points_active
+    assert not window.project.model_for(window.active_curve_id).components
+    workspace._remove_spline_point(1., 2.)
+    assert len(workspace._spline_points) == 1

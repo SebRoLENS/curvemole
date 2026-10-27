@@ -647,6 +647,9 @@ class PlotWorkspace(QWidget):
         return controller is not None and controller.replays(curve)
 
     def restore_data_view_for_editing(self):
+        editor = getattr(self.window(), "_function_point_editor", None)
+        if editor is not None and editor.active:
+            return
         controller = getattr(self, "view_options_controller", None)
         if controller is not None:
             controller.restore_for_editing()

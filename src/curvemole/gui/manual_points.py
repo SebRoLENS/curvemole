@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import math
 import re
 from collections.abc import Iterable
@@ -18,6 +19,7 @@ from curvemole.core.initialization import (
     initialise_spline_component,
 )
 from curvemole.core.models import Component
+from curvemole.core.registry import default_registry
 from curvemole.gui.dialogs import AddComponentDialog
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import FunctionBuilderPanel
@@ -37,9 +39,12 @@ def manual_points_default(definition: Any) -> bool:
     return definition.identifier in {"linear", "cubic_spline"}
 
 
-def minimum_manual_points(component: Component) -> int:
+def minimum_manual_points(component: Component, *, registry: Any = None) -> int:
     """Require enough explicit points to determine the component sensibly."""
-    if component.function_id == "cubic_spline":
+    definition = (registry or default_registry()).get(component.function_id)
+    if definition.minimum_points is not None:
+        return definition.minimum_points
+    if definition.has_point_configuration or component.function_id == "cubic_spline":
         return 2
     return max(2, len(component.parameters))
 
@@ -68,6 +73,7 @@ def initialise_component_from_points(
     points: Iterable[tuple[float, float]],
     *,
     registry: Any,
+    preview: bool = False,
 ) -> Component:
     """Initialize any function from explicit graph points and lock its parameters."""
     selected = sorted((float(x), float(y)) for x, y in points)
@@ -76,7 +82,8 @@ def initialise_component_from_points(
     if any(not math.isfinite(value) for point in selected for value in point):
         raise ValueError("Manual points must be finite.")
 
-    required = minimum_manual_points(component)
+    definition = registry.get(component.function_id)
+    required = 1 if preview and definition.has_point_configuration else minimum_manual_points(component, registry=registry)
     if len(selected) < required:
         raise ValueError(f"This function needs at least {required} manual points.")
 
@@ -87,6 +94,25 @@ def initialise_component_from_points(
     x = np.asarray([point[0] for point in selected], dtype=float)
     y = np.asarray([point[1] for point in selected], dtype=float)
     definition = registry.get(component.function_id)
+    if definition.has_point_configuration:
+        metadata = definition.configuration_from_points(x, y, component.metadata)
+        parameters = definition.make_parameters(metadata=metadata)
+    else:
+        metadata, parameters = dict(component.metadata), copy.deepcopy(component.parameters) if definition.point_initializer else component.parameters
+    if definition.point_initializer is not None:
+        initial = definition.point_initializer(x, y, metadata)
+        if set(initial) != set(parameters):
+            raise ValueError("Point initialization must supply all declared parameters.")
+        for name, parameter in parameters.items():
+            value = float(initial[name])
+            if not math.isfinite(value):
+                raise ValueError("Point initialization produced a non-finite parameter.")
+            parameter.value = value
+            parameter.fixed = True
+            parameter.validate()
+        component.metadata, component.parameters = metadata, parameters
+        return component
+    component.metadata, component.parameters = metadata, parameters
 
     # Give common functions a physically meaningful starting estimate before
     # the generic least-squares refinement.
@@ -170,6 +196,8 @@ def _install_add_component_dialog() -> None:
             dialog.parameter_table.setEnabled(not checked)
             dialog.estimate_parameters.setEnabled(not checked and dialog.curve is not None)
             dialog.reset_parameters.setEnabled(not checked)
+            dialog.options_widget.set_point_mode(checked)
+        dialog.function.currentIndexChanged.connect(lambda *_: sync_parameter_mode(dialog.manual_points.isChecked()))
         dialog.manual_points.toggled.connect(sync_parameter_mode)
         sync_default()
         sync_parameter_mode(dialog.manual_points.isChecked())
@@ -267,6 +295,8 @@ def _install_plot_workspace() -> None:
                 "minimum points. Press Finish when done; Esc cancels. "
                 "Right-click removes the nearest point."
             )
+        error = getattr(workspace, "_manual_points_error", "")
+        configuration = getattr(workspace, "_manual_points_configuration", "")
         workspace.placement_label.setText(
             workspace.tr("Place explicit points for ")
             + workspace._placement_name + ": "
@@ -274,9 +304,11 @@ def _install_plot_workspace() -> None:
             + workspace.tr("The mouse wheel zooms. The curve updates live. ")
             + f"{count}/{required} "
             + finish_instruction
+            + (" " + configuration if configuration else "")
+            + (" " + error if error else "")
         )
         workspace.undo_point_button.setEnabled(workspace.placement_editor.can_undo)
-        workspace.finish_placement_button.setEnabled(count >= required)
+        workspace.finish_placement_button.setEnabled(count >= required and not error)
 
     def render(workspace: PlotWorkspace) -> None:
         if not getattr(workspace, "_manual_points_active", False):
@@ -305,7 +337,8 @@ def _install_plot_workspace() -> None:
             original_finish(workspace)
             return
         required = int(getattr(workspace, "_manual_points_minimum", 2))
-        if len(workspace._spline_points) < required:
+        workspace._render_placement_preview()
+        if len(workspace._spline_points) < required or getattr(workspace, "_manual_points_error", ""):
             workspace._update_spline_instruction()
             return
         points = sorted(workspace._spline_points)
@@ -393,7 +426,7 @@ def _install_main_window() -> None:
                     window._pending_component = component
                     window._pending_component_curve_id = window.active_curve_id
                     window._pending_manual_points = True
-                    required = minimum_manual_points(component)
+                    required = minimum_manual_points(component, registry=window.registry)
                     window.plot_workspace.begin_manual_point_placement(
                         definition.display_name,
                         component.function_id,
@@ -411,6 +444,10 @@ def _install_main_window() -> None:
                 window._show_error(window.tr("Add component"), exc)
 
     def graphical_points_placed(window: MainWindow, points: object) -> None:
+        editor = getattr(window, "_function_point_editor", None)
+        if editor is not None and editor.active:
+            editor.finish(points)
+            return
         if not bool(getattr(window, "_pending_manual_points", False)):
             original_graphical_spline_placed(window, points)
             return

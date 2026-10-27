@@ -356,15 +356,16 @@ def _quick_add_function(window: MainWindow) -> None:
             return
         operator = selected_operator(window)
         metadata = {}
-        if definition.configuration_specs:
+        use_points = _quick_add_option(window, function_id, "manual_points")
+        if any(not use_points or spec.from_points is None for spec in definition.configuration_specs):
             from curvemole.gui.function_configuration import FunctionOptionsDialog
-            with transient_widget(FunctionOptionsDialog(definition, window)) as dialog:
+            with transient_widget(FunctionOptionsDialog(definition, window, point_mode=use_points)) as dialog:
                 if dialog.exec() != dialog.DialogCode.Accepted:
                     return
                 metadata = dialog.options.metadata()
                 dialog.options.remember()
 
-        if definition.kind == "peak":
+        if definition.kind == "peak" and not (use_points and (definition.has_point_configuration or definition.point_initializer is not None)):
             component = Component.create(function_id, registry=window.registry, metadata=metadata, operator=operator)
             component.is_background = _quick_add_option(window, function_id, "background")
             if not _quick_add_option(window, function_id, "manual_points"):
@@ -434,7 +435,7 @@ def _quick_add_function(window: MainWindow) -> None:
             window._pending_component_curve_id = window.active_curve_id
             window._pending_manual_points = True
             window.plot_workspace.begin_manual_point_placement(
-                definition.display_name, function_id, minimum_manual_points(component)
+                definition.display_name, function_id, minimum_manual_points(component, registry=window.registry)
             )
             window.plot_workspace.mark_quick_add_placement()
             window._notify(

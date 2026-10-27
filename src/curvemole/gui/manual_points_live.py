@@ -13,7 +13,7 @@ import pyqtgraph as pg
 from PySide6.QtCore import QPointF
 
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
-from curvemole.core.errors import ConstraintError
+from curvemole.core.errors import ConstraintError, DataValidationError
 from curvemole.core.initialization import PeakSuggestion, initialise_peak_component
 from curvemole.core.models import Component
 from curvemole.core.parameters import Parameter, resolve_parameter_values
@@ -197,14 +197,16 @@ def preview_component_from_points(
     selected = _normalise_points(points)
     if not selected:
         return None
-    if component.function_id == "cubic_spline":
-        if len(selected) < 2:
+    definition = registry.get(component.function_id)
+    if definition.has_point_configuration or definition.point_initializer is not None or component.function_id == "cubic_spline":
+        if component.function_id == "cubic_spline" and len(selected) < 2:
             return None
         fitted = Component.from_dict(copy.deepcopy(component.to_dict()))
         manual_points.initialise_component_from_points(
             fitted,
             selected,
             registry=registry,
+            preview=True,
         )
         _set_stored_points(fitted, selected)
         return fitted
@@ -235,6 +237,8 @@ def _preview_x(workspace: PlotWorkspace, point_x: np.ndarray) -> np.ndarray:
 
 def _render_live_manual_preview(workspace: PlotWorkspace) -> None:
     workspace._clear_placement_items()
+    workspace._manual_points_error = ""
+    workspace._manual_points_configuration = ""
     if (
         workspace._project is None
         or not workspace._active_curve_id
@@ -267,14 +271,23 @@ def _render_live_manual_preview(workspace: PlotWorkspace) -> None:
     if component.function_id == "cubic_spline" and len(selected) == 1:
         preview_y = np.full_like(preview_x, node_y[0], dtype=float)
     else:
-        fitted = preview_component_from_points(
-            component,
-            selected,
-            registry=workspace.registry,
-        )
+        try:
+            fitted = preview_component_from_points(
+                component, selected, registry=workspace.registry,
+            )
+        except Exception as exc:
+            workspace._manual_points_error = str(exc)
+            return
         if fitted is None:
             return
         definition = workspace.registry.get(fitted.function_id)
+        workspace._manual_points_configuration = "; ".join(
+            f"{option.label}: {fitted.metadata[option.name]}"
+            for option in definition.configuration_specs if option.from_points is not None
+        )
+        if definition.has_point_configuration and len(selected) > 1:
+            # A growing interpolant must not expand the viewport through extrapolation.
+            preview_x = np.linspace(float(node_x.min()), float(node_x.max()), len(preview_x))
         values = {
             name: parameter.value for name, parameter in fitted.parameters.items()
         }
@@ -525,8 +538,15 @@ def _install_live_manual_points() -> None:
             component = model.component(workspace._selected_component_id)
         except KeyError:
             return
+        editor = getattr(workspace.window(), "_function_point_editor", None)
+        if editor is not None and editor.active and editor.draft.id == component.id:
+            return
         points = _stored_points(component)
-        if not points:
+        try:
+            definition = workspace.registry.get(component.function_id)
+        except DataValidationError:
+            return
+        if not points or (definition.kind == "peak" and "center" in component.parameters):
             original_add_handles(workspace, curve, model, x_offset, y_offset)
             return
 

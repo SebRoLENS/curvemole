@@ -49,6 +49,7 @@ class FunctionOptionSpec:
     maximum: float | None = None
     choices: tuple[str, ...] = ()
     description: str = ""
+    from_points: Callable[[np.ndarray, np.ndarray], Any] | None = None
 
     def validate(self, value: Any) -> Any:
         valid = {
@@ -82,6 +83,21 @@ class FunctionDefinition:
     custom_metadata: dict[str, Any] = field(default_factory=dict)
 
     configuration_specs: tuple[FunctionOptionSpec, ...] = ()
+    point_initializer: Callable[[np.ndarray, np.ndarray, Mapping[str, Any]], Mapping[str, float]] | None = None
+    minimum_points: int | None = None
+
+    @property
+    def has_point_configuration(self) -> bool:
+        return any(option.from_points is not None for option in self.configuration_specs)
+
+    def configuration_from_points(self, x: np.ndarray, y: np.ndarray,
+                                  metadata: Mapping[str, Any]) -> dict[str, Any]:
+        configured = dict(metadata)
+        for option in self.configuration_specs:
+            if option.from_points is not None:
+                configured[option.name] = option.validate(option.from_points(x, y))
+        return self.configuration(configured)
+
 
     def configuration(self, metadata: Mapping[str, Any] | None = None) -> dict[str, Any]:
         configured = dict(metadata or {})
@@ -170,6 +186,34 @@ def _constant(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np
 
 def _linear(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np.ndarray:
     return p["intercept"] + p["slope"] * x
+
+
+def _point_polynomial_degree(x: np.ndarray, y: np.ndarray) -> int:
+    if len(np.unique(x)) != len(x):
+        raise DataValidationError("Polynomial points must have distinct x coordinates.")
+    return len(x) - 1
+
+
+def _point_polynomial_initial(x: np.ndarray, y: np.ndarray, metadata: Mapping[str, Any]) -> Mapping[str, float]:
+    # Solve on a scaled domain before converting to the existing c0+c1*x+... basis.
+    # Never replace that public coefficient convention silently.
+    if len(x) == 1:
+        coefficients = np.array([y[0]])
+    else:
+        import warnings
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("error", np.exceptions.RankWarning)
+                coefficients = np.polynomial.Polynomial.fit(x, y, int(metadata["order"])).convert().coef
+        except (np.exceptions.RankWarning, np.linalg.LinAlgError) as exc:
+            raise DataValidationError("These points do not define a numerically reliable polynomial.") from exc
+    coefficients = np.pad(coefficients, (0, int(metadata["order"]) + 1 - len(coefficients)))
+    calculated = np.polynomial.polynomial.polyval(x, coefficients)
+    if not np.all(np.isfinite(coefficients)) or not np.allclose(
+        calculated, y, rtol=1e-6, atol=max(float(np.max(np.abs(y))), 1.0)*1e-8
+    ):
+        raise DataValidationError("These points cannot define a numerically reliable polynomial. Remove points or spread their x coordinates farther apart.")
+    return {f"c{i}": float(value) for i, value in enumerate(coefficients)}
 
 
 def _polynomial_specs(metadata: Mapping[str, Any]) -> tuple[ParameterSpec, ...]:
@@ -269,7 +313,9 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
             "generic",
             _polynomial,
             parameter_factory=_polynomial_specs,
-            configuration_specs=(FunctionOptionSpec("order", "Polynomial degree", 2, minimum=0, maximum=50),),
+            configuration_specs=(FunctionOptionSpec("order", "Polynomial degree", 2, minimum=0, maximum=50, from_points=_point_polynomial_degree),),
+            point_initializer=_point_polynomial_initial,
+            minimum_points=2,
         ),
         FunctionDefinition(
             "cubic_spline",

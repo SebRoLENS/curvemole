@@ -104,3 +104,40 @@ def test_spline_manual_point_drag_changes_x_and_y_when_unlocked() -> None:
     assert fitted.metadata["x_nodes"] == [0.0, 1.5, 2.0]
     assert np.isclose(fitted.parameters["y1"].value, 4.0)
     assert all(not parameter.fixed for parameter in fitted.parameters.values())
+
+
+def test_polynomial_preview_and_commit_infer_degree_without_mutating_pending():
+    registry = default_registry()
+    component = Component.create("polynomial", registry=registry, metadata={"order": 12})
+    original = component.to_dict()
+    points = [(500., 100.), (501., 102.), (502., 106.)]
+    for count in (1, 2, 3, 2):
+        selected = points[:count]
+        preview = preview_component_from_points(component, selected, registry=registry)
+        assert preview.metadata["order"] == count - 1
+        assert len(preview.parameters) == count
+        result = registry.get("polynomial").evaluate(
+            np.array([x for x, _ in selected]),
+            {name: p.value for name, p in preview.parameters.items()}, preview.metadata,
+        )
+        assert np.allclose(result, [y for _, y in selected])
+    assert component.to_dict() == original
+    initialise_component_from_points(component, points, registry=registry)
+    assert component.metadata["order"] == 2
+    assert np.allclose([p.value for p in component.parameters.values()], [249600., -999., 1.])
+    assert all(p.fixed for p in component.parameters.values())
+
+
+def test_invalid_polynomial_points_fail_without_corrupting_component():
+    import pytest
+
+    from curvemole.core.errors import DataValidationError
+
+    registry = default_registry()
+    component = Component.create("polynomial", registry=registry)
+    original = component.to_dict()
+    with pytest.raises(DataValidationError, match="distinct"):
+        initialise_component_from_points(component, [(1., 2.), (1., 3.)], registry=registry)
+    with pytest.raises(DataValidationError, match="range"):
+        initialise_component_from_points(component, [(float(i), float(i)) for i in range(52)], registry=registry)
+    assert component.to_dict() == original

@@ -770,6 +770,8 @@ class MainWindow(QMainWindow):
         self._build_menus()
         self._build_toolbar()
         self._connect_signals()
+        from curvemole.gui.action_shortcuts import install_action_shortcuts
+        install_action_shortcuts(self)
 
         self.progress = QProgressBar()
         self.progress.setMaximumWidth(220)
@@ -1105,6 +1107,15 @@ class MainWindow(QMainWindow):
         self.add_component_action.setToolTip(self.tr("Add component…"))
         self.add_component_action.setShortcut("Ctrl++")
         self.add_component_action.triggered.connect(self.add_component)
+        self.edit_points_action = QAction(self.tr("Edit function points…"), self)
+        self.edit_points_action.setToolTip(self.tr(
+            "Edit function points\nReopen saved control points to move, add or delete them. "
+            "For background functions, temporarily show data without background subtraction. "
+            "Recorded data operations remain unchanged; Cancel discards point edits."
+        ))
+        self.edit_points_action.triggered.connect(lambda checked=False: self.edit_component_points(self.selected_component_id))
+        self.model_panel.edit_points_button.setDefaultAction(self.edit_points_action)
+        self.edit_points_action.setEnabled(False)
         self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
         self.quick_peak_action.setIcon(_resource_icon("add-peak.svg"))
         self.quick_peak_action.setToolTip(
@@ -1239,6 +1250,7 @@ class MainWindow(QMainWindow):
         model_menu.addActions(
             [
                 self.add_component_action,
+                self.edit_points_action,
                 self.quick_peak_action,
                 self.copy_fit_action,
                 self.copy_fit_next_action,
@@ -1808,6 +1820,15 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Functions parameters exported: ") + str(destination))
             except Exception as exc:
                 self._show_error(self.tr("Export functions parameters"), exc)
+
+    def edit_component_points(self, component_id: str | None = None) -> None:
+        from curvemole.gui.edit_function_points import FunctionPointEditor
+        if not hasattr(self, "_function_point_editor"):
+            self._function_point_editor = FunctionPointEditor(self)
+        try:
+            self._function_point_editor.start(component_id or self.selected_component_id)
+        except Exception as exc:
+            self._show_error(self.tr("Edit function points"), exc)
 
     def add_component(self) -> None:
         if not self._ensure_editable():
@@ -4039,6 +4060,9 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def _set_component(self, component_id: str) -> None:
+        editor = getattr(self, "_function_point_editor", None)
+        if editor is not None and editor.active and component_id != editor.draft.id:
+            self.plot_workspace.cancel_placement()
         self.selected_component_id = component_id
         self.model_panel.refresh(component_id)
         self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
@@ -4446,6 +4470,9 @@ class MainWindow(QMainWindow):
         return False
 
     def _ensure_editable(self) -> bool:
+        editor = getattr(self, "_function_point_editor", None)
+        if editor is not None and editor.active and not editor.committing:
+            self.plot_workspace.cancel_placement()
         if not self.project.read_only:
             self.plot_workspace.restore_data_view_for_editing()
             return True
@@ -4532,6 +4559,7 @@ class MainWindow(QMainWindow):
         """Release session markers on window close and on application quit."""
         if self._session_finished:
             return
+        self.plot_workspace.cancel_placement()
         self._session_finished = True
         if self._plugin_startup is not None:
             self._plugin_startup.cancel()

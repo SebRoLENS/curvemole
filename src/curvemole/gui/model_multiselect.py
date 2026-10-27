@@ -479,6 +479,9 @@ def _install_model_panel() -> None:
                 original_refresh_parameters(panel)
             return
 
+        panel.edit_points_button.setEnabled(False)
+        if panel.edit_points_button.defaultAction() is not None:
+            panel.edit_points_button.defaultAction().setEnabled(False)
         panel.display_method.set_context(panel.project, None)
         panel._updating = True
         try:
@@ -597,6 +600,9 @@ def _install_main_window() -> None:
         return
 
     def set_component(window: MainWindow, component_id: str) -> None:
+        editor = getattr(window, "_function_point_editor", None)
+        if editor is not None and editor.active and component_id != editor.draft.id:
+            window.plot_workspace.cancel_placement()
         window.selected_component_id = component_id
         window.model_panel.refresh_parameters()
         curve_id = _find_component_curve(window, component_id)

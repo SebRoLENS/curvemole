@@ -1412,7 +1412,11 @@ as `center`, `x0`, `fwhm`, `sigma`, `gamma`, `area`, `amplitude`, or `height`.
 #### Construction options and initial parameters
 
 **Add function** asks for construction options when the selected function declares
-them. For **Polynomial**, choose its degree (0-50) before adding it. Cancel leaves
+them. For **Polynomial**, choose its degree (0-50) before adding it when
+**Initialize with points** is disabled. In point mode, options declared as derivable
+from points are not requested beforehand: N distinct polynomial points define degree
+N-1. The current degree appears in the placement instructions. Removing a point
+reduces the degree, and moving a point recalculates the coefficients. Cancel leaves
 the model unchanged. The last confirmed construction options are remembered per
 function and shared with the advanced Add dialog. Background and point-initialization
 choices still apply. Functions without construction options retain immediate insertion.
@@ -1435,8 +1439,16 @@ estimate replaces it. Enabling manual-point initialization disables the table an
 its estimation controls because the selected graph points determine those values.
 
 Developers and plugin authors can declare `FunctionDefinition.configuration_specs`
-using `FunctionOptionSpec` (integer, number, boolean, text, or choice). The same
+using `FunctionOptionSpec` (integer, number, boolean, text, or choice). An option's
+`from_points(x, y)` callback declares how graph points determine it. Only options
+without that callback are requested in point mode. `FunctionDefinition` can also
+declare `point_initializer(x, y, metadata)` and `minimum_points`; the same rules are
+used for previews and insertion, including custom and plugin functions. The same
 controls, validation and component metadata are used by quick and advanced insertion.
+Polynomial initialization solves on a scaled domain, then converts to the existing
+`c0 + c1*x + ...` coefficient convention. Numerically unreliable point sets block
+Finish with an explanation; previews of inferred functions stay within the selected
+point interval to avoid misleading extrapolation.
 
 ### 8.6 Initializing any function from manually selected points
 
@@ -1448,8 +1460,10 @@ set **Use manual-point initialization by default**.
 Click explicit points representing the function you want to create. A live green
 function preview updates as points are added or removed; it is an initial estimate,
 not a fit to the measured spectrum. Linear requires at least two points. Other
-non-spline functions require at least two points and at least as many points as
-parameters. Cubic spline requires at least two distinct x positions.
+non-spline functions normally require at least two points and at least as many
+points as parameters. Point-derived configurations can declare their own minimum;
+Polynomial starts with two distinct x positions and adapts its degree as points are
+added or removed. Cubic spline requires at least two distinct x positions.
 
 The placement bar offers **Add points**, **Delete points** and **Move points**.
 Delete points removes the point you click; clicking empty space does nothing.
@@ -1465,6 +1479,31 @@ advanced Add component flow, right-click removes the nearest point. **Esc** canc
 the whole insertion. The resulting parameters are fixed by default.
 Use **Unlock all** or individual **Fixed** checkboxes before optimizing them.
 Points and the corresponding controls are stored with the component and project.
+
+#### Reopening a function's control points
+
+Select a function in **Model and parameters** and choose **Edit function points**
+(the same command is in **Model**). Saved control points reopen in the placement
+bar, initially in **Move points** mode. Switch to **Add points** or **Delete points**
+as needed; **Undo point**, pan, zoom and the live preview remain available.
+Polynomial degree follows the current point count. This works for every function
+with saved manual points, including custom and plugin functions. Older graphical
+peaks without stored points can reconstruct controls from their current shape;
+normal peak centre/width handles remain available outside this editor.
+
+For a function marked **Background**, the active spectrum temporarily displays
+without background subtraction, including a display reconstruction of recorded
+subtractions. Other spectra retain their display options. Non-background functions
+keep the current background display. This is a view change: recorded subtraction
+operations and experimental data are not removed or recalculated.
+
+**Finish** updates the selected function in place, preserving its identity, name,
+composition and background role, as one **Undo**/**Redo** operation. Existing
+bounds, fixed states and links for retained parameter names are preserved; deleting a
+parameter referenced by another function is rejected. **Cancel** or **Esc** discards
+the draft; changing spectrum/function or starting another edit also cancels it.
+The previous display options and viewport return when the editor closes. Control
+points are saved with the project and remain editable after reopening it.
 
 #### Drawing a cubic-spline background
 
@@ -3441,6 +3480,22 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Right-click during manual-point placement | Remove the nearest point |
 | Right-drag / left-drag with Mask active | Mask / unmask an interval |
 | Up / Down with plot focus | Activate previous / next spectrum |
+
+
+### Keyboard shortcuts for menu and toolbar commands
+
+Every command in the top menus and toolbars has a dedicated keyboard shortcut,
+including the Background and Initialize with points toggles.
+Hover a button to see the command name and its shortcut on the first tooltip line;
+the existing explanation remains below. Menus also display the shortcut. Existing
+standard shortcuts, such as Ctrl+S and F5, are retained. Frequently used commands
+include Ctrl+Shift+A (Add function), Ctrl+F5 (Quick Fit), Shift+F5 (Continue), and
+Ctrl+Shift+F5 (Cancel running task), unless a combination is already used.
+Other commands use a two-step sequence shown in the tooltip, for example
+`Ctrl+K, A`: press Ctrl+K, release, then press A. Shortcuts apply only to the
+active CurveMole window. Commands added later to menus/toolbars, including plugin
+commands, receive shortcuts too; disabled commands remain unavailable by keyboard.
+
 
 ## Appendix B. Built-in identifiers
 

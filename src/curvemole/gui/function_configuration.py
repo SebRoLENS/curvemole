@@ -36,6 +36,7 @@ class FunctionOptionsWidget(QWidget):
         self.definition = definition
         self.settings = settings or QSettings("CurveMole", "CurveMole")
         self.controls = {}
+        self.point_mode = False
         form = QFormLayout(self)
         try:
             remembered = json.loads(str(self.settings.value(self.key, "{}")))
@@ -81,13 +82,30 @@ class FunctionOptionsWidget(QWidget):
             self.controls[spec.name] = control
             form.addRow(self.tr(spec.label), control)
 
+        self.point_help = QLabel(self.tr("Options derived from graph points will be determined while placing points."))
+        self.point_help.setWordWrap(True)
+        self.point_help.hide()
+        form.addRow(self.point_help)
+
     @property
     def key(self):
         return f"function_options/{self.definition.identifier}"
 
+    def set_point_mode(self, enabled):
+        self.point_mode = enabled
+        self.point_help.setVisible(enabled and self.definition.has_point_configuration)
+        form = self.layout()
+        for spec in self.definition.configuration_specs:
+            control = self.controls[spec.name]
+            visible = not (enabled and spec.from_points is not None)
+            control.setVisible(visible)
+            form.labelForField(control).setVisible(visible)
+
     def metadata(self):
         result = {}
         for spec in self.definition.configuration_specs:
+            if getattr(self, "point_mode", False) and spec.from_points is not None:
+                continue
             control = self.controls[spec.name]
             if spec.kind in {"integer", "number"}:
                 value = control.value()
@@ -101,15 +119,23 @@ class FunctionOptionsWidget(QWidget):
         return result
 
     def remember(self):
-        self.settings.setValue(self.key, json.dumps(self.metadata()))
+        try:
+            values = json.loads(str(self.settings.value(self.key, "{}"))) if self.point_mode else {}
+        except (ValueError, TypeError):
+            values = {}
+        if not isinstance(values, dict):
+            values = {}
+        values.update(self.metadata())
+        self.settings.setValue(self.key, json.dumps(values))
 
 
 class FunctionOptionsDialog(QDialog):
-    def __init__(self, definition, parent=None):
+    def __init__(self, definition, parent=None, *, point_mode=False):
         super().__init__(parent)
         self.setWindowTitle(self.tr("Configure function") + " — " + definition.display_name)
         layout = QVBoxLayout(self)
         self.options = FunctionOptionsWidget(definition, self, getattr(parent, "settings", None))
+        self.options.set_point_mode(point_mode)
         layout.addWidget(self.options)
         self.error = QLabel()
         self.error.setWordWrap(True)
