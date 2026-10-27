@@ -654,7 +654,13 @@ class PlotWorkspace(QWidget):
         if controller is not None:
             controller.restore_for_editing()
 
-    def refresh(self, *_: Any) -> None:
+    def refresh(self, *args: Any) -> None:
+        if not hasattr(self, "render_controller"):
+            from curvemole.gui.render_controller import RenderController
+            self.render_controller = RenderController(self)
+        self.render_controller.refresh(*args)
+
+    def _refresh_scene(self, *_: Any) -> None:
         initial_view = not self._data_items
         # Placement may span many refreshes; do not retain removed scene items
         # (and their complete data arrays) in the mouse-state snapshot.
@@ -771,6 +777,9 @@ class PlotWorkspace(QWidget):
             model = None if self.display_replays(curve) else project.models.get(curve.id)
             if model and model.components:
                 try:
+                    errors = getattr(getattr(self, "render_controller", None), "errors", {})
+                    if curve.id in errors:
+                        raise CurveMoleError(errors[curve.id])
                     values = global_values
                     if values is None:
                         values = resolve_parameter_values(

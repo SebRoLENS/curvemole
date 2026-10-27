@@ -132,7 +132,7 @@ class Model:
 
     def duplicate(self, component_id: str) -> Component:
         source = self.component(component_id)
-        duplicate = Component.from_dict(source.to_dict())
+        duplicate = Component.from_dict(copy.deepcopy(source.to_dict()))
         duplicate.metadata.pop("background_subtraction_ids", None)
         duplicate.metadata.pop("background_unresolved_ids", None)
         duplicate.metadata["background_history_detached"] = True
@@ -217,6 +217,12 @@ class Model:
         total = self._evaluate_global(np.asarray(x, dtype=float), component_values)
         return (total, component_values) if components else total
 
+    def evaluate_for_curve(self, curve, indices, **kwargs):
+        """Evaluate nonlocal models before selecting usable residual rows."""
+        if any(c.enabled and c.operator == "convolve" for c in self.components):
+            return self.evaluate(curve.x, curve_id=curve.id, **kwargs)[indices]
+        return self.evaluate(curve.x[indices], curve_id=curve.id, **kwargs)
+
     @property
     def ordered_operations(self) -> list[Component]:
         """User-selected calculation order, separate from insertion/display order."""
@@ -247,7 +253,16 @@ class Model:
                 while index < len(operations) and operations[index].operator == "convolve":
                     arrays.append(evaluated[operations[index].id])
                     index += 1
-                spacing = np.nanmedian(np.abs(np.diff(x))) if len(x) > 1 else 1.0
+                if len(arrays) > 1:
+                    differences = np.diff(x)
+                    tolerance = np.finfo(float).eps * max(1., float(np.max(np.abs(x), initial=0.))) * 16
+                    if (len(x) < 2 or not np.all(np.isfinite(x))
+                            or not (np.all(differences > 0) or np.all(differences < 0))
+                            or not np.allclose(differences, differences[0], rtol=1e-7, atol=tolerance)):
+                        raise DataValidationError(
+                            "FFT convolution requires a finite, uniformly spaced monotonic X axis. "
+                            "Resample the data onto a regular grid before using convolution.")
+                spacing = abs(float(x[1] - x[0])) if len(x) > 1 else 1.0
                 full = arrays[0].copy()
                 for array in arrays[1:]:
                     full = fftconvolve(full, array, mode="full") * spacing

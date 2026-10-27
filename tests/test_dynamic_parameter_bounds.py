@@ -211,4 +211,8 @@ def test_workflow_dump_and_import_preserve_relation_and_reference_metadata(tmp_p
     imported = run_workflow(workflow_path).project
     copied = imported.model_for(imported.curves[0].id).components[1].parameters["center"]
     for key in keys:
-        assert copied.to_dict()[key] == source.to_dict()[key]
+        expected = source.to_dict()[key]
+        if key == "link":
+            expected = expected.replace(first.id + ".", imported.curves[0].id + ".")
+        assert copied.to_dict()[key] == expected
+    imported.resolved_parameter_values()

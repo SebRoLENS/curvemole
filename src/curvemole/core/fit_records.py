@@ -36,7 +36,8 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
     matrices: dict[str, np.ndarray | None] = {}
     for field in ("covariance", "correlation"):
         matrix = getattr(result, field)
-        matrices[field] = None if matrix is None else np.asarray(matrix)[np.ix_(indices, indices)]
+        matrices[field] = (None if matrix is None else matrix.submatrix(indices)
+                           if hasattr(matrix, "submatrix") else np.asarray(matrix)[np.ix_(indices, indices)])
     output = copy.deepcopy(result.curve_outputs[curve_id])
     return replace(
         result,

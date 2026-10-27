@@ -12,8 +12,9 @@ from typing import Any
 import numpy as np
 
 from curvemole.core.background_status import copy_background_history
-from curvemole.core.data import Curve, Dataset, Mask, Series
+from curvemole.core.data import Curve, CurveState, Dataset, Mask, Series
 from curvemole.core.errors import ConstraintError, DataValidationError
+from curvemole.core.expressions import SafeExpression
 from curvemole.core.history import CompactHistory
 from curvemole.core.models import Component, Model
 from curvemole.core.notebook import LaboratoryNotebook
@@ -66,7 +67,56 @@ class Project:
         self.touch()
         return series
 
+    def validate_curve_removal(self, curve_ids) -> None:
+        removed = set(curve_ids)
+        available = {c.id for c in self.curves}
+        if removed - available:
+            raise KeyError(next(iter(removed - available)))
+        dependents = []
+        for path, parameter in self.parameter_map().items():
+            if path.split(".", 1)[0] in removed or not parameter.link:
+                continue
+            if any(ref.split(".", 1)[0] in removed
+                   for ref in SafeExpression.compile(parameter.link).references):
+                dependents.append(path)
+        if dependents:
+            raise ConstraintError("Cannot remove data referenced by remaining parameters. "
+                                  "Remove these links first:\n" + "\n".join(dependents))
+
+    def remove_curves(self, curve_ids) -> list[Curve]:
+        identities = list(dict.fromkeys(curve_ids))
+        self.validate_curve_removal(identities)
+        return [self._remove_curve(identity) for identity in identities]
+
     def remove_curve(self, curve_id: str) -> Curve:
+        return self.remove_curves([curve_id])[0]
+
+    def affected_curve_ids(self, curve_ids) -> set[str]:
+        """Include transitive link dependencies and recorded global-fit coupling."""
+        affected = set(curve_ids)
+        records = self.results.get("fit_by_curve", {})
+        dependencies = [(path.split(".", 1)[0],
+                         {ref.split(".", 1)[0] for ref in SafeExpression.compile(p.link).references})
+                        for path, p in self.parameter_map().items() if p.link]
+        while True:
+            expanded = affected | {owner for owner, sources in dependencies if sources & affected}
+            keys = {record.get("global_key") for identity, record in records.items()
+                    if identity in affected and record.get("global_key") is not None}
+            expanded.update(identity for identity, record in records.items()
+                            if record.get("global_key") in keys)
+            if expanded == affected:
+                return affected
+            affected = expanded
+
+    def invalidate_fits(self, curve_ids, *, preserve=()) -> set[str]:
+        affected = self.affected_curve_ids(curve_ids) - set(preserve)
+        for curve in self.curves:
+            if curve.id in affected and curve.state == CurveState.FITTED:
+                curve.state = CurveState.MODIFIED
+        return affected
+
+    def _remove_curve(self, curve_id: str) -> Curve:
+        self.invalidate_fits({curve_id})
         fitted = self.results.get("fit_by_curve", {})
         global_key = fitted.get(curve_id, {}).get("global_key") if isinstance(fitted, dict) else None
         series = self.dataset.series_for(curve_id)

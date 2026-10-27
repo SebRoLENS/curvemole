@@ -7,6 +7,8 @@ from typing import Any
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox
 
+from curvemole.core.errors import ConstraintError
+from curvemole.core.state import copy_result_maps
 from curvemole.gui.colours import SERIES_PALETTES
 from curvemole.gui.main_window import CurveTree, MainWindow
 from curvemole.gui.windowing import transient_widget
@@ -36,6 +38,9 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
     """Remove a series and all of its data, preserving a complete Undo snapshot."""
     if not window._ensure_editable():
         return
+    if window._thread is not None:
+        window._notify(window.tr("Wait for the current task to finish before removing data."))
+        return
     series_index = next(
         (index for index, series in enumerate(window.project.dataset.series) if series.id == series_id),
         None,
@@ -46,6 +51,11 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
     saved_curves = list(series.curves)
     curve_ids = [curve.id for curve in saved_curves]
 
+    try:
+        window.project.validate_curve_removal(curve_ids)
+    except ConstraintError as exc:
+        window._show_error(window.tr("Delete series"), exc)
+        return
     if curve_ids:
         answer = QMessageBox.question(
             window,
@@ -64,26 +74,14 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
         for curve_id in curve_ids
         if curve_id in window.project.models
     }
-    def copy_result_maps(results):
-        # remove_curve changes these map containers, never completed fit arrays.
-        # Give each restore fresh maps so a later deletion cannot alter Undo's
-        # saved records, including other spectra coupled through a global fit.
-        nested = {"fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
-                  "global_fit_baselines"}
-        return {key: dict(value) if key in nested and isinstance(value, dict) else value
-                for key, value in results.items()}
-
     saved_results = copy_result_maps(window.project.results)
+    saved_states = {curve.id: curve.state for curve in window.project.curves}
     previous_active = window.active_curve_id
     previous_component = window.selected_component_id
 
     def redo() -> None:
         available = {curve.id for curve in window.project.curves}
-        for curve_id in curve_ids:
-            if curve_id in available:
-                # Use the same fit/global-fit/uncertainty cleanup as deleting an
-                # individual spectrum; otherwise large samples remain orphaned.
-                window.project.remove_curve(curve_id)
+        window.project.remove_curves([identity for identity in curve_ids if identity in available])
         current_index = next(
             (
                 index
@@ -108,6 +106,9 @@ def _delete_series(window: MainWindow, series_id: str) -> None:
             )
         window.project.models.update(saved_models)
         window.project.results = copy_result_maps(saved_results)
+        for curve in window.project.curves:
+            if curve.id in saved_states:
+                curve.state = saved_states[curve.id]
         if previous_active is not None and any(
             curve.id == previous_active for curve in window.project.curves
         ):

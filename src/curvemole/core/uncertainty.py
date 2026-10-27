@@ -8,7 +8,7 @@ import multiprocessing
 import os
 import time
 from collections.abc import Callable, Mapping, Sequence
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures import ProcessPoolExecutor
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from queue import Empty
@@ -30,7 +30,7 @@ from curvemole.core.fitting import (
 )
 from curvemole.core.models import Model
 from curvemole.core.parameters import resolve_parameter_values
-from curvemole.core.process_pool import managed_process_pool
+from curvemole.core.process_pool import bounded_results, managed_process_pool
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
 
 
@@ -195,33 +195,20 @@ def _parallel_map(
                 mp_context=mp_context, initializer=_init_uncertainty_worker,
                 initargs=(stop, formulas or {}, activity, timeout, *context),
             ), drain=lambda: _drain_replica_activity(activity)))
-        pending = {}
-        next_index = 0
-        completed = 0
         running: dict[int, float] = {}
-        try:
-            while completed < len(inputs):
-                cancellation.raise_if_cancelled()
-                if activity is not None:
-                    _check_replica_activity(activity, running, timeout)
-                while next_index < len(inputs) and len(pending) < 2 * workers:
-                    future = pool.submit(function, inputs[next_index])
-                    pending[future] = next_index
-                    next_index += 1
-                done, _ = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
-                for future in done:
-                    index = pending.pop(future)
-                    results[index] = future.result()
-                    if on_result:
-                        on_result(index, results[index])
-                    completed += 1
-                    if progress:
-                        progress(completed)
-        except BaseException:
-            stop.set()
-            for future in pending:
-                future.cancel()
-            raise
+        def check_activity():
+            if activity is not None:
+                _check_replica_activity(activity, running, timeout)
+        for completed, (index, result) in enumerate(bounded_results(
+            pool, inputs, lambda executor, value: executor.submit(function, value),
+            cancellation, stop, limit=2 * min(workers, len(inputs), os.cpu_count() or 1),
+            tick=check_activity,
+        ), 1):
+            results[index] = result
+            if on_result:
+                on_result(index, result)
+            if progress:
+                progress(completed)
     return results
 
 

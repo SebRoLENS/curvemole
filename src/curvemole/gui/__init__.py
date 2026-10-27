@@ -102,6 +102,9 @@ from curvemole.gui import spectrum_export_ui as _spectrum_export_ui  # noqa: F40
 # visual-only background preview was left enabled.
 from curvemole.gui import undo_action_fix as _undo_action_fix  # noqa: F401,E402
 
+# Provide scope-aware, non-mutating spectrum display options after toolbar setup.
+from curvemole.gui import view_options as _view_options  # noqa: F401,E402
+
 # Harden the frozen Windows self-updater. PyInstaller onefile keeps a bootloader
 # process alive briefly after the Python process exits, so replacement must wait
 # for the executable itself to be fully released before moving/removing files.
@@ -112,10 +115,3 @@ from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F40
 from curvemole.gui import (  # noqa: F401,E402
     windows_update_powershell_compat as _windows_update_powershell_compat,
 )
-
-# Install after all fit-completion wrappers so snapshots include pause/resume state.
-# isort: split
-from curvemole.gui import fit_undo as _fit_undo  # noqa: F401,E402
-
-# Provide scope-aware, non-mutating spectrum display options after toolbar setup.
-from curvemole.gui import view_options as _view_options  # noqa: F401,E402

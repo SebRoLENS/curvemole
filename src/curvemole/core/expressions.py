@@ -22,6 +22,17 @@ from curvemole.core.errors import ExpressionError
 _REFERENCE = re.compile(r"\$\{([^{}]+)\}")
 
 
+def formula_source(formula: str, target: str) -> str:
+    """Strip an initial assignment without mistaking comparisons for '='."""
+    source = str(formula).strip()
+    assignment = re.match(r"^([A-Za-z][A-Za-z0-9_]*)\s*=(?!=)(.*)$", source, re.S)
+    if assignment:
+        if assignment[1].lower() != target.lower():
+            raise ExpressionError(f"Formula assignment must target {target.upper()}.")
+        source = assignment[2].strip()
+    return source
+
+
 def _erf(value):
     from scipy.special import erf
     return erf(value)

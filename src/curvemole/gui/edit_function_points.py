@@ -34,19 +34,23 @@ def can_edit_points(component, registry):
     return definition.kind == "peak" and "center" in component.parameters
 
 
-def editable_points(component, registry):
+def editable_points(component, registry, *, values=None, curve_id=None):
     points = _stored_points(component)
     definition = registry.get(component.function_id)
+    values = {name: (values or {}).get(f"{curve_id}.{component.id}.{name}", p.value)
+              for name, p in component.parameters.items()}
+    if component.function_id == "cubic_spline":
+        return [(float(x), float(values[f"y{i}"]))
+                for i, x in enumerate(component.metadata.get("x_nodes", []))]
     if points:
         if definition.kind != "peak" or "center" not in component.parameters:
             return points
         # A centre/width drag or a fit may have changed the peak since placement.
         # Reuse saved points only while they still describe its current shape.
         x, y = np.asarray(points).T
-        current = definition.evaluate(x, {name: p.value for name, p in component.parameters.items()}, component.metadata)
+        current = definition.evaluate(x, values, component.metadata)
         if np.allclose(current, y, rtol=1e-5, atol=max(float(np.max(np.abs(y))), 1.)*1e-8):
             return points
-    values = {name: p.value for name, p in component.parameters.items()}
     center = values["center"]
     derived = definition.derived_values(values, component.metadata)
     width = derived.get("FWHM") or values.get("fwhm") or values.get("sigma", values.get("gamma", 1.0))*2.354820045
@@ -86,7 +90,8 @@ class FunctionPointEditor(QObject):
         component = project.model_for(curve_id).component(component_id)
         if not can_edit_points(component, window.registry):
             return
-        points = editable_points(component, window.registry)
+        points = editable_points(component, window.registry,
+                                 values=project.resolved_parameter_values(), curve_id=curve_id)
         window.model_panel.select_component_ref(curve_id, component.id)
         window._set_component(component.id)
         self.project, self.curve_id = project, curve_id
@@ -97,7 +102,7 @@ class FunctionPointEditor(QObject):
                          copy.deepcopy(workspace.residual_plot.getViewBox().viewRange()))
         self.initial_points = _normalise_points(points)
         self.original = copy.deepcopy(component.to_dict())
-        self.draft = Component.from_dict(copy.deepcopy(self.original))
+        self.draft = self._effective_component()
         self.active = True
         try:
             if component.is_background:
@@ -135,16 +140,31 @@ class FunctionPointEditor(QObject):
         for handle in workspace._handles:
             handle.hide()
 
+    def _effective_component(self):
+        component = Component.from_dict(copy.deepcopy(self.original))
+        values = self.project.resolved_parameter_values()
+        for name, parameter in component.parameters.items():
+            parameter.value = values[f"{self.curve_id}.{component.id}.{name}"]
+        return component
+
     def preview(self, points):
         selected = _normalise_points(points)
-        original = Component.from_dict(copy.deepcopy(self.original))
+        original = self._effective_component()
         if selected == self.initial_points:
             return original
         definition = self.window.registry.get(original.function_id)
         if definition.kind == "peak" and not definition.has_point_configuration and definition.point_initializer is None:
             # Fit from the current peak, avoiding a second centre/width guess.
+            linked = any(p.link for p in original.parameters.values())
+            if linked:
+                # Explicit point editing may change locked constants, but must
+                # never free an equality-linked parameter from its source.
+                for parameter in original.parameters.values():
+                    parameter.fixed = False
             return _generic_fit_component(original, selected, registry=self.window.registry,
-                                          free_only=False, reseed=False, strict=True)
+                free_only=linked, reseed=False, strict=True,
+                parameter_context=self.project.parameter_map() if linked else None,
+                curve_id=self.curve_id if linked else None)
         return preview_component_from_points(original, selected, registry=self.window.registry)
 
     def finish(self, points):
@@ -182,6 +202,8 @@ class FunctionPointEditor(QObject):
             context = {key: p for key, p in context.items() if not key.startswith(prefix)}
             context.update({prefix+name: p for name, p in candidate.parameters.items()})
             values = resolve_parameter_values(context)
+            for name, parameter in candidate.parameters.items():
+                parameter.value = values[prefix + name]
             before = model.to_dict()
             after = Model.from_dict(copy.deepcopy(before))
             index = next(i for i, c in enumerate(after.components) if c.id == candidate.id)

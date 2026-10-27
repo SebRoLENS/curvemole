@@ -36,8 +36,10 @@ class BlockDiagonalMatrix:
         if np.any(indices < 0) or np.any(indices >= len(self)):
             raise IndexError("Matrix index out of bounds")
         result = np.zeros((len(indices), len(indices)))
-        for start, block in zip(self.offsets, self.blocks, strict=False):
-            positions = np.flatnonzero((indices >= start) & (indices < start + len(block)))
+        block_ids = np.searchsorted(self.offsets[1:], indices, side="right")
+        for identity in np.unique(block_ids):
+            start, block = self.offsets[identity], self.blocks[identity]
+            positions = np.flatnonzero(block_ids == identity)
             local = indices[positions] - start
             result[np.ix_(positions, positions)] = block[np.ix_(local, local)]
         return result

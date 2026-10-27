@@ -159,7 +159,7 @@ def _model_nrmse(curve: Curve, model: Model, registry: Any, *, use_data_errors: 
         parameters = model.parameter_map(curve.id)
         values = resolve_parameter_values(parameters)
         fitted = np.asarray(
-            model.evaluate(x, curve_id=curve.id, values=values, registry=registry),
+            model.evaluate_for_curve(curve, _indices, values=values, registry=registry),
             dtype=float,
         )
         residual = np.asarray(observed, dtype=float) - fitted

@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
-import math
 import os
 import platform
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pyqtgraph as pg
-from PySide6.QtCore import QLocale, Qt, QTimer
+from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMessageBox
 
@@ -20,18 +18,17 @@ from curvemole.core.models import Component
 from curvemole.gui.main_window import MainWindow, _resource_path
 from curvemole.gui.manual_points import install_manual_point_support
 from curvemole.gui.plot import PlotWorkspace
-from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols
+from curvemole.gui.render_controller import (
+    _MASK_BOUNDARY_Z,  # noqa: F401
+    _MASK_REGION_Z,  # noqa: F401
+    _capture_plot_view,  # noqa: F401
+    _optimise_plot_rendering,  # noqa: F401
+    _render_lightweight_mask_boundaries,  # noqa: F401
+    _restore_plot_view,  # noqa: F401
+)
+from curvemole.gui.rendering import _optimise_plot_data_item, _split_dense_symbols  # noqa: F401
 from curvemole.gui.windowing import transient_widget
 from curvemole.single_instance import NativeFileOpenFilter  # noqa: F401
-
-PlotViewState = tuple[
-    tuple[float, float],
-    tuple[float, float],
-    tuple[float, float],
-]
-
-_MASK_REGION_Z = -20.0
-_MASK_BOUNDARY_Z = -10.0
 
 
 def _configure_gui_defaults() -> None:
@@ -48,111 +45,13 @@ def _normalise_fit_result_mode(result: FitResult) -> None:
     result.mode = FitMode(result.mode)
 
 
-def _capture_plot_view(workspace: PlotWorkspace) -> PlotViewState | None:
-    """Capture the current main X/Y and residual Y ranges when a plot is visible."""
-    if not workspace._data_items:
-        return None
-    main_range = workspace.view_box.viewRange()
-    residual_range = workspace.residual_plot.getViewBox().viewRange()
-    return (
-        (float(main_range[0][0]), float(main_range[0][1])),
-        (float(main_range[1][0]), float(main_range[1][1])),
-        (float(residual_range[1][0]), float(residual_range[1][1])),
-    )
-
-
-def _restore_plot_view(workspace: PlotWorkspace, state: PlotViewState | None) -> None:
-    """Restore a previously captured viewport without re-enabling auto range."""
-    if state is None:
-        return
-    x_range, y_range, residual_y_range = state
-    workspace.view_box.setRange(
-        xRange=list(x_range),
-        yRange=list(y_range),
-        padding=0,
-    )
-    workspace.residual_plot.getViewBox().setRange(
-        yRange=list(residual_y_range),
-        padding=0,
-    )
-
-
-def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:
-    """Apply adaptive rendering to dense Overlay/Waterfall views after each refresh."""
-    adaptive = workspace.display_mode.currentIndex() != 0
-    for plot in (workspace.plot, workspace.residual_plot):
-        for item in tuple(plot.listDataItems()):
-            _split_dense_symbols(plot, item)
-            _optimise_plot_data_item(item, adaptive=adaptive)
-    # Dense rendering can add marker items after refresh configured placement.
-    # Apply the same mouse rules to those new items before the next click.
-    workspace._sync_placement_mouse_targets()
-
-
-def _render_lightweight_mask_boundaries(workspace: PlotWorkspace) -> None:
-    """Replace filled mask overlays with cheap, non-ranging dashed boundary lines."""
-    for item in tuple(workspace.plot.items):
-        if isinstance(item, pg.LinearRegionItem) and np.isclose(item.zValue(), _MASK_REGION_Z):
-            workspace.plot.removeItem(item)
-
-    project = workspace._project
-    if project is None or not project.curves:
-        return
-
-    mode = workspace.display_mode.currentText()
-    curves = workspace.displayed_curves()
-    x_step = workspace.x_offset.value() if mode == workspace.tr("Waterfall") else 0.0
-    pen = pg.mkPen(105, 105, 105, 155, width=1.0, style=Qt.PenStyle.DashLine)
-    positions_seen: set[float] = set()
-
-    for index, curve in enumerate(curves):
-        x_offset = index * x_step
-        for mask in curve.masks.values():
-            for lower, upper in mask.ranges:
-                lo, hi = sorted((float(lower), float(upper)))
-                positions = (lo + x_offset,) if math.isclose(lo, hi) else (lo + x_offset, hi + x_offset)
-                for position in positions:
-                    if not np.isfinite(position):
-                        continue
-                    key = round(position, 12)
-                    if key in positions_seen:
-                        continue
-                    positions_seen.add(key)
-                    line = pg.InfiniteLine(
-                        pos=position,
-                        angle=90,
-                        movable=False,
-                        pen=pen,
-                    )
-                    line.setZValue(_MASK_BOUNDARY_Z)
-                    line.setToolTip(workspace.tr("Masked / excluded region boundary"))
-                    line._curvemole_mask_boundary = True
-                    workspace.plot.addItem(line, ignoreBounds=True)
-
-
 def _install_view_preserving_refresh() -> None:
     """Make redraws preserve navigation while retaining explicit View all behaviour."""
     if getattr(PlotWorkspace, "_curvemole_preserves_view", False):
         return
 
-    original_refresh = PlotWorkspace.refresh
     original_set_context = PlotWorkspace.set_context
     original_auto_range = PlotWorkspace.auto_range
-
-    def refresh(workspace: PlotWorkspace, *args: Any) -> None:
-        preserve = bool(getattr(workspace, "_preserve_view_on_refresh", True))
-        if hasattr(workspace, "_preserve_view_on_refresh"):
-            delattr(workspace, "_preserve_view_on_refresh")
-        state = _capture_plot_view(workspace) if preserve else None
-
-        workspace._lightweight_masks = True
-        original_refresh(workspace, *args)
-
-        _render_lightweight_mask_boundaries(workspace)
-        _optimise_plot_rendering(workspace)
-        _restore_plot_view(workspace, state)
-        if state is None:
-            workspace.auto_range()
 
     def set_context(
         workspace: PlotWorkspace,
@@ -174,7 +73,6 @@ def _install_view_preserving_refresh() -> None:
             return
         original_auto_range(workspace)
 
-    PlotWorkspace.refresh = refresh
     PlotWorkspace.set_context = set_context
     PlotWorkspace.auto_range = auto_range
     PlotWorkspace._curvemole_preserves_view = True

@@ -121,9 +121,14 @@ class Parameter:
         return lower, upper
 
     def set_bounds(self, minimum: float = -math.inf, maximum: float = math.inf) -> None:
-        self.minimum = float(minimum)
-        self.maximum = float(maximum)
-        self.validate()
+        lower, upper = float(minimum), float(maximum)
+        previous = self.minimum, self.maximum
+        self.minimum, self.maximum = lower, upper
+        try:
+            self.validate()
+        except Exception:
+            self.minimum, self.maximum = previous
+            raise
 
     def to_dict(self) -> dict[str, object]:
         return {

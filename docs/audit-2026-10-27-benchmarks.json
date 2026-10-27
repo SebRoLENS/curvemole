@@ -1,0 +1,31 @@
+{
+  "baseline_configuration": {
+    "curves": 200,
+    "parameters_per_curve": 4
+  },
+  "baseline_legacy_dense": {
+    "seconds": 0.42158056299922464,
+    "peak_traced_bytes": 20492592
+  },
+  "baseline_block_extraction": {
+    "seconds": 0.12187106300007144,
+    "peak_traced_bytes": 1098913
+  },
+  "background_history_51_operations": {
+    "seconds": 0.004134871998758172,
+    "peak_traced_bytes": 1120106
+  },
+  "worker_payload_bytes": 506733,
+  "serialize_100_worker_payloads": {
+    "seconds": 0.03798945500057016,
+    "peak_traced_bytes": 50833314
+  },
+  "bounded_queue_2000_trivial_jobs_limit_8": {
+    "seconds": 0.04732940299982147,
+    "peak_traced_bytes": 59481
+  },
+  "overlay_10_convolved_curves_10001_points_5_refreshes": {
+    "seconds": 0.39249691199984227,
+    "peak_traced_bytes": 16616864
+  }
+}

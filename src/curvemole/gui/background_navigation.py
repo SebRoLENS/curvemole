@@ -12,6 +12,8 @@ from PySide6.QtGui import QAction, QKeySequence, QShortcut
 from PySide6.QtWidgets import QMenu, QStyle, QToolBar, QToolButton, QTreeWidgetItem
 
 from curvemole.core.data import Curve
+from curvemole.core.errors import DataValidationError
+from curvemole.core.parameters import resolve_parameter_values
 from curvemole.gui import mask_display as _mask_display
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.plot import PlotWorkspace
@@ -59,7 +61,8 @@ def _background_array(
     ):
         return np.zeros_like(curve.y, dtype=float)
     try:
-        resolved = values if values is not None else project.resolved_parameter_values()
+        resolved = values if values is not None else resolve_parameter_values(
+            project.parameter_map(), paths=model.parameter_map(curve.id))
         background = np.asarray(
             model.background(
                 curve.x,
@@ -69,12 +72,15 @@ def _background_array(
             ),
             dtype=float,
         )
-    except Exception:
+        usable = np.isfinite(curve.x) & np.isfinite(curve.y)
+        if background.shape != curve.y.shape or np.any(usable & ~np.isfinite(background)):
+            raise DataValidationError("The background returned invalid values.")
+        return background
+    except Exception as exc:
+        controller = getattr(workspace, "render_controller", None)
+        if controller is not None:
+            controller.evaluation_failed(curve, exc)
         return np.zeros_like(curve.y, dtype=float)
-    usable = np.isfinite(curve.x) & np.isfinite(curve.y)
-    if background.shape != curve.y.shape or np.any(usable & ~np.isfinite(background)):
-        return np.zeros_like(curve.y, dtype=float)
-    return background
 
 
 def _background_cache(workspace: PlotWorkspace) -> dict[str, np.ndarray]:
@@ -95,14 +101,26 @@ def _background_cache(workspace: PlotWorkspace) -> dict[str, np.ndarray]:
         model = project.models.get(curve.id)
         try:
             if model is not None and model.components:
-                total, components = model.evaluate(curve.x, curve_id=curve.id, values=values,
+                scoped_values = values if values is not None else resolve_parameter_values(
+                    project.parameter_map(), paths=model.parameter_map(curve.id))
+                total, components = model.evaluate(curve.x, curve_id=curve.id, values=scoped_values,
                                                     registry=workspace.registry, components=True)
                 workspace._render_models[curve.id] = (total, components)
-                backgrounds[curve.id] = model.background(curve.x, curve_id=curve.id, values=values,
+                backgrounds[curve.id] = model.background(curve.x, curve_id=curve.id, values=scoped_values,
                     registry=workspace.registry, evaluated_components=components)
+                usable = np.isfinite(curve.x) & np.isfinite(curve.y)
+                if np.any(usable & (~np.isfinite(total) | ~np.isfinite(backgrounds[curve.id]))):
+                    raise DataValidationError("The model or background returned non-finite values.")
             else:
                 backgrounds[curve.id] = np.zeros_like(curve.y)
-        except Exception:
+            controller = getattr(workspace, "render_controller", None)
+            if controller is not None:
+                controller.errors.pop(curve.id, None)
+                controller.notified.pop(curve.id, None)
+        except Exception as exc:
+            controller = getattr(workspace, "render_controller", None)
+            if controller is not None:
+                controller.evaluation_failed(curve, exc)
             backgrounds[curve.id] = np.zeros_like(curve.y)
     return backgrounds
 
@@ -336,26 +354,7 @@ def _install_plot_display() -> None:
     if getattr(PlotWorkspace, "_curvemole_background_aware_display", False):
         return
 
-    # The existing masked-sample wrapper resolves this global at runtime.
-    _mask_display._render_masked_samples = _masked_sample_renderer
-
-    original_refresh = PlotWorkspace.refresh
     original_emit_peak = PlotWorkspace._emit_peak
-
-    def refresh(workspace: PlotWorkspace, *args: Any) -> None:
-        controller = getattr(workspace, "view_options_controller", None)
-        if controller is not None:
-            controller.prepare()
-        backgrounds = _background_cache(workspace)
-        workspace._curvemole_background_cache = backgrounds
-        try:
-            original_refresh(workspace, *args)
-            _apply_background_aware_display(workspace, backgrounds)
-        finally:
-            workspace._render_models = None
-            workspace._render_values = None
-            if hasattr(workspace, "_curvemole_background_cache"):
-                delattr(workspace, "_curvemole_background_cache")
 
     def emit_peak(
         workspace: PlotWorkspace,
@@ -370,7 +369,6 @@ def _install_plot_display() -> None:
             position = QPointF(float(position.x()), float(position.y()) - baseline)
         original_emit_peak(workspace, component_id, position, x_offset, y_offset)
 
-    PlotWorkspace.refresh = refresh
     PlotWorkspace._emit_peak = emit_peak
     PlotWorkspace.set_background_subtracted_view = _set_background_subtracted_view
     PlotWorkspace._curvemole_background_aware_display = True

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -95,6 +96,8 @@ def run_workflow(
     project = Project(name=str(workflow.get("name", source.stem)))
     imported_series = Series(str(workflow.get("series_name", "Workflow data")))
     curve_aliases: dict[str, str] = {}
+    identities: dict[str, str] = {}
+    ambiguous: set[str] = set()
     for item in workflow["imports"]:
         input_path = _resolve(root, item["path"])
         config = ImportConfig(**item["config"]) if "config" in item else None
@@ -104,9 +107,20 @@ def run_workflow(
         for index, curve in enumerate(curves):
             if index < len(aliases):
                 curve.name = str(aliases[index])
+            if curve.name in curve_aliases:
+                ambiguous.add(curve.name)
             curve_aliases[curve.name] = curve.id
+            saved_ids = item.get("curve_ids", [])
+            if index < len(saved_ids):
+                identity = str(saved_ids[index])
+                if identity in identities:
+                    raise CurveMoleError(f"Duplicate workflow curve identity: {identity}")
+                identities[identity] = curve.id
             imported_series.add(curve)
     project.add_series(imported_series)
+    for alias in ambiguous:
+        curve_aliases.pop(alias, None)
+    curve_aliases.update(identities)
 
     for model_spec in workflow.get("models", []):
         curve_id = _curve_id(model_spec["curve"], curve_aliases, project)
@@ -131,7 +145,9 @@ def run_workflow(
                 if "maximum" in rules:
                     parameter.maximum = float(rules["maximum"])
                 parameter.fixed = bool(rules.get("fixed", False))
-                parameter.link = rules.get("link")
+                link = rules.get("link")
+                parameter.link = re.sub(r"\$\{([^{}]+)\}", lambda match:
+                    "${" + _remap_reference(match[1], identities) + "}", link) if link else None
                 parameter.link_scope = rules.get("link_scope", "relative")
                 parameter.link_reference_scopes = list(rules.get("link_reference_scopes", []))
                 parameter.link_relation = rules.get("link_relation", "equal")
@@ -142,6 +158,7 @@ def run_workflow(
         model.operation_order = list(model_spec.get("operation_order", []))
         model.validate_composition()
 
+    project.resolved_parameter_values()
     result: FitResult | None = None
     fit_spec = workflow.get("fit")
     if fit_spec:
@@ -196,13 +213,14 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
                 "path": curve.source or f"data/{curve.name}.csv",
                 **_import_spec(curve),
                 "aliases": [curve.name],
+                "curve_ids": [curve.id],
             }
         )
         model = project.models.get(curve.id)
         if model:
             value["models"].append(
                 {
-                    "curve": curve.name,
+                    "curve": curve.id,
                     "composition_mode": model.composition_mode,
                     "operation_order": list(model.operation_order),
                     "components": [
@@ -253,6 +271,11 @@ def _import_spec(curve) -> dict[str, Any]:
         columns["error_confidence_level"] = imported.get("error_confidence_level", 0.95)
         return {"config": config, "columns": columns}
     return {"columns": {"x": 0, "y": [1]}}
+
+
+def _remap_reference(reference: str, identities: Mapping[str, str]) -> str:
+    curve, separator, remainder = reference.strip().partition(".")
+    return identities.get(curve, curve) + separator + remainder
 
 
 def _resolve(root: Path, value: str | Path) -> Path:

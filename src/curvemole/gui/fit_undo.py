@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import copy
-from dataclasses import fields
 
 from PySide6.QtGui import QUndoCommand
 
 from curvemole.core.history import CompactHistory
-from curvemole.gui.main_window import MainWindow
+from curvemole.core.state import copy_result_maps, restore_model
 
 
 def _capture(window, curve_ids=None):
@@ -22,7 +21,7 @@ def _capture(window, curve_ids=None):
         "models": models,
         "scope": set(window.project.models) if curve_ids is None else set(curve_ids),
         # Completed FitResults are not mutated; share their potentially large arrays.
-        "results": dict(window.project.results),
+        "results": copy_result_maps(window.project.results),
         "history": CompactHistory(window.project.fit_history),
         "states": {curve.id: curve.state for curve in window.project.curves},
         "active": window.active_curve_id,
@@ -39,23 +38,9 @@ def _restore(window, state):
     for curve_id in state["scope"] - state["models"].keys():
         window.project.models.pop(curve_id, None)
     for curve_id, (model, saved, refs) in state["models"].items():
-        model.name, model.id = saved.name, saved.id
-        model.display_order = list(saved.display_order)
-        model.operation_order = list(saved.operation_order)
-        components = []
-        for snapshot in saved.components:
-            component, parameters = refs[snapshot.id]
-            for field in fields(snapshot):
-                if field.name != "parameters":
-                    setattr(component, field.name, copy.deepcopy(getattr(snapshot, field.name)))
-            component.parameters = dict(parameters)
-            for name, parameter in snapshot.parameters.items():
-                for field in fields(parameter):
-                    setattr(component.parameters[name], field.name, copy.deepcopy(getattr(parameter, field.name)))
-            components.append(component)
-        model.components = components
+        restore_model(model, saved, refs)
         window.project.models[curve_id] = model
-    window.project.results = dict(state["results"])
+    window.project.results = copy_result_maps(state["results"])
     window.project.fit_history = state["history"].copy()
     for curve in window.project.curves:
         if curve.id in state["states"]:
@@ -88,32 +73,24 @@ class FitUndoCommand(QUndoCommand):
         _restore(self.window, self.before)
 
 
-def _install():
-    if getattr(MainWindow, "_fit_undo_installed", False):
-        return
-    original_run = MainWindow._run_fit
-    original_finished = MainWindow._fit_finished
-    original_failed = MainWindow._task_failed
-    original_done = MainWindow._task_done
+class FitLifecycleController:
+    """Explicit transaction hooks called around the complete GUI fit lifecycle.
 
-    def run(window, plan):
-        if window._thread is not None:
-            return original_run(window, plan)
+    Completion runs after sequential/resume handlers, so Undo includes their
+    final state without relying on importing this module after those wrappers.
+    """
+    def __init__(self, window):
+        self.window = window
+
+    def begin(self, plan):
+        window = self.window
         window._fit_undo_before = _capture(window, set(plan.curve_ids))
         window.undo_action.setEnabled(False)
         window.redo_action.setEnabled(False)
-        try:
-            return original_run(window, plan)
-        except Exception:
-            _restore(window, window._fit_undo_before)
-            window._fit_undo_before = None
-            window.undo_action.setEnabled(window.undo_stack.canUndo())
-            window.redo_action.setEnabled(window.undo_stack.canRedo())
-            raise
 
-    def finished(window, result):
+    def complete(self, result):
+        window = self.window
         before = getattr(window, "_fit_undo_before", None)
-        original_finished(window, result)
         window._fit_undo_before = None
         if before is not None:
             if result.success or result.curve_outputs or result.paused_curve_id:
@@ -121,23 +98,14 @@ def _install():
             else:
                 _restore(window, before)
 
-    def failed(window, message, details):
+    def abort(self):
+        window = self.window
         before = getattr(window, "_fit_undo_before", None)
         window._fit_undo_before = None
         if before is not None:
             _restore(window, before)
-        original_failed(window, message, details)
 
-    def done(window, *args):
-        original_done(window, *args)
+    def done(self):
+        window = self.window
         window.undo_action.setEnabled(window.undo_stack.canUndo())
         window.redo_action.setEnabled(window.undo_stack.canRedo())
-
-    MainWindow._run_fit = run
-    MainWindow._fit_finished = finished
-    MainWindow._task_failed = failed
-    MainWindow._task_done = done
-    MainWindow._fit_undo_installed = True
-
-
-_install()

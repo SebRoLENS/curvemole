@@ -1209,8 +1209,12 @@ With no Add/Subtract terms, multiplication and division start from 1; a convolut
 without a preceding signal starts with its first kernel. One Multiply function is
 therefore itself, one Divide function is its reciprocal, and one Convolve function
 is itself. An empty or fully disabled model is zero. Consecutive convolutions use
-full FFT convolution with median x-spacing scaling and crop once back to the input
+full FFT convolution with uniform x-spacing scaling and crop once back to the input
 length, so inserting the same kernels in another order does not change edge handling.
+FFT convolution requires a finite, uniformly spaced, strictly monotonic X axis;
+resample irregular data onto a regular grid first. Ascending and descending grids
+are supported. Masks and fit ranges select residuals after evaluation on the full
+current data grid: excluding points does not change the convolved model itself.
 Marked additive backgrounds receive the same global factors and convolutions as the
 full model when their contribution is evaluated.
 

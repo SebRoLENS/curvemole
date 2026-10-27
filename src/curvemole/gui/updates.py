@@ -22,6 +22,7 @@ from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequ
 from PySide6.QtWidgets import QMessageBox, QToolButton
 
 from curvemole.core.release_channels import ReleaseVersion, default_channel, select_release
+from curvemole.gui.legacy_updates import asset_suffix  # noqa: F401
 from curvemole.gui.windowing import secondary_window_parent, transient_widget
 from curvemole.version import __version__
 
@@ -59,18 +60,6 @@ def update_kind(current: tuple[int, int, int], latest: tuple[int, int, int]) -> 
 def should_notify(latest: str, already_notified: str) -> bool:
     """Automatic update notifications are shown only once for each release."""
     return latest != already_notified
-
-
-def asset_suffix(system: str, machine: str) -> str | None:
-    """Return the release asset suffix that can safely self-replace this build."""
-    architecture = machine.lower()
-    if architecture not in {"x86_64", "amd64"}:
-        return None
-    if system == "Linux":
-        return "-linux-x86_64.AppImage"
-    if system == "Windows":
-        return "-windows-x86_64.exe"
-    return None
 
 
 def windows_installation_is_managed(binary: Path | None = None) -> bool:

@@ -8,7 +8,7 @@ import numpy as np
 
 from curvemole.core.data import Curve, Transformation, aligned_operand
 from curvemole.core.errors import DataValidationError
-from curvemole.core.expressions import SafeExpression
+from curvemole.core.expressions import SafeExpression, formula_source
 
 UNARY_OPERATIONS = {
     "y_add",
@@ -49,12 +49,7 @@ def apply_custom_formula(curve: Curve, axis: str, formula: str) -> Transformatio
     target = str(axis).strip().lower()
     if target not in {"x", "y"}:
         raise DataValidationError("Custom formula target must be x or y.")
-    source = str(formula).strip()
-    if "=" in source:
-        lhs, rhs = source.split("=", 1)
-        if lhs.strip().lower() != target:
-            raise DataValidationError(f"Formula assignment must target {target.upper()}.")
-        source = rhs.strip()
+    source = formula_source(formula, target)
     expression = SafeExpression.compile(source)
     unknown = set(expression.variables) - {target}
     if unknown:

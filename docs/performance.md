@@ -101,3 +101,17 @@ events, thread affinity, source-change quarantine, cancellation, persistence
 errors, file-open ordering, dock restoration, item reuse/removal, style changes,
 single click delivery and diagnostic equivalence. Wall-clock timing thresholds
 are deliberately excluded from the functional test suite.
+
+## October beta audit workloads
+
+`PYTHONPATH=src python scripts/benchmark_audit.py` measures synthetic baseline
+extraction, convolved overlays, bounded job submission, worker serialization and
+background-history replay in a disposable profile. It does not assert timing
+thresholds. Baseline extraction uses only the selected block: it never expands a
+batch's block-diagonal covariance or correlation into a full dense matrix.
+Fits and uncertainty jobs share a bounded queue, with at most twice the effective
+worker count pending; their solver and replica-timeout policies remain distinct.
+
+See `audit-2026-10-27-implementation.md` and the accompanying JSON for the measured
+workloads and limits. These are local samples with Python allocation tracing,
+not package-size, resident-memory or cross-platform performance guarantees.

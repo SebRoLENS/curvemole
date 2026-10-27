@@ -9,7 +9,7 @@ import os
 import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
-from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -28,7 +28,7 @@ from curvemole.core.matrices import (
 )
 from curvemole.core.models import Model
 from curvemole.core.parameters import EqualityParameterResolver, Parameter
-from curvemole.core.process_pool import managed_process_pool
+from curvemole.core.process_pool import bounded_results, managed_process_pool
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
 
@@ -506,8 +506,8 @@ class _Problem:
         for curve in self.curves:
             x, observed, point_scale, indices = self._data[curve.id]
             fitted = np.asarray(
-                self.models[curve.id].evaluate(
-                    x, curve_id=curve.id, values=values, registry=self.registry
+                self.models[curve.id].evaluate_for_curve(
+                    curve, indices, values=values, registry=self.registry
                 )
             )
             if not np.all(np.isfinite(fitted)):
@@ -552,8 +552,8 @@ class _Problem:
         for curve in self.curves:
             x, observed, point_scale, indices = self._data[curve.id]
             fitted = np.asarray(
-                self.models[curve.id].evaluate(
-                    x, curve_id=curve.id, values=values, registry=self.registry
+                self.models[curve.id].evaluate_for_curve(
+                    curve, indices, values=values, registry=self.registry
                 )
             )
             residual = observed - fitted
@@ -716,27 +716,16 @@ class Fitter:
             initializer=_init_fit_process,
             initargs=(stop, formulas),
         )) as pool:
-            pending = {
-                pool.submit(_fit_in_process, curve, model, local_plan): curve
-                for curve, model, local_plan in jobs
-            }
-            try:
-                while pending:
-                    cancellation.raise_if_cancelled()
-                    done, _ = wait(pending, timeout=0.1, return_when=FIRST_COMPLETED)
-                    for future in done:
-                        curve = pending.pop(future)
-                        results[curve.id] = future.result()
-                        if on_curve_result:
-                            on_curve_result(curve.id, results[curve.id])
-                        if progress:
-                            progress(len(results) / len(curves),
-                                     f"Completed {curve.name}")
-            except BaseException:
-                stop.set()
-                for future in pending:
-                    future.cancel()
-                raise
+            for index, result in bounded_results(
+                pool, jobs, lambda executor, job: executor.submit(_fit_in_process, *job),
+                cancellation, stop, limit=2 * min(plan.settings.workers, len(curves), os.cpu_count() or 1),
+            ):
+                curve = curves[index]
+                results[curve.id] = result
+                if on_curve_result:
+                    on_curve_result(curve.id, result)
+                if progress:
+                    progress(len(results) / len(curves), f"Completed {curve.name}")
 
         # Match the serial path: failed fits leave the original model intact.
         for curve in curves:

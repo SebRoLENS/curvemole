@@ -6,18 +6,13 @@ import re
 import numpy as np
 
 from curvemole.core.errors import DataValidationError
-from curvemole.core.expressions import SafeExpression
+from curvemole.core.expressions import SafeExpression, formula_source
 
 
 def compile_column_formula(formula: str, target: str) -> SafeExpression:
     source = "".join(part if part.startswith("${") else part.replace("^", "**")
                      for part in re.split(r"(\$\{[^{}]+\})", str(formula).strip()))
-    assignment = re.match(r"^([A-Za-z][A-Za-z0-9_]*)\s*=(?!=)(.*)$", source, re.S)
-    if assignment:
-        if assignment[1].lower() != target.lower():
-            raise DataValidationError(f"Formula assignment must target {target}.")
-        source = assignment[2].strip()
-    return SafeExpression.compile(source)
+    return SafeExpression.compile(formula_source(source, target))
 
 
 def evaluate_columns(formula, target, x, y, columns, labels, axes):

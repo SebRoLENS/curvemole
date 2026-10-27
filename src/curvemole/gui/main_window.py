@@ -10,7 +10,6 @@ import re
 import time
 import traceback
 from collections.abc import Callable
-from dataclasses import fields
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -75,6 +74,7 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
+from curvemole.core.errors import ConstraintError
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
@@ -100,6 +100,7 @@ from curvemole.core.project import Project
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
+from curvemole.core.state import copy_result_maps, restore_model
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.colours import (
@@ -119,6 +120,7 @@ from curvemole.gui.dialogs import (
     PluginManagerDialog,
 )
 from curvemole.gui.external import open_with_host_application
+from curvemole.gui.legacy_updates import _update_notification_due  # noqa: F401
 from curvemole.gui.panels import (
     CalculatorPanel,
     DiagnosticsPanel,
@@ -815,6 +817,8 @@ class MainWindow(QMainWindow):
             self._complete_plugin_startup(plugin_recovery, plugin_load_failures)
         from curvemole.gui.updates import UpdateController
         self._release_update_controller = UpdateController(self)
+        from curvemole.gui.fit_undo import FitLifecycleController
+        self.fit_lifecycle = FitLifecycleController(self)
 
     def _complete_plugin_startup(self, recovered: bool, failures: set[str]) -> None:
         if self._session_finished:
@@ -2575,27 +2579,9 @@ class MainWindow(QMainWindow):
                 curve.state = curve_map[cid].state
                 current = self.project.model_for(cid)
                 saved = models[cid]
-                existing = {component.id: component for component in current.components}
-                components = []
-                for snapshot in saved.components:
-                    component = existing.get(snapshot.id)
-                    if component is None:
-                        component = snapshot
-                    else:
-                        for field in fields(snapshot):
-                            if field.name != "parameters":
-                                setattr(component, field.name, copy.deepcopy(getattr(snapshot, field.name)))
-                        for name, parameter in snapshot.parameters.items():
-                            if name not in component.parameters:
-                                component.parameters[name] = parameter
-                            else:
-                                for field in fields(parameter):
-                                    setattr(component.parameters[name], field.name, copy.deepcopy(getattr(parameter, field.name)))
-                    components.append(component)
-                current.components = components
-                current.display_order = list(saved.display_order)
-                current.operation_order = list(saved.operation_order)
+                restore_model(current, saved)
             self._fit_finished(result)
+            self.fit_lifecycle.complete(result)
 
         def partial(item):
             if isinstance(item, dict) and "live_values" in item:
@@ -2604,7 +2590,13 @@ class MainWindow(QMainWindow):
             else:
                 self._partial_fit_result(item)
 
-        self._run_background(operation, finished, self.tr("Fitting…"), partial=partial)
+        self.fit_lifecycle.begin(plan)
+        try:
+            self._run_background(operation, finished, self.tr("Fitting…"), partial=partial)
+        except Exception:
+            self.fit_lifecycle.abort()
+            self.fit_lifecycle.done()
+            raise
 
     def _partial_fit_result(self, item: tuple[str, FitResult]) -> None:
         """Expose a completed independent spectrum while other fits are queued."""
@@ -2656,6 +2648,7 @@ class MainWindow(QMainWindow):
         if not fitted_curve_ids:
             return
 
+        self.project.invalidate_fits(fitted_curve_ids, preserve=fitted_curve_ids)
         parameter_map = self.project.parameter_map()
         for path, estimate in result.parameters.items():
             curve_id = path.split(".", 1)[0]
@@ -3695,6 +3688,11 @@ class MainWindow(QMainWindow):
         if not selected:
             self._notify(self.tr("Select at least one curve to remove."), warning=True)
             return
+        try:
+            self.project.validate_curve_removal(selected)
+        except ConstraintError as exc:
+            self._show_error(self.tr("Remove curve"), exc)
+            return
         count = len(selected)
         question = (
             self.tr("Remove the selected curve? This action can be undone.")
@@ -3721,12 +3719,12 @@ class MainWindow(QMainWindow):
             result_value = copy.deepcopy(self.project.results.get(curve_id))
             records.append((curve_id, series.id, index, curve, model_state, had_result, result_value))
         active_before = self.active_curve_id
+        saved_results = copy_result_maps(self.project.results)
+        saved_states = {curve.id: curve.state for curve in self.project.curves}
 
         def redo() -> None:
             existing_ids = {curve.id for curve in self.project.curves}
-            for curve_id, *_ in records:
-                if curve_id in existing_ids:
-                    self.project.remove_curve(curve_id)
+            self.project.remove_curves([curve_id for curve_id, *_ in records if curve_id in existing_ids])
             if self.active_curve_id in selected:
                 self.active_curve_id = self.project.curves[0].id if self.project.curves else None
             self.selected_component_id = None
@@ -3743,6 +3741,10 @@ class MainWindow(QMainWindow):
                     self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
                 if had_result:
                     self.project.results[curve_id] = copy.deepcopy(result_value)
+            self.project.results = copy_result_maps(saved_results)
+            for curve in self.project.curves:
+                if curve.id in saved_states:
+                    curve.state = saved_states[curve.id]
             self.active_curve_id = active_before if active_before else (self.project.curves[0].id if self.project.curves else None)
             self.selected_component_id = None
 
@@ -3750,6 +3752,7 @@ class MainWindow(QMainWindow):
             self.tr("Remove curve") if count == 1 else self.tr("Remove curves"),
             redo,
             undo,
+            modified_curve_ids=set(),
         )
 
     def _set_curve_colour(self, curve_id: str, colour: str) -> None:
@@ -4105,6 +4108,7 @@ class MainWindow(QMainWindow):
             text,
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
             lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+            modified_curve_ids={curve_id},
         )
 
     def _push_change(
@@ -4138,15 +4142,7 @@ class MainWindow(QMainWindow):
             modified_curve_ids = self.curve_tree.selected_curve_ids() or (
                 {self.active_curve_id} if self.active_curve_id else set()
             )
-        for curve_id in modified_curve_ids:
-            if preserve_curve_ids and curve_id in preserve_curve_ids:
-                continue
-            try:
-                curve = self.project.dataset.curve(curve_id)
-            except KeyError:
-                continue
-            if curve.state == CurveState.FITTED:
-                curve.state = CurveState.MODIFIED
+        self.project.invalidate_fits(modified_curve_ids, preserve=preserve_curve_ids or ())
         self.refresh_all()
 
     def _validate_all_links(self) -> None:
@@ -4214,6 +4210,7 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(text)
 
     def _task_failed(self, message: str, details: str) -> None:
+        self.fit_lifecycle.abort()
         self.plot_workspace._live_parameter_values = None
         self._log(details)
         task = getattr(self, "_uncertainty_task", None)
@@ -4234,6 +4231,7 @@ class MainWindow(QMainWindow):
 
     def _task_done(self, *_: Any) -> None:
         self._reset_task_state()
+        self.fit_lifecycle.done()
 
     def _reset_task_state(self) -> None:
         """Idempotent busy-state cleanup, also used if a completion hook fails."""
@@ -4599,17 +4597,6 @@ class MainWindow(QMainWindow):
             self.open_project(projects[0])
         elif data:
             self.import_data(data)
-
-
-def _update_notification_due(
-    latest: str,
-    last_notified_version: str,
-    last_notified_at: float,
-    now: float,
-) -> bool:
-    if latest != last_notified_version:
-        return True
-    return now - last_notified_at >= 10 * 24 * 60 * 60
 
 
 def _state_colour(state: CurveState) -> QColor:
