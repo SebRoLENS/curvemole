@@ -227,35 +227,45 @@ class ActionShortcuts(QObject):
                     names[action] = name
             identities = {action: (names.get(action) or self.identities.get(action, action.text()))
                           for action in commands}
-            reserved = set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values())
-            # Startup menus are rebuilt in a platform-dependent order. Reserve
-            # saved keys only for commands present now, not removed identities.
-            reserved.update(self.saved[identity] for identity in identities.values()
-                            if isinstance(self.saved.get(identity), str)
-                            and _simple(QKeySequence(self.saved[identity])))
-            # Prefer unmodified letters, then Ctrl+letter, digits and punctuation.
+            preferred = {_portable(QKeySequence(key)) for key in
+                         (*_PREFERRED.values(), *_PREFERRED_TEXT.values())}
+            assignments = {}
+            used = set()
+            # Allocate preferred and saved bindings before drawing from the pool.
+            # A preferred command's previous saved key is then immediately free,
+            # regardless of menu construction order or pending Qt refresh events.
+            for command in commands:
+                key = _PREFERRED.get(names.get(command)) or _PREFERRED_TEXT.get(command.text())
+                if key is not None:
+                    key = _portable(QKeySequence(key))
+                    if key not in used:
+                        assignments[command] = key
+                        used.add(key)
+            for command in commands:
+                saved = self.saved.get(identities[command])
+                if command not in assignments and isinstance(saved, str):
+                    sequence = QKeySequence(saved)
+                    key = _portable(sequence)
+                    if _simple(sequence) and key not in used | preferred:
+                        assignments[command] = key
+                        used.add(key)
             pool = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
                     *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
-            available = iter(pool)
-            used = set()
+            available = iter(_portable(QKeySequence(key)) for key in pool)
+            for command in commands:
+                if command in assignments:
+                    continue
+                key = next((key for key in available if key not in used | preferred), None)
+                if key is None:
+                    # Extra plugin commands can exceed the single-key alphabet.
+                    key = next(("Ctrl+"+c for c in string.digits if "Ctrl+"+c not in used), None)
+                if key is not None:
+                    assignments[command] = key
+                    used.add(key)
             saved_before = dict(self.saved)
             self.bindings = {}
-            for command in commands:
+            for command, key in assignments.items():
                 identity = identities[command]
-                preferred = _PREFERRED.get(names.get(command)) or _PREFERRED_TEXT.get(command.text())
-                saved = self.saved.get(identity)
-                if preferred and preferred not in used:
-                    key = preferred
-                elif isinstance(saved, str) and _simple(QKeySequence(saved)) and saved not in used | set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values()):
-                    key = saved
-                else:
-                    key = next((candidate for candidate in available if candidate not in used | reserved), None)
-                    if key is None:
-                        # Additional plugins may exceed the single-key alphabet.
-                        # Continue with Ctrl+digit rather than function-key chords.
-                        key = next(("Ctrl+"+c for c in string.digits if "Ctrl+"+c not in used), None)
-                    if key is None:
-                        continue
                 sequence = QKeySequence(key)
                 used.add(_portable(sequence))
                 self.saved[identity] = _portable(sequence)

@@ -232,3 +232,20 @@ def test_removed_commands_do_not_reserve_single_keys_forever(window):
     manager.refresh()
     for command in [*manager.commands(), *manager.buttons()]:
         assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
+
+
+def test_preferred_commands_release_their_previous_saved_keys_immediately(window):
+    import string
+
+    from curvemole.gui.action_shortcuts import _PREFERRED, _PREFERRED_TEXT, _simple
+
+    _, win = window
+    manager = win._action_shortcuts
+    preferred = set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values())
+    keys = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
+            *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
+    previous = iter(key for key in keys if key not in preferred)
+    manager.saved = {name: next(previous) for name in _PREFERRED if getattr(win, name, None) is not None}
+    manager.refresh()
+    for command in [*manager.commands(), *manager.buttons()]:
+        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
