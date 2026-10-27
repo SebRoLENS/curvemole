@@ -228,8 +228,11 @@ class ActionShortcuts(QObject):
             identities = {action: (names.get(action) or self.identities.get(action, action.text()))
                           for action in commands}
             reserved = set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values())
-            reserved.update(value for value in self.saved.values()
-                            if isinstance(value, str) and _simple(QKeySequence(value)))
+            # Startup menus are rebuilt in a platform-dependent order. Reserve
+            # saved keys only for commands present now, not removed identities.
+            reserved.update(self.saved[identity] for identity in identities.values()
+                            if isinstance(self.saved.get(identity), str)
+                            and _simple(QKeySequence(self.saved[identity])))
             # Prefer unmodified letters, then Ctrl+letter, digits and punctuation.
             pool = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
                     *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]

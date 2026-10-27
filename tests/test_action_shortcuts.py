@@ -215,3 +215,20 @@ def test_every_menu_command_activates_from_its_displayed_shortcut(window):
         QTest.keySequence(win.plot_workspace.graphics, action.shortcut())
         app.processEvents()
         assert received == [action], (action.text(), action.shortcut().toString(), received)
+
+
+def test_removed_commands_do_not_reserve_single_keys_forever(window):
+    import string
+
+    from curvemole.gui.action_shortcuts import _simple
+
+    _, win = window
+    manager = win._action_shortcuts
+    keys = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
+            *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
+    # Native menus may be replaced at startup in a different order per platform.
+    # Old persisted identities must not consume keys needed by the live commands.
+    manager.saved = {f"removed-command-{i}": key for i, key in enumerate(keys)}
+    manager.refresh()
+    for command in [*manager.commands(), *manager.buttons()]:
+        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
