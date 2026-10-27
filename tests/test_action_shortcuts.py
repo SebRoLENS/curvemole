@@ -53,7 +53,7 @@ def test_all_menu_and_toolbar_commands_have_unique_shortcuts_and_tooltips(window
         seen[button.shortcut().toString()] = button
         assert button.shortcut().toString(QKeySequence.SequenceFormat.NativeText) in button.toolTip()
     assert win.save_action.shortcut() == QKeySequence("Ctrl+S")
-    assert win.fit_action.shortcut() == QKeySequence("F5")
+    assert win.fit_action.shortcut() == QKeySequence("Ctrl+F")
 
 
 def test_shortcuts_trigger_toolbar_and_menu_actions(window):
@@ -134,3 +134,84 @@ def test_shortcut_opens_toolbar_drop_down_menus(window):
         assert action.menu().isVisible()
         action.menu().close()
         app.processEvents()
+
+
+def test_all_builtin_shortcuts_are_single_keys_or_control_letters(window):
+    from curvemole.gui.action_shortcuts import _simple
+
+    _, win = window
+    for command in [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]:
+        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
+        if isinstance(command, QAction):
+            assert command in win.actions()
+
+
+def test_commands_work_with_plot_and_function_list_focus(window):
+    app, win = window
+    received = []
+    action = win.manual_action
+    action.triggered.disconnect()
+    action.triggered.connect(lambda checked=False: received.append("manual"))
+    action.setEnabled(True)
+    for widget in (win.plot_workspace.graphics.viewport(), win.model_panel.components):
+        win.activateWindow()
+        widget.setFocus()
+        app.processEvents()
+        QTest.keySequence(widget, action.shortcut())
+        app.processEvents()
+        assert received
+        received.clear()
+
+
+def test_plain_shortcuts_do_not_steal_typing_or_native_select_all(window):
+    from PySide6.QtWidgets import QLineEdit
+
+    app, win = window
+    editor = QLineEdit(win)
+    editor.show()
+    win.activateWindow()
+    editor.setFocus()
+    app.processEvents()
+    received = []
+    action = win.quick_add_function_action
+    action.triggered.disconnect()
+    action.triggered.connect(lambda checked=False: received.append("add"))
+    action.setEnabled(True)
+    QTest.keyClicks(editor, "a test")
+    assert editor.text() == "a test"
+    assert not received
+    QTest.keySequence(editor, QKeySequence("Ctrl+A"))
+    assert editor.selectedText() == "a test"
+
+
+def test_migrates_old_shortcut_assignments(window):
+    _, win = window
+    manager = win._action_shortcuts
+    manager.saved["manual_action"] = "Ctrl+K, F1"
+    win.manual_action.setShortcut(QKeySequence("Ctrl+K, F1"))
+    manager.refresh()
+    assert win.manual_action.shortcut() == QKeySequence("Ctrl+M")
+    assert win.settings.value("shortcuts/schema", type=int) == 2
+
+
+def test_every_menu_command_activates_from_its_displayed_shortcut(window):
+    import warnings
+
+    app, win = window
+    actions = win._action_shortcuts.commands()
+    received = []
+    for action in actions:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            action.triggered.disconnect()
+        action.triggered.connect(lambda checked=False, action=action: received.append(action))
+        action.setEnabled(True)
+    for action in actions:
+        win.activateWindow()
+        win.plot_workspace.graphics.setFocus()
+        app.processEvents()
+        received.clear()
+        action.setEnabled(True)
+        QTest.keySequence(win.plot_workspace.graphics, action.shortcut())
+        app.processEvents()
+        assert received == [action], (action.text(), action.shortcut().toString(), received)

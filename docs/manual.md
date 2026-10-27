@@ -404,7 +404,7 @@ The example does not normally require masking.
 
 ### 4.6 Run the fit
 
-1. Press **F5** or choose **Fit > Fit**.
+1. Press **Ctrl+F** or choose **Fit > Fit**.
 2. Use **Single / independent** mode.
 3. Check that the example curve is enabled in the table.
 4. Keep **Local least squares (automatic)** and `linear` loss.
@@ -963,7 +963,7 @@ requires an exact matching x value on transferred point masks.
 ### 7.4 Undo and mask history
 
 A graphical mask action is placed on the application Undo stack. Press **Ctrl+Z** to
-undo it or **Ctrl+Shift+Z** on platforms that use that standard Redo binding. The
+undo it or **Ctrl+Y** to redo it. The
 project also stores mask arrays and numeric mask intervals.
 
 Fits, including Quick Fit and sequential fitting, also support Undo/Redo. Undo
@@ -1482,20 +1482,28 @@ Points and the corresponding controls are stored with the component and project.
 
 #### Reopening a function's control points
 
-Select a function in **Model and parameters** and choose **Edit function points**
+Right-click a function in **Model and parameters** and choose **Edit function points**
 (the same command is in **Model**). Saved control points reopen in the placement
 bar, initially in **Move points** mode. Switch to **Add points** or **Delete points**
 as needed; **Undo point**, pan, zoom and the live preview remain available.
 Polynomial degree follows the current point count. This works for every function
 with saved manual points, including custom and plugin functions. Older graphical
 peaks without stored points can reconstruct controls from their current shape;
-normal peak centre/width handles remain available outside this editor.
+normal peak centre/width handles remain available outside this editor. Peak controls
+follow the current shape after fitting or dragging, and finishing without moving
+points leaves the function unchanged. Peak edits use the same estimate in the live
+preview and on Finish.
 
 For a function marked **Background**, the active spectrum temporarily displays
 without background subtraction, including a display reconstruction of recorded
 subtractions. Other spectra retain their display options. Non-background functions
-keep the current background display. This is a view change: recorded subtraction
-operations and experimental data are not removed or recalculated.
+keep the current background display. Opening the editor or cancelling changes only
+the view. On **Finish**, a background that was already subtracted is recalculated
+with its new function, replacing its existing subtraction rather than subtracting
+it twice. Grouped backgrounds and later processing are replayed together. The
+function change and updated subtraction form one **Undo**/**Redo** operation;
+original imported arrays remain unchanged. A background that has not yet been
+subtracted is only updated as a model function.
 
 **Finish** updates the selected function in place, preserving its identity, name,
 composition and background role, as one **Undo**/**Redo** operation. Existing
@@ -1813,7 +1821,7 @@ access, and network access are not part of the expression language.
 
 ### 10.1 Pre-fit checklist
 
-Before pressing **F5**:
+Before pressing **Ctrl+F**:
 
 1. confirm the active and selected curves; use **Select all** / **Deselect all** when appropriate;
 2. inspect invalid and masked points;
@@ -2650,7 +2658,7 @@ The exported report PDF is an analysis summary, not the CurveMole software manua
 
 ### 14.8 Quick export: one numeric file per spectrum
 
-Choose **File > Quick export: spectra and fit curves** or press **Ctrl+Shift+E** when
+Choose **File > Quick export: spectra and fit curves** or press **Ctrl+T** when
 the result should be immediately replottable as one multi-column table per spectrum.
 The complete analysis bundle includes these numeric spectrum exports too. The quick
 export dialog lets you choose any project spectra and any of these options:
@@ -3458,7 +3466,7 @@ extensions must follow their applicable license obligations.
 
 ## Appendix A. Keyboard shortcuts
 
-Shortcuts use the platform's standard key sequence where applicable.
+Shortcuts use single keys or Ctrl+letter.
 
 | Shortcut | Action |
 |---|---|
@@ -3466,14 +3474,14 @@ Shortcuts use the platform's standard key sequence where applicable.
 | Ctrl+O | Open project |
 | Ctrl+I | Import data |
 | Ctrl+S | Save project |
-| Ctrl+Shift+S | Save project as on common desktop mappings |
+| S | Save project as |
 | Ctrl+E | Export analysis bundle |
-| Ctrl+Shift+E | Export one numeric file per selected spectrum |
+| Ctrl+T | Export one numeric file per selected spectrum |
 | Ctrl+Z | Undo |
-| Standard Redo shortcut | Redo |
-| Ctrl++ | Add component |
-| F5 | Open Fit dialog |
-| F1 or platform Help shortcut | Quick Start |
+| Ctrl+Y | Redo |
+| Ctrl+A | Add component |
+| Ctrl+F | Open Fit dialog |
+| Ctrl+J | Quick Start |
 | Esc | Cancel graphical peak or manual-point placement |
 | Ctrl while dragging a normal peak handle | Change a fixed graphical parameter without unfixing it |
 | Double-click during manual-point placement | Finish after the minimum number of points |
@@ -3487,14 +3495,18 @@ Shortcuts use the platform's standard key sequence where applicable.
 Every command in the top menus and toolbars has a dedicated keyboard shortcut,
 including the Background and Initialize with points toggles.
 Hover a button to see the command name and its shortcut on the first tooltip line;
-the existing explanation remains below. Menus also display the shortcut. Existing
-standard shortcuts, such as Ctrl+S and F5, are retained. Frequently used commands
-include Ctrl+Shift+A (Add function), Ctrl+F5 (Quick Fit), Shift+F5 (Continue), and
-Ctrl+Shift+F5 (Cancel running task), unless a combination is already used.
-Other commands use a two-step sequence shown in the tooltip, for example
-`Ctrl+K, A`: press Ctrl+K, release, then press A. Shortcuts apply only to the
-active CurveMole window. Commands added later to menus/toolbars, including plugin
-commands, receive shortcuts too; disabled commands remain unavailable by keyboard.
+the existing explanation remains below. Menus also display the shortcut. Commands
+use single keys or Ctrl+letter, without function keys or multi-step sequences.
+For example: **A** adds a function, **E** reopens its control points, **F** runs
+Quick Fit, **Ctrl+F** opens the Fit dialog, **X** cancels the running task, **B**
+subtracts background, **R** reverts it, **V** shows all data, and **H** opens function
+details. Standard Ctrl+S, Ctrl+O, Ctrl+Z and Ctrl+Y remain available.
+
+Shortcuts work while the plot or function list has focus. While typing in a text
+field, spin box or parameter table, plain keys and native copy/paste/undo remain
+with that editor. Dialogs and popup menus keep their own keyboard handling.
+Assignments from the previous beta are migrated automatically. Dynamically added
+commands receive shortcuts too; disabled commands remain unavailable by keyboard.
 
 
 ## Appendix B. Built-in identifiers

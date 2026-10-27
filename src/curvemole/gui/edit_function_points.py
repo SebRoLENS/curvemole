@@ -7,12 +7,19 @@ from dataclasses import replace
 import numpy as np
 from PySide6.QtCore import QObject
 
+from curvemole.core.background_edit import updated_background_history
 from curvemole.core.display import display_curve
 from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Component, Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
 from curvemole.gui.manual_points import initialise_component_from_points, minimum_manual_points
-from curvemole.gui.manual_points_live import _normalise_points, _set_stored_points, _stored_points
+from curvemole.gui.manual_points_live import (
+    _generic_fit_component,
+    _normalise_points,
+    _set_stored_points,
+    _stored_points,
+    preview_component_from_points,
+)
 
 
 def can_edit_points(component, registry):
@@ -29,9 +36,16 @@ def can_edit_points(component, registry):
 
 def editable_points(component, registry):
     points = _stored_points(component)
-    if points:
-        return points
     definition = registry.get(component.function_id)
+    if points:
+        if definition.kind != "peak" or "center" not in component.parameters:
+            return points
+        # A centre/width drag or a fit may have changed the peak since placement.
+        # Reuse saved points only while they still describe its current shape.
+        x, y = np.asarray(points).T
+        current = definition.evaluate(x, {name: p.value for name, p in component.parameters.items()}, component.metadata)
+        if np.allclose(current, y, rtol=1e-5, atol=max(float(np.max(np.abs(y))), 1.)*1e-8):
+            return points
     values = {name: p.value for name, p in component.parameters.items()}
     center = values["center"]
     derived = definition.derived_values(values, component.metadata)
@@ -60,6 +74,8 @@ class FunctionPointEditor(QObject):
         if not window.active_curve_id or not component_id:
             return
         workspace.cancel_placement()
+        # No fit is running: a retained worker preview must not override edits.
+        workspace._live_parameter_values = None
         from curvemole.gui.model_multiselect import _find_component_curve
         curve_id = _find_component_curve(window, component_id)
         if curve_id is None:
@@ -79,6 +95,7 @@ class FunctionPointEditor(QObject):
         self.legacy_view = bool(getattr(workspace, "_background_subtracted_view", False))
         self.viewport = (copy.deepcopy(workspace.view_box.viewRange()),
                          copy.deepcopy(workspace.residual_plot.getViewBox().viewRange()))
+        self.initial_points = _normalise_points(points)
         self.original = copy.deepcopy(component.to_dict())
         self.draft = Component.from_dict(copy.deepcopy(self.original))
         self.active = True
@@ -118,6 +135,18 @@ class FunctionPointEditor(QObject):
         for handle in workspace._handles:
             handle.hide()
 
+    def preview(self, points):
+        selected = _normalise_points(points)
+        original = Component.from_dict(copy.deepcopy(self.original))
+        if selected == self.initial_points:
+            return original
+        definition = self.window.registry.get(original.function_id)
+        if definition.kind == "peak" and not definition.has_point_configuration and definition.point_initializer is None:
+            # Fit from the current peak, avoiding a second centre/width guess.
+            return _generic_fit_component(original, selected, registry=self.window.registry,
+                                          free_only=False, reseed=False, strict=True)
+        return preview_component_from_points(original, selected, registry=self.window.registry)
+
     def finish(self, points):
         window = self.window
         selected = _normalise_points(points)
@@ -127,8 +156,18 @@ class FunctionPointEditor(QObject):
             model = self.project.model_for(self.curve_id)
             if model.component(self.draft.id).to_dict() != self.original:
                 raise ValueError("The function changed while editing points. Cancel and reopen Edit points.")
-            candidate = Component.from_dict(copy.deepcopy(self.original))
-            initialise_component_from_points(candidate, selected, registry=window.registry)
+            if selected == self.initial_points:
+                self._close()
+                return
+            required = minimum_manual_points(self.draft, registry=window.registry)
+            if len(selected) < required:
+                raise ValueError(f"This function needs at least {required} manual points.")
+            definition = window.registry.get(self.draft.function_id)
+            if definition.kind == "peak" and not definition.has_point_configuration and definition.point_initializer is None:
+                candidate = self.preview(selected)
+            else:
+                candidate = Component.from_dict(copy.deepcopy(self.original))
+                initialise_component_from_points(candidate, selected, registry=window.registry)
             _set_stored_points(candidate, selected)
             # Preserve existing parameter constraints for names that still exist.
             for name, parameter in list(candidate.parameters.items()):
@@ -142,14 +181,39 @@ class FunctionPointEditor(QObject):
             prefix = f"{self.curve_id}.{candidate.id}."
             context = {key: p for key, p in context.items() if not key.startswith(prefix)}
             context.update({prefix+name: p for name, p in candidate.parameters.items()})
-            resolve_parameter_values(context)
+            values = resolve_parameter_values(context)
             before = model.to_dict()
             after = Model.from_dict(copy.deepcopy(before))
             index = next(i for i, c in enumerate(after.components) if c.id == candidate.id)
             after.components[index] = candidate
+            curve = self.project.dataset.curve(self.curve_id)
+            history = updated_background_history(curve, after, candidate,
+                values=values, registry=window.registry)
+            before_history = copy.deepcopy(curve.transformations)
+            before_redo = copy.deepcopy(curve.redo_transformations)
+            before_state = curve.state
+            after_dict = after.to_dict()
+
+            # Undo callbacks must outlive this editor session, whose fields are
+            # cleared on close. Capture the project and curve identity by value.
+            project, curve_id = self.project, self.curve_id
+            def restore(model_state, transformations, redo, state):
+                project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
+                target = project.dataset.curve(curve_id)
+                target.transformations = copy.deepcopy(transformations)
+                target.redo_transformations = copy.deepcopy(redo)
+                target._recompute()
+                target.state = state
+
             self.committing = True
             try:
-                window._push_model_state(self.curve_id, before, after.to_dict(), self.tr("Edit function points"))
+                if history is None:
+                    window._push_model_state(self.curve_id, before, after_dict, self.tr("Edit function points"))
+                else:
+                    window._push_change(self.tr("Edit function points and update background"),
+                        lambda: restore(after_dict, history, [], before_state),
+                        lambda: restore(before, before_history, before_redo, before_state),
+                        modified_curve_ids={curve_id})
             finally:
                 self.committing = False
         except Exception as exc:
@@ -165,6 +229,7 @@ class FunctionPointEditor(QObject):
     def _close(self):
         self.active = False
         window, workspace = self.window, self.window.plot_workspace
+        workspace._live_parameter_values = None
         window._pending_component = None
         window._pending_component_curve_id = None
         window._pending_manual_points = False

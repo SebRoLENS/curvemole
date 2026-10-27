@@ -14,8 +14,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox
 
 from curvemole.core.initialization import (
-    PeakSuggestion,
-    initialise_peak_component,
     initialise_spline_component,
 )
 from curvemole.core.models import Component
@@ -123,17 +121,16 @@ def initialise_component_from_points(
     elif component.function_id == "constant":
         component.parameters["offset"].value = float(np.mean(y))
     elif definition.kind == "peak":
-        baseline = float(np.min(y))
-        peak_index = int(np.argmax(np.abs(y - baseline)))
-        span = max(float(np.ptp(x)), np.finfo(float).eps)
-        suggestion = PeakSuggestion(
-            x=float(x[peak_index]),
-            height=float(y[peak_index] - baseline),
-            fwhm=max(span / 2.0, np.finfo(float).eps),
-            prominence=float(abs(y[peak_index] - baseline)),
-            sign=1,
-        )
-        initialise_peak_component(component, suggestion, registry=registry)
+        # Use exactly the same fit as the placement preview, including signed peaks.
+        from curvemole.gui.manual_points_live import _generic_fit_component
+
+        fitted = _generic_fit_component(component, selected, registry=registry,
+                                        free_only=False, strict=True)
+        for parameter in fitted.parameters.values():
+            parameter.fixed = True
+            parameter.validate()
+        component.parameters = fitted.parameters
+        return component
 
     names = list(component.parameters)
     initial = np.asarray([component.parameters[name].value for name in names], dtype=float)

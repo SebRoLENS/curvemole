@@ -228,7 +228,12 @@ def _install_model_panel() -> None:
             return
         with transient_widget(QMenu(panel)) as menu:
             from curvemole.gui.component_composition import add_composition_actions
+            from curvemole.gui.edit_function_points import can_edit_points
 
+            edit = menu.addAction(panel.tr("Edit function points…"))
+            component = panel.project.model_for(ref[0]).component(ref[1])
+            edit.setEnabled(not panel.project.read_only and can_edit_points(component, panel.registry))
+            edit.triggered.connect(lambda checked=False: panel.editPointsRequested.emit(*ref))
             add_composition_actions(menu.addMenu(panel.tr("Composition")), panel, *ref)
             rename = menu.addAction(panel.tr("Rename function…"))
             rename.setEnabled(panel.project is not None and not panel.project.read_only)
@@ -479,9 +484,8 @@ def _install_model_panel() -> None:
                 original_refresh_parameters(panel)
             return
 
-        panel.edit_points_button.setEnabled(False)
-        if panel.edit_points_button.defaultAction() is not None:
-            panel.edit_points_button.defaultAction().setEnabled(False)
+        if panel.edit_points_action is not None:
+            panel.edit_points_action.setEnabled(False)
         panel.display_method.set_context(panel.project, None)
         panel._updating = True
         try:

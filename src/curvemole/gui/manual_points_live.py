@@ -75,6 +75,8 @@ def _generic_fit_component(
     *,
     registry: Any,
     free_only: bool,
+    reseed: bool = True,
+    strict: bool = False,
     parameter_context: Mapping[str, Parameter] | None = None,
     curve_id: str | None = None,
 ) -> Component:
@@ -106,16 +108,16 @@ def _generic_fit_component(
         offset = fitted.parameters["offset"]
         if not free_only or offset.is_free:
             offset.value = float(np.clip(np.mean(y_values), offset.minimum, offset.maximum))
-    elif definition.kind == "peak" and not free_only:
-        baseline = float(np.min(y_values))
-        peak_index = int(np.argmax(np.abs(y_values - baseline)))
-        span = max(float(np.ptp(x_values)), 1.0)
+    elif definition.kind == "peak" and not free_only and reseed:
+        peak_index = int(np.argmax(np.abs(y_values)))
+        height = float(y_values[peak_index])
+        span = float(np.ptp(x_values)) or max(abs(float(x_values[peak_index]))*1e-3, 1.)
         suggestion = PeakSuggestion(
             x=float(x_values[peak_index]),
-            height=float(y_values[peak_index] - baseline) or float(y_values[peak_index]),
+            height=height,
             fwhm=max(span / 2.0, np.finfo(float).eps),
-            prominence=float(abs(y_values[peak_index] - baseline)),
-            sign=1,
+            prominence=abs(height),
+            sign=-1 if height < 0 else 1,
         )
         with suppress(Exception):
             initialise_peak_component(fitted, suggestion, registry=registry)
@@ -125,7 +127,7 @@ def _generic_fit_component(
         for name, parameter in fitted.parameters.items()
         if not free_only or parameter.is_free
     ]
-    if not names:
+    if not names or (reseed and not free_only and definition.kind == "peak" and len(points) < len(names)):
         return fitted
 
     context = None
@@ -173,9 +175,14 @@ def _generic_fit_component(
             initial,
             bounds=(lower, upper),
             max_nfev=1500,
+            x_scale="jac",
         )
     except Exception:
+        if strict:
+            raise
         return Component.from_dict(copy.deepcopy(component.to_dict())) if context is not None else fitted
+    if strict and (not result.success or not np.all(np.isfinite(result.x))):
+        raise DataValidationError("Could not fit this peak to its control points. Move or add points and retry.")
     if result.success and np.all(np.isfinite(result.x)):
         final_values = physical_values(result.x)
         for name, value in final_values.items():
@@ -272,9 +279,13 @@ def _render_live_manual_preview(workspace: PlotWorkspace) -> None:
         preview_y = np.full_like(preview_x, node_y[0], dtype=float)
     else:
         try:
-            fitted = preview_component_from_points(
-                component, selected, registry=workspace.registry,
-            )
+            editor = getattr(owner, "_function_point_editor", None)
+            if editor is not None and editor.active:
+                fitted = editor.preview(selected)
+            else:
+                fitted = preview_component_from_points(
+                    component, selected, registry=workspace.registry,
+                )
         except Exception as exc:
             workspace._manual_points_error = str(exc)
             return
@@ -288,6 +299,12 @@ def _render_live_manual_preview(workspace: PlotWorkspace) -> None:
         if definition.has_point_configuration and len(selected) > 1:
             # A growing interpolant must not expand the viewport through extrapolation.
             preview_x = np.linspace(float(node_x.min()), float(node_x.max()), len(preview_x))
+        if definition.kind == "peak" and len(selected) > 1:
+            # Keep narrow peaks visible even on a spectrum spanning a wide range.
+            preview_x = np.unique(np.concatenate((
+                preview_x, node_x,
+                np.linspace(float(node_x.min()), float(node_x.max()), 400),
+            )))
         values = {
             name: parameter.value for name, parameter in fitted.parameters.items()
         }

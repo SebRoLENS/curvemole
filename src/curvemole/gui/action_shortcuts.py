@@ -6,31 +6,50 @@ import string
 import weakref
 
 from PySide6.QtCore import QEvent, QObject, QPoint, Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from PySide6.QtWidgets import QAbstractButton, QMenu, QToolBar, QToolButton
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import (
+    QAbstractButton,
+    QAbstractSpinBox,
+    QApplication,
+    QComboBox,
+    QLineEdit,
+    QMenu,
+    QPlainTextEdit,
+    QTableView,
+    QTextEdit,
+    QToolBar,
+    QToolButton,
+)
 from shiboken6 import isValid
 
 _PREFERRED = {
-    "quit_action": "Ctrl+Q",
-    "quick_peak_action": "Ctrl+Shift+A",
-    "quick_fit_action": "Ctrl+F5",
-    "cancel_action": "Ctrl+Shift+F5",
-    "resume_action": "Shift+F5",
-    "copy_fit_action": "Ctrl+Shift+C",
-    "copy_fit_next_action": "Ctrl+Alt+C",
-    "find_peaks_action": "Ctrl+Shift+P",
-    "function_info_action": "Ctrl+Shift+F1",
-    "function_action": "Ctrl+Shift+F",
-    "calculator_action": "Ctrl+Shift+D",
-    "notebook_action": "Ctrl+Shift+N",
-    "uncertainty_action": "Ctrl+Shift+U",
-    "export_parameters_action": "Ctrl+Alt+E",
-    "export_view_action": "Ctrl+Alt+V",
-    "portable_action": "Ctrl+Alt+S",
-    "plugins_action": "Ctrl+Shift+M",
-    "auto_axes_action": "Ctrl+Shift+V",
-    "manual_action": "Ctrl+Shift+H",
+    "new_action": "Ctrl+N", "open_action": "Ctrl+O", "import_action": "Ctrl+I",
+    "save_action": "Ctrl+S", "save_as_action": "S", "export_action": "Ctrl+E",
+    "quit_action": "Ctrl+Q", "undo_action": "Ctrl+Z", "redo_action": "Ctrl+Y",
+    "add_component_action": "Ctrl+A", "quick_add_function_action": "A",
+    "edit_points_action": "E", "fit_action": "Ctrl+F", "quick_fit_action": "F",
+    "cancel_action": "X", "resume_action": "C", "copy_fit_action": "Ctrl+C",
+    "copy_fit_next_action": "Ctrl+V", "find_peaks_action": "Ctrl+P",
+    "function_info_action": "H", "function_action": "Ctrl+H",
+    "calculator_action": "D", "notebook_action": "N", "uncertainty_action": "Ctrl+U",
+    "subtract_background_action": "B", "revert_background_action": "R",
+    "auto_axes_action": "V", "view_options_action": "O", "restore_original_action": "U",
+    "manual_action": "Ctrl+M", "quick_start_action": "Ctrl+J",
+    "quick_add_background": "G", "quick_add_manual_points": "P",
+    "export_spectra_action": "Ctrl+T",
 }
+_PREFERRED_TEXT = {"Mask": "M", "View unmasked": "W", "Run automation": "T"}
+_SHORTCUT_SCHEMA = 2
+
+
+def _simple(sequence):
+    if sequence.count() != 1:
+        return False
+    key = sequence[0]
+    return (key.keyboardModifiers() == Qt.KeyboardModifier.NoModifier
+            and not Qt.Key.Key_F1 <= key.key() <= Qt.Key.Key_F35
+            or key.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier
+            and Qt.Key.Key_A <= key.key() <= Qt.Key.Key_Z)
 
 
 def _portable(sequence):
@@ -48,19 +67,67 @@ class ActionShortcuts(QObject):
         self.menu_actions = weakref.WeakSet()
         try:
             saved = json.loads(str(window.settings.value("shortcuts/commands", "{}")))
-            self.saved = saved if isinstance(saved, dict) else {}
+            self.saved = (saved if isinstance(saved, dict)
+                          and window.settings.value("shortcuts/schema", 0, type=int) == _SHORTCUT_SCHEMA else {})
         except (ValueError, TypeError):
             self.saved = {}
+        self.bindings = {}
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.refresh)
+        QApplication.instance().installEventFilter(self)
         self.refresh()
 
     def schedule(self):
         if not self.updating and not self.timer.isActive():
             self.timer.start(0)
 
+    def _typing(self):
+        widget = QApplication.focusWidget()
+        while widget is not None and widget is not self.window:
+            if isinstance(widget, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox, QTableView)):
+                return True
+            if isinstance(widget, QComboBox):
+                return True
+            widget = widget.parentWidget()
+        return False
+
+    def _key_command(self, event):
+        if (QApplication.activeWindow() is not self.window
+                or QApplication.activePopupWidget() is not None
+                or QApplication.activeModalWidget() not in (None, self.window)):
+            return None
+        sequence = QKeySequence(event.keyCombination())
+        command = self.bindings.get(_portable(sequence))
+        if command is None or not isValid(command) or not command.isEnabled():
+            return None
+        # Typing and the editor's native copy/paste/undo/navigation take priority.
+        if self._typing() and (event.modifiers() == Qt.KeyboardModifier.NoModifier
+                               or _portable(sequence) in {"Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+Z", "Ctrl+Y"}):
+            return None
+        return command
+
     def eventFilter(self, watched, event):
+        if event.type() in (QEvent.Type.ShortcutOverride, QEvent.Type.KeyPress):
+            if (QApplication.activeWindow() is not self.window
+                    or QApplication.activePopupWidget() is not None
+                    or QApplication.activeModalWidget() not in (None, self.window)):
+                return False
+            command = self._key_command(event)
+            if command is not None:
+                event.accept()
+                if event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat():
+                    command.trigger() if isinstance(command, QAction) else command.click()
+                return True
+            # Let editors consume plain keys even when the underlying widget
+            # would otherwise let a window QAction claim its shortcut.
+            if event.type() == QEvent.Type.ShortcutOverride and self._typing():
+                sequence = _portable(QKeySequence(event.keyCombination()))
+                if sequence in self.bindings:
+                    event.accept()
+                    return True
+        if watched not in self.watched:
+            return False
         if event.type() in {QEvent.Type.ActionAdded, QEvent.Type.ActionRemoved, QEvent.Type.ActionChanged, QEvent.Type.ChildAdded}:
             self.schedule()
         elif event.type() == QEvent.Type.ToolTip:
@@ -150,61 +217,62 @@ class ActionShortcuts(QObject):
         self.updating = True
         try:
             actions = self.commands()
-            used = {_portable(seq) for action in self.window.findChildren(QAction)
-                    for seq in action.shortcuts() if not seq.isEmpty()}
-            used.update(_portable(seq) for shortcut in self.window.findChildren(QShortcut) for seq in shortcut.keys())  # noqa: SIM118
-            used.update(_portable(button.shortcut()) for button in self.window.findChildren(QAbstractButton) if not button.shortcut().isEmpty())
-            names = {action: name for name, action in vars(self.window).items() if isinstance(action, QAction)}
-            # Aliases refer to the same command, so prefer the named assignment above.
+            buttons = self.buttons()
+            commands = [*actions, *buttons]
+            names = {action: name for name, action in vars(self.window).items()
+                     if isinstance(action, (QAction, QAbstractButton))}
             for name in _PREFERRED:
                 action = getattr(self.window, name, None)
-                if isinstance(action, QAction):
+                if isinstance(action, (QAction, QAbstractButton)):
                     names[action] = name
-            # Reserve an uncommon chord prefix. Each complete sequence is unique.
-            keys = [*string.ascii_uppercase, *string.digits, *(f"F{i}" for i in range(1, 13)),
-                    "Home", "End", "PgUp", "PgDown", "Insert", "Delete", "Left", "Right", "Up", "Down"]
-            available = (prefix + ", " + modifier + key
-                         for prefix in ("Ctrl+K", "Ctrl+Alt+Shift+K") if prefix not in used
-                         for modifier in ("", "Shift+", "Ctrl+", "Alt+", "Ctrl+Shift+", "Alt+Shift+")
-                         for key in keys)
+            identities = {action: (names.get(action) or self.identities.get(action, action.text()))
+                          for action in commands}
+            reserved = set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values())
+            reserved.update(value for value in self.saved.values()
+                            if isinstance(value, str) and _simple(QKeySequence(value)))
+            # Prefer unmodified letters, then Ctrl+letter, digits and punctuation.
+            pool = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
+                    *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
+            available = iter(pool)
+            used = set()
             saved_before = dict(self.saved)
-            identities = [names.get(action) or self.identities.get(action, action.text()) for action in actions]
-            identities += ["button/" + (button.objectName() or button.text()) for button in self.buttons()]
-            reserved = {self.saved[identity] for identity in identities if isinstance(self.saved.get(identity), str)}
-            for action in actions:
-                identity = names.get(action) or self.identities.get(action, action.text())
-                if not action.shortcuts():
-                    preferred = _PREFERRED.get(names.get(action))
-                    if preferred and _portable(QKeySequence(preferred)) not in used:
-                        sequence = QKeySequence(preferred)
-                    elif isinstance(self.saved.get(identity), str) and self.saved[identity] not in used and not QKeySequence(self.saved[identity]).isEmpty():
-                        sequence = QKeySequence(self.saved[identity])
-                    else:
-                        sequence = next(QKeySequence(candidate) for candidate in available
-                                        if _portable(QKeySequence(candidate)) not in used | reserved)
-                    action.setShortcut(sequence)
-                    action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
-                    used.add(_portable(sequence))
-                    self.saved[identity] = _portable(sequence)
-                if action.menu() is not None and action not in self.menu_actions:
-                    action.triggered.connect(self.open_command_menu)
-                    self.menu_actions.add(action)
-                action.setShortcutVisibleInContextMenu(True)
-                self._tooltip(action)
-            for button in self.buttons():
-                self._watch(button)
-                identity = "button/" + (button.objectName() or button.text())
-                if button.shortcut().isEmpty():
-                    saved = self.saved.get(identity)
-                    if isinstance(saved, str) and saved not in used and not QKeySequence(saved).isEmpty():
-                        sequence = QKeySequence(saved)
-                    else:
-                        sequence = next(QKeySequence(candidate) for candidate in available
-                                        if _portable(QKeySequence(candidate)) not in used | reserved)
-                    button.setShortcut(sequence)
-                    used.add(_portable(sequence))
-                    self.saved[identity] = _portable(sequence)
-                self._tooltip(button)
+            self.bindings = {}
+            for command in commands:
+                identity = identities[command]
+                preferred = _PREFERRED.get(names.get(command)) or _PREFERRED_TEXT.get(command.text())
+                saved = self.saved.get(identity)
+                if preferred and preferred not in used:
+                    key = preferred
+                elif isinstance(saved, str) and _simple(QKeySequence(saved)) and saved not in used | set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values()):
+                    key = saved
+                else:
+                    key = next((candidate for candidate in available if candidate not in used | reserved), None)
+                    if key is None:
+                        # Additional plugins may exceed the single-key alphabet.
+                        # Continue with Ctrl+digit rather than function-key chords.
+                        key = next(("Ctrl+"+c for c in string.digits if "Ctrl+"+c not in used), None)
+                    if key is None:
+                        continue
+                sequence = QKeySequence(key)
+                used.add(_portable(sequence))
+                self.saved[identity] = _portable(sequence)
+                self.bindings[_portable(sequence)] = command
+                if isinstance(command, QAction):
+                    # A menu or a hidden toolbar button alone is not a reliable
+                    # shortcut owner. Register every command on the main window.
+                    if command not in self.window.actions():
+                        self.window.addAction(command)
+                    command.setShortcuts([sequence])
+                    command.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+                    if command.menu() is not None and command not in self.menu_actions:
+                        command.triggered.connect(self.open_command_menu)
+                        self.menu_actions.add(command)
+                    command.setShortcutVisibleInContextMenu(True)
+                else:
+                    self._watch(command)
+                    command.setShortcut(sequence)
+                self._tooltip(command)
+            self.window.settings.setValue("shortcuts/schema", _SHORTCUT_SCHEMA)
             if self.saved != saved_before:
                 self.window.settings.setValue("shortcuts/commands", json.dumps(self.saved))
         finally:

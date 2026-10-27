@@ -1114,7 +1114,9 @@ class MainWindow(QMainWindow):
             "Recorded data operations remain unchanged; Cancel discards point edits."
         ))
         self.edit_points_action.triggered.connect(lambda checked=False: self.edit_component_points(self.selected_component_id))
-        self.model_panel.edit_points_button.setDefaultAction(self.edit_points_action)
+        self.model_panel.edit_points_action = self.edit_points_action
+        self.model_panel.editPointsRequested.connect(
+            lambda curve_id, component_id: self.edit_component_points(component_id))
         self.edit_points_action.setEnabled(False)
         self.quick_peak_action = QAction(self.tr("Quick Peak"), self)
         self.quick_peak_action.setIcon(_resource_icon("add-peak.svg"))

@@ -350,7 +350,7 @@ def test_function_details_follow_selector_copy_formula_and_keep_advanced_add(qui
     assert window.project.model_for(window.active_curve_id).components[-1].function_id == "constant"
     window.undo_action.trigger()
     assert not window.project.model_for(window.active_curve_id).components
-    assert window.add_component_action.shortcut().toString() == "Ctrl++"
+    assert window.add_component_action.shortcut().toString() == "Ctrl+A"
 
 
 def test_function_details_handle_custom_formulas_and_plugins(quick_window):

@@ -68,6 +68,7 @@ class ModelPanel(QWidget):
     copyFitNextRequested = Signal()
     descriptionRequested = Signal(str, str)
     renameRequested = Signal(str, str)
+    editPointsRequested = Signal(str, str)
     reorderRequested = Signal()
     reorderRulesRequested = Signal()
 
@@ -103,11 +104,7 @@ class ModelPanel(QWidget):
         )
         self.background_toggle.toggled.connect(self._background_toggled)
         single_layout.addWidget(self.background_toggle)
-        self.edit_points_button = QToolButton()
-        self.edit_points_button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-        self.edit_points_button.setText(self.tr("Edit points…"))
-        self.edit_points_button.setEnabled(False)
-        single_layout.addWidget(self.edit_points_button)
+        self.edit_points_action = None
         buttons = QHBoxLayout()
         for text, tooltip, slot in (
             ("+", self.tr("Add component"), self.addRequested.emit),
@@ -301,18 +298,16 @@ class ModelPanel(QWidget):
                 self.background_toggle.setChecked(False)
                 self.background_toggle.setEnabled(False)
                 self.background_toggle.blockSignals(False)
-                self.edit_points_button.setEnabled(False)
-                if self.edit_points_button.defaultAction() is not None:
-                    self.edit_points_button.defaultAction().setEnabled(False)
+                if self.edit_points_action is not None:
+                    self.edit_points_action.setEnabled(False)
                 self.derived.clear()
                 return
             model = self.project.model_for(self.curve_id)
             component = model.component(component_id)
             from curvemole.gui.edit_function_points import can_edit_points
             editable = not self.project.read_only and can_edit_points(component, self.registry)
-            self.edit_points_button.setEnabled(editable)
-            if self.edit_points_button.defaultAction() is not None:
-                self.edit_points_button.defaultAction().setEnabled(editable)
+            if self.edit_points_action is not None:
+                self.edit_points_action.setEnabled(editable)
             self.background_toggle.blockSignals(True)
             self.background_toggle.setEnabled(True)
             self.background_toggle.setChecked(component.is_background)

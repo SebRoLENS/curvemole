@@ -141,3 +141,27 @@ def test_invalid_polynomial_points_fail_without_corrupting_component():
     with pytest.raises(DataValidationError, match="range"):
         initialise_component_from_points(component, [(float(i), float(i)) for i in range(52)], registry=registry)
     assert component.to_dict() == original
+
+
+def test_positive_and_negative_peak_initialization_matches_preview_on_small_x_span():
+    registry = default_registry()
+    for function_id in ("gaussian", "lorentzian", "voigt", "pseudo_voigt"):
+        definition = registry.get(function_id)
+        for sign in (-1., 1.):
+            source = Component.create(function_id, registry=registry)
+            source.parameters["area"].value = sign*3.
+            source.parameters["center"].value = 500.
+            for name in ("sigma", "gamma", "fwhm"):
+                if name in source.parameters:
+                    source.parameters[name].value = .02
+            x = np.linspace(499.9, 500.1, 11)
+            y = definition.evaluate(x, {n: p.value for n, p in source.parameters.items()}, source.metadata)
+            points = list(zip(x, y, strict=True))
+            component = Component.create(function_id, registry=registry)
+            preview = preview_component_from_points(component, points, registry=registry)
+            initialise_component_from_points(component, points, registry=registry)
+            for name in component.parameters:
+                assert np.isclose(component.parameters[name].value, preview.parameters[name].value, rtol=1e-10)
+            calculated = definition.evaluate(x, {n: p.value for n, p in component.parameters.items()}, component.metadata)
+            np.testing.assert_allclose(calculated, y, rtol=1e-3, atol=1e-6)
+            assert component.parameters["area"].value*sign > 0
