@@ -52,6 +52,16 @@ def _simple(sequence):
             and Qt.Key.Key_A <= key.key() <= Qt.Key.Key_Z)
 
 
+def _event_sequence(event):
+    # Printable punctuation may require Shift on the current keyboard layout.
+    # Its displayed shortcut is still the resulting symbol, such as ! or +.
+    if event.modifiers() in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier):
+        text = event.text()
+        if len(text) == 1 and text in string.punctuation:
+            return QKeySequence(text)
+    return QKeySequence(event.keyCombination())
+
+
 def _portable(sequence):
     return sequence.toString(QKeySequence.SequenceFormat.PortableText)
 
@@ -97,12 +107,12 @@ class ActionShortcuts(QObject):
                 or QApplication.activePopupWidget() is not None
                 or QApplication.activeModalWidget() not in (None, self.window)):
             return None
-        sequence = QKeySequence(event.keyCombination())
+        sequence = _event_sequence(event)
         command = self.bindings.get(_portable(sequence))
         if command is None or not isValid(command) or not command.isEnabled():
             return None
         # Typing and the editor's native copy/paste/undo/navigation take priority.
-        if self._typing() and (event.modifiers() == Qt.KeyboardModifier.NoModifier
+        if self._typing() and (event.modifiers() in (Qt.KeyboardModifier.NoModifier, Qt.KeyboardModifier.ShiftModifier)
                                or _portable(sequence) in {"Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+Z", "Ctrl+Y"}):
             return None
         return command
@@ -122,7 +132,7 @@ class ActionShortcuts(QObject):
             # Let editors consume plain keys even when the underlying widget
             # would otherwise let a window QAction claim its shortcut.
             if event.type() == QEvent.Type.ShortcutOverride and self._typing():
-                sequence = _portable(QKeySequence(event.keyCombination()))
+                sequence = _portable(_event_sequence(event))
                 if sequence in self.bindings:
                     event.accept()
                     return True
@@ -251,6 +261,7 @@ class ActionShortcuts(QObject):
                         used.add(key)
             pool = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
                     *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
+            pool.extend(key for key in string.punctuation if key not in pool)
             available = iter(_portable(QKeySequence(key)) for key in pool)
             for command in commands:
                 if command in assignments:

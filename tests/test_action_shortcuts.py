@@ -140,8 +140,10 @@ def test_all_builtin_shortcuts_are_single_keys_or_control_letters(window):
     from curvemole.gui.action_shortcuts import _simple
 
     _, win = window
-    for command in [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]:
-        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
+    commands = [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]
+    snapshot = [(command.text(), command.shortcut().toString()) for command in commands]
+    for command in commands:
+        assert _simple(command.shortcut()), snapshot
         if isinstance(command, QAction):
             assert command in win.actions()
 
@@ -249,3 +251,46 @@ def test_preferred_commands_release_their_previous_saved_keys_immediately(window
     manager.refresh()
     for command in [*manager.commands(), *manager.buttons()]:
         assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
+
+
+def test_larger_native_menus_still_use_single_keys_or_control_letters(window):
+    from curvemole.gui.action_shortcuts import _simple
+
+    app, win = window
+    menu = win.menuBar().actions()[0].menu()
+    for index in range(15):
+        menu.addAction(QAction(f"Additional native command {index}", win))
+    app.processEvents()
+    win._action_shortcuts.refresh()
+    commands = [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]
+    snapshot = [(command.text(), command.shortcut().toString()) for command in commands]
+    for command in commands:
+        assert _simple(command.shortcut()), snapshot
+
+
+def test_shifted_punctuation_activates_its_symbol_shortcut_but_remains_typable(window):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QLineEdit
+
+    app, win = window
+    manager = win._action_shortcuts
+    action = QAction("Symbol command", win)
+    win.menuBar().actions()[0].menu().addAction(action)
+    manager.commands()
+    manager.saved[manager.identities[action]] = "!"
+    manager.refresh()
+    assert action.shortcut() == QKeySequence("!")
+    received = []
+    action.triggered.connect(lambda checked=False: received.append(True))
+    win.activateWindow()
+    win.plot_workspace.graphics.setFocus()
+    app.processEvents()
+    QTest.keyClick(win.plot_workspace.graphics, Qt.Key.Key_Exclam, Qt.KeyboardModifier.ShiftModifier)
+    assert received == [True]
+    editor = QLineEdit(win)
+    editor.show()
+    editor.setFocus()
+    app.processEvents()
+    QTest.keyClick(editor, Qt.Key.Key_Exclam, Qt.KeyboardModifier.ShiftModifier)
+    assert editor.text() == "!"
+    assert received == [True]
