@@ -48,7 +48,7 @@ from curvemole.core.plugin_identity import contribution_tooltip, function_toolti
 from curvemole.core.plugins import PluginCandidate, PluginManager
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
-from curvemole.identifiers import RRID, RRID_URL
+from curvemole.identifiers import CONCEPT_DOI, CONCEPT_DOI_URL, RRID, RRID_URL
 from curvemole.version import __version__
 
 
@@ -1350,6 +1350,7 @@ class AboutDialog(QDialog):
             "<p>Sebastiano Romi<br>European Laboratory for Non-Linear Spectroscopy (LENS)<br>"
             "University of Florence (UNIFI)<br>"
             '<a href="mailto:romi@lens.unifi.it">romi@lens.unifi.it</a></p>'
+            f'<p><a href="{CONCEPT_DOI_URL}">Concept DOI: {CONCEPT_DOI}</a> (all versions)</p>'
             f'<p><a href="{RRID_URL}">RRID:{RRID}</a> (SciCrunch)</p>'
             "<p>GPL-3.0-or-later</p>"
             '<p><a href="https://github.com/SebRoLENS/curvemole">Project and updates</a></p>'

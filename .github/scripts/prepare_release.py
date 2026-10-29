@@ -172,6 +172,13 @@ versioned GitHub release below.
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
 > [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v{version}
 
+**All versions (Concept DOI):**
+
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
+
+Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854)
+
 SciCrunch: [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214)
 """
     text = replace_section(text, "## How to cite", "## License", citation)
@@ -215,6 +222,13 @@ Until archival completes, the versioned GitHub release is the authoritative reco
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
 > [Computer software]. GitHub.
 > https://github.com/SebRoLENS/curvemole/releases/tag/v{version}
+
+For all versions, cite CurveMole using the Concept DOI:
+
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
+
+Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854).
 
 CurveMole's SciCrunch identifier is [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) and remains
 unchanged across releases. Include it in published methods.

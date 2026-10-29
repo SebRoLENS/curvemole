@@ -144,7 +144,14 @@ GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITA
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
 > [Computer software]. Zenodo. {doi_url}
 
-DOI: [**{doi}**]({doi_url})
+Version DOI: [**{doi}**]({doi_url})
+
+**All versions (Concept DOI):**
+
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
+
+Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854)
 
 SciCrunch: [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214)
 """

@@ -1,6 +1,7 @@
 // Read the citation bundled with this deployment, never a newer main revision.
 (()=>{
  const text=document.getElementById('citationText'),link=document.getElementById('citationDoi'),status=document.getElementById('citationStatus');
+ const conceptText=document.getElementById('citationConceptText'),conceptLink=document.getElementById('citationConceptDoi'); // 10.5281/zenodo.22113854
  let citation=text.textContent;
  async function refreshCitation(){
   try{
@@ -14,6 +15,6 @@
    text.textContent=citation;link.href='https://doi.org/'+doi;link.textContent='doi:'+doi+' ↗';
   }catch{/* Retain the verified bundled citation if offline. */}
  }
- document.getElementById('copyCitation').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(citation+' '+link.href);status.textContent='Citation copied.'}catch{status.textContent='Select the citation text to copy it.'}});
+ document.getElementById('copyCitation').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(citation+' '+link.href+'\n'+conceptText.textContent+' '+conceptLink.href);status.textContent='Citations copied.'}catch{status.textContent='Select the citation text to copy it.'}});
  refreshCitation();document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshCitation()});
 })();
