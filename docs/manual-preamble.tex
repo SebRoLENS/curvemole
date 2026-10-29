@@ -19,11 +19,18 @@
 \setkomafont{section}{\sffamily\bfseries\color{CurveMoleTeal}}
 \setkomafont{subsection}{\sffamily\bfseries\color{CurveMoleGrey}}
 \setkomafont{descriptionlabel}{\sffamily\bfseries}
-\setlength{\emergencystretch}{3em}
+% API signatures and configuration identifiers need room to wrap in prose.
+\setlength{\emergencystretch}{\textwidth}
 \setlength{\LTpre}{0.5\baselineskip}
 \setlength{\LTpost}{0.75\baselineskip}
 \counterwithout{table}{chapter}
 \RecustomVerbatimEnvironment{verbatim}{Verbatim}{
+  breaklines=true,
+  breakanywhere=true,
+  fontsize=\small
+}
+\RecustomVerbatimEnvironment{Highlighting}{Verbatim}{
+  commandchars=\\\{\},
   breaklines=true,
   breakanywhere=true,
   fontsize=\small

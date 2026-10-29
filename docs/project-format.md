@@ -44,8 +44,8 @@ every historical Python object or building one large JSON string.
 
 Version 1 and 2 projects remain readable; legacy JSON uncertainty samples are
 restored into float64 arrays without reducing precision. Save a backup before
-opening a project with older software: version 3 result storage requires a
-CurveMole version that supports schema 3. Model and YAML workflow formats remain
+opening a project with older software: newly saved version 4 projects require a
+CurveMole version that supports schema 4 block matrices. Model and YAML workflow formats remain
 at schema 2. No project archive contains or executes Python pickles.
 
 CRC and SHA-256 checks read ZIP members in bounded chunks. Partial recovery can
@@ -67,10 +67,11 @@ Version 2 records `composition_mode` and `operation_order` on each model.
 `global` mode pools Add/Subtract functions, then applies the component IDs in
 `operation_order`; remaining factors default to multiplication, division, then
 convolution. Function insertion and display order are independent of this order.
-`ordered` preserves the original accumulated-model semantics. Version 1 archives
-remain readable; missing composition metadata is interpreted as `ordered`.
+CurveMole 1.1.0 uses these global roles for every loaded model, including legacy
+`ordered` metadata and files without composition metadata. Insertion order does
+not create a nested expression. Version 1 archives remain readable.
 
 The same version 2 composition fields are retained in `.fitmodel` files and YAML
 workflows. Older software does not implement global composition and must not be
-used to recalculate these models. Legacy YAML schema 1 remains supported with its
-original ordered semantics.
+used to recalculate these models. Legacy YAML schema 1 remains supported using
+the current global composition semantics.
