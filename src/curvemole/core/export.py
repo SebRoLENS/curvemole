@@ -24,6 +24,7 @@ from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.fitting import FitResult
 from curvemole.core.functions import formula_definition
+from curvemole.identifiers import RRID, RRID_URL
 from curvemole.core.matrices import BlockDiagonalMatrix, matrix_from_value
 from curvemole.core.models import Model
 from curvemole.core.notebook import export_notebook
@@ -642,7 +643,7 @@ def generate_html_report(
     fit_scope = "; ".join(f"{curve_names.get(identity, 'Removed spectrum')} ({identity})" for identity in fitted_ids)
     sections = [
         f"<h1>{_escape(title or project.name)}</h1>",
-        f"<p><strong>CurveMole {__version__}</strong> — generated {_escape(datetime.now(UTC).isoformat())}</p>",
+        f'<p><strong>CurveMole {__version__}</strong> (<a href="{RRID_URL}">RRID:{RRID}</a>) — generated {_escape(datetime.now(UTC).isoformat())}</p>',
         f"<p>{_escape(notes)}</p>" if notes else "",
         "<h2>Data and models</h2>",
         f"<p>{len(project.curves)} curve(s), {sum(len(model.components) for model in project.models.values())} component(s).</p>",
@@ -826,7 +827,7 @@ def export_bundle(
             json.dumps(
                 {
                     "schema_version": 2,
-                    "application_version": __version__,
+                    "application_version": __version__, "software_rrid": RRID,
                     "scope": "Recorded fits; current model evaluations are in observations.csv.",
                     "result": result.to_dict(arrays=False) if result else None,
                     "fit_by_curve": project.results.get("fit_by_curve", {}),
@@ -927,7 +928,7 @@ def export_bundle(
         actual_paths = sorted(relative for relative in planned
                               if (root / relative).is_file() or relative in documented)
         (root / "manifest.json").write_text(json.dumps({
-            "schema_version": 2, "application_version": __version__,
+            "schema_version": 2, "application_version": __version__, "software_rrid": RRID,
             "project": project.name, "exported_at": datetime.now(UTC).isoformat(),
             "csv_delimiter": delimiter, "selection": selection.to_dict(),
             "files": [{"path": relative, "description": _bundle_file_description(relative)}
@@ -1220,6 +1221,7 @@ def _bundle_readme(project: Project, paths: list[str], delimiter: str) -> str:
     available = set(paths)
     lines = [f"CurveMole analysis bundle — {_bundle_readme_text(project.name)}",
              f"Application version: {__version__}",
+             f"Software RRID: RRID:{RRID} ({RRID_URL})",
              f"Spectra: {len(project.curves)}. CSV delimiter: {delimiter!r}; encoding: UTF-8.",
              "", "This folder contains the selected, available outputs of your analysis.",
              "Only files included in this export are listed below.", "", "Contents of this export", "======================="]

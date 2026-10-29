@@ -145,6 +145,8 @@ GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITA
 > [Computer software]. Zenodo. {doi_url}
 
 DOI: [**{doi}**]({doi_url})
+
+SciCrunch: [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214)
 """
     README.write_text(
         replace_section(readme, "## How to cite", "## License", citation),

@@ -42,6 +42,7 @@ from curvemole.core.data import Curve
 from curvemole.core.export import BundleExportSelection
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
+from curvemole.identifiers import RRID, RRID_URL
 from curvemole.core.importers import ColumnMapping, ImportConfig, inspect_file
 from curvemole.core.models import Component
 from curvemole.core.plugin_identity import contribution_tooltip, function_tooltip, provenance
@@ -1349,6 +1350,7 @@ class AboutDialog(QDialog):
             "<p>Sebastiano Romi<br>European Laboratory for Non-Linear Spectroscopy (LENS)<br>"
             "University of Florence (UNIFI)<br>"
             '<a href="mailto:romi@lens.unifi.it">romi@lens.unifi.it</a></p>'
+            f'<p><a href="{RRID_URL}">RRID:{RRID}</a> (SciCrunch)</p>'
             "<p>GPL-3.0-or-later</p>"
             '<p><a href="https://github.com/SebRoLENS/curvemole">Project and updates</a></p>'
         )

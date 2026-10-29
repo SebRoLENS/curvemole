@@ -5,6 +5,14 @@ solvers or functions through the supported API. Every contribution has its plugi
 menu or selector and identifies its providing plugin in the tooltip.
 Executable Python plugins are different from safe custom-function/formula JSON files.
 
+## Citing CurveMole in analyses that use plugins
+
+When publishing analyses performed with CurveMole or its plugins, identify the
+host software using [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) and cite the Zenodo DOI of the
+exact version used (see [How to cite](../README.md#how-to-cite)). Scientific
+DOIs in individual plugin manuals identify their cited papers or methods,
+not the CurveMole software.
+
 ## Updates inside CurveMole
 
 CurveMole checks at startup and hourly for updates to **loaded plugins only**, using

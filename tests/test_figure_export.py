@@ -145,6 +145,7 @@ def test_pdf_pages_are_vector_one_per_curve_and_never_borrow_fit_statistics(tmp_
     assert all(page["images"] == 0 for page in pages)
     assert "RMSE" in pages[0]["text"]
     assert "RMSE" not in pages[1]["text"]
+    assert all("RRID:SCR_029214" in page["text"] for page in pages)
 
 
 def test_pdf_omits_statistics_after_model_parameters_change(tmp_path, monkeypatch):

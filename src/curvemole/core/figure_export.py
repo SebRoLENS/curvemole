@@ -15,6 +15,7 @@ import numpy as np
 
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.fitting import FitResult
+from curvemole.identifiers import RRID
 from curvemole.core.models import Model
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
@@ -487,7 +488,7 @@ def generate_pdf_report(
     selected = list(project.curves if curves is None else curves)
     registry = registry or _registry_for_project(project)
     parameter_values = project.resolved_parameter_values()
-    with PdfPages(destination, metadata={"Title": title or project.name, "Creator": f"CurveMole {__version__}"}) as pdf:
+    with PdfPages(destination, metadata={"Title": title or project.name, "Creator": f"CurveMole {__version__}", "Subject": f"RRID:{RRID}"}) as pdf:
         for index, curve in enumerate(selected or [None], 1):
             figure = _export_figure(figsize=(9.0, 6.3), constrained_layout=True)
             try:
@@ -503,7 +504,7 @@ def generate_pdf_report(
                 _draw_snapshot(figure, snapshot, caption_y=.042)
                 figure.text(.1, .985, textwrap.shorten(title or project.name, width=100, placeholder="..."),
                             va="top", fontsize=9, color=_THEMES["light"]["muted"], fontfamily="DejaVu Sans")
-                figure.text(.98, .012, f"CurveMole {__version__}  |  {index}/{max(1, len(selected))}",
+                figure.text(.98, .012, f"CurveMole {__version__}  |  RRID:{RRID}  |  {index}/{max(1, len(selected))}",
                             ha="right", va="bottom", fontsize=7, color=_THEMES["light"]["muted"])
                 bottom = max(.09, figure.get_layout_engine().get()["rect"][1])
                 figure.get_layout_engine().set(rect=(0, bottom, 1, .94 - bottom))

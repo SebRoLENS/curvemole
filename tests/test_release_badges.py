@@ -54,6 +54,7 @@ def test_release_preparation_writes_stable_readme_from_legacy_or_stable_status(
     assert "> **Status:** Version **1.0.1 Stable**." in updated
     assert "Current public version: **1.0.1**" in updated
     assert "/releases/tag/v1.0.1" in updated
+    assert "RRID:SCR_029214" in updated
     assert "Preview" not in updated
 
 
@@ -83,6 +84,7 @@ def test_release_preparation_keeps_manual_stable_for_future_releases(
     assert "**Current manual version: 1.0.1**" in updated
     assert "## Appendix D. Version 1.0.1 limitations" in updated
     assert "/releases/tag/v1.0.1" in updated
+    assert "RRID:SCR_029214" in updated
     assert "Preview" not in updated and "1.0.0" not in updated
 
 

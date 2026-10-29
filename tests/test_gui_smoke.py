@@ -7,13 +7,14 @@ pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtCore import QPointF, Qt
 from PySide6.QtNetwork import QNetworkReply
-from PySide6.QtWidgets import QApplication, QFileDialog
+from PySide6.QtWidgets import QApplication, QFileDialog, QLabel
 
 from curvemole import Component, Curve, Project
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 from curvemole.core.serialization import save_project
 from curvemole.gui.app import _missing_toolbar_icons
 from curvemole.gui.dialogs import (
+    AboutDialog,
     CopyFitDialog,
     FitPlanDialog,
     ImportMappingDialog,
@@ -27,6 +28,14 @@ from curvemole.gui.main_window import (
 )
 from curvemole.gui.plot import MaskViewBox
 from curvemole.version import __version__
+
+
+def test_about_dialog_identifies_software_rrid() -> None:
+    app = QApplication.instance() or QApplication([])
+    dialog = AboutDialog(None)
+    assert any("RRID:SCR_029214" in label.text() for label in dialog.findChildren(QLabel))
+    dialog.close()
+    app.processEvents()
 
 
 def test_main_window_starts_offscreen() -> None:

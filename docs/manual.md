@@ -17,7 +17,7 @@ Useful links:
 - [CurveMole repository](https://github.com/SebRoLENS/curvemole)
 - [Latest release and desktop downloads](https://github.com/SebRoLENS/curvemole/releases/latest)
 - [Issue tracker](https://github.com/SebRoLENS/curvemole/issues)
-- [Version DOI and citation](https://github.com/SebRoLENS/curvemole#how-to-cite)
+- [Version DOI, RRID and citation](https://github.com/SebRoLENS/curvemole#how-to-cite)
 - [Quick Start](quick-start.md)
 - [Python automation audit](ai-python-audit.md)
 - [YAML automation audit](ai-yaml-audit.md)
@@ -3428,7 +3428,7 @@ them public.
 
 Archive at least:
 
-- exact CurveMole version and DOI;
+- exact CurveMole version, DOI and RRID;
 - original data and import mapping;
 - complete `.fitproj`;
 - analysis bundle;
@@ -3492,6 +3492,10 @@ Until archival completes, the versioned GitHub release is the authoritative reco
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 1.1.0)
 > [Computer software]. GitHub.
 > https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.0
+
+CurveMole also has a version-independent SciCrunch identifier:
+[**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214). Include the RRID in the methods section; use the release-specific
+Zenodo DOI in the bibliography.
 
 The repository provides **Cite this repository** from `CITATION.cff`.
 

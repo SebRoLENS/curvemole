@@ -9,6 +9,8 @@ abstract: |-
   and data analysis on Windows, macOS and Linux. It supports nonlinear and
   global fitting, custom models, parameter constraints and uncertainty analysis.
   This Zenodo record preserves a specific release for citation and reproducibility.
+  CurveMole's version-independent SciCrunch identifier is RRID:SCR_029214
+  (https://scicrunch.org/resolver/RRID:SCR_029214).
 keywords:
   - scientific curve fitting
   - nonlinear fitting
