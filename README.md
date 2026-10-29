@@ -151,7 +151,9 @@ workflow tied to a single experimental technique.
 
 The documentation workflow verifies the declared software version, local links,
 LaTeX conversion, and PDF compilation. Versioned PDF and LaTeX manuals are attached
-to releases.
+to releases. Documentation corrections for the current stable version are published
+here without a new software release; the PDF and LaTeX links above open the revised
+editions.
 
 ### Create scripts and automations with an AI
 
@@ -162,8 +164,8 @@ Python script or YAML workflow without reading the CurveMole source code.
 
 | Task | Read the audit | Download the Markdown file |
 |---|---|---|
-| Write a Python script | [Python API audit](docs/ai-python-audit.md) | [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md) |
-| Write a YAML automation | [YAML workflow audit](docs/ai-yaml-audit.md) | [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md) |
+| Write a Python script | [Python API audit](docs/ai-python-audit.md) | [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-python-audit.md) |
+| Write a YAML automation | [YAML workflow audit](docs/ai-yaml-audit.md) | [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-yaml-audit.md) |
 
 Open a download link and save the page as `.md`, or open the file on GitHub and use
 **Download raw file**. Attach the relevant file to your AI conversation; attach both

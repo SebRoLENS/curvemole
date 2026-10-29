@@ -5431,8 +5431,8 @@ workflow with its own imported data; it does not edit the open GUI project.
 
 Download the plain-text files here:
 
-- [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md)
-- [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md)
+- [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-python-audit.md)
+- [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-yaml-audit.md)
 
 Save each page as a `.md` file. On GitHub, **Download raw file** also saves the
 Markdown source. In a source checkout they are in `docs/`; Python distributions
@@ -5440,8 +5440,8 @@ and desktop packages include them with the bundled documentation. The read links
 above also work from the offline manual.
 
 Check `curvemole --version` and the CurveMole version declared inside the audit.
-The download URLs follow the repository's `testing` documentation branch, so the downloaded file's
-own version declaration is the compatibility record. Keep a local copy with your
+The download URLs follow `main`, the stable documentation branch, so the downloaded
+file's own version declaration is the compatibility record. Keep a local copy with your
 analysis. If versions differ, ask the AI to flag the mismatch and verify the
 relevant contracts before producing an automation; do not assume a document for
 another release is current. These files supplement the current-version manual;

@@ -113,8 +113,10 @@ def assemble(metadata):
     index = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
                    'style.css?v=' + metadata['source_sha'], index)
     repository = os.environ.get('GITHUB_REPOSITORY', 'SebRoLENS/curvemole')
-    manual_url = (f'https://github.com/{repository}/releases/download/{metadata["tag"]}/'
-                  f'CurveMole-{metadata["version"]}-User-Manual.pdf')
+    # Documentation-only updates belong to the stable snapshot without replacing
+    # the original manual archived with the release.
+    manual_url = (f'https://raw.githubusercontent.com/{repository}/{metadata["source_sha"]}/'
+                  'docs/CurveMole_User_Manual.pdf')
     index, count = re.subn(r'(<a\b[^>]*id="manualPdf"[^>]*href=")[^"]*(")',
                           lambda m: m[1] + manual_url + m[2], index)
     if count != 1:
