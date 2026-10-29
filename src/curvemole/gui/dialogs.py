@@ -42,13 +42,13 @@ from curvemole.core.data import Curve
 from curvemole.core.export import BundleExportSelection
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
-from curvemole.identifiers import RRID, RRID_URL
 from curvemole.core.importers import ColumnMapping, ImportConfig, inspect_file
 from curvemole.core.models import Component
 from curvemole.core.plugin_identity import contribution_tooltip, function_tooltip, provenance
 from curvemole.core.plugins import PluginCandidate, PluginManager
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
+from curvemole.identifiers import RRID, RRID_URL
 from curvemole.version import __version__
 
 

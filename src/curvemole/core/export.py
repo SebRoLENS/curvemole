@@ -24,13 +24,13 @@ from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.fitting import FitResult
 from curvemole.core.functions import formula_definition
-from curvemole.identifiers import RRID, RRID_URL
 from curvemole.core.matrices import BlockDiagonalMatrix, matrix_from_value
 from curvemole.core.models import Model
 from curvemole.core.notebook import export_notebook
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
 from curvemole.core.serialization import save_fitmodel, save_project
+from curvemole.identifiers import RRID, RRID_URL
 from curvemole.version import __version__
 
 

@@ -15,10 +15,10 @@ import numpy as np
 
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.fitting import FitResult
-from curvemole.identifiers import RRID
 from curvemole.core.models import Model
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
+from curvemole.identifiers import RRID
 from curvemole.version import __version__
 
 
