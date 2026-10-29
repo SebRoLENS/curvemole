@@ -59,14 +59,18 @@ def test_default_export_is_a_complete_analysis_bundle(gaussian_curve, tmp_path: 
     assert not (root / ".curvemole-export.json").exists()
     manifest = json.loads((root / "manifest.json").read_text())
     assert manifest["software_rrid"] == "SCR_029214"
+    assert manifest["software_concept_doi"] == "10.5281/zenodo.22113854"
     assert json.loads((root / "python/results.json").read_text())["software_rrid"] == "SCR_029214"
+    assert json.loads((root / "python/results.json").read_text())["software_concept_doi"] == "10.5281/zenodo.22113854"
     assert "RRID:SCR_029214" in (root / "summary_report.html").read_text()
+    assert "10.5281/zenodo.22113854" in (root / "summary_report.html").read_text()
     assert "RRID:SCR_029214" in (root / "report/full_reproducibility.html").read_text()
     assert {item["path"] for item in manifest["files"]} == {
         path.relative_to(root).as_posix() for path in summary.created
     }
     readme = (root / "README.txt").read_text()
     assert "RRID:SCR_029214" in readme
+    assert "10.5281/zenodo.22113854" in readme
     for extension in ("png", "svg", "pdf"):
         assert f"figures/{extension}/*.{extension} (1 file)" in readme
     assert "manifest.json contains its exact file inventory" in readme

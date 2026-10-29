@@ -34,6 +34,7 @@ def test_about_dialog_identifies_software_rrid() -> None:
     app = QApplication.instance() or QApplication([])
     dialog = AboutDialog(None)
     assert any("RRID:SCR_029214" in label.text() for label in dialog.findChildren(QLabel))
+    assert any("10.5281/zenodo.22113854" in label.text() for label in dialog.findChildren(QLabel))
     dialog.close()
     app.processEvents()
 
