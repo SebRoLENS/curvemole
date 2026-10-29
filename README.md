@@ -145,10 +145,56 @@ workflow tied to a single experimental technique.
 - **[User manual (LaTeX)](docs/CurveMole_User_Manual.tex)** - generated source used
   to compile the PDF
 - **[Quick Start](docs/quick-start.md)** - compact first-workflow guide
+- **[Python scripting reference](docs/python-api.md)** and
+  **[YAML workflow reference](docs/workflows.md)** - detailed contracts, also included
+  in Appendices F and G of the main manual
 
 The documentation workflow verifies the declared software version, local links,
 LaTeX conversion, and PDF compilation. Versioned PDF and LaTeX manuals are attached
-to releases.
+to releases. Documentation corrections for the current stable version are published
+here without a new software release; the PDF and LaTeX links above open the revised
+editions.
+
+### Create scripts and automations with an AI
+
+Two self-contained **automation audits** describe the interfaces checked against
+CurveMole **1.1.0**. They contain the function names, import paths, signatures,
+configuration keys, defaults, examples and limitations an AI needs to create a
+Python script or YAML workflow without reading the CurveMole source code.
+
+| Task | Read the audit | Download the Markdown file |
+|---|---|---|
+| Write a Python script | [Python API audit](docs/ai-python-audit.md) | [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-python-audit.md) |
+| Write a YAML automation | [YAML workflow audit](docs/ai-yaml-audit.md) | [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-yaml-audit.md) |
+
+Open a download link and save the page as `.md`, or open the file on GitHub and use
+**Download raw file**. Attach the relevant file to your AI conversation; attach both
+when choosing between Python and YAML. These are interface references, not security
+certifications or executable automations. Check their declared CurveMole version
+against `curvemole --version`; keep the matching documents with your analysis.
+
+Describe the input files and column names, units, desired model, initial values and
+bounds, fit mode, and required outputs. For example:
+
+```text
+Using only the attached CurveMole automation audit, create a workflow for
+CurveMole 1.1.0. My comma-separated file spectrum.csv has columns x, y, sigma_y
+(sigma_y is one standard deviation). Fit a constant background and a Gaussian
+with positive width. Save a .fitproj and an analysis bundle in new paths.
+Ask me for missing scientific choices. Include the exact command to run it,
+check fit convergence, and flag anything the documented interface cannot do.
+Do not invent API names or YAML keys.
+```
+
+Review the generated code and scientific assumptions. For YAML, first run
+`curvemole validate workflow.yml`, then execute it on a small copy of your data
+with `curvemole run workflow.yml --json`. Validation checks only the basic workflow
+structure; execution is needed to check imports, models and fitting. Python scripts
+run in your CurveMole Python environment with `python script.py`. YAML can also be
+run from the desktop's **Run automation** button; it creates its own project.
+Inspect convergence and output files before processing a full dataset. Appendix H
+of the [manual](docs/manual.md#appendix-h-using-the-automation-audits-with-an-ai)
+explains this process and the choice between Python and YAML.
 
 ## Highlights
 
