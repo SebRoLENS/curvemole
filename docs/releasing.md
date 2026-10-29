@@ -13,7 +13,7 @@ The project policy is:
 Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
 Python beta packages. Build versions are stamped only in the package workspace,
 using the final destination recorded in `.github/release-target.json`. The current
-target is `1.1.0`, producing `1.1.0bN` / `v1.1.0-beta.N` while stable remains `1.0.1`.
+target is `1.1.1`, producing `1.1.1bN` / `v1.1.1-beta.N` while stable remains `1.1.0`.
 The beta sequence is the Testing builds workflow run number; gaps are normal and
 it need not restart at 1 when the target changes. Previously published beta tags
 and assets remain unchanged. Failed older runs should be replaced by a new push
@@ -34,8 +34,20 @@ prereleases with `--latest=false`. They do not change the stable release, websit
 stable DOI, manual version, or `main`. Each published beta's own Zenodo DOI is
 linked in that beta's release notes. Manual Testing builds default to artifacts only;
 publishing must be explicitly selected. Windows/macOS signing follows the stable
-pipeline. Beta packages bundle the stable baseline manual; the updated Markdown
-manual and in-app channel dialog describe the beta channel changes.
+pipeline. The manual retains the stable baseline version in its title, with
+clearly marked beta-specific reference sections. Rebuild and commit its PDF and
+LaTeX editions before a beta push. The validation job checks those committed
+editions before packaging. The separate documentation job copies them without
+stamping stable source/manual metadata, together with both standalone AI audits.
+
+Each published beta includes versioned `User-Manual.pdf`, `User-Manual.tex`,
+`AI-Python-Audit.md` and `AI-YAML-Audit.md` assets in addition to desktop/Python
+packages. The release notes link the four documents and the checksum manifest
+covers them. The same docs remain bundled offline in the desktop/Python packages.
+Users should pair the beta-specific audit contract with the exact beta build;
+new workflow fields require `schema_version: 3` and are not implicitly supported
+by the older stable executable. Legacy workflow schemas 1/2 remain readable for
+their older fields.
 
 All development, including documentation and automation changes, happens exclusively
 on `testing`. `main` is updated only by an explicitly requested stable promotion.

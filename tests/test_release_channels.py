@@ -204,6 +204,46 @@ def test_beta_stamping_preserves_dependencies_and_does_not_mutate_stable_metadat
         beta.stamp("1.0.2", tmp_path)
 
 
+def test_beta_documents_use_reviewed_sources_and_exact_build_names(tmp_path):
+    beta = beta_script()
+    root = tmp_path / "source"
+    sources = {
+        "docs/CurveMole_User_Manual.pdf": b"%PDF-1.7\nreviewed manual\n",
+        "docs/CurveMole_User_Manual.tex": b"Version 1.1.0; beta addendum\n",
+        "docs/ai-python-audit.md": b"# Python audit\n",
+        "docs/ai-yaml-audit.md": b"# YAML audit\n",
+    }
+    for name, payload in sources.items():
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(payload)
+    output = tmp_path / "documents"
+
+    prepared = beta.prepare_documents("1.1.1b23", output, root)
+
+    assert {path.name for path in prepared} == set(beta.documentation_assets("1.1.1b23"))
+    assert set(beta.documentation_assets("1.1.1b23")) <= beta.expected_assets("1.1.1b23")
+    for target, source in beta.documentation_assets("1.1.1b23").items():
+        assert (output / target).read_bytes() == sources[source]
+        assert (root / source).read_bytes() == sources[source]
+    assert all("1.1.1b23" in path.name for path in prepared)
+    with pytest.raises(ValueError):
+        beta.prepare_documents("1.1.1", output, root)
+
+
+def test_missing_beta_document_does_not_create_partial_output(tmp_path):
+    beta = beta_script()
+    root = tmp_path / "source"
+    (root / "docs").mkdir(parents=True)
+    (root / "docs/CurveMole_User_Manual.pdf").write_bytes(b"%PDF-1.7\n")
+    output = tmp_path / "documents"
+
+    with pytest.raises(FileNotFoundError):
+        beta.prepare_documents("1.1.1b23", output, root)
+
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("corrupt_upload", [False, True])
 def test_beta_publication_checks_all_assets_and_never_sets_latest(tmp_path, monkeypatch, corrupt_upload):
     from types import SimpleNamespace
@@ -253,6 +293,12 @@ def test_bootstrap_is_artifacts_only_and_testing_cannot_publish_stable():
     assert workflow["on"]["workflow_dispatch"]["inputs"]["publish"]["default"] == "false"
     assert "[beta artifacts only]" in workflow["jobs"]["publish"]["if"]
     assert workflow["jobs"]["plan"]["if"] == "github.ref == 'refs/heads/testing'"
+    assert set(workflow["jobs"]["publish"]["needs"]) == {"plan", "packages", "documents"}
+    documents = workflow["jobs"]["documents"]
+    assert set(documents["needs"]) == {"plan", "validate"}
+    assert "[skip release]" in documents["if"]
+    assert any(step.get("with", {}).get("name") == "release-documentation"
+               for step in documents["steps"])
     assert "automatic-release.yml" not in (ROOT / ".github/workflows/testing.yml").read_text()
 
 

@@ -224,6 +224,12 @@ CurveMole 1.1.0 Stable. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
+\textbf{Testing edition for CurveMole 1.1.1 beta.} The title retains the
+stable API baseline, 1.1.0. Marked beta sections and Appendices F/G
+describe the additional workflow capabilities in 1.1.1 beta; they are
+not implemented by the 1.1.0 stable executable. Use the manual and AI
+audits attached to your exact beta download.
+
 Useful links:
 
 \begin{itemize}
@@ -283,6 +289,11 @@ The version in the title and in the line at the top of this file
 identifies the CurveMole release whose behavior is documented. It is not
 an independent document version. For example, a manual marked 1.1.0
 describes CurveMole 1.1.0.
+
+Testing editions retain this stable baseline in the title. A testing
+notice and explicit minimum-version labels distinguish upcoming beta
+additions; the beta release assets identify the exact package build
+containing them.
 
 The release automation performs four checks:
 
@@ -3619,7 +3630,9 @@ independent-fit covariance and correlation as block matrices. This
 reduces memory while preserving recorded fits and sample values. Schemas
 1 through 3 remain readable. Newly saved projects require a reader
 supporting schema 4 block matrices; keep a backup when sharing with
-older installations. Model and workflow formats remain at schema 2.
+older installations. Model files remain at schema 2. The stable workflow
+format is schema 2; 1.1.1 beta adds workflow schema 3 for batch imports
+and preprocessing while retaining support for legacy schema 1/2 recipes.
 
 NumPy arrays are loaded with \texttt{allow\_pickle=False}. CurveMole
 projects never require executing a Python pickle. The format is
@@ -4209,13 +4222,28 @@ workflows using the documented interfaces.
 \end{Highlighting}
 \end{Shaded}
 
-Relative paths are resolved from the workflow file's directory. Schemas
-1 and 2 are accepted; new workflows should use
-\texttt{schema\_version:\ 2}. Workflows support imports, custom
-functions, explicitly trusted plugins, models, constraints, fit
-settings, project output, and bundle export. They do not expose every
-Python or desktop operation; Appendix G lists the supported stages and
-fields.
+Relative paths are resolved from the workflow file's directory. Stable
+1.1.0 supports schemas 1 and 2. \textbf{In 1.1.1 beta, use
+\texttt{schema\_version:\ 3}} for folder/glob imports, naming templates,
+shared model selectors, preprocessing and the new output controls.
+Legacy schema 1/2 recipes remain supported with their original fields.
+The schema guard makes older executables reject new recipes instead of
+silently ignoring a processing stage. Appendix G lists every supported
+field and includes a complete folder workflow.
+
+The beta can import a whole directory, optionally search subdirectories,
+exclude matching files and sort names naturally (\texttt{scan2} before
+\texttt{scan10}). A model can target all curves or a matched subset;
+\texttt{curves:\ first} is useful for a sequential source model.
+Preprocessing supports masks, fit ranges and the documented scalar and
+safe formula transformations. Inputs remain unchanged. The workflow is a
+fixed pipeline, rather than a general programming language.
+
+Beta validation reports unknown keys and invalid nested structures
+before reading data. File contents, column availability, plugin
+functions and convergence still require an actual run. Use
+\texttt{export.project\_overwrite:\ false} to protect an existing
+project output; this is independent of bundle overwrite/versioning.
 
 \section{Run an existing automation from the
 desktop}\label{run-an-existing-automation-from-the-desktop}
@@ -5240,12 +5268,15 @@ contracts.
 \chapter{Appendix F. Python scripting
 reference}\label{appendix-f.-python-scripting-reference}
 
-Applies to \textbf{CurveMole 1.1.0}, Python \textbf{3.12+}. This
-version-pinned reference documents the GUI-independent scientific
-engine: callable names, argument names, return values, side effects, and
-limits. Private names beginning with \texttt{\_} and GUI classes are
-outside this scripting contract. Record the installed version and
-scientific dependency versions with your results.
+\textbf{Stable API baseline: CurveMole 1.1.0. Workflow extensions
+require 1.1.1 beta.} Applies to Python \textbf{3.12+}. This testing
+edition documents the GUI-independent scientific engine and marks the
+new beta workflow helpers explicitly: callable names, argument names,
+return values, side effects, and limits. The 1.1.0 stable executable
+does not support the marked beta operations. Private names beginning
+with \texttt{\_} and GUI classes are outside this scripting contract.
+Record the installed version and scientific dependency versions with
+your results.
 
 \section{1. Installation and imports}\label{installation-and-imports}
 
@@ -6532,10 +6563,12 @@ suffix \\
 
 \texttt{portable=True} strips local paths. Detached snapshots require
 \texttt{update\_project\_path=False} when saving. Project schema is
-\textbf{4}, model/workflow schemas \textbf{2}. Archives contain
-JSON/numeric arrays, not pickle. Older project schemas remain readable.
-An otherwise readable project with a newer schema opens read-only;
-invalid schema numbers or damaged content raise
+\textbf{4} and model schema is \textbf{2}. Workflow schema is \textbf{2}
+in the stable baseline and \textbf{3} for 1.1.1 beta additions; legacy
+workflow schemas 1/2 remain accepted for their older fields. Archives
+contain JSON/numeric arrays, not pickle. Older project schemas remain
+readable. An otherwise readable project with a newer schema opens
+read-only; invalid schema numbers or damaged content raise
 \texttt{ProjectFormatError}. Unsupported model-file schemas raise
 \texttt{ProjectFormatError}. \texttt{load\_project} does not acquire a
 project lock and \texttt{save\_project} does not itself honor another
@@ -6547,17 +6580,114 @@ when applying to a different curve.
 \texttt{load\_workflow(path)\ -\textgreater{}\ dict},
 \texttt{validate\_workflow(value)\ -\textgreater{}\ list{[}str{]}},
 \texttt{run\_workflow(path,\ *,\ trust\_plugins=None,\ registry=None)\ -\textgreater{}\ WorkflowOutcome},
-\texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ Path}. Outcome
-fields are \texttt{project}, \texttt{result}, \texttt{outputs}. Relative
-paths resolve against the YAML directory. Dumping references source
-imports/models; it does not embed arbitrary transformed current data or
-all project state. Version 1.1.0 dump includes saved
-\texttt{curve\_ids}, which the loader maps to newly imported curve IDs
-in model selectors and \texttt{\$\{...\}} references. Ambiguous
-display-name aliases are not used as selectors; explicit saved curve
-identities disambiguate them. Links are resolved project-wide before
-fitting or export. Save \texttt{.fitproj} for full scientific state. The
-YAML audit details the complete import identity and reference format.
+\texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ Path}. Beta
+dumping emits workflow schema 3; marked beta-only YAML keys require
+schema 3 so older software rejects them instead of ignoring processing
+stages. Outcome fields are \texttt{project}, \texttt{result},
+\texttt{outputs}. In 1.1.1 beta it also has
+\texttt{imported\_files:\ list{[}Path{]}} and
+\texttt{warnings:\ list{[}str{]}}, both defaulting to empty lists so the
+original three-field constructor remains valid. Relative paths resolve
+against the YAML directory. Dumping references source imports/models; it
+does not embed arbitrary transformed current data or all project state.
+Version 1.1.0 dump includes saved \texttt{curve\_ids}, which the loader
+maps to newly imported curve IDs in model selectors and
+\texttt{\$\{...\}} references. Ambiguous display-name aliases are not
+used as selectors; explicit saved curve identities disambiguate them.
+Links are resolved project-wide before fitting or export. Save
+\texttt{.fitproj} for full scientific state. The YAML audit details the
+complete import identity and reference format.
+
+\subsection{15.1 Beta workflow discovery, selection and
+preprocessing}\label{beta-workflow-discovery-selection-and-preprocessing}
+
+The following helpers require \textbf{1.1.1 beta} and are module
+imports, not new package-root exports. They implement the same contract
+as the beta YAML runner; using Python is not required merely to
+enumerate a folder anymore.
+
+From \texttt{curvemole.core.workflow\_inputs}:
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Callable
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Return/contract
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{resolve\_import\_paths(item,\ root)} & \texttt{list{[}Path{]}};
+expands one \texttt{path}/\texttt{glob}/\texttt{directory} import
+relative to a workflow-directory root \\
+\texttt{validate\_import\_source(item)} & \texttt{list{[}str{]}} static
+source-selection errors; does not read files \\
+\texttt{validate\_name\_template(template)} & \texttt{list{[}str{]}}
+errors for the restricted naming placeholders \\
+\texttt{format\_import\_name(template,\ path,\ root,\ *,\ file\_index,\ curve\_index,\ curve\_name)}
+& Generated name; indices are positive one-based file/curve positions \\
+\end{longtable}
+}
+
+For example, this independently discovers naturally ordered inputs:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ImportTok{from}\NormalTok{ pathlib }\ImportTok{import}\NormalTok{ Path}
+\ImportTok{from}\NormalTok{ curvemole.core.workflow\_inputs }\ImportTok{import}\NormalTok{ resolve\_import\_paths}
+\NormalTok{files }\OperatorTok{=}\NormalTok{ resolve\_import\_paths(}
+\NormalTok{    \{}\StringTok{"directory"}\NormalTok{: }\StringTok{"data"}\NormalTok{, }\StringTok{"pattern"}\NormalTok{: }\StringTok{"*.csv"}\NormalTok{, }\StringTok{"recursive"}\NormalTok{: }\VariableTok{True}\NormalTok{,}
+     \StringTok{"exclude"}\NormalTok{: [}\StringTok{"*\_skip.csv"}\NormalTok{], }\StringTok{"sort"}\NormalTok{: }\StringTok{"natural"}\NormalTok{\},}
+\NormalTok{    Path(}\StringTok{"/absolute/path/to/workflow{-}folder"}\NormalTok{),}
+\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+A literal \texttt{path} is still one file. Batch matching skips symbolic
+links, supports explicit hidden pattern components, and fails on empty
+selection unless \texttt{allow\_empty=True}. Naming placeholders are
+\texttt{stem}, \texttt{filename}, \texttt{parent},
+\texttt{relative\_path}, \texttt{relative\_stem}, \texttt{file\_index},
+\texttt{curve\_index}, \texttt{curve\_name}; attribute/index access,
+conversions and format specifiers are rejected.
+\texttt{relative\_path}/\texttt{relative\_stem} are relative to the
+supplied root.
+
+From \texttt{curvemole.core.workflow\_selection},
+\texttt{select\_curve\_ids(project,\ aliases,\ *,\ curve=None,\ curves=None,\ match=None,\ default\_all=False)\ -\textgreater{}\ list{[}str{]}}
+selects one identity/name/runtime ID, an explicit list,
+\texttt{curves="all"}, \texttt{"first"}, \texttt{"last"}, or a
+case-sensitive name/alias pattern. Only one selector may be supplied;
+unknown, duplicate or empty selections fail.
+\texttt{validate\_curve\_selector(specification,\ *,\ default\_all=False)\ -\textgreater{}\ list{[}str{]}}
+checks the corresponding mapping without requiring imported data.
+
+From \texttt{curvemole.core.workflow\_steps},
+\texttt{validate\_preprocessing(steps)\ -\textgreater{}\ list{[}str{]}}
+checks supported stage/operation shapes and safe formula syntax.
+\texttt{apply\_preprocessing(project,\ steps,\ aliases)\ -\textgreater{}\ None}
+uses the same reversible core calculators and masks as normal scripts,
+marks the project changed, and invalidates affected fits. All shapes and
+selections are checked before mutation; a later data-dependent error can
+leave earlier in-memory edits. The workflow runner writes no outputs
+before these stages finish.
+
+Beta workflows additionally reject misspelled nested keys and unknown
+function-specific parameter names, support
+\texttt{models{[}{]}.curves}/\texttt{match} so one model specification
+can cover a batch, convert nested \texttt{columns.spectra} mappings, and
+provide \texttt{export.project\_overwrite=False} for project-file
+protection. Safe YAML formula definitions are now retained in
+\texttt{Project.custom\_functions} and emitted by
+\texttt{dump\_workflow}; they are not just registered in memory as in
+1.1.0. Dumped recipes still do not replay preprocessing, masks,
+transformed data, fit plans or exports. The YAML reference lists the
+exact new fields and complete runnable examples.
 
 \section{16. Tables, exports, figures, and
 notebooks}\label{tables-exports-figures-and-notebooks}
@@ -6767,19 +6897,30 @@ analysis.
 \chapter{Appendix G. YAML workflow
 reference}\label{appendix-g.-yaml-workflow-reference}
 
-\textbf{Software: CurveMole 1.1.0. Workflow schema: 2 (schema 1 also
-accepted).} This reference was checked against the implementation on
-2026-10-29. It describes the workflow runner, rather than every action
-offered by the desktop application. Use the matching software version
-when reproducing an analysis.
+\textbf{Stable API baseline: CurveMole 1.1.0. Beta additions require
+CurveMole 1.1.1 beta.} \textbf{Beta workflow schema: 3; legacy schemas 1
+and 2 remain accepted. Checked on 2026-10-29.} This testing edition
+documents both the stable baseline and the marked 1.1.1 beta extensions.
+Folder/pattern imports, templates, shared curve selectors,
+preprocessing, stricter validation and the new output controls are beta
+additions; the 1.1.0 stable executable does not implement them. Check
+\texttt{curvemole\ -\/-version} and use the documents attached to the
+exact beta build when using these features. Use
+\texttt{schema\_version:\ 3} for new beta workflows. Marked extension
+keys require schema 3; schemas 1 and 2 accept only the legacy fields.
+This guard makes older CurveMole executables reject new recipes instead
+of silently ignoring their processing stages. This is the runner
+contract, not every desktop action.
 
 \section{W1. What a workflow can do}\label{w1.-what-a-workflow-can-do}
 
-A workflow imports explicitly listed data files into one new project and
-one series, constructs models, optionally runs one fit plan, and
-optionally saves a project and an analysis bundle. The scientific engine
-is the same engine used by Python and the desktop application. YAML is a
-declarative recipe, not Python code or a general task scheduler.
+A workflow imports data into one new project and one series, constructs
+models, optionally runs one fit plan, and optionally saves a project and
+an analysis bundle. In 1.1.1 beta, imports can select individual files,
+glob patterns or folders; optional preprocessing prepares the curves
+before model construction. The scientific engine is the same engine used
+by Python and the desktop application. YAML is a declarative recipe, not
+Python code or a general task scheduler.
 
 The execution order is fixed:
 
@@ -6792,7 +6933,11 @@ The execution order is fixed:
   Register custom formula functions, then load explicitly trusted
   plugins.
 \item
-  Create a fresh project and series; import files in their listed order.
+  Create a fresh project and series; expand each import specification
+  and import its files in the selected order.
+\item
+  In 1.1.1 beta, apply optional preprocessing, then select curves for
+  each model.
 \item
   Add components/constraints, remap declared curve identities in links,
   and resolve the complete parameter graph (even when no fit is
@@ -6804,25 +6949,27 @@ The execution order is fixed:
   requested.
 \end{enumerate}
 
-There are no YAML stages for masks, data transformations, background
-subtraction, calculator operations, repeated fits, conditional branches,
-loops, glob expansion, folder monitoring, opening an existing
-\texttt{.fitproj}, explicit Monte Carlo/bootstrap/ profile analyses, or
-graphical interaction. Loading a plugin registers its extensions; it
-does not automatically invoke a plugin command, transformation, import
-processor, or workflow. Use the Python API for operations outside this
-contract. A plugin can register a fit solver usable through
-\texttt{fit.settings.solver}.
+The 1.1.1 beta preprocessing stage supports masks, fit ranges and the
+documented scalar/formula transformations. There are no YAML stages for
+background subtraction, curve-to-curve calculator operations, repeated
+fits, conditional branches, loops, live folder monitoring, opening an
+existing \texttt{.fitproj}, explicit Monte Carlo/bootstrap/profile
+analyses, or graphical interaction. Loading a plugin registers its
+extensions; it does not automatically invoke a plugin command,
+transformation, import processor, or workflow. Use the Python API for
+operations outside this contract. A plugin can register a fit solver
+usable through \texttt{fit.settings.solver}.
 
 \section{W2. Run, validate, and
 inspect}\label{w2.-run-validate-and-inspect}
 
-Install the Python package in a Python 3.12+ environment for
-command-line use:
+Install the exact downloaded CurveMole wheel in a Python 3.12+
+environment. For new beta operations choose a \texttt{1.1.1bN} wheel,
+where N is the actual published beta sequence; a \texttt{1.1.0} wheel
+supports only the stable baseline. Then run:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ pip install ./curvemole{-}1.1.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole} \AttributeTok{{-}{-}version}
 \ExtensionTok{curvemole}\NormalTok{ inspect spectrum.csv }\AttributeTok{{-}{-}json}
 \ExtensionTok{curvemole}\NormalTok{ functions list }\AttributeTok{{-}{-}json}
@@ -6838,30 +6985,36 @@ workflow path, repeated \texttt{-\/-trust-plugin\ IDENTIFIER} options,
 and \texttt{-\/-json} beyond the global options; it does not accept fit
 or export overrides.
 
-Validation is intentionally limited in 1.1.0: it checks the schema
-value, a nonempty \texttt{imports} list, and whether optional
-\texttt{models} and \texttt{fit} have the expected outer container
-types. It does \textbf{not} load the data or check nested fields,
-function identifiers, columns, constraints, convergence, plugin trust,
-or output collisions. Successful validation is a preliminary check. Run
-the recipe on representative input and examine results before batch use.
+In 1.1.0, validation checks only the outer schema and container types.
+In 1.1.1 beta, validation also checks supported keys and nested shapes
+in imports, selectors, preprocessing, components/constraints, fit
+settings and exports, so misspelled keys are reported before execution.
+It does \textbf{not} read the input files, execute plugins, establish
+physical model suitability or prove fit convergence. Column
+availability, registered functions, links and file collisions still need
+an actual run. Run the recipe on representative input and examine the
+results before batch use.
 
 Normal JSON output from \texttt{run} has these keys:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{\{}\DataTypeTok{"project"}\FunctionTok{:} \StringTok{"Example"}\FunctionTok{,} \DataTypeTok{"success"}\FunctionTok{:} \KeywordTok{true}\FunctionTok{,} \DataTypeTok{"statistics"}\FunctionTok{:} \FunctionTok{\{\},} \DataTypeTok{"outputs"}\FunctionTok{:} \OtherTok{[]}\FunctionTok{\}}
+\FunctionTok{\{}\DataTypeTok{"project"}\FunctionTok{:} \StringTok{"Example"}\FunctionTok{,} \DataTypeTok{"success"}\FunctionTok{:} \KeywordTok{true}\FunctionTok{,} \DataTypeTok{"statistics"}\FunctionTok{:} \FunctionTok{\{\},} \DataTypeTok{"outputs"}\FunctionTok{:} \OtherTok{[]}\FunctionTok{,}
+ \DataTypeTok{"imported\_files"}\FunctionTok{:} \OtherTok{[]}\FunctionTok{,} \DataTypeTok{"warnings"}\FunctionTok{:} \OtherTok{[]}\FunctionTok{\}}
 \end{Highlighting}
 \end{Shaded}
 
 \texttt{success} and \texttt{statistics} are \texttt{null} when no fit
 ran. \texttt{outputs} contains paths to saved projects and
 created/updated bundle files; it omits unchanged bundle files. The
-actual statistics object contains the fit statistics. \texttt{run}
-returns exit code 0 when it returns normally, \textbf{even if
-\texttt{success} is false}. Batch callers must check both the process
-status and the JSON \texttt{success} value. A failed fit can still
-produce exports for inspection.
+actual statistics object contains the fit statistics. In 1.1.1 beta,
+\texttt{imported\_files} records resolved input paths in import order
+and \texttt{warnings} reports skipped empty selections, for example when
+\texttt{allow\_empty:\ true}. These two additional JSON keys are absent
+in the 1.1.0 baseline. \texttt{run} returns exit code 0 when it returns
+normally, \textbf{even if \texttt{success} is false}. Batch callers must
+check both the process status and the JSON \texttt{success} value. A
+failed fit can still produce exports for inspection.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
@@ -6979,21 +7132,21 @@ unbounded limits; \texttt{null} cannot replace a numeric bound.
 All relative input paths, plugin manifest paths, project output paths
 and bundle paths resolve against the \textbf{workflow file's directory},
 regardless of the terminal working directory. Absolute paths are also
-accepted. Paths are literal: \texttt{\textasciitilde{}}, environment
-variables such as \texttt{\$HOME}, and wildcard expressions such as
-\texttt{*.csv} are not expanded. Quote Windows paths with single quotes
-or use forward slashes. Each \texttt{imports} entry names one actual
-file. Extensions alone do not determine whether the text importer can
-read a file; supported calibrated WinSpec SPE 2.x spectra also use the
-importer.
+accepted. \texttt{\textasciitilde{}} and environment variables such as
+\texttt{\$HOME} are not expanded. The legacy \texttt{path} remains a
+literal single-file path: put wildcard expressions in the beta
+\texttt{glob} field or use \texttt{directory}/\texttt{pattern}. Quote
+Windows paths with single quotes or use forward slashes. Extensions
+alone do not determine whether the text importer can read a file;
+supported calibrated WinSpec SPE 2.x spectra also use the importer.
 
-Unknown keys are not uniformly rejected. Unused
-top-level/model/component keys can be silently ignored; unknown keys
-passed to \texttt{ImportConfig}, \texttt{ColumnMapping} or
-\texttt{FitSettings} raise errors. Unknown entries in
-\texttt{parameters} are ignored because only a function's declared
-parameter names are constructed. Do not treat YAML acceptance as proof
-that every intended operation occurred.
+The beta validator rejects unknown keys in supported workflow blocks
+instead of silently accepting typos. Function-specific initial-parameter
+and constraint names are checked at execution after the function
+configuration/plugins are available. The 1.1.0 runner can ignore some
+unused keys, so validation there is weaker. Validation is not a
+substitute for inspecting imported curves, resolved parameters,
+convergence and output contents.
 
 \section{W5. Top-level fields}\label{w5.-top-level-fields}
 
@@ -7014,8 +7167,9 @@ Contract
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{schema\_version} & Required integer & Use \texttt{2}; \texttt{1}
-is accepted with the current global composition semantics \\
+\texttt{schema\_version} & Required integer & Beta uses \texttt{3};
+legacy \texttt{1} and \texttt{2} accept only their older fields, with
+current global composition semantics \\
 \texttt{name} & String; workflow filename stem & New project name \\
 \texttt{series\_name} & String; \texttt{Workflow\ data} & Name of the
 single imported series \\
@@ -7025,6 +7179,8 @@ definitions; registered before plugins and models \\
 \texttt{.curvemole-plugin.json} files; explicit trust required \\
 \texttt{imports} & Required nonempty list & File specifications,
 expanded in order \\
+\texttt{preprocess} & List; \texttt{{[}{]}}; beta only & Ordered curve
+preprocessing before models/fitting \\
 \texttt{models} & List; \texttt{{[}{]}} & Model/component specifications
 attached to imported curves \\
 \texttt{fit} & Mapping; absent & One fit plan. Absent or \texttt{\{\}}
@@ -7062,7 +7218,26 @@ Contract
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{path} & Required path string & One input data file \\
+\texttt{path} & One source selector & Literal single-file input; stable
+baseline supported \\
+\texttt{glob} & One source selector; beta only & File pattern relative
+to the workflow directory, or an absolute pattern \\
+\texttt{directory} & One source selector; beta only & Folder to scan;
+exactly one of \texttt{path}, \texttt{glob}, \texttt{directory} \\
+\texttt{pattern} & \texttt{"*.csv"}; directory only; beta & Pattern
+inside the selected directory \\
+\texttt{recursive} & \texttt{false}; batch sources; beta & Search
+directory descendants or enable explicit \texttt{**} in a glob \\
+\texttt{exclude} & \texttt{{[}{]}}; batch sources; beta & Exclusion
+pattern list \\
+\texttt{sort} & \texttt{natural}; batch sources; beta &
+\texttt{natural}, \texttt{lexical}, or \texttt{none} \\
+\texttt{allow\_empty} & \texttt{false}; batch sources; beta & Accept a
+valid scan with no matching files \\
+\texttt{alias\_template} & Absent; beta & Generate human-readable names
+for imported curves \\
+\texttt{curve\_id\_template} & Absent; beta & Generate stable workflow
+identities for links/selectors \\
 \texttt{columns} & Required mapping & Passed to
 \texttt{ColumnMapping(**columns)} \\
 \texttt{config} & Optional mapping & Passed to
@@ -7096,11 +7271,151 @@ remaps only the first dotted segment of each reference, not arbitrary
 text or component display names. Identity entries take precedence over
 aliases with the same spelling; avoid accidental collisions.
 
-Both lists follow the order returned by the importer. Shorter lists
-leave the remaining curve names/IDs autogenerated; extra entries are
+For one file, both lists follow the order returned by the importer. In
+beta batch imports the lists apply once to the flattened curves from all
+selected files, not repeatedly to each file. Choose \texttt{aliases} or
+\texttt{alias\_template}, never both; likewise choose
+\texttt{curve\_ids} or \texttt{curve\_id\_template}. Shorter explicit
+lists leave remaining entries at import defaults; extra entries are
 unused. For repeatable linked workflows, provide a \texttt{curve\_ids}
 entry for every referenced curve and explicit component \texttt{id}
 values. Aliases remain optional human-readable labels.
+
+\subsection{W6.1 Folder and pattern selection (1.1.1
+beta)}\label{w6.1-folder-and-pattern-selection-1.1.1-beta}
+
+Use exactly one source selector per import item.
+\texttt{path:\ data/scan.csv} remains a literal file;
+\texttt{glob:\ "data/*.csv"} selects a pattern;
+\texttt{directory:\ data} with \texttt{pattern:\ "*.csv"} scans a
+folder. A directory scan with \texttt{recursive:\ true} includes
+matching descendants. A glob with \texttt{recursive:\ true} enables
+explicit \texttt{**}, such as \texttt{glob:\ "data/**/*.csv"}; a plain
+\texttt{*.csv} glob remains top-level. Using \texttt{**} requires
+\texttt{recursive:\ true}.
+
+\texttt{natural} ordering compares numeric portions numerically
+(\texttt{scan2} before \texttt{scan10}), case-insensitively, then uses
+the original relative path as a tie-break. \texttt{lexical} sorts
+relative POSIX path strings case-sensitively. \texttt{none} keeps scan
+order, which can depend on the filesystem and should not be used when
+sequence order matters. Matching regular files are deduplicated within
+an import item; separate import items may intentionally import the same
+file again.
+
+\texttt{exclude} patterns without a slash match file basenames at any
+depth; patterns with path components match the rooted relative path and
+can use \texttt{**}. Batch pattern matching is case-sensitive on every
+supported operating system. Scans skip symlink files/directories and
+hidden entries unless a hidden path component was explicitly requested.
+A directory/base that is itself a symlink is rejected; a literal
+\texttt{path} may refer to a file symlink. A missing explicit
+\texttt{directory} is an error even when \texttt{allow\_empty} is true.
+An existing directory/glob with no retained files is an error unless
+\texttt{allow\_empty:\ true}; allowed empty selections are reported in
+outcome warnings.
+
+\texttt{alias\_template} and \texttt{curve\_id\_template} accept these
+fields:
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Field
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Meaning
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{\{stem\}} & Input filename without its final suffix \\
+\texttt{\{filename\}} & Input filename including suffix \\
+\texttt{\{parent\}} & Immediate parent-directory name \\
+\texttt{\{relative\_path\}} & Input POSIX path relative to the workflow
+directory \\
+\texttt{\{relative\_stem\}} & That relative path without its final
+suffix \\
+\texttt{\{file\_index\}} & One-based selected-file index within this
+import item \\
+\texttt{\{curve\_index\}} & One-based curve index returned from this
+file \\
+\texttt{\{curve\_name\}} & Curve name produced by the importer \\
+\end{longtable}
+}
+
+Only these plain fields and escaped braces are accepted. Attribute/index
+access, conversions and format specifiers are rejected.
+Template-generated identities must be unique, nonempty and suitable for
+canonical parameter paths; use simple strings without dots, for example
+\texttt{batch\_\{file\_index\}\_\{curve\_index\}}. Index-based
+identities are repeatable for a fixed file selection/order; adding or
+removing a file may change them. For enduring scientific identities, use
+meaningful explicit \texttt{curve\_ids} or a suitable filename-derived
+template. Duplicate identities fail.
+
+\subsection{W6.2 Complete folder-fit recipe (1.1.1
+beta)}\label{w6.2-complete-folder-fit-recipe-1.1.1-beta}
+
+Place \texttt{scan2.csv} and \texttt{scan10.csv} in \texttt{data/}
+beside the workflow. Each has the same \texttt{x,y,sigma\_y} layout as
+\texttt{examples/gaussian.csv}; copying that example twice provides a
+runnable trial. A file such as \texttt{calibration\_skip.csv} is
+excluded.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{\# example: yaml{-}folder{-}batch}
+\FunctionTok{schema\_version}\KeywordTok{:}\AttributeTok{ }\DecValTok{3}
+\FunctionTok{name}\KeywordTok{:}\AttributeTok{ Folder Gaussian fits}
+\FunctionTok{imports}\KeywordTok{:}
+\AttributeTok{  }\KeywordTok{{-}}\AttributeTok{ }\FunctionTok{directory}\KeywordTok{:}\AttributeTok{ data}
+\AttributeTok{    }\FunctionTok{pattern}\KeywordTok{:}\AttributeTok{ }\StringTok{"*.csv"}
+\AttributeTok{    }\FunctionTok{recursive}\KeywordTok{:}\AttributeTok{ }\CharTok{true}
+\AttributeTok{    }\FunctionTok{exclude}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[}\StringTok{"*\_skip.csv"}\KeywordTok{]}
+\AttributeTok{    }\FunctionTok{sort}\KeywordTok{:}\AttributeTok{ natural}
+\AttributeTok{    }\FunctionTok{alias\_template}\KeywordTok{:}\AttributeTok{ }\StringTok{"\{stem\}\_\{curve\_index\}"}
+\AttributeTok{    }\FunctionTok{curve\_id\_template}\KeywordTok{:}\AttributeTok{ }\StringTok{"batch\_\{file\_index\}\_\{curve\_index\}"}
+\AttributeTok{    }\FunctionTok{config}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{delimiter}\KeywordTok{:}\AttributeTok{ }\StringTok{","}\KeywordTok{,}\AttributeTok{ }\FunctionTok{header}\KeywordTok{:}\AttributeTok{ }\CharTok{true}\KeywordTok{\}}
+\AttributeTok{    }\FunctionTok{columns}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{x}\KeywordTok{:}\AttributeTok{ x}\KeywordTok{,}\AttributeTok{ }\FunctionTok{y}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[}\CharTok{y}\KeywordTok{],}\AttributeTok{ }\FunctionTok{sigma\_y}\KeywordTok{:}\AttributeTok{ sigma\_y}\KeywordTok{\}}
+\FunctionTok{preprocess}\KeywordTok{:}
+\AttributeTok{  }\KeywordTok{{-}}\AttributeTok{ }\FunctionTok{curves}\KeywordTok{:}\AttributeTok{ all}
+\AttributeTok{    }\FunctionTok{transformations}\KeywordTok{:}
+\AttributeTok{      }\KeywordTok{{-}}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{operation}\KeywordTok{:}\AttributeTok{ y\_multiply}\KeywordTok{,}\AttributeTok{ }\FunctionTok{value}\KeywordTok{:}\AttributeTok{ }\FloatTok{1.0}\KeywordTok{\}}
+\AttributeTok{    }\FunctionTok{mask\_intervals}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[[}\FloatTok{4.5}\KeywordTok{,}\AttributeTok{ }\FloatTok{5.0}\KeywordTok{]]}
+\AttributeTok{    }\FunctionTok{fit\_ranges}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[[}\FloatTok{{-}4.0}\KeywordTok{,}\AttributeTok{ }\FloatTok{4.0}\KeywordTok{]]}
+\FunctionTok{models}\KeywordTok{:}
+\AttributeTok{  }\KeywordTok{{-}}\AttributeTok{ }\FunctionTok{curves}\KeywordTok{:}\AttributeTok{ all}
+\AttributeTok{    }\FunctionTok{components}\KeywordTok{:}
+\AttributeTok{      }\KeywordTok{{-}}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{function}\KeywordTok{:}\AttributeTok{ constant}\KeywordTok{,}\AttributeTok{ }\FunctionTok{id}\KeywordTok{:}\AttributeTok{ background}\KeywordTok{,}\AttributeTok{ }\FunctionTok{is\_background}\KeywordTok{:}\AttributeTok{ }\CharTok{true}\KeywordTok{\}}
+\AttributeTok{      }\KeywordTok{{-}}\AttributeTok{ }\FunctionTok{function}\KeywordTok{:}\AttributeTok{ gaussian}
+\AttributeTok{        }\FunctionTok{id}\KeywordTok{:}\AttributeTok{ peak}
+\AttributeTok{        }\FunctionTok{parameters}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{area}\KeywordTok{:}\AttributeTok{ }\FloatTok{3.0}\KeywordTok{,}\AttributeTok{ }\FunctionTok{center}\KeywordTok{:}\AttributeTok{ }\FloatTok{0.3}\KeywordTok{,}\AttributeTok{ }\FunctionTok{sigma}\KeywordTok{:}\AttributeTok{ }\FloatTok{1.0}\KeywordTok{\}}
+\AttributeTok{        }\FunctionTok{constraints}\KeywordTok{:}
+\AttributeTok{          }\FunctionTok{sigma}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{minimum}\KeywordTok{:}\AttributeTok{ }\FloatTok{0.001}\KeywordTok{,}\AttributeTok{ }\FunctionTok{maximum}\KeywordTok{:}\AttributeTok{ }\FloatTok{5.0}\KeywordTok{\}}
+\FunctionTok{fit}\KeywordTok{:}
+\AttributeTok{  }\FunctionTok{mode}\KeywordTok{:}\AttributeTok{ independent}
+\AttributeTok{  }\FunctionTok{settings}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{solver}\KeywordTok{:}\AttributeTok{ local}\KeywordTok{,}\AttributeTok{ }\FunctionTok{loss}\KeywordTok{:}\AttributeTok{ linear}\KeywordTok{,}\AttributeTok{ }\FunctionTok{seed}\KeywordTok{:}\AttributeTok{ }\DecValTok{1729}\KeywordTok{\}}
+\FunctionTok{export}\KeywordTok{:}
+\AttributeTok{  }\FunctionTok{project}\KeywordTok{:}\AttributeTok{ outputs/batch.fitproj}
+\AttributeTok{  }\FunctionTok{project\_overwrite}\KeywordTok{:}\AttributeTok{ }\CharTok{false}
+\AttributeTok{  }\FunctionTok{bundle}\KeywordTok{:}\AttributeTok{ outputs/batch{-}analysis}
+\AttributeTok{  }\FunctionTok{versioned}\KeywordTok{:}\AttributeTok{ }\CharTok{true}
+\end{Highlighting}
+\end{Shaded}
+
+Natural ordering imports \texttt{scan2.csv} first. Each selected curve
+receives its own model objects; \texttt{curves:\ all} avoids listing
+every imported filename in \texttt{models}. The project guard refuses to
+replace \texttt{outputs/batch.fitproj} on rerun; choose a new path or
+deliberately change \texttt{project\_overwrite} after reviewing what to
+preserve. The bundle has its own independent overwrite/versioning rules
+in W12. Keep outputs outside the input scan tree, or exclude their
+paths, so a recursive rerun does not accidentally import previously
+exported numeric tables.
 
 \texttt{config} fields and dataclass defaults:
 
@@ -7188,8 +7503,8 @@ selector; requires \texttt{error\_y\_plus} \\
 represented by the error intervals; strictly between 0 and 1 \\
 \texttt{as\_separated\_files} & \texttt{false} & Separate-spectrum
 naming/column-role checks; not an output-file operation \\
-\texttt{spectra} & \texttt{{[}{]}} & Python-only nested
-\texttt{ColumnMapping} objects; leave empty in YAML \\
+\texttt{spectra} & \texttt{{[}{]}} & Beta: nested per-spectrum mappings,
+converted to \texttt{ColumnMapping} objects \\
 \end{longtable}
 }
 
@@ -7218,11 +7533,13 @@ weights remain valid but contribute zero to the objective. Imported X
 errors do not determine the fit mask. Check retained point counts in
 results.
 
-The dataclass accepts \texttt{spectra}, but the YAML loader does not
-turn nested mappings into \texttt{ColumnMapping} instances, so a
-nonempty YAML \texttt{spectra} list fails. Use shared
-\texttt{x}/\texttt{y}, \texttt{pairs}, or several \texttt{imports}
-entries for different error mappings.
+In 1.1.1 beta, \texttt{spectra} accepts a list of nested mappings, each
+describing its own X/Y and error columns. Use it instead of shared
+\texttt{x}/\texttt{y} or \texttt{pairs} when spectra in the same file
+have different error layouts. For example,
+\texttt{columns:\ \{spectra:\ {[}\{x:\ 0,\ y:\ {[}1{]},\ sigma\_y:\ 2\},\ \{x:\ 3,\ y:\ {[}4{]},\ sigma\_y:\ 5\}{]}\}}.
+The stable 1.1.0 loader does not convert these nested mappings; there,
+use several explicit import entries for different error mappings.
 
 Examples of alternative mappings:
 
@@ -7278,8 +7595,13 @@ Meaning
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{curve} & Required & Declared workflow identity, unambiguous
+\texttt{curve} & One selector & One workflow identity, unambiguous
 alias/name or actual curve ID \\
+\texttt{curves} & Beta alternative selector & \texttt{all},
+\texttt{first}, \texttt{last}, or a nonempty list of
+identities/names/IDs \\
+\texttt{match} & Beta alternative selector & A name/identity wildcard
+pattern; must select at least one curve \\
 \texttt{name} & Existing model name, initially
 \texttt{Model\ for\ \textless{}curve\ name\textgreater{}} & Model
 label \\
@@ -7395,8 +7717,8 @@ complete sum. Their fallback order is Multiply, Divide, Convolve, with
 component ID as a tie-breaker; use explicit IDs and
 \texttt{operation\_order} for a chosen order. This is not a nested
 expression language. The legacy \texttt{composition\_mode} key is
-ignored; schemas 1 and 2 both use the current global roles. A
-component's position in the YAML list does not create parentheses. FFT
+ignored; supported schemas 1, 2 and 3 all use the current global roles.
+A component's position in the YAML list does not create parentheses. FFT
 convolution requires a finite, uniformly spaced, strictly monotonic X
 grid; ascending and descending axes are supported. Irregular or
 nonmonotonic grids raise a data-validation error: resample them
@@ -7427,6 +7749,97 @@ For example, this model evaluates
 \AttributeTok{          }\FunctionTok{slope}\KeywordTok{:}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{fixed}\KeywordTok{:}\AttributeTok{ }\CharTok{true}\KeywordTok{\}}
 \end{Highlighting}
 \end{Shaded}
+
+\subsection{W7.1 Shared selectors and preprocessing (1.1.1
+beta)}\label{w7.1-shared-selectors-and-preprocessing-1.1.1-beta}
+
+Models, preprocessing steps and the fit plan share curve selection. Use
+one of \texttt{curve:\ identity},
+\texttt{curves:\ {[}identity\_a,\ identity\_b{]}},
+\texttt{curves:\ all}, \texttt{curves:\ first}, \texttt{curves:\ last},
+or \texttt{match:\ "sample\_*"}. A pattern selects matching curve names
+and declared aliases/identities using case-sensitive shell matching; it
+does not scan autogenerated runtime UUID strings. All/pattern selection
+follows project order; an explicit list retains its order. Unknown
+selectors, duplicate resolved curves or empty selections raise errors.
+\texttt{all}, \texttt{first} and \texttt{last} are values of
+\texttt{curves}, not implicit substitutions inside canonical parameter
+links. A curve literally named \texttt{first} remains selectable with
+\texttt{curve:\ first} or \texttt{curves:\ {[}first{]}}.
+
+A model entry requires a selector. Preprocessing and fitting default to
+all curves when no selector is supplied. Every selected model is
+constructed independently; explicit component IDs may repeat across
+different models, while each model's IDs remain unique. For a sequential
+fit, use \texttt{models:\ {[}\{curves:\ first,\ ...\}{]}} to prepare the
+source only. The first sequential curve is not automatically fitted;
+subsequent compatible targets receive propagated components and retain
+any deliberately existing target-local functions (see W10).
+
+Each \texttt{preprocess} entry permits selectors plus the following
+operations. Steps run in listed order after imports and before model
+construction. Within a step, the order is transformations, clearing
+masks, masking intervals, unmasking intervals, then assigning fit
+ranges. Intervals therefore refer to the transformed X axis.
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Key
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Contract
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{transformations} & Ordered list of supported scalar or formula
+operations \\
+\texttt{clear\_masks} & Boolean; true clears existing named masks on
+selected curves \\
+\texttt{mask\_intervals} & List of finite \texttt{{[}lower,\ upper{]}}
+pairs; inclusive masks \\
+\texttt{unmask\_intervals} & List of finite pairs; clear matching
+active-mask exclusions \\
+\texttt{fit\_ranges} & List of finite pairs; replaces the
+fitting-interval union \\
+\end{longtable}
+}
+
+Scalar transformation \texttt{operation} values are \texttt{y\_add},
+\texttt{y\_subtract}, \texttt{y\_multiply}, \texttt{y\_divide},
+\texttt{x\_add}, \texttt{x\_multiply}, \texttt{normalize\_max},
+\texttt{normalize\_area}. The first six require a finite numeric
+\texttt{value}; normalizations need no value. Division by zero and
+invalid normalization inputs fail. \texttt{custom\_formula} requires
+\texttt{axis:\ x} or \texttt{axis:\ y} plus \texttt{formula};
+\texttt{column\_formula} requires \texttt{target} and \texttt{formula}
+and can use retained \texttt{c1}, \texttt{c2}, \ldots{} columns. Both
+use the restricted expression vocabulary in W9, never arbitrary Python.
+For example:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{preprocess}\KeywordTok{:}
+\AttributeTok{  }\KeywordTok{{-}}\AttributeTok{ }\FunctionTok{match}\KeywordTok{:}\AttributeTok{ }\StringTok{"sample\_*"}
+\AttributeTok{    }\FunctionTok{transformations}\KeywordTok{:}
+\AttributeTok{      }\KeywordTok{{-}}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{operation}\KeywordTok{:}\AttributeTok{ x\_add}\KeywordTok{,}\AttributeTok{ }\FunctionTok{value}\KeywordTok{:}\AttributeTok{ }\FloatTok{0.25}\KeywordTok{\}}
+\AttributeTok{      }\KeywordTok{{-}}\AttributeTok{ }\KeywordTok{\{}\FunctionTok{operation}\KeywordTok{:}\AttributeTok{ custom\_formula}\KeywordTok{,}\AttributeTok{ }\FunctionTok{axis}\KeywordTok{:}\AttributeTok{ }\CharTok{y}\KeywordTok{,}\AttributeTok{ }\FunctionTok{formula}\KeywordTok{:}\AttributeTok{ }\StringTok{"2*y"}\KeywordTok{\}}
+\AttributeTok{    }\FunctionTok{mask\_intervals}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[[}\FloatTok{531.0}\KeywordTok{,}\AttributeTok{ }\FloatTok{532.0}\KeywordTok{]]}
+\AttributeTok{    }\FunctionTok{fit\_ranges}\KeywordTok{:}\AttributeTok{ }\KeywordTok{[[}\FloatTok{500.0}\KeywordTok{,}\AttributeTok{ }\FloatTok{550.0}\KeywordTok{]]}
+\end{Highlighting}
+\end{Shaded}
+
+Unmasking one named mask does not override exclusions in other masks or
+invalid numeric rows. Fit ranges select a union of intervals; they do
+not delete data. Transformations preserve original arrays and are
+retained in the saved project. Background subtraction and curve-to-curve
+operations still require Python or the desktop. Static validation checks
+shapes before preprocessing; execution can still fail for actual data,
+formula domains or unavailable retained columns.
 
 \section{W8. Parameter constraints and
 links}\label{w8.-parameter-constraints-and-links}
@@ -7615,18 +8028,16 @@ values. Registration uses replacement, so do not reuse a built-in
 identifier accidentally. Formula definitions are not arbitrary Python
 and need no executable-plugin approval.
 
-\textbf{Version 1.1.0 persistence limitation:} the YAML runner registers
-\texttt{custom\_functions} in its function registry but does not copy
-those definitions into \texttt{Project.custom\_functions}. Consequently,
-a \texttt{.fitproj} or reusable model export from this runner does not
-embed the recipe's custom formula definitions. The same process can
-still evaluate them through its populated registry, which can hide the
-problem until restart. Retain the original YAML and re-register the same
-identifiers/formulas through Python or the Function Builder before
-evaluating or refitting in a fresh session. Saved numerical fit results
-and arrays remain available for inspection. Use the Python API's
-documented custom function registration and persistence steps when a
-self-contained custom-formula project is required.
+\textbf{Custom-function persistence:} 1.1.1 beta copies safe formula
+definitions into \texttt{Project.custom\_functions}, using the
+project-format \texttt{derived\_formulas} key, and
+\texttt{dump\_workflow} writes them back as YAML
+\texttt{custom\_functions} with \texttt{derived}. Saved projects/model
+exports therefore retain these safe definitions for later sessions. This
+does not embed executable plugin source. The 1.1.0 runner only
+registered YAML functions in memory and did not persist their
+definitions; keep its original recipe and re-register the definitions
+before refitting that older project in a fresh session.
 
 The exact expression vocabulary is:
 
@@ -7679,9 +8090,10 @@ Meaning
 \endlastfoot
 \texttt{mode} & \texttt{independent} & \texttt{independent},
 \texttt{sequential}, \texttt{global}, or legacy \texttt{copy} \\
-\texttt{curves} & All imported curves, in import order & Nonempty list
-of workflow identities, unambiguous aliases/names or runtime IDs; no
-duplicates \\
+\texttt{curves} & All imported curves & Nonempty selector list; beta
+also accepts \texttt{all}, \texttt{first}, \texttt{last} \\
+\texttt{curve}, \texttt{match} & Absent; beta & Alternative single-curve
+or wildcard selection; use only one selector \\
 \texttt{settings} & \texttt{\{\}} & \texttt{FitSettings} keyword
 arguments, listed below \\
 \texttt{spectrum\_weights} & \texttt{\{\}} & Curve selector → finite
@@ -7863,6 +8275,8 @@ Meaning
 \endlastfoot
 \texttt{project} & Absent & Save the generated project; parent
 directories are created and suffix becomes \texttt{.fitproj} \\
+\texttt{project\_overwrite} & \texttt{true}; beta & Allow replacing
+\texttt{export.project}; false refuses an existing project \\
 \texttt{bundle} & Absent & Export the standard analysis bundle with its
 default selections \\
 \texttt{versioned} & \texttt{false} & Add UTC
@@ -7873,16 +8287,20 @@ files, subject to ownership checks \\
 \end{longtable}
 }
 
-These are the only YAML export keys. Controls such as delimiter,
-selected bundle items, portable project copies, saved uncertainty
-samples, and current-view plot exports are Python/desktop features, not
-accepted YAML options.
+These are the only YAML export keys. \texttt{project\_overwrite} is a
+beta addition; the stable baseline always uses its existing direct
+project-save behaviour. Controls such as delimiter, selected bundle
+items, portable project copies, saved uncertainty samples, and
+current-view plot exports are Python/desktop features, not accepted YAML
+options.
 
 \textbf{Project and bundle replacement differ.} \texttt{export.project}
 saves directly with \texttt{save\_project}; it can replace an existing
-project without consulting \texttt{export.overwrite}. Use a distinct
-project path when a previous file must be kept. \texttt{versioned}
-applies only to the bundle, not to the project filename.
+project without consulting \texttt{export.overwrite}. In beta, set
+\texttt{project\_overwrite:\ false} to refuse replacement, or choose a
+distinct project path when a previous file must be kept.
+\texttt{versioned} applies only to the bundle, not to the project
+filename.
 
 Bundle exports refuse conflicting files unless updating is requested and
 CurveMole can establish ownership. \texttt{overwrite:\ true} is not
@@ -7900,10 +8318,10 @@ fails, a project saved earlier can remain. If no \texttt{export} is
 present, the CLI/desktop worker only retains its in-memory project for
 that run. \texttt{run\ -\/-json} is a summary; use the saved
 \texttt{.fitproj} or exported result tables/JSON for detailed
-parameters, per-curve arrays, covariance, diagnostics and warnings. For
-custom formulas, also retain the recipe and follow the persistence
-limitation in W9 before assuming that a saved project can refit in a new
-session.
+parameters, per-curve arrays, covariance, diagnostics and warnings.
+Retain the recipe with the saved results. Safe custom formulas are
+persisted by beta workflows as described in W9; executable plugin source
+still needs its own archived manifest, module and dependencies.
 
 \section{W13. Trusted executable
 plugins}\label{w13.-trusted-executable-plugins}
@@ -7952,13 +8370,14 @@ The workflow module also exposes:
 \NormalTok{)}
 
 \NormalTok{value }\OperatorTok{=}\NormalTok{ load\_workflow(}\StringTok{"workflow.yml"}\NormalTok{)       }\CommentTok{\# dict; checks root/schema}
-\NormalTok{errors }\OperatorTok{=}\NormalTok{ validate\_workflow(value)           }\CommentTok{\# list[str]; shallow structural checks}
+\NormalTok{errors }\OperatorTok{=}\NormalTok{ validate\_workflow(value)           }\CommentTok{\# list[str]; static checks, no data import}
 \ControlFlowTok{if}\NormalTok{ errors:}
     \ControlFlowTok{raise} \PreprocessorTok{ValueError}\NormalTok{(}\StringTok{"; "}\NormalTok{.join(errors))}
 \NormalTok{outcome }\OperatorTok{=}\NormalTok{ run\_workflow(}\StringTok{"workflow.yml"}\NormalTok{)      }\CommentTok{\# WorkflowOutcome}
 \BuiltInTok{print}\NormalTok{(outcome.project.name)}
 \BuiltInTok{print}\NormalTok{(outcome.result.success }\ControlFlowTok{if}\NormalTok{ outcome.result }\ControlFlowTok{else} \VariableTok{None}\NormalTok{)}
 \BuiltInTok{print}\NormalTok{(outcome.outputs)                      }\CommentTok{\# list[pathlib.Path]}
+\CommentTok{\# In 1.1.1 beta: outcome.imported\_files and outcome.warnings are also available.}
 \end{Highlighting}
 \end{Shaded}
 
@@ -7966,16 +8385,21 @@ Exact runner signature:
 \texttt{run\_workflow(path,\ *,\ trust\_plugins:\ set{[}str{]}\ \textbar{}\ None\ =\ None,\ registry:\ FunctionRegistry\ \textbar{}\ None\ =\ None)\ -\textgreater{}\ WorkflowOutcome}.
 Passing a registry permits caller-provided functions.
 \texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ pathlib.Path}
-writes schema 2 YAML containing imports and model/component
-specifications. \texttt{WorkflowOutcome} has \texttt{project},
-\texttt{result} (\texttt{FitResult\ \textbar{}\ None}), and
-\texttt{outputs} (\texttt{list{[}Path{]}}).
+writes YAML containing imports and model/component specifications. Beta
+dumping emits schema 3; the stable 1.1.0 dumper emits schema 2.
+\texttt{WorkflowOutcome} has \texttt{project}, \texttt{result}
+(\texttt{FitResult\ \textbar{}\ None}), and \texttt{outputs}
+(\texttt{list{[}Path{]}}). Beta adds \texttt{imported\_files}
+(\texttt{list{[}Path{]}}) and \texttt{warnings} (\texttt{list{[}str{]}})
+with empty-list defaults, preserving the original
+three-positional-argument constructor.
 
 \texttt{dump\_workflow} is a starting recipe, \textbf{not a complete
 project round trip}. It does not embed data arrays, transformed data,
-masks, results, a fit plan, exports, custom-function definitions or
-plugin declarations. It uses original source paths and saved import
-mappings, or a fallback
+masks, preprocessing stages, results, a fit plan, exports or plugin
+declarations. Beta includes persisted safe custom-function definitions;
+the stable 1.1.0 dumper did not. It uses original source paths and saved
+import mappings, or a fallback
 \texttt{data/\textless{}curve-name\textgreater{}.csv} path that it does
 not create. It does not export the original series structure. A curve
 originally selected from one of multiple Y columns must have its dumped
@@ -7985,9 +8409,9 @@ additional curves. Dumped imports include each saved curve ID in
 runner maps them to new runtime IDs and remaps parameter links. This
 preserves link addressing for correctly matched imports, but does not
 embed or guarantee the source data. Review each import mapping and
-identity list, insert missing function/plugin definitions and the
-desired \texttt{fit} and \texttt{export}, and check constraints before
-running. Use \texttt{.fitproj} for preserving the actual project state.
+identity list, insert any missing plugin definitions and the desired
+\texttt{fit} and \texttt{export}, and check constraints before running.
+Use \texttt{.fitproj} for preserving the actual project state.
 
 \section{W15. Using the AI YAML
 audit}\label{w15.-using-the-ai-yaml-audit}
@@ -8005,13 +8429,13 @@ are correct.
 Example prompt:
 
 \begin{quote}
-Use the attached CurveMole 1.1.0 YAML audit as the API contract. Create
-one schema-2 workflow for the attached column layout. Use only
-documented fields and function names. Ask for missing scientific
-assumptions. Return the complete YAML, the validate/run commands, the
-expected outputs, and any limitations. If the task needs capabilities
-missing from YAML, explain why and request the Python audit rather than
-inventing keys.
+Use the attached CurveMole YAML audit as the API contract. I am running
+CurveMole 1.1.1 beta. Create one schema-3 workflow for the attached
+column layout. Use only documented fields and function names. Ask for
+missing scientific assumptions. Return the complete YAML, the
+validate/run commands, the expected outputs, and any limitations. If the
+task needs capabilities missing from YAML, explain why and request the
+Python audit rather than inventing keys.
 \end{quote}
 
 For scripts, supply \texttt{ai-python-audit.md} instead. Supply both
@@ -8030,12 +8454,13 @@ for}\label{h.1-what-the-two-audits-are-for}
 
 The two downloadable Markdown documents are self-contained context packs
 for creating CurveMole automations with an AI assistant. Each records
-the interfaces verified against CurveMole 1.1.0, including exact names,
-configuration fields, defaults, examples, return values and practical
-limits. Here, ``audit'' means an inspection of the implemented
-automation interface. It does not mean a security certification, an
-executable script, or an assessment of your scientific model. Neither
-document requires an AI service or uploads data from CurveMole.
+the interfaces verified against the stable 1.1.0 API and the marked
+1.1.1 beta workflow additions, including exact names, configuration
+fields, defaults, examples, return values and practical limits. Here,
+``audit'' means an inspection of the implemented automation interface.
+It does not mean a security certification, an executable script, or an
+assessment of your scientific model. Neither document requires an AI
+service or uploads data from CurveMole.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
@@ -8064,28 +8489,31 @@ F and G \\
 \end{longtable}
 }
 
-Python is appropriate when you need loops, conditional processing,
-masks, transformations, links constructed from actual curve IDs,
-explicit uncertainty analyses or selective exports. YAML is appropriate
-for a declarative sequence of imports, model construction, one fit and
-exports. YAML has no general task graph, loop, conditional, Python
-execution or uncertainty stage. Loading a plugin does not add arbitrary
-new YAML stages. The desktop Run automation button runs an isolated
-workflow with its own imported data; it does not edit the open GUI
-project.
+Python is appropriate for loops, conditional processing,
+existing-project editing, unsupported transformations, explicit
+uncertainty analyses or selective exports. In 1.1.1 beta, YAML also
+supports folder/pattern imports, shared curve selectors, masking, fit
+ranges and the documented scalar/formula preprocessing. Use schema 3 for
+those additions. YAML follows a declarative sequence of imports,
+preprocessing, model construction, one fit and exports. YAML has no
+general task graph, loop, conditional, Python execution or uncertainty
+stage. Loading a plugin does not add arbitrary new YAML stages. The
+desktop Run automation button runs an isolated workflow with its own
+imported data; it does not edit the open GUI project.
 
 \section{H.2 Download and version
 matching}\label{h.2-download-and-version-matching}
 
-Download the plain-text files here:
+For 1.1.1 beta, use the versioned audits attached to the exact beta
+release. The latest testing-source editions are also available here:
 
 \begin{itemize}
 \tightlist
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-python-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md}{Download
   Python audit}
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-yaml-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md}{Download
   YAML audit}
 \end{itemize}
 
@@ -8096,13 +8524,15 @@ with the bundled documentation. The read links above also work from the
 offline manual.
 
 Check \texttt{curvemole\ -\/-version} and the CurveMole version declared
-inside the audit. The download URLs follow \texttt{main}, the stable
-documentation branch, so the downloaded file's own version declaration
-is the compatibility record. Keep a local copy with your analysis. If
-versions differ, ask the AI to flag the mismatch and verify the relevant
-contracts before producing an automation; do not assume a document for
-another release is current. These files supplement the current-version
-manual; they do not alter previously published release assets.
+inside the audit. These convenience URLs follow \texttt{testing}, so
+retain the documents attached to your exact beta build for
+reproducibility. The stable 1.1.0 editions remain available from the
+repository's \texttt{main} branch. Keep the audit's declared
+compatibility record with your analysis. If versions differ, ask the AI
+to flag the mismatch and verify the relevant contracts before producing
+an automation; do not assume a document for another release is current.
+These files supplement the current-version manual; they do not alter
+previously published release assets.
 
 \section{H.3 Give the AI a concrete
 request}\label{h.3-give-the-ai-a-concrete-request}
@@ -8143,12 +8573,14 @@ A YAML request can be written as:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Use the attached YAML automation audit as the interface reference for CurveMole}
-\NormalTok{1.1.0. Generate a complete schema{-}2 workflow and the CLI commands to validate and}
-\NormalTok{run it. spectrum.csv is comma{-}separated, has a header and columns x, y, sigma\_y.}
-\NormalTok{sigma\_y means one standard deviation. Fit a constant background and one Gaussian.}
+\NormalTok{Use the attached audit for CurveMole 1.1.1 beta. Generate a complete schema{-}3}
+\NormalTok{workflow and the CLI commands to validate and run it. Import *.csv from data/}
+\NormalTok{in natural filename order. Files have a comma separator, a header and x, y, sigma\_y}
+\NormalTok{columns; sigma\_y means one standard deviation. Apply a constant background and}
+\NormalTok{one Gaussian to all curves and fit independently.}
 \NormalTok{Ask for any missing initial values, bounds or scientific choices. Save the project}
-\NormalTok{and analysis bundle in new paths. Explain how to check the JSON success value.}
+\NormalTok{and analysis bundle in new paths, with project\_overwrite: false. Explain how to}
+\NormalTok{check the JSON success value and imported\_files list.}
 \NormalTok{Use only documented fields; flag requirements that need Python instead.}
 \end{Highlighting}
 \end{Shaded}
@@ -8187,13 +8619,14 @@ In the CurveMole Python environment, run:
 \end{Highlighting}
 \end{Shaded}
 
-Validation checks basic structure and supported schema versions. It does
-not prove that every nested key, source column, model or link is
-correct; some unknown fields are ignored by execution. Review the
-complete schema in Appendix G and run a small representative case. CLI
-exit status 0 alone does not establish convergence: read the JSON
-\texttt{success} value. An absent fit produces \texttt{success:\ null}.
-Runtime exceptions and unsuccessful optimization are different outcomes.
+Beta validation checks supported keys, nested structure, selector
+syntax, fit settings and safe preprocessing formulas. It does not read
+the input data or prove that columns, function-specific parameters,
+links or convergence are correct. Review the complete schema in Appendix
+G and run a small representative case. CLI exit status 0 alone does not
+establish convergence: read the JSON \texttt{success} value. An absent
+fit produces \texttt{success:\ null}. Runtime exceptions and
+unsuccessful optimization are different outcomes.
 
 For Python, install the matching CurveMole package in a Python 3.12+
 environment and run \texttt{python\ script.py}. Review the script's

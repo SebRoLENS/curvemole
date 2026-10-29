@@ -153,6 +153,8 @@ def _dispatch(args: argparse.Namespace) -> Any:
             "success": outcome.result.success if outcome.result else None,
             "statistics": outcome.result.statistics if outcome.result else None,
             "outputs": [str(path) for path in outcome.outputs],
+            "imported_files": [str(path) for path in outcome.imported_files],
+            "warnings": outcome.warnings,
         }
     if args.command in {"fit", "fit-series"}:
         inputs = args.input if isinstance(args.input, list) else [args.input]

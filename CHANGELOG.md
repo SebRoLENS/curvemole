@@ -5,6 +5,18 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+### Fixed
+
+- Allow schema-3 YAML workflows to import folders and glob patterns, with recursive
+  discovery, exclusions, natural ordering and reusable curve naming templates.
+- Apply models to all curves or selected subsets, and prepare imported data with
+  masks, fit ranges and reversible scalar/formula transformations.
+- Validate nested workflow fields and reject misspelled keys and parameter names;
+  retain schema 1/2 compatibility and reject new stages under older schemas.
+- Preserve workflow custom formulas in saved projects and generated recipes,
+  support per-spectrum column mappings and protect project outputs on request.
+- Include the reviewed manual and standalone AI automation audits as beta downloads.
+
 ## [1.1.0] - 2026-10-28
 
 ## [1.0.1] - 2026-10-25

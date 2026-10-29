@@ -196,6 +196,26 @@ Inspect convergence and output files before processing a full dataset. Appendix 
 of the [manual](docs/manual.md#appendix-h-using-the-automation-audits-with-an-ai)
 explains this process and the choice between Python and YAML.
 
+### 1.1.1 beta: folder workflows and batch preparation
+
+The `testing` edition adds folder and glob imports with natural ordering,
+exclusions and recursion, automatic curve naming/identities, one model definition
+for a selected batch, and masks/fit ranges/scalar or formula preprocessing. It
+also reports invalid workflow keys earlier, preserves safe custom formulas in
+saved projects, supports per-spectrum column layouts and can refuse replacement
+of an existing project. New fields require **1.1.1 beta** and
+`schema_version: 3`; older executables reject that schema instead of ignoring the
+requested processing. Legacy schemas 1 and 2 remain supported for their older
+fields. Stable 1.1.0 does not implement these additions.
+
+Use the [beta workflow reference](https://github.com/SebRoLENS/curvemole/blob/testing/docs/workflows.md),
+[beta Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md)
+and [beta YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md)
+when generating beta automations. Each published beta also attaches a versioned
+PDF/LaTeX manual and both AI audits to its release, alongside the installers.
+Keep those documents with the exact beta build used. The stable documentation
+links above continue to describe the published stable release.
+
 ## Highlights
 
 - **Copy fit to next** opens the next spectrum automatically after copying. Function

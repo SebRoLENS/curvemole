@@ -1,0 +1,40 @@
+# CurveMole 1.1.1 beta or newer; run with curvemole run folder_workflow.yml --json
+schema_version: 3
+name: Folder of Gaussian spectra
+series_name: Batch spectra
+
+imports:
+  - directory: .
+    pattern: "*.csv"
+    recursive: false
+    sort: natural
+    alias_template: "{stem}_{curve_index}"
+    curve_id_template: "batch_{file_index}_{curve_index}"
+    config: {delimiter: ",", header: true}
+    columns: {x: x, y: [y], sigma_y: sigma_y}
+
+preprocess:
+  - curves: all
+    fit_ranges: [[-4.0, 4.0]]
+
+models:
+  - curves: all
+    components:
+      - function: constant
+        id: background
+        is_background: true
+      - function: gaussian
+        id: peak
+        parameters: {area: 3.0, center: 0.3, sigma: 1.0}
+        constraints:
+          sigma: {minimum: 0.001, maximum: 5.0}
+
+fit:
+  mode: independent
+  settings: {solver: local, loss: linear, seed: 1729}
+
+export:
+  project: folder_result.fitproj
+  project_overwrite: false
+  bundle: folder_export
+  versioned: true

@@ -49,9 +49,15 @@ def test_documented_python_script_runs(document: str, tmp_path: Path, monkeypatc
 
 
 @pytest.mark.parametrize("document", ["workflows.md", "ai-yaml-audit.md"])
-@pytest.mark.parametrize("marker", ["yaml-end-to-end", "yaml-linked-global"])
+@pytest.mark.parametrize("marker", ["yaml-end-to-end", "yaml-linked-global", "yaml-folder-batch"])
 def test_documented_yaml_workflow_runs(document: str, marker: str, tmp_path: Path) -> None:
     shutil.copyfile(ROOT / "examples" / "gaussian.csv", tmp_path / "gaussian.csv")
+    if marker == "yaml-folder-batch":
+        directory = tmp_path / "data"
+        directory.mkdir()
+        for name in ("scan10.csv", "scan2.csv"):
+            shutil.copyfile(ROOT / "examples" / "gaussian.csv", directory / name)
+        (directory / "calibration_skip.csv").write_text("not numeric data", encoding="utf-8")
     recipe = tmp_path / "workflow.yml"
     recipe.write_text(_example(document, "yaml", marker), encoding="utf-8")
 
@@ -59,6 +65,9 @@ def test_documented_yaml_workflow_runs(document: str, marker: str, tmp_path: Pat
 
     assert outcome.result is not None and outcome.result.success
     assert outcome.outputs and all(path.exists() for path in outcome.outputs)
+    if marker == "yaml-folder-batch":
+        assert [path.name for path in outcome.imported_files] == ["scan2.csv", "scan10.csv"]
+        assert len(outcome.result.curve_outputs) == 2
     if marker == "yaml-linked-global":
         source, target = outcome.project.curves
         source_path = outcome.project.models[source.id].parameter_path(source.id, "peak", "center")

@@ -1,8 +1,10 @@
 # Python scripting reference
 
-Applies to **CurveMole 1.1.0**, Python **3.12+**. This version-pinned reference
-documents the GUI-independent scientific engine: callable names, argument names,
-return values, side effects, and limits. Private names beginning with `_` and GUI
+**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.1.1 beta.**
+Applies to Python **3.12+**. This testing edition documents the GUI-independent
+scientific engine and marks the new beta workflow helpers explicitly: callable
+names, argument names, return values, side effects, and limits. The 1.1.0 stable
+executable does not support the marked beta operations. Private names beginning with `_` and GUI
 classes are outside this scripting contract. Record the installed version and
 scientific dependency versions with your results.
 
@@ -827,9 +829,11 @@ Import from `curvemole.core.serialization`:
 | `ProjectLock(Path(path))` | Context manager; inspect `.acquired` before shared-file edits |
 
 `portable=True` strips local paths. Detached snapshots require
-`update_project_path=False` when saving. Project schema is **4**, model/workflow
-schemas **2**. Archives contain JSON/numeric arrays, not pickle. Older project
-schemas remain readable. An otherwise readable project with a newer schema opens
+`update_project_path=False` when saving. Project schema is **4** and model schema
+is **2**. Workflow schema is **2** in the stable baseline and **3** for 1.1.1 beta
+additions; legacy workflow schemas 1/2 remain accepted for their older fields.
+Archives contain JSON/numeric arrays, not pickle. Older project schemas remain
+readable. An otherwise readable project with a newer schema opens
 read-only; invalid schema numbers or damaged content raise `ProjectFormatError`.
 Unsupported model-file schemas raise `ProjectFormatError`.
 `load_project` does not acquire a project
@@ -840,8 +844,12 @@ shared-file writes. `load_fitmodel` retains IDs and links; retarget links or use
 `curvemole.core.workflow` exports `load_workflow(path) -> dict`,
 `validate_workflow(value) -> list[str]`,
 `run_workflow(path, *, trust_plugins=None, registry=None) -> WorkflowOutcome`,
-`dump_workflow(project, path) -> Path`. Outcome fields are `project`, `result`,
-`outputs`. Relative paths resolve against the YAML directory. Dumping references
+`dump_workflow(project, path) -> Path`. Beta dumping emits workflow schema 3;
+marked beta-only YAML keys require schema 3 so older software rejects them instead
+of ignoring processing stages. Outcome fields are `project`, `result`,
+`outputs`. In 1.1.1 beta it also has `imported_files: list[Path]` and
+`warnings: list[str]`, both defaulting to empty lists so the original three-field
+constructor remains valid. Relative paths resolve against the YAML directory. Dumping references
 source imports/models; it does not embed arbitrary transformed current data or
 all project state. Version 1.1.0 dump includes saved `curve_ids`, which the loader
 maps to newly imported curve IDs in model selectors and `${...}` references.
@@ -849,6 +857,65 @@ Ambiguous display-name aliases are not used as selectors; explicit saved curve
 identities disambiguate them. Links are resolved project-wide before fitting or
 export. Save `.fitproj` for full scientific state. The YAML audit details the
 complete import identity and reference format.
+
+### 15.1 Beta workflow discovery, selection and preprocessing
+
+The following helpers require **1.1.1 beta** and are module imports, not new
+package-root exports. They implement the same contract as the beta YAML runner;
+using Python is not required merely to enumerate a folder anymore.
+
+From `curvemole.core.workflow_inputs`:
+
+| Callable | Return/contract |
+| --- | --- |
+| `resolve_import_paths(item, root)` | `list[Path]`; expands one `path`/`glob`/`directory` import relative to a workflow-directory root |
+| `validate_import_source(item)` | `list[str]` static source-selection errors; does not read files |
+| `validate_name_template(template)` | `list[str]` errors for the restricted naming placeholders |
+| `format_import_name(template, path, root, *, file_index, curve_index, curve_name)` | Generated name; indices are positive one-based file/curve positions |
+
+For example, this independently discovers naturally ordered inputs:
+
+```python
+from pathlib import Path
+from curvemole.core.workflow_inputs import resolve_import_paths
+files = resolve_import_paths(
+    {"directory": "data", "pattern": "*.csv", "recursive": True,
+     "exclude": ["*_skip.csv"], "sort": "natural"},
+    Path("/absolute/path/to/workflow-folder"),
+)
+```
+
+A literal `path` is still one file. Batch matching skips symbolic links, supports
+explicit hidden pattern components, and fails on empty selection unless
+`allow_empty=True`. Naming placeholders are `stem`, `filename`, `parent`,
+`relative_path`, `relative_stem`, `file_index`, `curve_index`, `curve_name`;
+attribute/index access, conversions and format specifiers are rejected.
+`relative_path`/`relative_stem` are relative to the supplied root.
+
+From `curvemole.core.workflow_selection`,
+`select_curve_ids(project, aliases, *, curve=None, curves=None, match=None,
+default_all=False) -> list[str]` selects one identity/name/runtime ID, an explicit
+list, `curves="all"`, `"first"`, `"last"`, or a case-sensitive name/alias pattern.
+Only one selector may be supplied; unknown, duplicate or empty selections fail.
+`validate_curve_selector(specification, *, default_all=False) -> list[str]`
+checks the corresponding mapping without requiring imported data.
+
+From `curvemole.core.workflow_steps`,
+`validate_preprocessing(steps) -> list[str]` checks supported stage/operation shapes
+and safe formula syntax. `apply_preprocessing(project, steps, aliases) -> None`
+uses the same reversible core calculators and masks as normal scripts, marks the
+project changed, and invalidates affected fits. All shapes and selections are
+checked before mutation; a later data-dependent error can leave earlier in-memory
+edits. The workflow runner writes no outputs before these stages finish.
+
+Beta workflows additionally reject misspelled nested keys and unknown
+function-specific parameter names, support `models[].curves`/`match` so one model
+specification can cover a batch, convert nested `columns.spectra` mappings, and
+provide `export.project_overwrite=False` for project-file protection. Safe YAML
+formula definitions are now retained in `Project.custom_functions` and emitted by
+`dump_workflow`; they are not just registered in memory as in 1.1.0. Dumped recipes
+still do not replay preprocessing, masks, transformed data, fit plans or exports.
+The YAML reference lists the exact new fields and complete runnable examples.
 
 ## 16. Tables, exports, figures, and notebooks
 

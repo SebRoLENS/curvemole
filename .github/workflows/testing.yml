@@ -49,8 +49,29 @@ jobs:
       beta_version: ${{ needs.plan.outputs.version }}
     secrets: inherit
 
+  documents:
+    needs: [plan, validate]
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]')
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Prepare reviewed beta manual and AI audits
+        env:
+          BETA_VERSION: ${{ needs.plan.outputs.version }}
+        run: python .github/scripts/beta_release.py documents --directory beta-documentation
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-documentation
+          path: beta-documentation/*
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
   publish:
-    needs: [plan, packages]
+    needs: [plan, packages, documents]
     # The bootstrap is an Actions download only: no release of any kind is created.
     if: >-
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '[beta artifacts only]')) ||
