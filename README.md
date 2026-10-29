@@ -12,6 +12,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
   <a href="https://doi.org/10.5281/zenodo.23730744"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23730744.svg" alt="DOI"></a>
+  <a href="https://doi.org/10.5281/zenodo.22113854"><img src="https://img.shields.io/badge/Concept%20DOI-10.5281%2Fzenodo.22113854-blue" alt="Concept DOI"></a>
   <a href="https://scicrunch.org/resolver/RRID:SCR_029214"><img src="https://img.shields.io/badge/RRID-SCR__029214-2b7282" alt="RRID"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
@@ -398,7 +399,15 @@ GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITA
 > Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 1.1.0)
 > [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23730744
 
-DOI: [**10.5281/zenodo.23730744**](https://doi.org/10.5281/zenodo.23730744)
+Version DOI: [**10.5281/zenodo.23730744**](https://doi.org/10.5281/zenodo.23730744)
+
+**All versions (Concept DOI):**
+
+> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
+> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
+
+Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854)
+
 
 SciCrunch: [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) identifies CurveMole independently of the release-specific DOI.
 
