@@ -92,7 +92,8 @@ The home page identifies CurveMole in its title and main heading, with the softw
 downloads as its primary action. Keep its canonical URL set to
 `https://sebrolens.github.io/curvemole/`, and use that same official website URL
 in the repository’s About section, README and archival records. Download links
-point to GitHub releases; Zenodo links identify archived versions for citation.
+point to GitHub releases; Zenodo links identify archived versions for citation. The citation card also
+links the version-independent SciCrunch resource identifier, RRID:SCR_029214.
 
 ## Customization examples
 

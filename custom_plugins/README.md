@@ -14,6 +14,13 @@ Users can contribute plugins here through a pull request. Each plugin lives in
 its own directory. Submissions remain proposals until reviewed and merged;
 this source directory is **not itself a validation badge**.
 
+## Citing analyses made with CurveMole plugins
+
+Identify the host software in published methods with [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214),
+and cite the version-specific Zenodo DOI (see [How to cite](../README.md#how-to-cite)).
+DOIs for scientific articles in individual plugin manuals remain independent
+citations and must not be confused with CurveMole's RRID.
+
 ## Find and install validated plugins
 
 **[Download all plugins — ZIP](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/validated-community-plugins.zip)**
