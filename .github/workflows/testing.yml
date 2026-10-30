@@ -70,6 +70,40 @@ jobs:
           retention-days: 7
           compression-level: 0
 
+  changelog:
+    # Update the tracked cumulative ledger and published beta history after
+    # validation/publication. This commit never creates another beta release.
+    # Stale runs skip their write; the next push regenerates from Git tags.
+    needs: [validate, publish]
+    if: always() && needs.validate.result == 'success'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+      - name: Record all beta-cycle changes and published beta tags
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          git fetch origin testing --tags
+          if [ "$(git rev-parse origin/testing)" != "$SOURCE_SHA" ]; then
+            echo "testing advanced; a newer workflow will regenerate the changelog."
+            exit 0
+          fi
+          python .github/scripts/changelog_tools.py sync --head "$SOURCE_SHA"
+          if git diff --quiet -- CHANGELOG.md docs/beta-history.md; then
+            echo "Changelog already up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md docs/beta-history.md
+          git commit -m "Refresh cumulative beta changelog and published beta history [skip release]"
+          git push origin HEAD:refs/heads/testing
+
   publish:
     needs: [plan, packages, documents]
     # The bootstrap is an Actions download only: no release of any kind is created.
@@ -81,6 +115,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v7
         with:
           pattern: release-*
