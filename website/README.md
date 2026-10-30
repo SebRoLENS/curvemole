@@ -19,11 +19,25 @@ before deploying.
 From the repository root:
 
 ```sh
-python3 -m http.server 8000 --bind 127.0.0.1 --directory website/dist
+python3 website/scripts/preview.py
 ```
 
-Open http://127.0.0.1:8000/ . No JavaScript installation or build is required.
+Open http://127.0.0.1:8765/ . No JavaScript installation or build is required.
 Keep asset URLs relative so the site works under the `/curvemole/` project path.
+
+## Pages
+
+- `index.html`: introduction, workspace captures, methods and worked examples.
+- `download.html`: desktop packages, installation guidance, Stable/Beta and Python.
+- `documentation.html`: manual and PDF, quick start, references and a link to the Quick start page.
+- `quick-start.html`: under-construction page with the CurveMole mascot; content will be defined later.
+- `news.html`: changelog for the verified stable version only; empty entries link
+  to the official release notes without inventing a change summary.
+- `contact.html`: developer contact, issue reporting, version DOI and copyable citation.
+
+All six pages share navigation with the current page marked, including on small
+screens. The snapshot assembler updates metadata across every page. Quick start
+content remains to be designed separately.
 
 ## Assets and scientific examples
 
@@ -113,7 +127,7 @@ the repository. Publication regenerates these screenshots from the deployed chec
 
 ## Citation presentation
 
-The `#cite` section gives priority to the exact version used in research. The
+The `contact.html#citation` section gives priority to the exact version used in research. The
 methods sentence identifies the version and RRID; the general project reference
 uses the Concept DOI (10.5281/zenodo.22113854), which can resolve to a beta.
 Each purpose has a separate copy action. Version and project BibTeX are separate
@@ -126,3 +140,8 @@ stable metadata. It never reads a newer remote CFF at runtime.
 Documentation-only corrections are published for the existing stable release;
 they do not wait for a new software release. The PDF link follows the revised
 stable manual in the exact published source snapshot.
+
+## Sitemap
+
+Submit https://sebrolens.github.io/curvemole/sitemap.xml to Google Search Console.
+It includes the six main pages and the privacy notice. Keep it synchronized when adding or renaming public pages.

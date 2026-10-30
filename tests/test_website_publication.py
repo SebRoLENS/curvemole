@@ -108,20 +108,28 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     citation = re.sub(r'^version:.*$', 'version: "1.2.3"', citation, flags=re.M)
     citation = re.sub(r'^doi:.*$', 'doi: "10.5281/zenodo.123"', citation, flags=re.M)
     (tmp_path / 'CITATION.cff').write_text(citation, encoding="utf-8")
-    index = ROOT / 'website/dist/index.html'
+    for source_page in (ROOT / 'website/dist').glob('*.html'):
+        (tmp_path / 'website/dist' / source_page.name).write_text(source_page.read_text(encoding='utf-8'), encoding='utf-8')
+    (tmp_path / 'CHANGELOG.md').write_text('## [Unreleased]\n- Development only\n\n## [1.2.3]\n### Fixed\n- Stable correction.\n', encoding='utf-8')
     target = tmp_path / 'website/dist/index.html'
-    target.write_text(index.read_text(encoding="utf-8"), encoding="utf-8")
+    manual = tmp_path / 'website/dist/documentation.html'
+    contact = tmp_path / 'website/dist/contact.html'
     website.assemble({'version': '1.2.3', 'tag': 'v1.2.3', 'doi': '10.5281/zenodo.123', 'source_sha': 'abc123'})
     assert '/releases/latest' not in target.read_text(encoding="utf-8")
-    assert 'href="https://raw.githubusercontent.com/SebRoLENS/curvemole/abc123/docs/CurveMole_User_Manual.pdf"' in target.read_text(encoding="utf-8")
+    assert 'href="https://raw.githubusercontent.com/SebRoLENS/curvemole/abc123/docs/CurveMole_User_Manual.pdf"' in manual.read_text(encoding="utf-8")
     assert '/releases/download/v1.0.0/' not in target.read_text(encoding="utf-8")
     assert '/blob/main/' not in target.read_text(encoding="utf-8")
-    assert '(Version 1.2.3)' in target.read_text(encoding="utf-8")
+    assert '(Version 1.2.3)' in contact.read_text(encoding="utf-8")
     assert 'href="style.css?v=abc123"' in target.read_text(encoding="utf-8")
-    assert 'https://doi.org/10.5281/zenodo.123' in target.read_text(encoding="utf-8")
+    assert 'https://doi.org/10.5281/zenodo.123' in contact.read_text(encoding="utf-8")
+    assert "10.5281/zenodo.22113854" in contact.read_text(encoding="utf-8")
     assert (tmp_path / 'website/dist/CITATION.cff').read_text(encoding="utf-8") == citation
     assert 'version = {1.2.3}' in (tmp_path / 'website/dist/citation.bib').read_text(encoding='utf-8')
     assert 'version =' not in (tmp_path / 'website/dist/concept-citation.bib').read_text(encoding='utf-8')
+    news = (tmp_path / 'website/dist/news.html').read_text(encoding='utf-8')
+    assert '<h3>Fixed</h3><ul><li>Stable correction.</li></ul>' in news
+    assert 'Development only' not in news
+    assert 'No detailed changelog entries' not in news
     assert json.loads((tmp_path / 'website/dist/publication.json').read_text(encoding="utf-8"))['tag'] == 'v1.2.3'
 
 
@@ -186,3 +194,32 @@ def test_standalone_does_not_require_ci_but_still_requires_release_metadata(
         assert reason == ''
     else:
         assert metadata is None and 'DOI' in reason
+
+
+def test_stable_changelog_excludes_development_and_other_versions(website, monkeypatch, tmp_path):
+    monkeypatch.setattr(website, 'ROOT', tmp_path)
+    (tmp_path / 'CHANGELOG.md').write_text(
+        '## [Unreleased]\n- Not stable\n\n## [2.0.0b1]\n- Beta only\n\n'
+        '## [1.2.3] - 2026-10-22\n### Fixed\n- Keep `a < b` safe\n'
+        '  across wrapped lines.\n\n## [1.2.2]\n- Older fix\n', encoding='utf-8')
+    rendered = website.stable_changelog('1.2.3')
+    assert '<h3>Fixed</h3>' in rendered
+    assert '<code>a &lt; b</code> safe across wrapped lines.' in rendered
+    assert 'Not stable' not in rendered and 'Beta only' not in rendered and 'Older fix' not in rendered
+    assert 'No detailed changelog entries' in website.stable_changelog('1.2.4')
+
+
+def test_sitemap_lists_the_public_pages_and_robots_advertises_it():
+    from xml.etree import ElementTree
+
+    dist = ROOT / 'website/dist'
+    namespace = {'s': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
+    urls = [node.text for node in ElementTree.parse(dist / 'sitemap.xml').findall('s:url/s:loc', namespace)]
+    base = 'https://sebrolens.github.io/curvemole/'
+    assert set(urls) == {base + name for name in (
+        '', 'download.html', 'documentation.html', 'quick-start.html', 'news.html', 'contact.html', 'privacy.html')}
+    assert len(urls) == len(set(urls))
+    assert f'Sitemap: {base}sitemap.xml' in (dist / 'robots.txt').read_text(encoding='utf-8')
+    for url in urls:
+        page = dist / (url.removeprefix(base) or 'index.html')
+        assert f'href="{url}"' in page.read_text(encoding='utf-8')

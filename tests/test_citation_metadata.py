@@ -40,7 +40,7 @@ def test_future_release_never_reuses_the_previous_version_doi():
 
 
 def test_refresh_is_idempotent_and_updates_the_manual_after_archival(tmp_path):
-    for name in ("README.md", "docs/manual.md", "website/dist/index.html", "CITATION.cff"):
+    for name in ("README.md", "docs/manual.md", "website/dist/contact.html", "CITATION.cff"):
         target = tmp_path / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(ROOT / name, target)
@@ -56,7 +56,7 @@ def test_refresh_is_idempotent_and_updates_the_manual_after_archival(tmp_path):
     before = {name: (tmp_path / name).read_bytes() for name in citations["GENERATED"]}
     citations["refresh"](tmp_path)
     assert before == {name: (tmp_path / name).read_bytes() for name in before}
-    for name in ("README.md", "docs/manual.md", "docs/citing.md", "website/dist/index.html"):
+    for name in ("README.md", "docs/manual.md", "docs/citing.md", "website/dist/contact.html"):
         content = (tmp_path / name).read_text(encoding="utf-8")
         assert "10.5281/zenodo.987654" in content
         assert "Zenodo archival is pending;" not in content
@@ -71,7 +71,7 @@ def test_structured_cff_metadata_and_generated_sections_are_current():
     assert data["authors"] == cff["authors"]
     assert citations["readme_section"](data).strip() in (ROOT / "README.md").read_text(encoding="utf-8")
     assert citations["manual_section"](data).strip() in (ROOT / "docs/manual.md").read_text(encoding="utf-8")
-    assert citations["website_section"](data) in (ROOT / "website/dist/index.html").read_text(encoding="utf-8")
+    assert citations["website_section"](data) in (ROOT / "website/dist/contact.html").read_text(encoding="utf-8")
 
 
 def test_independent_website_copy_actions():

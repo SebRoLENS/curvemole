@@ -1,6 +1,7 @@
 """Gate Pages on completed CI and release metadata; assemble one website snapshot."""
 from __future__ import annotations
 
+import html
 import json
 import os
 import re
@@ -95,6 +96,49 @@ def ready(*, require_ci=True):
             'mode': 'integrated' if require_ci else 'standalone'}, ''
 
 
+def stable_changelog(version):
+    """Render only the selected final release, excluding unreleased/beta entries."""
+    path = ROOT / 'CHANGELOG.md'
+    source = path.read_text(encoding="utf-8") if path.exists() else ''
+    match = re.search(rf'^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## |\Z)',
+                      source, re.M | re.S)
+    body = match[1].strip() if match else ''
+    if not body:
+        return ('<p>No detailed changelog entries were recorded for this stable release. '
+                'The official release notes and downloads are available on GitHub.</p>')
+    blocks, paragraph, items = [], [], []
+
+    def inline(value):
+        value = html.escape(value)
+        value = re.sub(r'`([^`]+)`', r'<code>\1</code>', value)
+        return re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', value)
+
+    def flush():
+        if paragraph:
+            blocks.append('<p>' + inline(' '.join(paragraph)) + '</p>')
+            paragraph.clear()
+        if items:
+            blocks.append('<ul>' + ''.join('<li>' + inline(item) + '</li>' for item in items) + '</ul>')
+            items.clear()
+
+    for line in body.splitlines():
+        if line.startswith('### '):
+            flush()
+            blocks.append('<h3>' + html.escape(line[4:]) + '</h3>')
+        elif line.startswith('- '):
+            if paragraph:
+                flush()
+            items.append(line[2:])
+        elif not line.strip():
+            flush()
+        elif items and line.startswith('  '):
+            items[-1] += ' ' + line.strip()
+        else:
+            paragraph.append(line.strip())
+    flush()
+    return ''.join(blocks)
+
+
 def assemble(metadata):
     dist = ROOT / 'website/dist'
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
@@ -103,23 +147,34 @@ def assemble(metadata):
     if data["version"] != metadata["version"] or data["doi"] != metadata["doi"]:
         raise ValueError("Website citation does not match the verified release")
     citations["write_website"](ROOT, data)
-    index = (dist / "index.html").read_text(encoding="utf-8")
-    index = index.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
-    index = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
-                   'style.css?v=' + metadata['source_sha'], index)
     repository = os.environ.get('GITHUB_REPOSITORY', 'SebRoLENS/curvemole')
-    # Documentation-only updates belong to the stable snapshot without replacing
-    # the original manual archived with the release.
     manual_url = (f'https://raw.githubusercontent.com/{repository}/{metadata["source_sha"]}/'
                   'docs/CurveMole_User_Manual.pdf')
-    index, count = re.subn(r'(<a\b[^>]*id="manualPdf"[^>]*href=")[^"]*(")',
-                          lambda m: m[1] + manual_url + m[2], index)
-    if count != 1:
-        raise ValueError('Missing or ambiguous manual PDF download')
-    index = index.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
-    index = index.replace(f'https://github.com/{repository}/blob/main/',
-                          f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')
-    (dist / 'index.html').write_text(index, encoding="utf-8")
+    counts = {'manualPdf': 0}
+    pages = {}
+    for path in sorted(dist.glob('*.html')):
+        page = path.read_text(encoding="utf-8")
+        # Attribute order is not significant in HTML.
+        page, count = re.subn(r'(<a\b(?=[^>]*\bid="manualPdf")[^>]*\bhref=")[^"]*(")',
+                             lambda m: m[1] + manual_url + m[2], page)
+        counts['manualPdf'] += count
+        page = page.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
+        page = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
+                      'style.css?v=' + metadata['source_sha'], page)
+        page = page.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
+        page = page.replace(f'https://github.com/{repository}/blob/main/',
+                            f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')
+        for element_id, value in [('stableVersion', html.escape(metadata['version'])),
+                                  ('stableDate', html.escape(field(citation, 'date-released'))),
+                                  ('stableChangelog', stable_changelog(metadata['version']))]:
+            page = re.sub(r'(<[^>]+id="' + element_id + r'"[^>]*>).*?(</(?:span|div)>)',
+                          lambda m: m[1] + value + m[2], page, flags=re.S)
+        pages[path] = page
+    for element_id, count in counts.items():
+        if count != 1:
+            raise ValueError(f'Missing or ambiguous {element_id}')
+    for path, page in pages.items():
+        path.write_text(page, encoding="utf-8")
     (dist / 'publication.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding="utf-8")
 
 

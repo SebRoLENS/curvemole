@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[2]
 replace_section = run_path(str(Path(__file__).with_name("readme_sections.py")))["replace_section"]
 GENERATED = (
     "README.md", "docs/manual.md", "docs/citing.md", "docs/citation.bib",
-    "docs/concept-citation.bib", "website/dist/index.html",
+    "docs/concept-citation.bib", "website/dist/contact.html",
     "website/dist/citation.bib", "website/dist/concept-citation.bib",
 )
 
@@ -232,8 +232,9 @@ def website_section(data: dict) -> str:
     e = html.escape
     label = "Version DOI: " + data["doi"] if data["doi"] else "Version record (GitHub)"
     return f'''<!-- BEGIN CITATION -->
-<section class="citation-section" id="cite" aria-labelledby="citation-title">
-<div class="section-top"><div><span class="eyebrow">CITE CURVEMOLE</span><h2 id="citation-title">Give your analysis<br/>a precise reference</h2></div><p>Cite the version you used.<br/>Identify the software in your methods.</p></div>
+<section class="citation-section" id="citation" aria-labelledby="citation-title">
+<div class="section-top"><div><span class="eyebrow">CITE CURVEMOLE</span><h2 id="citation-title">Citing the version used</h2></div><p>The references below identify the latest stable release.</p></div>
+<p class="citation-guidance"><strong>Cite the CurveMole version actually used in your analysis.</strong> The version DOI below identifies the latest stable release. For an earlier release or a beta, use the matching DOI in its <a href="https://github.com/SebRoLENS/curvemole/releases">GitHub release notes ↗</a>; check the version number and repository tag.</p>
 <div class="citation-grid">
 <article class="citation-card citation-primary"><span class="eyebrow">01 / RESEARCH USING CURVEMOLE</span><h3>Cite your software version</h3><p>The reference below is for <strong>CurveMole {e(data["version"])}</strong>. If you used another version, cite that release's own DOI.</p><blockquote id="citationText">{e(data["citation"])}</blockquote><a id="citationDoi" href="{e(data["url"])}">{e(label)} ↗</a><div class="citation-actions"><button id="copyCitation" type="button" data-copy="version">Copy version citation</button><a href="citation.bib" download>Download BibTeX ↓</a></div><span id="citationStatus" class="citation-status" role="status"></span></article>
 <article class="citation-card"><span class="eyebrow">02 / IDENTIFICATION IN THE METHODS</span><h3>Name the software you used</h3><blockquote id="citationMethods">{e(data["methods"])}</blockquote><p>The RRID identifies CurveMole across versions. Include the actual version and keep its DOI in your bibliography.</p><a id="citationRrid" href="{e(data["rrid_url"])}">{e(data["rrid"])} ↗</a><div class="citation-actions"><button id="copyMethods" type="button" data-copy="methods">Copy methods sentence</button></div><span id="methodsStatus" class="citation-status" role="status"></span></article>
@@ -245,7 +246,7 @@ def website_section(data: dict) -> str:
 
 def write_website(root: Path, data: dict) -> None:
     dist = root / "website/dist"
-    index = dist / "index.html"
+    index = dist / "contact.html"
     if index.exists():
         source, count = re.subn(r"<!-- BEGIN CITATION -->.*?<!-- END CITATION -->",
                                 lambda _: website_section(data), index.read_text(encoding="utf-8"), flags=re.S)
