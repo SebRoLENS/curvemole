@@ -111,6 +111,11 @@ def stable_changelog(version):
 
     def inline(value):
         value = html.escape(value)
+        # Only link back to known CurveMole commit URLs, never arbitrary HTML.
+        value = re.sub(
+            r'\[([^\]]+)\]\((https://github\.com/SebRoLENS/curvemole/commit/[a-f0-9]{8,40})\)',
+            r'<a href="\2">\1</a>', value,
+        )
         value = re.sub(r'`([^`]+)`', r'<code>\1</code>', value)
         return re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', value)
 
