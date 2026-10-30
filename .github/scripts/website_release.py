@@ -104,15 +104,6 @@ def stable_changelog(version):
     match = re.search(rf'^## \[{re.escape(version)}\][^\n]*\n(.*?)(?=^## |\Z)',
                       source, re.M | re.S)
     body = match[1].strip() if match else ''
-    # The released 1.1.0 section was empty. Use a human-reviewed, commit-grounded
-    # one-off retrospective, without editing the immutable published changelog.
-    if not body:
-        historical = ROOT / 'website' / 'stable-release-notes' / f'{version}.md'
-        if historical.is_file():
-            notes = historical.read_text(encoding='utf-8')
-            details = re.search(r'(?ms)^### .*?(?=^Historical sources:|\\Z)', notes)
-            if details:
-                body = details[0].strip()
     if not body:
         return ('<p>No detailed changelog entries were recorded for this stable release. '
                 'The official release notes and downloads are available on GitHub.</p>')
@@ -150,12 +141,51 @@ def stable_changelog(version):
 
 
 def historical_stable_releases(current_version):
-    """Render earlier final releases only; unreleased and betas stay off the site."""
-    if not re.fullmatch(r'\\d+\\.\\d+\\.\\d+', current_version):
+    """Show only final stable releases after 1.0.0 and before current."""
+    if not re.fullmatch(r'\d+\.\d+\.\d+', current_version):
         raise ValueError('Expected a stable version')
-    changelog = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
-    headers = re.findall(
-        r'(?m)^## \\[(\\d+\\.\\d+\\.\\d+)\\](?: - (\\d{4}-\\d{2}-\\d{2}))?[^\\n]*
+    text = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
+    found = re.findall(
+        r'(?m)^## \[(\d+\.\d+\.\d+)\](?: - (\d{4}-\d{2}-\d{2}))?[^\n]*$',
+        text,
+    )
+    current_key = tuple(map(int, current_version.split('.')))
+    versions = {
+        version: stamp
+        for version, stamp in found
+        if (1, 0, 0) <= tuple(map(int, version.split('.'))) < current_key
+    }
+    ordered = sorted(versions, key=lambda v: tuple(map(int, v.split('.'))))
+    blocks = []
+    for index, version in reversed(list(enumerate(ordered))):
+        stamp = versions[version]
+        if not stamp:
+            raise ValueError(f'Missing stable release date: {version}')
+        parsed = date.fromisoformat(stamp)
+        pretty = f'{parsed.day} {parsed.strftime("%B %Y")}'
+        tag = f'v{version}'
+        previous = ordered[index - 1] if index else None
+        compare = (
+            f'<a href="https://github.com/SebRoLENS/curvemole/compare/v{previous}...{tag}">'
+            'Compare with previous stable ↗</a>'
+        ) if previous else ''
+        milestone = 'FIRST STABLE' if version == '1.0.0' else 'STABLE'
+        blocks.append(
+            f'<article class="release-entry release-entry--archive" id="release-{version.replace(".", "-")}">'
+            '<div class="release-meta">'
+            f'<span class="release-pill">{milestone}</span>'
+            f'<time datetime="{stamp}">{pretty}</time></div>'
+            f'<h2>CurveMole <span>{version}</span></h2>'
+            f'<div class="release-changes">{stable_changelog(version)}</div>'
+            '<div class="resource-links">'
+            f'<a href="https://github.com/SebRoLENS/curvemole/releases/tag/{tag}">Official release ↗</a>'
+            + compare + '</div></article>'
+        )
+    return '\n'.join(blocks)
+
+
+def assemble(metadata):
+    dist = ROOT / 'website/dist'
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     shutil.copyfile(ROOT / 'CITATION.cff', dist / 'CITATION.cff')
     data = citations["metadata"](citation)
@@ -190,7 +220,7 @@ def historical_stable_releases(current_version):
                 raise ValueError('Missing stable history markers in What’s New page')
             page = re.sub(
                 re.escape(begin) + r'.*?' + re.escape(end),
-                lambda _m: begin + '\\n' + historical_stable_releases(metadata['version']) + '\\n' + end,
+                lambda _m: begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end,
                 page, count=1, flags=re.S,
             )
         pages[path] = page
