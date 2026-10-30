@@ -4716,10 +4716,13 @@ class MainWindow(QMainWindow):
                     self.project.read_only = True
                     self._release_lock()
                     for waiting in requests[1:]:
-                        reply_to_request(
-                            lock.project_path, waiting, accepted=False,
-                            reason="Another request acquired control first.",
-                        )
+                        try:
+                            reply_to_request(
+                                lock.project_path, waiting, accepted=False,
+                                reason="Another request acquired control first.",
+                            )
+                        except OSError as exc:
+                            self._log(f"Could not reject concurrent request: {exc}")
                     self.refresh_all()
                     self._notify(
                         self.tr("Project control released to another computer.")
