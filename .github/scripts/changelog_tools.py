@@ -111,7 +111,12 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
         # user-facing fixes/features. Preserve the underlying Git history.
         if (not subject or SKIP_RE.match(subject)
                 or subject.lower().startswith(("test ", "tests "))
-                or "changelog" in subject.lower()):
+                or any(label in subject.lower() for label in (
+                    "changelog", "beta history", "release notes",
+                    "release infrastructure", "stable-cycle release history",
+                    "publisher checksum tests", "github release dates",
+                    "full tag history", "automatic history snapshots",
+                ))):
             continue
         key = subject.casefold()
         if key in seen:
