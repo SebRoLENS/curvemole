@@ -1350,8 +1350,12 @@ class AboutDialog(QDialog):
             "<p>Sebastiano Romi<br>European Laboratory for Non-Linear Spectroscopy (LENS)<br>"
             "University of Florence (UNIFI)<br>"
             '<a href="mailto:romi@lens.unifi.it">romi@lens.unifi.it</a></p>'
-            f'<p><a href="{CONCEPT_DOI_URL}">Concept DOI: {CONCEPT_DOI}</a> (all versions)</p>'
-            f'<p><a href="{RRID_URL}">RRID:{RRID}</a> (SciCrunch)</p>'
+            "<p><strong>Bibliography:</strong> cite the DOI of the exact version used.<br>"
+            '<a href="https://github.com/SebRoLENS/curvemole/blob/main/docs/citing.md">Citation guide and BibTeX</a></p>'
+            f'<p><strong>Methods:</strong> CurveMole {__version__} '
+            f'(<a href="{RRID_URL}">RRID:{RRID}</a>).</p>'
+            f'<p><strong>Project in general:</strong> <a href="{CONCEPT_DOI_URL}">Concept DOI: {CONCEPT_DOI}</a><br>'
+            "All versions; the latest Zenodo archive may be a beta.</p>"
             "<p>GPL-3.0-or-later</p>"
             '<p><a href="https://github.com/SebRoLENS/curvemole">Project and updates</a></p>'
         )

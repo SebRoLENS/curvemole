@@ -644,6 +644,10 @@ def generate_html_report(
     sections = [
         f"<h1>{_escape(title or project.name)}</h1>",
         f'<p><strong>CurveMole {__version__}</strong> (<a href="{RRID_URL}">RRID:{RRID}</a>; <a href="{CONCEPT_DOI_URL}">Concept DOI: {CONCEPT_DOI}</a>) — generated {_escape(datetime.now(UTC).isoformat())}</p>',
+        '<p><strong>Software citation:</strong> cite the Zenodo DOI of the exact CurveMole version used in your bibliography. '
+        f'Methods: CurveMole {__version__} (RRID:{RRID}). '
+        'The Concept DOI is a general project reference and may resolve to a beta. '
+        '<a href="https://github.com/SebRoLENS/curvemole/blob/main/docs/citing.md">Citation guide and BibTeX</a>.</p>',
         f"<p>{_escape(notes)}</p>" if notes else "",
         "<h2>Data and models</h2>",
         f"<p>{len(project.curves)} curve(s), {sum(len(model.components) for model in project.models.values())} component(s).</p>",
@@ -1225,7 +1229,13 @@ def _bundle_readme(project: Project, paths: list[str], delimiter: str) -> str:
              f"Concept DOI (all versions): {CONCEPT_DOI} ({CONCEPT_DOI_URL})",
              f"Spectra: {len(project.curves)}. CSV delimiter: {delimiter!r}; encoding: UTF-8.",
              "", "This folder contains the selected, available outputs of your analysis.",
-             "Only files included in this export are listed below.", "", "Contents of this export", "======================="]
+             "Only files included in this export are listed below.", "",
+             "Software citation", "=================",
+             "Bibliography: cite the Zenodo DOI of the exact CurveMole version used.",
+             f"Methods: Data were analysed with CurveMole version {__version__} (RRID:{RRID}).",
+             "The Concept DOI is a general project reference and may resolve to a beta.",
+             "Citation guide and BibTeX: https://github.com/SebRoLENS/curvemole/blob/main/docs/citing.md",
+             "", "Contents of this export", "======================="]
     for category, rows in _bundle_readme_inventory(paths):
         lines.extend(("", category, _bundle_readme_table(rows)))
     if any(path.startswith("figures/") and Path(path).stem == "current_view" for path in paths):
