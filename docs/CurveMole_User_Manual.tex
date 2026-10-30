@@ -5257,7 +5257,9 @@ Archive at least:
 \begin{itemize}
 \tightlist
 \item
-  exact CurveMole version, Version DOI, Concept DOI and RRID;
+  exact CurveMole version and its version DOI;
+\item
+  software RRID for identification in published methods;
 \item
   original data and import mapping;
 \item
@@ -5335,35 +5337,58 @@ expectations; trust only reviewed plugin code.
 \hypertarget{citation}{%
 \section{20.3 Citation}\label{citation}}
 
-If CurveMole contributes to published work, cite the exact version used.
-The release DOI is inserted into \texttt{CITATION.cff} and the
-repository README after Zenodo archival. Until archival completes, the
-versioned GitHub release is the authoritative record:
+\hypertarget{research-using-curvemole}{%
+\subsection{20.3.1 Research using
+CurveMole}\label{research-using-curvemole}}
+
+Cite the exact software version used in your bibliography. This manual
+describes \textbf{CurveMole 1.1.0}, whose reference is:
 
 \begin{quote}
-Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 1.1.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.0
+Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version
+1.1.0) {[}Computer software{]}. Zenodo.
+https://doi.org/10.5281/zenodo.23730744
 \end{quote}
 
-CurveMole also has a version-independent SciCrunch identifier:
-\href{https://scicrunch.org/resolver/RRID:SCR_029214}{\textbf{RRID:SCR\_029214}}.
-Include the RRID in the methods section; use the release-specific Zenodo
-DOI in the bibliography.
+If you used another release, including a beta, use that release's own
+version DOI from its GitHub release notes or Zenodo record. Never
+substitute the current stable DOI for a different version.
 
-For an all-version citation, use the \textbf{Concept DOI}:
+\hypertarget{identification-in-the-methods}{%
+\subsection{20.3.2 Identification in the
+methods}\label{identification-in-the-methods}}
+
+Use the software name, exact version and version-independent SciCrunch
+RRID:
 
 \begin{quote}
-Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-{[}Computer software{]}. Zenodo. https://doi.org/10.5281/zenodo.22113854
+Data were analysed with CurveMole version 1.1.0 (RRID:SCR\_029214).
 \end{quote}
 
-Concept DOI:
-\href{https://doi.org/10.5281/zenodo.22113854}{\textbf{10.5281/zenodo.22113854}}.
-Cite the specific-version DOI for reproducibility.
+\href{https://scicrunch.org/resolver/RRID:SCR_029214}{RRID:SCR\_029214}
+identifies the software; the version DOI identifies the archived
+release. The methods sentence accompanies the bibliographic reference.
 
-The repository provides \textbf{Cite this repository} from
-\texttt{CITATION.cff}.
+\hypertarget{referring-to-the-project-in-general}{%
+\subsection{20.3.3 Referring to the project in
+general}\label{referring-to-the-project-in-general}}
+
+Use the \textbf{Concept DOI} when discussing CurveMole as a project
+across versions:
+
+\begin{quote}
+Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting {[}Computer
+software{]}. Zenodo. https://doi.org/10.5281/zenodo.22113854
+\end{quote}
+
+The Concept DOI (10.5281/zenodo.22113854) represents all versions. It
+resolves to the latest Zenodo archive, which may be a beta, and does not
+identify the version used for an analysis or the latest stable download.
+
+The \href{citing.md}{citation guide} explains historical versions and
+plugin references. \href{citation.bib}{Version BibTeX},
+\href{concept-citation.bib}{project BibTeX} and GitHub's \textbf{Cite
+this repository} are generated from \texttt{CITATION.cff}.
 
 \hypertarget{author-and-contact}{%
 \section{20.4 Author and contact}\label{author-and-contact}}
