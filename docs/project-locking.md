@@ -4,7 +4,8 @@ CurveMole uses an adjacent `<project>.fitproj.lock` sidecar to record the
 current session's PID, machine name, unique session ID, process start identity,
 creation timestamp and heartbeat. An owned lock is renewed every **60 seconds**,
 not on every edit or save. The file is a coordination hint, not a backup and not
-a hard distributed filesystem lock.
+a hard distributed filesystem lock. A 60-second heartbeat is intended for
+low-overhead status reporting and never authorizes an unsafe remote takeover.
 
 ## Local recovery
 
