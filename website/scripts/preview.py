@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+from contextlib import suppress
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,10 +42,8 @@ def main():
         handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(dist))
         with http.server.ThreadingHTTPServer(('127.0.0.1', args.port), handler) as server:
             print(f'CurveMole local preview: http://127.0.0.1:{args.port}/', flush=True)
-            try:
+            with suppress(KeyboardInterrupt):
                 server.serve_forever()
-            except KeyboardInterrupt:
-                pass
 
 
 if __name__ == '__main__':
