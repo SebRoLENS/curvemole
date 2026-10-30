@@ -101,9 +101,19 @@ def publish(version: str, directory: Path) -> None:
     repository = os.environ["GITHUB_REPOSITORY"]
     source = os.environ["GITHUB_SHA"]
     downloads = f"https://github.com/{repository}/releases/download/{tag}/CurveMole-{version}"
+    # Release-specific notes are derived from the previous published beta tag.
+    # No manual list or stale description can leak into another beta.
+    from runpy import run_path
+
+    history = run_path(str(Path(__file__).with_name("changelog_tools.py")))
+    previous, changes = history["beta_changes"](source, version=version)
+    compare = f"https://github.com/{repository}/compare/{previous}...{source}"
     notes = directory / "beta-notes.md"
     notes.write_text(
         f"CurveMole {tag[1:]} — Beta / testing channel\n\n"
+        f"## Changes since {previous}\n\n{changes}\n\n"
+        f"[Compare exact source changes]({compare}). "
+        "The cumulative stable-cycle changes are tracked in CHANGELOG.md.\n\n"
         "Bug fixes and new features may arrive sooner. Updates may be frequent and introduce new bugs.\n\n"
         "Choose **Help > Update channel…** to switch between Beta and Stable. Switching to Stable "
         "keeps your installed version until an equal or newer stable release is available; "
@@ -112,17 +122,12 @@ def publish(version: str, directory: Path) -> None:
         "version from the GitHub repository.\n\n"
         f"Source: `{source}` on `testing`. Verify downloads against `SHA256SUMS.txt`.\n\n"
         "Windows and macOS packages are unsigned, as with the stable channel.\n\n"
-        "**Workflow automation:** this beta supports folder/glob imports, deterministic file "
-        "ordering and exclusions, reusable model selectors and preprocessing. New fields require "
-        "`schema_version: 3` so older executables reject incompatible recipes. See the exact "
-        "supported fields and limitations in the accompanying documentation.\n\n"
         f"**Documentation:** [Manual PDF]({downloads}-User-Manual.pdf) · "
         f"[LaTeX]({downloads}-User-Manual.tex) · "
         f"[AI Python audit]({downloads}-AI-Python-Audit.md) · "
         f"[AI YAML audit]({downloads}-AI-YAML-Audit.md).\n\n"
-        "The manual retains the stable baseline version in its title and explicitly marks "
-        "the beta workflow additions. Use the beta-specific reference sections and audits "
-        "for these additions; they are not available in the older stable executable.\n\n"
+        "The manual retains stable baseline metadata; see the version-specific change list "
+        "above for the features included in this exact beta.\n\n"
         "**Zenodo DOI:** pending archival. The beta's specific DOI is linked automatically "
         "after Zenodo has archived this release.\n",
         encoding="utf-8",
