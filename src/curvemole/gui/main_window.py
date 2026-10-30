@@ -76,13 +76,6 @@ from curvemole.core.calculator import (
 )
 from curvemole.core.data import Curve, CurveState, Series
 from curvemole.core.errors import ConstraintError
-from curvemole.core.project_handoff import (
-    file_digest,
-    pending_requests,
-    read_reply,
-    reply_to_request,
-    request_control,
-)
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
@@ -105,6 +98,13 @@ from curvemole.core.models import Component, Model, area_for_height
 from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
+from curvemole.core.project_handoff import (
+    file_digest,
+    pending_requests,
+    read_reply,
+    reply_to_request,
+    request_control,
+)
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
