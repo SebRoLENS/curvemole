@@ -7,6 +7,62 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [1.1.0] - 2026-10-28
 
+### Added
+
+- Add reversible **Stable** and **Beta** update channels with a visible installed-beta
+  indicator. Switching back to Stable does not downgrade an installed beta.
+  ([`90f7c2b6`](https://github.com/SebRoLENS/curvemole/commit/90f7c2b6dc5c1bc43eedd3c981686dc95d1a8d1e))
+- Open files from the operating system in a single desktop instance and import
+  multiple files through the batch mapping dialog.
+  ([`ea3c4cde`](https://github.com/SebRoLENS/curvemole/commit/ea3c4cdef967b67697388d4170992f7bd3d46595))
+- Add guided Calculator sections, selected-spectra operations, and a **Restore RAW
+  data** control. Extend function initialization with Add/Delete/Move points,
+  live previews, Undo support and coordinate-aware point selection.
+  ([`56f33d11`](https://github.com/SebRoLENS/curvemole/commit/56f33d113f19bc82b9f45c6ea6c77ac3e38ccba3))
+- Configure function options, initial parameters and bounds before adding a
+  component to a model.
+  ([`f3d9c4ba`](https://github.com/SebRoLENS/curvemole/commit/f3d9c4ba69310416f1d7c5d67347ab3d58e7992a))
+- Add function point editing and workspace keyboard shortcuts, including more
+  commands accessible with simple, context-aware keys.
+  ([`dbc8a656`](https://github.com/SebRoLENS/curvemole/commit/dbc8a656fb81ef122601ca153bc00528cec7b2b1))
+
+### Changed
+
+- Reduce startup work and initial memory use with lazy scientific-backend imports,
+  plugin loading after the first window paint, and reused plot items during
+  Overlay and Waterfall redraws.
+  ([`82494ca1`](https://github.com/SebRoLENS/curvemole/commit/82494ca18acf22a2fac87b393940f1e25b69c333))
+- Improve the scientific task lifecycle and rendering architecture with explicit
+  fit/render controllers, bounded worker queues, state restoration, and
+  rate-limited rendering diagnostics.
+  ([`6dfce6d5`](https://github.com/SebRoLENS/curvemole/commit/6dfce6d59749e52295ddad504b9cf316ecb228bf))
+- Support explicit promotion of a tested beta snapshot to Stable, maintaining
+  a separate release channel and stable source-version metadata.
+  ([`b3f5e052`](https://github.com/SebRoLENS/curvemole/commit/b3f5e052840a47666c7bd9b57b52345e5b1447dd))
+
+### Fixed
+
+- Preserve peak shapes when editing function control points and reapply edited
+  recorded background subtraction as a single reversible operation.
+  ([`12ff4187`](https://github.com/SebRoLENS/curvemole/commit/12ff4187f3c1ddd0bfc42fca0f10957f03e7ac5a))
+- Prevent shortcut collisions and stale saved assignments: reserve preferred
+  bindings before restoring user choices, release keys from removed commands,
+  and normalize shifted punctuation without intercepting text entry.
+  ([`6f324f68`](https://github.com/SebRoLENS/curvemole/commit/6f324f68eb6cf3f09637724c9164d9615410c2d9),
+  [`084f49ae`](https://github.com/SebRoLENS/curvemole/commit/084f49ae86b7918963a040c7607c8b722ca33438),
+  [`b153f94c`](https://github.com/SebRoLENS/curvemole/commit/b153f94c6aff23adc9bdec0eeca49b058cb4081a))
+- Prevent a Windows file-opening race by preserving the named-pipe connection
+  until the forwarded file request receives its acknowledgement.
+  ([`992ee78b`](https://github.com/SebRoLENS/curvemole/commit/992ee78b9095a95346b897b8c5e85eb3aa8080a4))
+- Keep function-placement instructions readable at larger font sizes and avoid
+  misplaced point gestures on small or high-DPI screens.
+  ([`88397a75`](https://github.com/SebRoLENS/curvemole/commit/88397a75b79a192006d09b19e5041e3685e96f29))
+- Address the 11 scientific audit findings: preserve convolution grids; validate
+  grouped removals; restore analysis records after Undo; invalidate linked and
+  global fits after model edits; maintain consistent covariance, metadata,
+  point-editor links, bounds and workflow identities.
+  ([`6dfce6d5`](https://github.com/SebRoLENS/curvemole/commit/6dfce6d59749e52295ddad504b9cf316ecb228bf))
+
 ## [1.0.1] - 2026-10-25
 
 ### Fixed

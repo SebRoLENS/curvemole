@@ -223,3 +223,44 @@ def test_sitemap_lists_the_public_pages_and_robots_advertises_it():
     for url in urls:
         page = dist / (url.removeprefix(base) or 'index.html')
         assert f'href="{url}"' in page.read_text(encoding='utf-8')
+
+def test_historical_stable_release_archive_excludes_betas_and_current(website, monkeypatch, tmp_path):
+    monkeypatch.setattr(website, 'ROOT', tmp_path)
+    (tmp_path / 'CHANGELOG.md').write_text(
+        '# Changelog\n\n'
+        '## [Unreleased]\n- Never on stable website\n\n'
+        '## [1.2.3] - 2026-10-30\n### Fixed\n- Current release.\n\n'
+        '## [1.2.2] - 2026-10-29\n### Added\n- Earlier feature.\n\n'
+        '## [1.2.2b7] - 2026-10-28\n### Fixed\n- Beta only.\n\n'
+        '## [1.0.1] - 2026-10-25\n### Fixed\n- Old correction.\n\n'
+        '## [1.0.0] - 2026-10-23\n### Changed\n- First stable release.\n',
+        encoding='utf-8',
+    )
+    archive = website.historical_stable_releases('1.2.3')
+    assert archive.index('CurveMole <span>1.2.2</span>') < archive.index('CurveMole <span>1.0.1</span>')
+    assert archive.index('CurveMole <span>1.0.1</span>') < archive.index('CurveMole <span>1.0.0</span>')
+    assert archive.count('class="release-entry release-entry--archive"') == 3
+    assert 'Earlier feature.' in archive and 'Old correction.' in archive
+    assert 'First stable release.' in archive
+    assert 'FIRST STABLE' in archive
+    assert '/compare/v1.0.1...v1.2.2' in archive
+    assert '1.2.3</span>' not in archive and '1.2.2b7' not in archive
+    assert 'Never on stable website' not in archive and 'Beta only' not in archive
+
+
+def test_retroactive_stable_changelog_shows_clickable_audited_commits(website, monkeypatch, tmp_path):
+    monkeypatch.setattr(website, 'ROOT', tmp_path)
+    (tmp_path / 'CHANGELOG.md').write_text(
+        '## [Unreleased]\n\n- Experimental fix.\n\n'
+        '## [1.1.0] - 2026-10-28\n\n'
+        '### Fixed\n\n'
+        '- Restore stable release documentation. '
+        '([`a1b2c3d4`](https://github.com/SebRoLENS/curvemole/commit/a1b2c3d4)).\n\n'
+        '## [1.0.1] - 2026-10-25\n',
+        encoding='utf-8',
+    )
+    rendered = website.stable_changelog('1.1.0')
+    assert '<h3>Fixed</h3>' in rendered
+    assert '<a href="https://github.com/SebRoLENS/curvemole/commit/a1b2c3d4">' in rendered
+    assert '<code>a1b2c3d4</code>' in rendered
+    assert 'Experimental fix' not in rendered

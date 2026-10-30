@@ -31,8 +31,11 @@ Keep asset URLs relative so the site works under the `/curvemole/` project path.
 - `download.html`: desktop packages, installation guidance, Stable/Beta and Python.
 - `documentation.html`: manual and PDF, quick start, references and a link to the Quick start page.
 - `quick-start.html`: under-construction page with the CurveMole mascot; content will be defined later.
-- `news.html`: changelog for the verified stable version only; empty entries link
-  to the official release notes without inventing a change summary.
+- `news.html`: complete dated stable history from 1.0.0, newest first. The latest
+  release and archive entries are reconstructed from the stable `CHANGELOG.md`
+  during publication; beta and Unreleased notes are excluded. The previously empty
+  1.1.0 changelog was backfilled from reviewed commits between stable tags.
+  Individual versions link to their GitHub release and compare view.
 - `contact.html`: developer contact, issue reporting, version DOI and copyable citation.
 
 All six pages share navigation with the current page marked, including on small
