@@ -242,12 +242,12 @@ def apply_version(version: str) -> None:
     update_readme(version)
     update_manual(version)
     citations["write_extras"](ROOT, citations["metadata"](CITATION.read_text(encoding="utf-8")))
-    changelog = CHANGELOG.read_text(encoding="utf-8")
-    if f"## [{version}]" not in changelog:
-        changelog = changelog.replace(
-            "## [Unreleased]", f"## [Unreleased]\n\n## [{version}] - {dt.date.today().isoformat()}", 1
-        )
-        CHANGELOG.write_text(changelog, encoding="utf-8")
+    # Freeze *all* user-facing commits since the prior stable tag, not just
+    # the final promotion commit or whichever betas happened to be published.
+    # This is regenerated from the exact promoted SHA, making skipped beta
+    # history runs and CI retries safe.
+    changelog_tools = run_path(str(Path(__file__).with_name("changelog_tools.py")))
+    changelog_tools["freeze_stable"](version, path=CHANGELOG)
 
 
 def main() -> None:
