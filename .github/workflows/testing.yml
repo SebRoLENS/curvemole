@@ -94,13 +94,13 @@ jobs:
             exit 0
           fi
           python .github/scripts/changelog_tools.py sync --head "$SOURCE_SHA"
-          if git diff --quiet -- CHANGELOG.md docs/beta-history.md; then
+          git add CHANGELOG.md docs/beta-history.md
+          if git diff --cached --quiet; then
             echo "Changelog already up to date."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add CHANGELOG.md docs/beta-history.md
           git commit -m "Refresh cumulative beta changelog and published beta history [skip release]"
           git push origin HEAD:refs/heads/testing
 
