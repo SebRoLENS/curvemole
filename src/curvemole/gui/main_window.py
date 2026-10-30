@@ -7,6 +7,7 @@ import json
 import math
 import os
 import re
+import socket
 import time
 import traceback
 from collections.abc import Callable
@@ -1525,7 +1526,8 @@ class MainWindow(QMainWindow):
                 project.read_only = True
                 self._notify(self.tr("Project is already open elsewhere; opened read-only."), warning=True)
                 owner = ProjectLock.owner(path)
-                if owner and isinstance(owner.get("session_id"), str):
+                if (owner and isinstance(owner.get("session_id"), str)
+                        and owner.get("host") != socket.gethostname()):
                     answer = QMessageBox.question(
                         self,
                         self.tr("Project open on another computer"),
@@ -4705,10 +4707,10 @@ class MainWindow(QMainWindow):
                     if digest is None:
                         raise RuntimeError("Project file is unavailable.")
                     # Once acknowledged, no further edits can be saved by this session.
-                    self.project.read_only = True
                     reply_to_request(
                         lock.project_path, request, accepted=True, digest=digest
                     )
+                    self.project.read_only = True
                     self._release_lock()
                     self.refresh_all()
                     self._notify(
