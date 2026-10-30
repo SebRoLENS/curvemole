@@ -254,6 +254,13 @@ def test_beta_publication_checks_all_assets_and_never_sets_latest(tmp_path, monk
         (tmp_path / name).write_bytes(b"package")
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
+    # Publication validates GitHub uploads here; the new changelog renderer
+    # has separate Git-history tests and should not depend on this fake SHA.
+    import runpy
+
+    monkeypatch.setattr(runpy, "run_path", lambda *_args, **_kwargs: {
+        "beta_changes": lambda *_args, **_kwargs: ("v1.0.1", "### Fixed\\n\\n- Beta fix.")
+    })
     commands = []
 
     def run(command, **kwargs):
