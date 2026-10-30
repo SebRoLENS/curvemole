@@ -135,3 +135,45 @@ def test_save_as_moves_gui_lock_to_new_project(tmp_path, monkeypatch):
         window.close()
         app.processEvents()
     assert not (tmp_path / "second.fitproj.lock").exists()
+
+
+def test_owner_releases_on_request_and_requester_recovers_editing(tmp_path, monkeypatch):
+    pytest.importorskip("PySide6", exc_type=ImportError)
+    pytest.importorskip("pyqtgraph", exc_type=ImportError)
+    from PySide6.QtWidgets import QApplication
+    from curvemole.gui.main_window import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("CURVEMOLE_DISABLE_PLUGINS", "1")
+    app = QApplication.instance() or QApplication([])
+    path = save_project(Project("handoff"), tmp_path / "handoff.fitproj")
+
+    owner_window = MainWindow()
+    requester_window = MainWindow()
+    try:
+        owner_window.open_project(path)
+        assert owner_window._project_lock.owns()
+        current_session = owner_window._project_lock.session_id
+
+        request = request_control(path, current_session)
+        owner_window._poll_project_lock()
+        assert owner_window.project.read_only
+        assert not (tmp_path / "handoff.fitproj.lock").exists()
+        assert read_reply(path, request)["accepted"]
+
+        # Simulate another computer that has received both acknowledgement and
+        # exact project bytes. We inject its pending request directly because
+        # both test windows share the same hostname.
+        requester_window.open_project(path)
+        requester_window.project.read_only = True
+        requester_window._release_lock()
+        requester_window._transfer_request = request
+        requester_window._transfer_path = path
+        requester_window._poll_project_transfer()
+        assert not requester_window.project.read_only
+        assert requester_window._project_lock.owns()
+        assert requester_window._project_disk_digest == file_digest(path)
+    finally:
+        requester_window.close()
+        owner_window.close()
+        app.processEvents()
