@@ -8,6 +8,44 @@ The project policy is:
 - new backward-compatible features increment `MINOR` (`x.y.x`)
 - incompatible or major-line changes increment `MAJOR` (`y.x.x`)
 
+## Automatic change history
+
+The authoritative user-facing history is **`CHANGELOG.md`**. While developing on
+`testing`, its **Unreleased** section accumulates every meaningful change since
+the latest published stable Git tag. An automatically delimited section lists
+commit subjects and immutable commit links under Added, Changed, Fixed, and
+Documentation; manually curated notes outside the delimiters are preserved.
+Write descriptive, user-facing commit subjects (e.g. "Fix stale lock takeover")
+because these provide the automatic summaries. CI-only/test/import-formatting
+commits are filtered out; they remain traceable in full Git history.
+
+After every validated Testing builds run, a dedicated workflow job regenerates
+`CHANGELOG.md` and `docs/beta-history.md` using Git history and the published
+GitHub beta catalog. The job commits only if files changed and `testing` still
+points to its original source; a superseded run leaves the next run to catch up.
+Its own commit is marked `[skip release]` and does not publish a beta.
+Beta history records exact prior-beta-to-next-beta deltas, published dates when
+available, and links to the relevant Git comparisons. Run numbers may have gaps.
+
+Each **beta prerelease** gets dynamic release notes showing only changes since
+the preceding published beta of that target (or the preceding stable if first),
+not a static feature list. The beta publisher uses full Git history; the
+generated notes are part of the GitHub release, not a stable metadata bump.
+
+During an **explicit stable promotion**, `prepare_release.py` independently
+recomputes the cumulative changes from the last stable tag to the *exact*
+promoted SHA, then moves the entire Unreleased content (automated and curated)
+under `## [NEW_VERSION] - YYYY-MM-DD`. Unreleased becomes empty. The stable
+release's GitHub release notes read this section, so all fixes and features
+from intermediate beta builds are included, **even if a beta failed to publish
+or the intermediate changelog update was skipped**. Previous stable sections
+are immutable and preserved. The workflow makes no change to `main` unless
+stable promotion is explicitly requested.
+
+This is deterministic commit-history summarization, not AI-generated prose:
+clear commit subjects and optional manual notes produce the best changelog.
+It does not infer source-code behavior beyond what a commit claims.
+
 ## Normal development
 
 Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
