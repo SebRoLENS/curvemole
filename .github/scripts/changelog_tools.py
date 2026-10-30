@@ -33,8 +33,11 @@ SKIP_RE = re.compile(
     r"remove unused handoff import|"
     r"keep project coordination imports sorted|"
     r"publish corrected shared-project locking beta validation|"
-    r"publish corrected shared-project locking beta validation)"
-    , re.I
+    r"refresh cumulative beta changelog|"
+    r"(?:add deterministic beta|generate each beta release|freeze full beta-cycle changelog|"
+    r"automatically commit cumulative changes|fetch full tag history for complete stable changelog|"
+    r"include first-time beta history file))",
+    re.I,
 )
 ORDER = ("Added", "Changed", "Fixed", "Documentation")
 
@@ -211,9 +214,9 @@ def sync_beta_history(head: str = "HEAD", path: Path = HISTORY) -> None:
         previous = tag
     intro = (
         "# Published beta history\n\n"
-        "Generated from published beta tags and their Git commits; beta build/run numbers "
+        "Generated from beta release tags and their Git commits; beta build/run numbers "
         "may have gaps. Entries describe changes introduced **between consecutive published "
-        "betas** (or since the nearest stable release for the first beta). "
+        "betas** (or since the nearest stable release for the first beta). Dates are source commit dates. "
         "The cumulative stable changelog is maintained separately in `CHANGELOG.md`.\n\n"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
