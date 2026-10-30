@@ -223,9 +223,10 @@ def assemble(metadata):
             begin, end = '<!-- BEGIN HISTORICAL STABLE RELEASES -->', '<!-- END HISTORICAL STABLE RELEASES -->'
             if page.count(begin) != 1 or page.count(end) != 1:
                 raise ValueError('Missing stable history markers in What’s New page')
+            replacement = begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end
             page = re.sub(
                 re.escape(begin) + r'.*?' + re.escape(end),
-                lambda _m: begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end,
+                lambda _m, value=replacement: value,
                 page, count=1, flags=re.S,
             )
         pages[path] = page
