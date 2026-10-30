@@ -75,6 +75,7 @@ jobs:
       - uses: actions/checkout@v6
         with:
           ref: ${{ needs.plan.outputs.source_sha }}
+          fetch-depth: 0
       - name: Install document and GUI toolchain
         run: |
           bash .github/scripts/install_document_toolchain.sh \
