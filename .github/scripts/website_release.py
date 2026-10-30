@@ -151,70 +151,7 @@ def historical_stable_releases(current_version):
         raise ValueError('Expected a stable version')
     text = (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8')
     found = re.findall(
-        r'(?m)^## \[(\d+\.\d+\.\d+)\](?: - (\d{4}-\d{2}-\d{2}))?[^\n]*
-    dist = ROOT / 'website/dist'
-    citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
-    shutil.copyfile(ROOT / 'CITATION.cff', dist / 'CITATION.cff')
-    data = citations["metadata"](citation)
-    if data["version"] != metadata["version"] or data["doi"] != metadata["doi"]:
-        raise ValueError("Website citation does not match the verified release")
-    citations["write_website"](ROOT, data)
-    repository = os.environ.get('GITHUB_REPOSITORY', 'SebRoLENS/curvemole')
-    manual_url = (f'https://raw.githubusercontent.com/{repository}/{metadata["source_sha"]}/'
-                  'docs/CurveMole_User_Manual.pdf')
-    counts = {'manualPdf': 0}
-    pages = {}
-    for path in sorted(dist.glob('*.html')):
-        page = path.read_text(encoding="utf-8")
-        # Attribute order is not significant in HTML.
-        page, count = re.subn(r'(<a\b(?=[^>]*\bid="manualPdf")[^>]*\bhref=")[^"]*(")',
-                             lambda m: m[1] + manual_url + m[2], page)
-        counts['manualPdf'] += count
-        page = page.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
-        page = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
-                      'style.css?v=' + metadata['source_sha'], page)
-        page = page.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
-        page = page.replace(f'https://github.com/{repository}/blob/main/',
-                            f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')
-        for element_id, value in [('stableVersion', html.escape(metadata['version'])),
-                                  ('stableDate', html.escape(field(citation, 'date-released'))),
-                                  ('stableChangelog', stable_changelog(metadata['version']))]:
-            page = re.sub(r'(<[^>]+id="' + element_id + r'"[^>]*>).*?(</(?:span|div)>)',
-                          lambda m, replacement=value: m[1] + replacement + m[2], page, flags=re.S)
-        if path.name == 'news.html':
-            begin, end = '<!-- BEGIN HISTORICAL STABLE RELEASES -->', '<!-- END HISTORICAL STABLE RELEASES -->'
-            if page.count(begin) != 1 or page.count(end) != 1:
-                raise ValueError('Missing stable history markers in What’s New page')
-            page = re.sub(
-                re.escape(begin) + r'.*?' + re.escape(end),
-                lambda _m: begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end,
-                page, count=1, flags=re.S,
-            )
-        pages[path] = page
-    for element_id, count in counts.items():
-        if count != 1:
-            raise ValueError(f'Missing or ambiguous {element_id}')
-    for path, page in pages.items():
-        path.write_text(page, encoding="utf-8")
-    (dist / 'publication.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding="utf-8")
-
-
-def main():
-    metadata, reason = ready(require_ci=os.environ.get('WEBSITE_PUBLICATION_MODE') != 'standalone')
-    if metadata:
-        assemble(metadata)
-    else:
-        print(f'::warning::Website deployment skipped: {reason}')
-    with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding="utf-8") as output:
-        output.write(f'ready={str(metadata is not None).lower()}\n')
-    with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding="utf-8") as summary:
-        summary.write((f'Website snapshot ready: {metadata["tag"]}, DOI {metadata["doi"]}.'
-                       if metadata else reason) + '\n')
-
-
-if __name__ == '__main__':
-    main()
-,
+        r'(?m)^## \[(\d+\.\d+\.\d+)\](?: - (\d{4}-\d{2}-\d{2}))?[^\n]*$',
         text,
     )
     current_key = tuple(map(int, current_version.split('.')))
@@ -282,6 +219,15 @@ def assemble(metadata):
                                   ('stableChangelog', stable_changelog(metadata['version']))]:
             page = re.sub(r'(<[^>]+id="' + element_id + r'"[^>]*>).*?(</(?:span|div)>)',
                           lambda m, replacement=value: m[1] + replacement + m[2], page, flags=re.S)
+        if path.name == 'news.html':
+            begin, end = '<!-- BEGIN HISTORICAL STABLE RELEASES -->', '<!-- END HISTORICAL STABLE RELEASES -->'
+            if page.count(begin) != 1 or page.count(end) != 1:
+                raise ValueError('Missing stable history markers in What’s New page')
+            page = re.sub(
+                re.escape(begin) + r'.*?' + re.escape(end),
+                lambda _m: begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end,
+                page, count=1, flags=re.S,
+            )
         pages[path] = page
     for element_id, count in counts.items():
         if count != 1:
