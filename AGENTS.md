@@ -26,3 +26,13 @@
 - For release and channel work, run the relevant update, release-channel and
   workflow tests and lint the GitHub workflows. See `docs/releasing.md` for promotion
   and synchronization steps.
+- Maintain meaningful, user-facing Git commit subjects for every noteworthy
+  feature or fix. The testing CI automatically generates the cumulative
+  `CHANGELOG.md` Unreleased section and `docs/beta-history.md` from those
+  commits and published prereleases. Curated explanations may be added outside
+  the automatic section's markers; never edit inside those markers.
+- Beta release notes describe the changes since the previous published beta;
+  explicit stable promotion automatically freezes **all** changes since the
+  last stable tag (including intermediate betas) into the new stable's
+  `CHANGELOG.md` entry. Do not substitute a final promotion-commit message
+  for the full historical changelog. See `docs/releasing.md`.
