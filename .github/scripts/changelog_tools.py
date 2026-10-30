@@ -105,7 +105,11 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
     seen: set[str] = set()
     for sha, original in commits(base, head):
         subject = MARKER_RE.sub("", original).strip().rstrip(".")
-        if not subject or SKIP_RE.match(subject):
+        # Build plumbing, CI tests, and generated changelog commits are not
+        # user-facing fixes/features. Preserve the underlying Git history.
+        if (not subject or SKIP_RE.match(subject)
+                or subject.lower().startswith(("test ", "tests "))
+                or "changelog" in subject.lower()):
             continue
         key = subject.casefold()
         if key in seen:
