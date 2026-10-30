@@ -16,11 +16,14 @@ this source directory is **not itself a validation badge**.
 
 ## Citing analyses made with CurveMole plugins
 
-Identify the host software in published methods with [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214),
-and cite the version-specific Zenodo DOI (see [How to cite](../README.md#how-to-cite)).
-The Concept DOI for all versions is [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854).
-DOIs for scientific articles in individual plugin manuals remain independent
-citations and must not be confused with CurveMole's RRID.
+Cite the **exact CurveMole host version** in your bibliography. In the methods,
+state the version with [RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214).
+The [citation guide](../docs/citing.md) explains both uses and provides BibTeX.
+The [Concept DOI](https://doi.org/10.5281/zenodo.22113854) identifies the project
+across versions and may resolve to a beta.
+
+Also identify the plugin and its version, follow its author's citation
+instructions, and cite scientific articles about its methods separately.
 
 ## Find and install validated plugins
 

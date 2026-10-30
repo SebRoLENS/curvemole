@@ -25,8 +25,11 @@ def test_concept_doi_metadata():
         assert CONCEPT_DOI in (ROOT / path).read_text(encoding="utf-8"), path
 
 
-def test_release_template_retains_rrid():
-    for name in (".github/scripts/prepare_release.py",
-                 ".github/scripts/sync_zenodo_doi.py"):
-        assert "RRID:SCR_029214" in (ROOT / name).read_text(encoding="utf-8")
-        assert "10.5281/zenodo.22113854" in (ROOT / name).read_text(encoding="utf-8")
+def test_cff_structured_identifiers_distinguish_the_project_and_rrid():
+    import yaml
+
+    citation = yaml.safe_load((ROOT / "CITATION.cff").read_text(encoding="utf-8"))
+    identifiers = {entry["value"]: entry["type"] for entry in citation["identifiers"]}
+    assert identifiers[CONCEPT_DOI] == "doi"
+    assert identifiers[f"RRID:{RRID}"] == "other"
+    assert citation["doi"] != CONCEPT_DOI

@@ -413,23 +413,20 @@ Current public version: **1.1.0**
 
 ## How to cite
 
-If CurveMole contributes to published research, please cite the exact version used.
-GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
+**Research using CurveMole:** cite the exact version used. The reference below is
+for **1.1.0**; for another version, use its own release DOI.
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 1.1.0)
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.23730744
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.1.0) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.23730744
 
-Version DOI: [**10.5281/zenodo.23730744**](https://doi.org/10.5281/zenodo.23730744)
+**In the methods:** Data were analysed with CurveMole version 1.1.0 (RRID:SCR_029214).
 
-**All versions (Concept DOI):**
+**The project in general:** use the [Concept DOI](https://doi.org/10.5281/zenodo.22113854)
+(10.5281/zenodo.22113854). It represents all versions and can resolve to a beta.
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
-
-Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854)
-
-
-SciCrunch: [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) identifies CurveMole independently of the release-specific DOI.
+[Citation guide](docs/citing.md) · [Version BibTeX](docs/citation.bib) ·
+[RRID record](https://scicrunch.org/resolver/RRID:SCR_029214) · [Citation metadata](CITATION.cff).
+GitHub's **Cite this repository** also uses `CITATION.cff`.
 
 ## License
 

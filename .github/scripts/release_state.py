@@ -13,6 +13,8 @@ from pathlib import Path
 FILES = (
     "src/curvemole/version.py", "pyproject.toml", "uv.lock", "README.md", "CITATION.cff", "CHANGELOG.md",
     "docs/manual.md", "docs/CurveMole_User_Manual.tex", "docs/CurveMole_User_Manual.pdf",
+    "docs/citing.md", "docs/citation.bib", "docs/concept-citation.bib",
+    "website/dist/index.html", "website/dist/citation.bib", "website/dist/concept-citation.bib",
 )
 
 

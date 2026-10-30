@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import importlib.util
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -103,7 +104,9 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     monkeypatch.setattr(Path, 'open', windows_open)
     monkeypatch.setattr(website, 'ROOT', tmp_path)
     (tmp_path / 'website/dist').mkdir(parents=True)
-    citation = 'version: "1.2.3"\ndoi: "10.5281/zenodo.123"\ndate-released: 2026-10-22\ntitle: "CurveMole"\n'
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    citation = re.sub(r'^version:.*$', 'version: "1.2.3"', citation, flags=re.M)
+    citation = re.sub(r'^doi:.*$', 'doi: "10.5281/zenodo.123"', citation, flags=re.M)
     (tmp_path / 'CITATION.cff').write_text(citation, encoding="utf-8")
     index = ROOT / 'website/dist/index.html'
     target = tmp_path / 'website/dist/index.html'
@@ -113,11 +116,13 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     assert 'href="https://raw.githubusercontent.com/SebRoLENS/curvemole/abc123/docs/CurveMole_User_Manual.pdf"' in target.read_text(encoding="utf-8")
     assert '/releases/download/v1.0.0/' not in target.read_text(encoding="utf-8")
     assert '/blob/main/' not in target.read_text(encoding="utf-8")
-    assert '(v1.2.3)' in target.read_text(encoding="utf-8")
+    assert '(Version 1.2.3)' in target.read_text(encoding="utf-8")
     assert 'href="style.css?v=abc123"' in target.read_text(encoding="utf-8")
     assert 'https://doi.org/10.5281/zenodo.123' in target.read_text(encoding="utf-8")
     assert "10.5281/zenodo.22113854" in target.read_text(encoding="utf-8")
     assert (tmp_path / 'website/dist/CITATION.cff').read_text(encoding="utf-8") == citation
+    assert 'version = {1.2.3}' in (tmp_path / 'website/dist/citation.bib').read_text(encoding='utf-8')
+    assert 'version =' not in (tmp_path / 'website/dist/concept-citation.bib').read_text(encoding='utf-8')
     assert json.loads((tmp_path / 'website/dist/publication.json').read_text(encoding="utf-8"))['tag'] == 'v1.2.3'
 
 

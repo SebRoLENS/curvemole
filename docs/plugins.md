@@ -7,11 +7,14 @@ Executable Python plugins are different from safe custom-function/formula JSON f
 
 ## Citing CurveMole in analyses that use plugins
 
-When publishing analyses performed with CurveMole or its plugins, identify the
-host software using [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) and cite the Zenodo DOI of the
-exact version used (see [How to cite](../README.md#how-to-cite)). The all-version Concept DOI is [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854). Scientific
-DOIs in individual plugin manuals identify their cited papers or methods,
-not the CurveMole software.
+Cite the **exact CurveMole host version** in your bibliography and state its
+version with [RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214) in the
+methods. The [citation guide](citing.md) provides the reference and methods sentence.
+Use the [Concept DOI](https://doi.org/10.5281/zenodo.22113854) only for a general
+reference to the project; it can resolve to a beta.
+
+Identify the plugin and its version, follow its author's citation instructions,
+and cite scientific papers about its methods separately.
 
 ## Updates inside CurveMole
 
