@@ -87,6 +87,7 @@ jobs:
       - name: Record all beta-cycle changes and published beta tags
         env:
           SOURCE_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           git fetch origin testing --tags
           if [ "$(git rev-parse origin/testing)" != "$SOURCE_SHA" ]; then
