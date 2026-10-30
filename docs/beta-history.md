@@ -1,6 +1,6 @@
 # Published beta history
 
-Generated from the published GitHub beta releases and their Git commits. Beta build/run numbers may have gaps. Each section contains changes since the previous published beta (or the preceding stable). The cumulative history destined for the next stable release is in [CHANGELOG.md](../CHANGELOG.md).
+Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
 ## [1.1.1-beta.50](https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.1-beta.50) — published 2026-10-30
 

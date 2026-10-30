@@ -18,6 +18,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Backfill beta-cycle changes from stable 1.1.0 through current testing. ([`3a52b91c`](https://github.com/SebRoLENS/curvemole/commit/3a52b91c47d8b2cae67f94fecd639c09dac30577))
 - Backfill all nine published beta releases with actual commit histories. ([`780de88d`](https://github.com/SebRoLENS/curvemole/commit/780de88d20a673f33e11634eed86ce5472293804))
 - Exclude GitHub release tooling metadata from user-facing feature summaries. ([`28722969`](https://github.com/SebRoLENS/curvemole/commit/2872296910a2eb42cd1ccba24479d96f51280e00))
+- Synchronize clean cumulative feature and fix history through current beta. ([`10b3634d`](https://github.com/SebRoLENS/curvemole/commit/10b3634d150a6703aa438b0273a3d2dface5d448))
+- Render historical stable releases on What’s New with curated 1.1.0 backfill. ([`ae59b894`](https://github.com/SebRoLENS/curvemole/commit/ae59b89433d59deaea5d6d46a0d5a69a4774b983))
+- Show stable release archive in What’s New from 1.0.0 onward. ([`cabbd7ad`](https://github.com/SebRoLENS/curvemole/commit/cabbd7ad72bd9fc2ca519874359c47ab4092ce85))
+- Style chronological What’s New release archive on desktop and mobile. ([`cbfbeef0`](https://github.com/SebRoLENS/curvemole/commit/cbfbeef0e94237fd557d3eefcd84482ff8d5ff92))
 
 ### Fixed
 
@@ -39,6 +43,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Include citation generator in isolated promotion tests. ([`2977a143`](https://github.com/SebRoLENS/curvemole/commit/2977a1431b290a063f3470468102d959d7bfb3fa))
 - Add consent-gated CurveMole website analytics. ([`3459c3a3`](https://github.com/SebRoLENS/curvemole/commit/3459c3a3ceafce260372f904f8986fd527fcc6d4))
 - Organize website pages and add sitemap. ([`21de68e7`](https://github.com/SebRoLENS/curvemole/commit/21de68e7998429d2d9ce7edbc166acb484c0f2e4))
+- Document missing 1.1.0 stable changes from its published Git history. ([`bbc2e93c`](https://github.com/SebRoLENS/curvemole/commit/bbc2e93cee5339f201eb7a556042d09e20413dfd))
+- Repair website history renderer and build dated stable archive safely. ([`94a41ff8`](https://github.com/SebRoLENS/curvemole/commit/94a41ff8e864b3fdffcf82d19038f70e8ea6276a))
+- Document historical stable What’s New publication behavior. ([`d5c8b9f5`](https://github.com/SebRoLENS/curvemole/commit/d5c8b9f5d61a0ec881b7a582bb97f1a9e1f009d9))
+- Repair website generator syntax and remove duplicated trailing content. ([`23b9f54b`](https://github.com/SebRoLENS/curvemole/commit/23b9f54b7e238b719b832b7564711f194aa1b883))
 <!-- END AUTOMATED CHANGES -->
 
 ### Fixed
