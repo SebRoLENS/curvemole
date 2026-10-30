@@ -1,20 +1,22 @@
 """Gate Pages on completed CI and release metadata; assemble one website snapshot."""
 from __future__ import annotations
 
-import html
 import json
 import os
 import re
 import shutil
 import subprocess
 from pathlib import Path
+from runpy import run_path
 
 from release_assets import expected_assets
 
+citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
 ROOT = Path(__file__).resolve().parents[2]
 GENERATED = {
     'src/curvemole/version.py', 'pyproject.toml', 'uv.lock', 'README.md',
     'CITATION.cff', 'CHANGELOG.md', 'docs/manual.md',
+    *citations['GENERATED'],
     'docs/CurveMole_User_Manual.tex', 'docs/CurveMole_User_Manual.pdf',
 }
 
@@ -97,18 +99,11 @@ def assemble(metadata):
     dist = ROOT / 'website/dist'
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     shutil.copyfile(ROOT / 'CITATION.cff', dist / 'CITATION.cff')
-    index = (dist / 'index.html').read_text(encoding="utf-8")
-    text = f'Romi, S. ({field(citation, "date-released")[:4]}). {field(citation, "title")} (v{metadata["version"]}) [Software]. Zenodo.'
-    index, count = re.subn(r'(<[^>]+id="citationText"[^>]*>).*?(</[^>]+>)',
-                          lambda m: m[1] + html.escape(text) + m[2], index, flags=re.S)
-    if count != 1:
-        raise ValueError('Missing or ambiguous citation text')
-    doi = metadata['doi']
-    index, count = re.subn(r'<a\b[^>]*id="citationDoi"[^>]*>.*?</a>',
-                          f'<a id="citationDoi" href="https://doi.org/{doi}" target="_blank" rel="noopener">doi:{doi} ↗</a>',
-                          index, flags=re.S)
-    if count != 1:
-        raise ValueError('Missing or ambiguous citation link')
+    data = citations["metadata"](citation)
+    if data["version"] != metadata["version"] or data["doi"] != metadata["doi"]:
+        raise ValueError("Website citation does not match the verified release")
+    citations["write_website"](ROOT, data)
+    index = (dist / "index.html").read_text(encoding="utf-8")
     index = index.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
     index = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
                    'style.css?v=' + metadata['source_sha'], index)

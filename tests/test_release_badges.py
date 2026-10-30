@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 from types import ModuleType
 
@@ -90,6 +91,12 @@ def test_manual_release_bump_preserves_historical_requirements_and_semver_exampl
     tmp_path, monkeypatch,
 ):
     prepare = _load_script("prepare_release_manual_history", ".github/scripts/prepare_release.py")
+    citation = tmp_path / "CITATION.cff"
+    text = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    text = re.sub(r"^version:.*$", 'version: "1.0.0"', text, flags=re.M)
+    text = re.sub(r"^doi:.*\n", "", text, flags=re.M)
+    citation.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(prepare, "CITATION", citation)
     manual = tmp_path / "manual.md"
     manual.write_text(
         "# CurveMole User Manual - 1.0.0\n\n"

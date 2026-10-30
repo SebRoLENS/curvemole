@@ -10,6 +10,8 @@ import subprocess
 from pathlib import Path
 from runpy import run_path
 
+citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
+
 replace_section = run_path(str(Path(__file__).with_name("readme_sections.py")))["replace_section"]
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -160,18 +162,8 @@ def update_readme(version: str) -> None:
     )
     if status_count != 1 or public_count != 1:
         raise SystemExit("Could not update README version fields")
-    citation = f"""## How to cite
-
-If CurveMole contributes to published research, please cite the exact version used.
-GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
-
-Zenodo archival for version **{version}** is pending. The release DOI will be
-inserted here automatically when the record is available. Until then, use the
-versioned GitHub release below.
-
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
-> [Computer software]. GitHub. https://github.com/SebRoLENS/curvemole/releases/tag/v{version}
-"""
+    data = citations["metadata"](CITATION.read_text(encoding="utf-8"), version)
+    citation = citations["readme_section"](data)
     text = replace_section(text, "## How to cite", "## License", citation)
     README.write_text(text, encoding="utf-8")
 
@@ -204,19 +196,9 @@ def update_manual(version: str) -> None:
             text,
             flags=re.M,
         )
-        citation = f"""### 20.3 Citation
-
-If CurveMole contributes to published work, cite the exact version used. The release
-DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
-Until archival completes, the versioned GitHub release is the authoritative record:
-
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
-> [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v{version}
-
-The repository provides **Cite this repository** from `CITATION.cff`.
-"""
-        text = replace_section(text, "### 20.3 Citation", "### 20.4 Author and contact", citation)
+    data = citations["metadata"](CITATION.read_text(encoding="utf-8"), version)
+    text = replace_section(text, "### 20.3 Citation", "### 20.4 Author and contact",
+                           citations["manual_section"](data))
     text = MANUAL_TITLE_RE.sub(
         f"# CurveMole User Manual - {version}",
         text,
@@ -256,9 +238,10 @@ def apply_version(version: str) -> None:
         raise SystemExit("Could not update pyproject.toml version")
     PYPROJECT.write_text(project, encoding="utf-8")
 
+    update_citation(version)
     update_readme(version)
     update_manual(version)
-    update_citation(version)
+    citations["write_extras"](ROOT, citations["metadata"](CITATION.read_text(encoding="utf-8")))
     changelog = CHANGELOG.read_text(encoding="utf-8")
     if f"## [{version}]" not in changelog:
         changelog = changelog.replace(

@@ -51,7 +51,7 @@ jobs:
     needs: discover
     if: needs.discover.outputs.found == 'true'
     runs-on: ubuntu-22.04
-    timeout-minutes: 5
+    timeout-minutes: 30
     permissions:
       contents: write
     concurrency:
@@ -66,6 +66,8 @@ jobs:
       - uses: actions/download-artifact@v7
         with:
           name: discovered-dois
+      - name: Install toolchain for the revised stable manual
+        run: bash .github/scripts/install_document_toolchain.sh
       - name: Update only missing metadata and changed release notes
         env:
           GH_TOKEN: ${{ github.token }}

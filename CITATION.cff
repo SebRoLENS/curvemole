@@ -16,6 +16,9 @@ identifiers:
   - type: doi
     value: "10.5281/zenodo.22113854"
     description: "Concept DOI for all CurveMole versions"
+  - type: other
+    value: "RRID:SCR_029214"
+    description: "SciCrunch software resource identifier, independent of version"
 keywords:
   - scientific curve fitting
   - nonlinear fitting

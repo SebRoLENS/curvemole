@@ -3,7 +3,8 @@
 Public website: https://sebrolens.github.io/curvemole/
 
 The website is buildless HTML, CSS and JavaScript in `website/dist/`.
-Edit those files and merge into `main`. Automatic publication through
+Develop changes on `testing` with `[skip release]`. Publish the reviewed website
+and documentation changes on `main` when explicitly requested. Automatic publication through
 `.github/workflows/website.yml` waits for successful CI (including the manual),
 a published release matching the application version, all expected release assets,
 and a matching Zenodo DOI in release notes, CITATION.cff and README.
@@ -109,3 +110,19 @@ QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_customiza
 The capture script uses temporary settings, reads the experimental project without
 resaving it, and never loads plugin code. Source paths are displayed relative to
 the repository. Publication regenerates these screenshots from the deployed checkout.
+
+## Citation presentation
+
+The `#cite` section gives priority to the exact version used in research. The
+methods sentence identifies the version and RRID; the general project reference
+uses the Concept DOI (10.5281/zenodo.22113854), which can resolve to a beta.
+Each purpose has a separate copy action. Version and project BibTeX are separate
+downloads, and the footer and navigation lead to the human-readable section.
+
+Run `python .github/scripts/citation_metadata.py` after editing `CITATION.cff`.
+This regenerates the README/manual citation sections, citation guide, website
+section and BibTeX files. Pages assembly repeats generation from the verified
+stable metadata. It never reads a newer remote CFF at runtime.
+Documentation-only corrections are published for the existing stable release;
+they do not wait for a new software release. The PDF link follows the revised
+stable manual in the exact published source snapshot.

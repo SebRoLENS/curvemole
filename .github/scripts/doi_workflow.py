@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -29,10 +30,18 @@ def updated_body(body: str, doi: str) -> str:
 
 
 def metadata_complete(version: str, doi: str) -> bool:
-    return (version != zenodo.current_version() or
-            (f'doi: "{doi}"' in zenodo.CITATION.read_text()
-             and f"https://doi.org/{doi}" in zenodo.README.read_text()
-             and f"DOI: [**{doi}**]" in zenodo.README.read_text()))
+    if version != zenodo.current_version():
+        return True
+    cff = zenodo.CITATION.read_text(encoding="utf-8")
+    if zenodo.citations["field"](cff, "doi") != doi:
+        return False
+    data = zenodo.citations["metadata"](cff)
+    expected = zenodo.citations["readme_section"](data).strip()
+    manual = zenodo.CITATION.parent / "docs/manual.md"
+    return (expected in zenodo.README.read_text(encoding="utf-8")
+            and manual.exists()
+            and zenodo.citations["manual_section"](data).strip()
+            in manual.read_text(encoding="utf-8"))
 
 
 def discover(version: str) -> list[dict]:
@@ -79,14 +88,17 @@ def apply(path: Path) -> None:
             raise ValueError("Invalid discovered DOI metadata")
         if version == zenodo.current_version() and not metadata_complete(version, doi):
             zenodo.apply_metadata(version, doi)
-    if subprocess.run(["git", "diff", "--quiet", "--", "README.md", "CITATION.cff"]).returncode:
+    paths = ["CITATION.cff", *zenodo.citations["GENERATED"]]
+    if subprocess.run(["git", "diff", "--quiet", "--", *paths]).returncode:
+        subprocess.run([sys.executable, "scripts/build_manual.py"], check=True)
+        paths += ["docs/CurveMole_User_Manual.tex", "docs/CurveMole_User_Manual.pdf"]
         subprocess.run(["git", "fetch", "origin", "main"], check=True)
         if gh_git("rev-parse", "HEAD") != gh_git("rev-parse", "origin/main"):
             raise ValueError("main advanced while applying DOI; refusing a stale write")
         subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
         subprocess.run(["git", "config", "user.email",
                         "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
-        subprocess.run(["git", "add", "README.md", "CITATION.cff"], check=True)
+        subprocess.run(["git", "add", *paths], check=True)
         subprocess.run(["git", "commit", "-m", "Update missing Zenodo metadata [skip release]"], check=True)
         subprocess.run(["git", "push", "origin", "HEAD:main"], check=True)
     for item in findings:

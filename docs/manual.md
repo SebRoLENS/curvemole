@@ -3403,7 +3403,8 @@ them public.
 
 Archive at least:
 
-- exact CurveMole version, Version DOI, Concept DOI and RRID;
+- exact CurveMole version and its version DOI;
+- software RRID for identification in published methods;
 - original data and import mapping;
 - complete `.fitproj`;
 - analysis bundle;
@@ -3460,26 +3461,41 @@ trust only reviewed plugin code.
 
 ### 20.3 Citation
 
-If CurveMole contributes to published work, cite the exact version used. The release
-DOI is inserted into `CITATION.cff` and the repository README after Zenodo archival.
-Until archival completes, the versioned GitHub release is the authoritative record:
+#### 20.3.1 Research using CurveMole
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version 1.1.0)
-> [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.0
+Cite the exact software version used in your bibliography. This manual describes
+**CurveMole 1.1.0**, whose reference is:
 
-CurveMole also has a version-independent SciCrunch identifier:
-[**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214). Include the RRID in the methods section; use the release-specific
-Zenodo DOI in the bibliography.
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.1.0) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.23730744
 
-For an all-version citation, use the **Concept DOI**:
+If you used another release, including a beta, use that release's own version DOI
+from its GitHub release notes or Zenodo record. Never substitute the current
+stable DOI for a different version.
 
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting*
-> [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.22113854
+#### 20.3.2 Identification in the methods
 
-Concept DOI: [**10.5281/zenodo.22113854**](https://doi.org/10.5281/zenodo.22113854). Cite the specific-version DOI for reproducibility.
+Use the software name, exact version and version-independent SciCrunch RRID:
 
-The repository provides **Cite this repository** from `CITATION.cff`.
+> Data were analysed with CurveMole version 1.1.0 (RRID:SCR_029214).
+
+[RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214) identifies the software; the version DOI
+identifies the archived release. The methods sentence accompanies the bibliographic reference.
+
+#### 20.3.3 Referring to the project in general
+
+Use the **Concept DOI** when discussing CurveMole as a project across versions:
+
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.22113854
+
+The Concept DOI (10.5281/zenodo.22113854) represents all versions. It resolves to
+the latest Zenodo archive, which may be a beta, and does not identify the version
+used for an analysis or the latest stable download.
+
+The [citation guide](citing.md) explains historical versions and plugin references.
+[Version BibTeX](citation.bib), [project BibTeX](concept-citation.bib) and
+GitHub's **Cite this repository** are generated from `CITATION.cff`.
 
 ### 20.4 Author and contact
 

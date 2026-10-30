@@ -13,7 +13,7 @@ import urllib.request
 from pathlib import Path
 from runpy import run_path
 
-replace_section = run_path(str(Path(__file__).with_name("readme_sections.py")))["replace_section"]
+citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION_FILE = ROOT / "src" / "curvemole" / "version.py"
@@ -136,20 +136,7 @@ def apply_metadata(version: str, doi: str) -> None:
         readme = DOI_BADGE_RE.sub(doi_badge, readme, count=1)
     else:
         readme = readme.replace(VERSION_BADGE, VERSION_BADGE + "\n" + doi_badge, 1)
-    citation = f"""## How to cite
-
-If CurveMole contributes to published research, please cite the exact version used.
-GitHub also provides a **Cite this repository** entry from [`CITATION.cff`](CITATION.cff).
-
-> Romi, S. (2026). *CurveMole: Modular Scientific Curve Fitting* (Version {version})
-> [Computer software]. Zenodo. {doi_url}
-
-DOI: [**{doi}**]({doi_url})
-"""
-    README.write_text(
-        replace_section(readme, "## How to cite", "## License", citation),
-        encoding="utf-8",
-    )
+    README.write_text(readme, encoding="utf-8")
 
     cff = CITATION.read_text(encoding="utf-8")
     cff = re.sub(r"^doi:\s*.*\n", "", cff, flags=re.M)
@@ -164,6 +151,7 @@ DOI: [**{doi}**]({doi_url})
         raise SystemExit("Could not find repository-code in CITATION.cff")
     lines.insert(repository_index, f'doi: "{doi}"')
     CITATION.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    citations["refresh"](CITATION.parent)
 
 
 def main() -> None:

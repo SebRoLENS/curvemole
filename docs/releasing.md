@@ -176,6 +176,23 @@ for pull requests and documentation changes. A documentation-only commit should 
 `[skip release]` when it must update the current manual without incrementing the
 software version.
 
+### Publishing citation and website corrections immediately
+
+Develop and validate these changes on `testing`, committing with `[skip release]`.
+When the user requests immediate publication, promote only the reviewed
+citation/documentation/website changes to `main`, also with `[skip release]`.
+Do not include unrelated beta application code or change the stable version.
+Main CI rebuilds the current manual and publishes the website against the
+existing complete stable release. This does not require a new software release.
+
+`CITATION.cff` is the source for the author, title, date, version DOI, Concept DOI
+and RRID. Run `python .github/scripts/citation_metadata.py` to regenerate all
+citation sections and BibTeX. The [citation guide](citing.md) defines their roles.
+Release preparation uses the same generator with a GitHub fallback while Zenodo
+archival is pending. DOI synchronisation then updates README, manual, guide,
+website citations and BibTeX together, rebuilding the current PDF and LaTeX.
+Archived release assets retain their original history.
+
 ## Zenodo
 
 The repository is connected to Zenodo. Releases start DOI synchronization after
