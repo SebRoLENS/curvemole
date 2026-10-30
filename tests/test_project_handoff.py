@@ -6,6 +6,7 @@ import socket
 
 import pytest
 
+from curvemole.core.project import Project
 from curvemole.core.project_handoff import (
     file_digest,
     pending_requests,
@@ -13,7 +14,6 @@ from curvemole.core.project_handoff import (
     reply_to_request,
     request_control,
 )
-from curvemole.core.project import Project
 from curvemole.core.serialization import ProjectLock, save_project
 
 
@@ -114,6 +114,7 @@ def test_save_as_moves_gui_lock_to_new_project(tmp_path, monkeypatch):
     pytest.importorskip("PySide6", exc_type=ImportError)
     pytest.importorskip("pyqtgraph", exc_type=ImportError)
     from PySide6.QtWidgets import QApplication
+
     from curvemole.gui.main_window import MainWindow
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
@@ -141,6 +142,7 @@ def test_owner_releases_on_request_and_requester_recovers_editing(tmp_path, monk
     pytest.importorskip("PySide6", exc_type=ImportError)
     pytest.importorskip("pyqtgraph", exc_type=ImportError)
     from PySide6.QtWidgets import QApplication
+
     from curvemole.gui.main_window import MainWindow
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
