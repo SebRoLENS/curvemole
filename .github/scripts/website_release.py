@@ -168,7 +168,7 @@ def assemble(metadata):
                                   ('stableDate', html.escape(field(citation, 'date-released'))),
                                   ('stableChangelog', stable_changelog(metadata['version']))]:
             page = re.sub(r'(<[^>]+id="' + element_id + r'"[^>]*>).*?(</(?:span|div)>)',
-                          lambda m: m[1] + value + m[2], page, flags=re.S)
+                          lambda m, replacement=value: m[1] + replacement + m[2], page, flags=re.S)
         pages[path] = page
     for element_id, count in counts.items():
         if count != 1:
