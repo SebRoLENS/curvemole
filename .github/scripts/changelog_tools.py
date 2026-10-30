@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import os
 import re
 import subprocess
 from collections import defaultdict
@@ -34,7 +33,7 @@ SKIP_RE = re.compile(
     r"remove unused handoff import|"
     r"keep project coordination imports sorted|"
     r"publish corrected shared-project locking beta validation|"
-    r"preserve accepted transfer even if rejecting others fails)"
+    r"publish corrected shared-project locking beta validation)"
     , re.I
 )
 ORDER = ("Added", "Changed", "Fixed", "Documentation")
