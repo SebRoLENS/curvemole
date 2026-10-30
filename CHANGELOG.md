@@ -9,15 +9,15 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Added
 
 - Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
-- Include first-time beta history file in automated commits. ([`de9a336b`](https://github.com/SebRoLENS/curvemole/commit/de9a336b39fae629429716f2c265a11e0beafa5c))
 
 ### Changed
 
 - Publish current stable automation documentation. ([`fee4bcb4`](https://github.com/SebRoLENS/curvemole/commit/fee4bcb403bce64c47427b37ffdae42c5ee7d832))
 - Coordinate shared-folder transfer and lock ownership in desktop. ([`fd8c402d`](https://github.com/SebRoLENS/curvemole/commit/fd8c402dc0e346b0f4ed59caf50483ceacc3c650))
 - Transfer project lock to Save As target and prevent concurrent overwrites. ([`38b552ca`](https://github.com/SebRoLENS/curvemole/commit/38b552ca5fa14216f23a6b01de9927eff999c944))
-- Generate each beta release's notes from actual commit changes. ([`a2ee844e`](https://github.com/SebRoLENS/curvemole/commit/a2ee844e4d0d6ca84fc5dd04ccc18f8de708f778))
-- Automatically commit cumulative changes and beta history after testing CI. ([`6f921460`](https://github.com/SebRoLENS/curvemole/commit/6f921460f2343c8f58dc6fb3e17831319a6e653b))
+- Backfill beta-cycle changes from stable 1.1.0 through current testing. ([`3a52b91c`](https://github.com/SebRoLENS/curvemole/commit/3a52b91c47d8b2cae67f94fecd639c09dac30577))
+- Backfill all nine published beta releases with actual commit histories. ([`780de88d`](https://github.com/SebRoLENS/curvemole/commit/780de88d20a673f33e11634eed86ce5472293804))
+- Exclude GitHub release tooling metadata from user-facing feature summaries. ([`28722969`](https://github.com/SebRoLENS/curvemole/commit/2872296910a2eb42cd1ccba24479d96f51280e00))
 
 ### Fixed
 
@@ -28,7 +28,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Handle concurrent requests and unresponsive remote sessions safely. ([`3dcb1428`](https://github.com/SebRoLENS/curvemole/commit/3dcb1428da4b0d05a4d3a9db937d4bf5e2223d45))
 - Preserve accepted transfer even if rejecting others fails. ([`1dc2706a`](https://github.com/SebRoLENS/curvemole/commit/1dc2706a9aec914aa15d1f3e29697304c08cce50))
 - Fix project-locking documentation formatting. ([`88831288`](https://github.com/SebRoLENS/curvemole/commit/88831288eb1a9e7fde7555b3a16e25fdc7a8dfd2))
-- Prevent release infrastructure commits from polluting feature history. ([`f96196fa`](https://github.com/SebRoLENS/curvemole/commit/f96196fa305d3aee0efb28b65fe5e3d034334fd7))
 
 ### Documentation
 
