@@ -4645,6 +4645,7 @@ class MainWindow(QMainWindow):
         path = Path(path)
         if path.suffix.lower() != ".fitproj":
             path = path.with_suffix(".fitproj")
+        path.parent.mkdir(parents=True, exist_ok=True)
         existing = self._project_lock
         if existing is not None and existing.acquired and existing.project_path == path:
             if not existing.owns():
@@ -4779,7 +4780,7 @@ class MainWindow(QMainWindow):
             self._cancel_project_transfer()
             self.refresh_all()
             self._notify(self.tr("Project control transferred to this computer."))
-        except (OSError, ValueError, RuntimeError) as exc:
+        except Exception as exc:
             self._log(f"Project handoff check failed: {exc}")
 
     def _release_lock(self) -> None:
