@@ -12,7 +12,7 @@ def test_rrid_documentation():
     assert RRID_URL == "https://scicrunch.org/resolver/RRID:SCR_029214"
     for name in ("README.md", "CITATION.cff", "docs/manual.md",
                  "docs/plugins.md", "custom_plugins/README.md",
-                 "website/dist/index.html"):
+                 "website/dist/contact.html"):
         assert f"RRID:{RRID}" in (ROOT / name).read_text(encoding="utf-8"), name
 
 
@@ -21,7 +21,7 @@ def test_concept_doi_metadata():
     assert CONCEPT_DOI_URL == "https://doi.org/10.5281/zenodo.22113854"
     for path in ("README.md", "CITATION.cff", "docs/manual.md",
                  "docs/plugins.md", "custom_plugins/README.md",
-                 "website/dist/index.html", "website/README.md"):
+                 "website/dist/contact.html", "website/README.md"):
         assert CONCEPT_DOI in (ROOT / path).read_text(encoding="utf-8"), path
 
 
