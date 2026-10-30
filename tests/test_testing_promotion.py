@@ -32,7 +32,8 @@ def repo(tmp_path, monkeypatch):
     git("config", "user.email", "test@example.invalid")
     (checkout / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
     (checkout / ".github/scripts").mkdir(parents=True)
-    for name in ("promote_testing.py", "release_state.py", "prepare_release.py", "readme_sections.py", "release_target.py"):
+    for name in ("promote_testing.py", "release_state.py", "prepare_release.py", "readme_sections.py", "release_target.py",
+                 "citation_metadata.py"):
         shutil.copy2(ROOT / ".github/scripts" / name, checkout / ".github/scripts" / name)
     (checkout / ".github/release-target.json").write_text('{"version": "1.1.0"}\n')
     (checkout / "src/curvemole").mkdir(parents=True)
