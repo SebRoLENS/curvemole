@@ -8,12 +8,14 @@ import io
 import json
 import os
 import socket
+import sys
 import tempfile
+import uuid
 import zipfile
 import zlib
-from collections.abc import Iterator, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import AbstractContextManager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -296,6 +298,7 @@ def save_project(
     include_uncertainty_samples: bool = True,
     portable: bool = False,
     update_project_path: bool = True,
+    pre_commit_check: Callable[[], None] | None = None,
 ) -> Path:
     if isinstance(project, ProjectSaveSnapshot) and update_project_path:
         raise ValueError("Saving a detached snapshot cannot mark the live project as saved.")
@@ -350,6 +353,8 @@ def save_project(
             }
             _write_json(archive, "manifest.json", manifest)
         validate_project_archive(temporary)
+        if pre_commit_check is not None:
+            pre_commit_check()
         os.replace(temporary, destination)
         if update_project_path:
             project.mark_saved(destination)
@@ -610,48 +615,122 @@ def load_fitmodel(path: str | Path) -> tuple[Model, list[dict[str, Any]]]:
     return Model.from_dict(payload["model"]), list(payload.get("custom_functions", []))
 
 
+def _process_identity(pid: int) -> str | None:
+    """Recognize PID reuse where the platform offers a process start identifier."""
+    if sys.platform.startswith("linux"):
+        try:
+            stat = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
+            start = stat.rsplit(")", 1)[1].split()[19]
+            boot = Path("/proc/sys/kernel/random/boot_id").read_text(encoding="ascii").strip()
+            return f"{boot}:{start}"
+        except (OSError, IndexError, ValueError):
+            return None
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+            kernel.OpenProcess.restype = wintypes.HANDLE
+            kernel.GetProcessTimes.argtypes = (
+                wintypes.HANDLE, ctypes.c_void_p, ctypes.c_void_p,
+                ctypes.c_void_p, ctypes.c_void_p,
+            )
+            kernel.GetProcessTimes.restype = wintypes.BOOL
+            handle = kernel.OpenProcess(0x1000, False, pid)
+            if not handle:
+                return None
+            try:
+                creation = (wintypes.DWORD * 2)()
+                spare = [(wintypes.DWORD * 2)() for _ in range(3)]
+                if not kernel.GetProcessTimes(handle, creation, *spare):
+                    return None
+                return f"{creation[1]}:{creation[0]}"
+            finally:
+                kernel.CloseHandle(handle)
+        except (OSError, AttributeError):
+            return None
+    if sys.platform == "darwin":
+        try:
+            import subprocess
+
+            return subprocess.check_output(
+                ["ps", "-p", str(pid), "-o", "lstart="],
+                stderr=subprocess.DEVNULL, timeout=2, text=True,
+            ).strip() or None
+        except (OSError, subprocess.SubprocessError):
+            return None
+    return None
+
+
 @dataclass(slots=True)
 class ProjectLock(AbstractContextManager["ProjectLock"]):
     project_path: Path
     acquired: bool = False
     lock_path: Path | None = None
+    session_id: str = field(default_factory=lambda: uuid.uuid4().hex)
+    takeover_from: str | None = None
+    _payload: dict[str, Any] = field(default_factory=dict, repr=False)
+
+    @staticmethod
+    def owner(path: str | Path) -> dict[str, Any] | None:
+        source = Path(path)
+        lock_path = source.with_suffix(source.suffix + ".lock")
+        try:
+            payload = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, UnicodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
 
     def __enter__(self) -> ProjectLock:
         self.lock_path = self.project_path.with_suffix(self.project_path.suffix + ".lock")
-        payload = json.dumps(
-            {
-                "pid": os.getpid(),
-                "host": socket.gethostname(),
-                "created_at": datetime.now(UTC).isoformat(),
-                "project": str(self.project_path.resolve()),
-            }
-        ).encode("utf-8")
-        try:
-            descriptor = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        except FileExistsError:
-            if not self._discard_stale_lock():
-                self.acquired = False
-                return self
+        now = datetime.now(UTC).isoformat()
+        self._payload = {
+            "pid": os.getpid(),
+            "host": socket.gethostname(),
+            "process_start": _process_identity(os.getpid()),
+            "session_id": self.session_id,
+            "created_at": now,
+            "heartbeat_at": now,
+            "project": str(self.project_path.resolve()),
+        }
+        self.acquired = False
+        for _ in range(2):
             try:
                 descriptor = os.open(self.lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
             except FileExistsError:
-                self.acquired = False
+                if self._discard_stale_lock() or self._discard_authorized_transfer_lock():
+                    continue
                 return self
-        try:
-            os.write(descriptor, payload)
-        finally:
-            os.close(descriptor)
-        self.acquired = True
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                    json.dump(self._payload, stream)
+            except BaseException:
+                self.lock_path.unlink(missing_ok=True)
+                raise
+            self.acquired = True
+            return self
         return self
 
-    def _discard_stale_lock(self) -> bool:
-        """Reclaim only locks whose owner has exited on this same computer."""
+    def owns(self) -> bool:
+        return (
+            self.acquired
+            and self.lock_path is not None
+            and (self.owner(self.project_path) or {}).get("session_id") == self.session_id
+        )
+
+    def heartbeat(self) -> bool:
+        """One small atomic metadata update per minute, only for the current owner."""
+        if not self.owns():
+            return False
+        self._payload["heartbeat_at"] = datetime.now(UTC).isoformat()
+        _atomic_json(self.lock_path, self._payload)
+        return self.owns()
+
+    def _unlink_if_unchanged(self, before: os.stat_result) -> bool:
         assert self.lock_path is not None
         try:
-            before = self.lock_path.stat()
-            owner = json.loads(self.lock_path.read_text(encoding="utf-8"))
-            if owner.get("host") != socket.gethostname() or process_alive(int(owner["pid"])):
-                return False
             after = self.lock_path.stat()
             if (before.st_ino, before.st_mtime_ns, before.st_size) != (
                 after.st_ino, after.st_mtime_ns, after.st_size
@@ -659,11 +738,45 @@ class ProjectLock(AbstractContextManager["ProjectLock"]):
                 return False
             self.lock_path.unlink()
             return True
+        except OSError:
+            return False
+
+    def _discard_authorized_transfer_lock(self) -> bool:
+        """Takeover is allowed only after a matching acknowledged handoff."""
+        if not self.takeover_from or self.lock_path is None:
+            return False
+        try:
+            before = self.lock_path.stat()
+            owner = self.owner(self.project_path)
+            if not owner or owner.get("session_id") != self.takeover_from:
+                return False
+            return self._unlink_if_unchanged(before)
+        except OSError:
+            return False
+
+    def _discard_stale_lock(self) -> bool:
+        """Never treat a silent remote heartbeat as proof of a dead process."""
+        assert self.lock_path is not None
+        try:
+            before = self.lock_path.stat()
+            owner = self.owner(self.project_path)
+            if not owner or owner.get("host") != socket.gethostname():
+                return False
+            pid = int(owner["pid"])
+            living = process_alive(pid)
+            old_identity = owner.get("process_start")
+            current_identity = _process_identity(pid) if living else None
+            if living and (
+                not old_identity or not current_identity or old_identity == current_identity
+            ):
+                return False
+            return self._unlink_if_unchanged(before)
         except (OSError, ValueError, TypeError, KeyError, AttributeError):
             return False
 
     def __exit__(self, *exc: object) -> None:
-        if self.acquired and self.lock_path:
+        if self.owns():
+            assert self.lock_path is not None
             self.lock_path.unlink(missing_ok=True)
         self.acquired = False
 
