@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
+import os
 import re
 import subprocess
 from collections import defaultdict
@@ -203,25 +205,55 @@ def beta_changes(head: str = "HEAD", *, version: str | None = None) -> tuple[str
     return base, render_groups(change_groups(base, head))
 
 
+def _published_beta_dates() -> dict[str, str] | None:
+    """Prefer verified publication dates; offline mode uses Git commit dates."""
+    if not os.environ.get("GH_TOKEN") or not os.environ.get("GITHUB_REPOSITORY"):
+        return None
+    try:
+        raw = subprocess.check_output(
+            ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/releases?per_page=100"],
+            cwd=ROOT, text=True, timeout=30,
+        )
+        releases = json.loads(raw)
+        if not isinstance(releases, list):
+            return None
+        return {
+            entry["tag_name"]: entry["published_at"][:10]
+            for entry in releases
+            if isinstance(entry, dict)
+            and entry.get("prerelease") is True
+            and entry.get("draft") is False
+            and BETA_RE.fullmatch(str(entry.get("tag_name", "")))
+            and isinstance(entry.get("published_at"), str)
+        }
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+
+
 def sync_beta_history(head: str = "HEAD", path: Path = HISTORY) -> None:
+    dates = _published_beta_dates()
     previous = None
     entries = []
-    for tag in published_beta_tags(head):
+    reachable = published_beta_tags(head)
+    if dates is not None:
+        reachable = [tag for tag in reachable if tag in dates]
+    for tag in reachable:
         base = preceding_beta_or_stable(tag, previous)
-        dated = git("show", "-s", "--format=%cs", tag)
+        dated = dates[tag] if dates is not None else git("show", "-s", "--format=%cs", tag)
+        date_kind = "published" if dates is not None else "source"
         changes = render_groups(change_groups(base, tag))
         entries.append(
-            f"## [{tag[1:]}](https://github.com/SebRoLENS/curvemole/releases/tag/{tag}) — {dated}\n\n"
+            f"## [{tag[1:]}](https://github.com/SebRoLENS/curvemole/releases/tag/{tag}) — {date_kind} {dated}\n\n"
             f"Changes since `{base}` ([compare](https://github.com/SebRoLENS/curvemole/compare/{base}...{tag})).\n\n"
             + changes
         )
         previous = tag
     intro = (
         "# Published beta history\n\n"
-        "Generated from beta release tags and their Git commits; beta build/run numbers "
-        "may have gaps. Entries describe changes introduced **between consecutive published "
-        "betas** (or since the nearest stable release for the first beta). Dates are source commit dates. "
-        "The cumulative stable changelog is maintained separately in `CHANGELOG.md`.\n\n"
+        "Generated from beta tags and the GitHub release catalog (when available). "
+        "Beta run numbers may have gaps. Each section describes changes between "
+        "consecutive published betas, or since the previous stable release. "
+        "The cumulative stable-cycle history is in `CHANGELOG.md`.\n\n"
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(intro + "\n\n".join(reversed(entries)) + "\n", encoding="utf-8")
