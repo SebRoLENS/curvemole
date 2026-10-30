@@ -746,6 +746,7 @@ class MainWindow(QMainWindow):
         self._project_disk_digest: str | None = None
         self._transfer_request: dict | None = None
         self._transfer_path: Path | None = None
+        self._transfer_timeout_warned = False
         self._transfer_monitor = QTimer(self)
         self._transfer_monitor.setInterval(5000)
         self._transfer_monitor.timeout.connect(self._poll_project_transfer)
@@ -4631,6 +4632,7 @@ class MainWindow(QMainWindow):
         self._transfer_monitor.stop()
         self._transfer_request = None
         self._transfer_path = None
+        self._transfer_timeout_warned = False
 
     def _check_project_file_unchanged(self, path: Path, expected: str | None) -> None:
         actual = file_digest(path)
@@ -4713,6 +4715,11 @@ class MainWindow(QMainWindow):
                     )
                     self.project.read_only = True
                     self._release_lock()
+                    for waiting in requests[1:]:
+                        reply_to_request(
+                            lock.project_path, waiting, accepted=False,
+                            reason="Another request acquired control first.",
+                        )
                     self.refresh_all()
                     self._notify(
                         self.tr("Project control released to another computer.")
@@ -4736,6 +4743,22 @@ class MainWindow(QMainWindow):
         try:
             response = read_reply(path, request)
             if response is None:
+                requested_at = request.get("created_at", 0)
+                if (not self._transfer_timeout_warned
+                        and time.time() - requested_at >= 180):
+                    self._transfer_timeout_warned = True
+                    self._notify(
+                        self.tr(
+                            "No response from the other computer yet. You may keep "
+                            "waiting, or use Save As to save a separate copy."
+                        ), warning=True,
+                    )
+                if time.time() - requested_at >= 24 * 60 * 60:
+                    self._cancel_project_transfer()
+                    self._notify(
+                        self.tr("Project control request expired; reopen to request again."),
+                        warning=True,
+                    )
                 return
             if not response["accepted"]:
                 self._cancel_project_transfer()
