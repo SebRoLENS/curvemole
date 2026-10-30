@@ -23,6 +23,7 @@ class ManualSaveController(QObject):
         self._result = False
         self._closed = False
         self._status = None
+        self._pending_lock = None
         self.timer = QTimer(self)
         self.timer.setInterval(30)
         self.timer.timeout.connect(self._poll)
@@ -74,11 +75,15 @@ class ManualSaveController(QObject):
                 self._source = self.window.project
                 snapshot = capture_project_snapshot(self._source)
                 self._revision = snapshot.revision
+                guard = None
+                if not portable:
+                    self._pending_lock, guard = self.window._prepare_project_save_lock(path)
                 if self._executor is None:
                     self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="CurveMoleSave")
-                self._future = self._executor.submit(
-                    writer, snapshot, path, portable=portable, update_project_path=False,
-                )
+                kwargs = {"portable": portable, "update_project_path": False}
+                if guard is not None:
+                    kwargs["pre_commit_check"] = guard
+                self._future = self._executor.submit(writer, snapshot, path, **kwargs)
             if self._future is None or not self._future.done():
                 return
             path = self._future.result()
@@ -87,6 +92,7 @@ class ManualSaveController(QObject):
                 self.window._notify(self.tr("Portable copy saved."))
             else:
                 if self.window.project is self._source:
+                    self.window._adopt_saved_project_lock(self._pending_lock, path)
                     self._source.path = path
                     self._source.read_only = False
                     if self._source.revision == self._revision:
@@ -104,6 +110,9 @@ class ManualSaveController(QObject):
 
     def _complete(self, result):
         self._result = result
+        if self._pending_lock is not None and self._pending_lock is not self.window._project_lock:
+            self._pending_lock.__exit__(None, None, None)
+        self._pending_lock = None
         self._pending = self._future = self._source = None
         self.timer.stop()
         if self._status is not None:
