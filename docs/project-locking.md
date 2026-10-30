@@ -1,6 +1,6 @@
 # Shared-project locking and handoff (testing beta)
 
-CurveMole uses an adjacent \`<project>.fitproj.lock\` sidecar to record the
+CurveMole uses an adjacent `<project>.fitproj.lock` sidecar to record the
 current session's PID, machine name, unique session ID, process start identity,
 creation timestamp and heartbeat. An owned lock is renewed every **60 seconds**,
 not on every edit or save. The file is a coordination hint, not a backup and not
@@ -24,7 +24,7 @@ directory, the same process applies to the shared storage.
 
 1. The second computer opens the project read-only and offers **Request control**
    when the lock belongs to a different host and has a session ID.
-2. Accepting creates a unique \`.fitproj.lock.request-<id>.json\` sidecar.
+2. Accepting creates a unique `.fitproj.lock.request-<id>.json` sidecar.
 3. Every minute the owning CurveMole checks requests addressed to its exact
    session. It waits for in-progress fitting or saving, checks that the file
    was not externally modified and saves any unsaved work.
