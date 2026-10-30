@@ -5,6 +5,43 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Added
+
+- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
+- Include first-time beta history file in automated commits. ([`de9a336b`](https://github.com/SebRoLENS/curvemole/commit/de9a336b39fae629429716f2c265a11e0beafa5c))
+
+### Changed
+
+- Publish current stable automation documentation. ([`fee4bcb4`](https://github.com/SebRoLENS/curvemole/commit/fee4bcb403bce64c47427b37ffdae42c5ee7d832))
+- Coordinate shared-folder transfer and lock ownership in desktop. ([`fd8c402d`](https://github.com/SebRoLENS/curvemole/commit/fd8c402dc0e346b0f4ed59caf50483ceacc3c650))
+- Transfer project lock to Save As target and prevent concurrent overwrites. ([`38b552ca`](https://github.com/SebRoLENS/curvemole/commit/38b552ca5fa14216f23a6b01de9927eff999c944))
+- Generate each beta release's notes from actual commit changes. ([`a2ee844e`](https://github.com/SebRoLENS/curvemole/commit/a2ee844e4d0d6ca84fc5dd04ccc18f8de708f778))
+- Automatically commit cumulative changes and beta history after testing CI. ([`6f921460`](https://github.com/SebRoLENS/curvemole/commit/6f921460f2343c8f58dc6fb3e17831319a6e653b))
+
+### Fixed
+
+- Fix batch YAML workflow automation for beta 1.1.1. ([`f3fc2ccd`](https://github.com/SebRoLENS/curvemole/commit/f3fc2ccde5841a4b523161db8c9fc2e6dc389945))
+- Harden project lock identities and guarded commit. ([`d25eb73f`](https://github.com/SebRoLENS/curvemole/commit/d25eb73f0ffba35584d1fd065cd9634766c9429d))
+- Avoid same-host handoff prompts and preserve editability if reply fails. ([`32218baf`](https://github.com/SebRoLENS/curvemole/commit/32218bafd23c5415a4142acbc7dc4169c6b62caf))
+- Guard Save As destinations and gracefully handle transfer errors. ([`26945515`](https://github.com/SebRoLENS/curvemole/commit/26945515fdfd602c3cc6f98f207a977dac24ff7f))
+- Handle concurrent requests and unresponsive remote sessions safely. ([`3dcb1428`](https://github.com/SebRoLENS/curvemole/commit/3dcb1428da4b0d05a4d3a9db937d4bf5e2223d45))
+- Preserve accepted transfer even if rejecting others fails. ([`1dc2706a`](https://github.com/SebRoLENS/curvemole/commit/1dc2706a9aec914aa15d1f3e29697304c08cce50))
+- Fix project-locking documentation formatting. ([`88831288`](https://github.com/SebRoLENS/curvemole/commit/88831288eb1a9e7fde7555b3a16e25fdc7a8dfd2))
+- Prevent release infrastructure commits from polluting feature history. ([`f96196fa`](https://github.com/SebRoLENS/curvemole/commit/f96196fa305d3aee0efb28b65fe5e3d034334fd7))
+
+### Documentation
+
+- Document Python scripting and YAML automation audits. ([`2b867074`](https://github.com/SebRoLENS/curvemole/commit/2b867074ef3811ae478e3d2fdd4d23f3d90782b5))
+- docs: include CurveMole RRID in scholarly metadata, website and app exports. ([`b680a5c5`](https://github.com/SebRoLENS/curvemole/commit/b680a5c576dd6a6a8576f4fbf84cf2c7d818e623))
+- docs: add all-versions Zenodo Concept DOI to software, exports, manuals and website. ([`44e6c4d7`](https://github.com/SebRoLENS/curvemole/commit/44e6c4d756bcb9a2545a79e45e63aa311a3ae471))
+- Unify software citations across documentation and website. ([`12fe9551`](https://github.com/SebRoLENS/curvemole/commit/12fe9551af2940d32aedca67ab86b17a6a86c3eb))
+- Explain citation roles in About and analysis exports. ([`2cf2a621`](https://github.com/SebRoLENS/curvemole/commit/2cf2a621f42612cb473dd292048c89f4a3450b8b))
+- Include citation generator in isolated promotion tests. ([`2977a143`](https://github.com/SebRoLENS/curvemole/commit/2977a1431b290a063f3470468102d959d7bfb3fa))
+- Add consent-gated CurveMole website analytics. ([`3459c3a3`](https://github.com/SebRoLENS/curvemole/commit/3459c3a3ceafce260372f904f8986fd527fcc6d4))
+- Organize website pages and add sitemap. ([`21de68e7`](https://github.com/SebRoLENS/curvemole/commit/21de68e7998429d2d9ce7edbc166acb484c0f2e4))
+<!-- END AUTOMATED CHANGES -->
+
 ### Fixed
 
 - Allow schema-3 YAML workflows to import folders and glob patterns, with recursive
