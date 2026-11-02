@@ -38,21 +38,31 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Fix shortcut reference tests for native macOS key labels. ([`c3e0d745`](https://github.com/SebRoLENS/curvemole/commit/c3e0d745ab48f25a1c40bb39a7f1b028127a8079))
 - Fix scientific audit findings and publish tested beta corrections. ([`d72828c2`](https://github.com/SebRoLENS/curvemole/commit/d72828c25066bee8490b43ace2ec3b32f1972ccd))
 - Handle Windows parser recursion and native macOS shortcut checks. ([`f3ac6c06`](https://github.com/SebRoLENS/curvemole/commit/f3ac6c068fe7826cebbcf24e1925d67cc9b86f7e))
+- Fix beta withdrawal verification through immutable release ID. ([`591d0543`](https://github.com/SebRoLENS/curvemole/commit/591d054398893b058181e5c7149de02621bad594))
 
 ### Documentation
 
 - Document Python scripting and YAML automation audits. ([`2b867074`](https://github.com/SebRoLENS/curvemole/commit/2b867074ef3811ae478e3d2fdd4d23f3d90782b5))
 - docs: include CurveMole RRID in scholarly metadata, website and app exports. ([`b680a5c5`](https://github.com/SebRoLENS/curvemole/commit/b680a5c576dd6a6a8576f4fbf84cf2c7d818e623))
+- docs: publish CurveMole RRID in public citation, manuals and website. ([`9a34f697`](https://github.com/SebRoLENS/curvemole/commit/9a34f697071f26e1dff93a2a258c1d002a87be7e))
+- docs: publish all-versions Concept DOI beside release citations. ([`df8bdbbb`](https://github.com/SebRoLENS/curvemole/commit/df8bdbbba4a678268ee01c7cad3372e547859599))
 - docs: add all-versions Zenodo Concept DOI to software, exports, manuals and website. ([`44e6c4d7`](https://github.com/SebRoLENS/curvemole/commit/44e6c4d756bcb9a2545a79e45e63aa311a3ae471))
 - Unify software citations across documentation and website. ([`12fe9551`](https://github.com/SebRoLENS/curvemole/commit/12fe9551af2940d32aedca67ab86b17a6a86c3eb))
+- Publish consistent citation guidance for the current stable release. ([`180ad6ea`](https://github.com/SebRoLENS/curvemole/commit/180ad6ea291086624ea698123be6e7e71adde1a7))
 - Explain citation roles in About and analysis exports. ([`2cf2a621`](https://github.com/SebRoLENS/curvemole/commit/2cf2a621f42612cb473dd292048c89f4a3450b8b))
 - Include citation generator in isolated promotion tests. ([`2977a143`](https://github.com/SebRoLENS/curvemole/commit/2977a1431b290a063f3470468102d959d7bfb3fa))
+- Publish citation validation correction from testing. ([`6f36f22e`](https://github.com/SebRoLENS/curvemole/commit/6f36f22e1e533ac402335ab74a54e30420c6aa2d))
 - Add consent-gated CurveMole website analytics. ([`3459c3a3`](https://github.com/SebRoLENS/curvemole/commit/3459c3a3ceafce260372f904f8986fd527fcc6d4))
+- Publish consent-gated Google Analytics for CurveMole website. ([`fce83d59`](https://github.com/SebRoLENS/curvemole/commit/fce83d59893de022576c11147294731715f4dfae))
 - Organize website pages and add sitemap. ([`21de68e7`](https://github.com/SebRoLENS/curvemole/commit/21de68e7998429d2d9ce7edbc166acb484c0f2e4))
+- Publish reviewed website pages and sitemap from testing. ([`c81c5661`](https://github.com/SebRoLENS/curvemole/commit/c81c5661f196888b7060b59eac40a3cd676cce03))
+- Publish tested website lint corrections from testing. ([`8f4ab605`](https://github.com/SebRoLENS/curvemole/commit/8f4ab605aa994d6aff53c958c7893fdf7e6007cd))
+- Switch CurveMole website to cookie-free Cloudflare analytics. ([`f526eeca`](https://github.com/SebRoLENS/curvemole/commit/f526eeca201ff9fa8f7981fbdf73a933b37faca0))
 - Document missing 1.1.0 stable changes from its published Git history. ([`bbc2e93c`](https://github.com/SebRoLENS/curvemole/commit/bbc2e93cee5339f201eb7a556042d09e20413dfd))
 - Repair website history renderer and build dated stable archive safely. ([`94a41ff8`](https://github.com/SebRoLENS/curvemole/commit/94a41ff8e864b3fdffcf82d19038f70e8ea6276a))
 - Document historical stable What’s New publication behavior. ([`d5c8b9f5`](https://github.com/SebRoLENS/curvemole/commit/d5c8b9f5d61a0ec881b7a582bb97f1a9e1f009d9))
 - Repair website generator syntax and remove duplicated trailing content. ([`23b9f54b`](https://github.com/SebRoLENS/curvemole/commit/23b9f54b7e238b719b832b7564711f194aa1b883))
+- Fix stable release staging of website citations. ([`ad1f16f2`](https://github.com/SebRoLENS/curvemole/commit/ad1f16f262b3ef91ee1a42b3cf9d9da7742ef8f8))
 <!-- END AUTOMATED CHANGES -->
 
 ### Fixed
