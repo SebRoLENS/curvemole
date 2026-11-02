@@ -24,6 +24,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Show stable release archive in What’s New from 1.0.0 onward. ([`cabbd7ad`](https://github.com/SebRoLENS/curvemole/commit/cabbd7ad72bd9fc2ca519874359c47ab4092ce85))
 - Style chronological What’s New release archive on desktop and mobile. ([`cbfbeef0`](https://github.com/SebRoLENS/curvemole/commit/cbfbeef0e94237fd557d3eefcd84482ff8d5ff92))
 - Swap double-click view scopes: left for unmasked points, right for all points. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
+- Prepare 1.2.0 beta with explicit shortcut additions and restored categories. ([`49760681`](https://github.com/SebRoLENS/curvemole/commit/49760681873e84ea83f3f035ef4f63919ed23bd7))
 
 ### Fixed
 
