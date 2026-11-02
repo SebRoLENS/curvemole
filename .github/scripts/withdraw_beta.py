@@ -50,12 +50,17 @@ def withdraw(replacement: str, root: Path = Path('.')) -> list[str]:
         require_beta(old, old_tag, source)
         if old.get('draft') is True:
             continue
+        release_id = old.get('id')
+        if not isinstance(release_id, int) or release_id <= 0:
+            raise ValueError('Missing immutable release ID; refusing withdrawal.')
         subprocess.run(['gh', 'release', 'edit', old_tag, '--repo', repository, '--draft'],
                        check=True)
-        confirmed = read_json(repository, f'releases/tags/{old_tag}')
-        require_beta(confirmed, old_tag, source)
-        if confirmed.get('draft') is not True:
-            raise RuntimeError('Superseded beta is still public.')
+        # GitHub can detach a newly unpublished draft from its public tag URL.
+        # Its immutable release ID remains available to the authenticated token.
+        confirmed = read_json(repository, f'releases/{release_id}')
+        if (confirmed.get('id') != release_id or confirmed.get('target_commitish') != source
+                or confirmed.get('prerelease') is not True or confirmed.get('draft') is not True):
+            raise RuntimeError('Superseded beta withdrawal could not be verified.')
         changed.append(old_tag)
     return changed
 

@@ -29,7 +29,8 @@ def withdrawal(tmp_path, monkeypatch):
 
 
 def release(tag, source, **changes):
-    return dict(tag_name=tag, target_commitish=source, prerelease=True, draft=False, **changes)
+    return dict(id=101 if tag == OLD else 202, tag_name=tag, target_commitish=source,
+                prerelease=True, draft=False, **changes)
 
 
 def test_withdrawal_is_reversible_idempotent_and_only_edits_the_old_beta(withdrawal, monkeypatch):
@@ -88,3 +89,38 @@ def test_only_testing_beta_publication_can_withdraw(withdrawal, monkeypatch, ref
     monkeypatch.setenv('GITHUB_REF', ref)
     with pytest.raises(ValueError, match='testing beta'):
         module.withdraw(version, root)
+
+
+def test_draft_confirmation_uses_immutable_id_when_tag_lookup_disappears(withdrawal, monkeypatch):
+    module, root = withdrawal
+    old = release(OLD, OLD_SHA)
+    def read(repo, path, **kwargs):
+        if path.endswith(NEW):
+            return release(NEW, NEW_SHA)
+        if path == 'releases/101':
+            return old.copy()
+        assert old['draft'] is False, 'A draft may no longer resolve through its tag URL'
+        return old.copy()
+    def edit(*args, **kwargs):
+        old.update(draft=True, tag_name='untagged-123abc')
+    monkeypatch.setattr(module, 'read_json', read)
+    monkeypatch.setattr(module.subprocess, 'run', edit)
+    assert module.withdraw('1.2.0b88', root) == [OLD]
+
+
+@pytest.mark.parametrize('change', [{'id': 999}, {'target_commitish': 'b'*40},
+                                  {'draft': False}, {'prerelease': False}])
+def test_draft_confirmation_rejects_changed_release_identity(withdrawal, monkeypatch, change):
+    module, root = withdrawal
+    def read(repo, path, **kwargs):
+        if path.endswith(NEW):
+            return release(NEW, NEW_SHA)
+        old = release(OLD, OLD_SHA)
+        if path == 'releases/101':
+            old.update(draft=True)
+            old.update(change)
+        return old
+    monkeypatch.setattr(module, 'read_json', read)
+    monkeypatch.setattr(module.subprocess, 'run', lambda *a, **kw: None)
+    with pytest.raises(RuntimeError, match='could not be verified'):
+        module.withdraw('1.2.0b88', root)
