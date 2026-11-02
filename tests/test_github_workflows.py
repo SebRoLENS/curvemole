@@ -101,6 +101,7 @@ def repository(tmp_path, monkeypatch):
     git(checkout, "init", "-b", "main")
     git(checkout, "config", "user.name", "Test")
     git(checkout, "config", "user.email", "test@example.invalid")
+    (checkout / ".gitignore").write_text((ROOT / ".gitignore").read_text())
     for name in state.FILES:
         path = checkout / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -141,6 +142,21 @@ def test_release_retry_reuses_its_commit_and_version_after_tag_exists(repository
     assert git(repository, "rev-parse", "origin/main") == prepared
     assert git(repository, "rev-parse", "HEAD") == source
     assert state.previous_release("12", source) is None
+
+
+def test_release_commits_website_citations_with_real_ignore_rules(repository):
+    for name in ("dist/package.whl", "build/temp.txt", "nested/dist/temp.txt"):
+        path = repository / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("build output")
+        assert git(repository, "check-ignore", name) == name
+    contact = repository / "website/dist/contact.html"
+    contact.write_text("Updated stable citation\n")
+    archive_changes(repository)
+    git(repository, "checkout", "--", "website/dist/contact.html")
+    state.commit(type("Args", (), {"run_id": "789", "version": "0.35.5"})())
+    assert git(repository, "show", "HEAD:website/dist/contact.html") == "Updated stable citation"
+    assert "dist/package.whl" not in git(repository, "ls-files").splitlines()
 
 
 def test_preparation_records_identity_when_generated_files_are_unchanged(repository):

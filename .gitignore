@@ -8,6 +8,8 @@ __pycache__/
 htmlcov/
 build/
 dist/
+# The published website is maintained in Git, unlike Python build output.
+!/website/dist/
 *.spec.tmp
 *.fitproj.lock
 *.recovery-*.fitproj
