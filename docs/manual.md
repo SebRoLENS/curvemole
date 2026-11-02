@@ -1,27 +1,23 @@
-# CurveMole User Manual - 1.1.0
+# CurveMole User Manual - 1.2.0
 
-**Current manual version: 1.1.0**
+**Current manual version: 1.2.0**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. The stable API baseline is CurveMole 1.1.0 Stable.
-This testing edition documents the current local testing code on top of that
-baseline; it does not claim that all testing behavior is present in the stable release.
+scientific curves. The stable API baseline is CurveMole 1.2.0 Stable.
+This release edition documents the released scientific engine and application.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-**Testing edition for CurveMole 1.2.0 beta.** The title retains the stable API
-baseline, 1.1.0. Marked beta sections and Appendices F/G describe the additional
-workflow capabilities in 1.2.0 beta. The current testing edition also includes the
-scientific and data-integrity corrections summarized in Appendix I; these changes
-must not be assumed to exist in the 1.1.0 stable executable. Use the manual and AI
-audits attached to your exact beta download. The content was checked against the
-local testing code on 2026-11-02.
+**Stable edition for CurveMole 1.2.0.** This release includes the workflow
+features documented in Appendices F/G and the scientific and data-integrity
+corrections summarized in Appendices I/J. Earlier executables can differ;
+keep the matching manual and automation references with your analysis.
 
-**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+**Scientific corrections (release, 2026-11-02).** The seven findings in the
 latest scientific audit are corrected in this edition: parameter scaling,
 nonlinear uncertainty derivatives, convolution alignment, compensated summation,
 profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact beta build;
+the changes and their limits. Use the documents attached to your exact release build;
 these corrections do not apply retroactively to earlier executables.
 
 Useful links:
@@ -105,7 +101,7 @@ validity. In particular:
 - report the exact CurveMole version, model, constraints, weighting, and uncertainty
   method used.
 
-For this testing edition, also read Appendix J before interpreting transformed
+For this release edition, also read Appendix J before interpreting transformed
 errors, nonlinear links, convolution centres or profile intervals. Solver success
 and an assessment of **OK** do not detect every demonstrated numerical error.
 
@@ -218,14 +214,14 @@ choose **Open Anyway**, then **Open**, and authenticate if asked.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-1.1.0-linux-x86_64.AppImage
-./CurveMole-1.1.0-linux-x86_64.AppImage
+chmod +x CurveMole-1.2.0-linux-x86_64.AppImage
+./CurveMole-1.2.0-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-1.1.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-1.2.0-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -257,13 +253,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-1.1.0-macos-arm64.dmg
+shasum -a 256 CurveMole-1.2.0-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-1.1.0-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-1.2.0-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -275,7 +271,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-1.1.0-py3-none-any.whl
+python -m pip install ./curvemole-1.2.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -284,7 +280,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-1.1.0-py3-none-any.whl
+python -m pip install .\curvemole-1.2.0-py3-none-any.whl
 curvemole gui
 ```
 
@@ -838,7 +834,7 @@ Optional columns are:
 
 Only one of `sigma_y`, confidence-interval errors, generic weight, variance, or inverse variance can be selected
 for a given spectrum. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 1.1.0 optimizer.
+stored in the project but is not used by the version 1.2.0 optimizer.
 
 For confidence intervals, choose **Y error (confidence interval)** and one symmetric
 half-width column, or check **Asymmetric error** and select **Y error +** and
@@ -2507,7 +2503,7 @@ and correlation as block matrices. This reduces memory while preserving recorded
 fits and sample values. Schemas 1 through 3 remain readable. Newly saved projects
 require a reader supporting schema 4 block matrices; keep a backup when sharing
 with older installations. Model files remain at schema 2. The stable workflow
-format is schema 2; 1.2.0 beta adds workflow schema 3 for batch imports and
+format is schema 2; 1.2.0 adds workflow schema 3 for batch imports and
 preprocessing while retaining support for legacy schema 1/2 recipes.
 
 NumPy arrays are loaded with `allow_pickle=False`. CurveMole projects never require
@@ -2942,7 +2938,7 @@ curvemole run examples/gaussian_workflow.yml --json
 ```
 
 Relative paths are resolved from the workflow file's directory. Stable 1.1.0
-supports schemas 1 and 2. **In 1.2.0 beta, use `schema_version: 3`** for folder/glob
+supports schemas 1 and 2. **In 1.2.0, use `schema_version: 3`** for folder/glob
 imports, naming templates, shared model selectors, preprocessing and the new output
 controls. Legacy schema 1/2 recipes remain supported with their original fields.
 The schema guard makes older executables reject new recipes instead of silently
@@ -3608,10 +3604,12 @@ trust only reviewed plugin code.
 #### 20.3.1 Research using CurveMole
 
 Cite the exact software version used in your bibliography. This manual describes
-**CurveMole 1.1.0**, whose reference is:
+**CurveMole 1.2.0**, whose reference is:
 
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.1.0) [Computer software]. Zenodo.
-> https://doi.org/10.5281/zenodo.23730744
+Zenodo archival is pending; use this version's GitHub release until its DOI is available.
+
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.0
 
 If you used another release, including a beta, use that release's own version DOI
 from its GitHub release notes or Zenodo record. Never substitute the current
@@ -3621,7 +3619,7 @@ stable DOI for a different version.
 
 Use the software name, exact version and version-independent SciCrunch RRID:
 
-> Data were analysed with CurveMole version 1.1.0 (RRID:SCR_029214).
+> Data were analysed with CurveMole version 1.2.0 (RRID:SCR_029214).
 
 [RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214) identifies the software; the version DOI
 identifies the archived release. The methods sentence accompanies the bibliographic reference.
@@ -3742,7 +3740,7 @@ commands receive shortcuts too; disabled commands remain unavailable by keyboard
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Version 1.1.0 limitations
+## Appendix D. Version 1.2.0 limitations
 
 The following boundaries apply to this release:
 
@@ -3792,29 +3790,26 @@ relabelled as a newly audited release without checking the contracts.
 
 ## Appendix F. Python scripting reference
 
-**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.2.0 beta.**
-**Current testing behavior.** This edition includes the November 2026 scientific
-and data-integrity corrections. Match it to the exact testing/beta build; those
-corrections and testing-only API additions must not be inferred for 1.1.0 Stable
-or an older beta from its version-family name alone.
+**Stable API baseline: CurveMole 1.2.0.**
+**Current release behavior.** This edition includes the November 2026 scientific
+and data-integrity corrections. Use the documents matching your installed release;
+these corrections are not implied for older executables.
 
-Applies to Python **3.12+**. This testing edition documents the GUI-independent
-scientific engine and marks the new beta workflow helpers explicitly: callable
-names, argument names, return values, side effects, and limits. The 1.1.0 stable
-executable does not support the marked beta operations. Private names beginning with `_` and GUI
-classes are outside this scripting contract. Record the installed version and
-scientific dependency versions with your results.
+Applies to Python **3.12+**. This release documents the GUI-independent scientific
+engine: imports, arguments, return values, side effects and limits. Private names
+beginning with `_` and GUI classes are outside this scripting contract.
+Record the installed version and scientific dependency versions with your results.
 
-**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+**Scientific corrections (release, 2026-11-02).** The seven findings in the
 latest scientific audit are corrected in this edition: parameter scaling,
 nonlinear uncertainty derivatives, convolution alignment, compensated summation,
 profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact beta build;
+the changes and their limits. Use the documents attached to your exact release build;
 these corrections do not apply retroactively to earlier executables.
 
 ### 1. Installation and imports
 
-Install the 1.1.0 wheel in a Python environment, or run
+Install the 1.2.0 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does
@@ -4743,7 +4738,7 @@ not as a hard interruption of a running NumPy allocation.
 
 `portable=True` strips local paths. Detached snapshots require
 `update_project_path=False` when saving. Project schema is **4** and model schema
-is **2**. Workflow schema is **2** in the stable baseline and **3** for 1.2.0 beta
+is **2**. Workflow schema is **2** in 1.1.0 and **3** from 1.2.0
 additions; legacy workflow schemas 1/2 remain accepted for their older fields.
 Archives contain JSON/numeric arrays, not pickle. Older project schemas remain
 readable. An otherwise readable project with a newer schema opens
@@ -4757,10 +4752,10 @@ shared-file writes. `load_fitmodel` retains IDs and links; retarget links or use
 `curvemole.core.workflow` exports `load_workflow(path) -> dict`,
 `validate_workflow(value) -> list[str]`,
 `run_workflow(path, *, trust_plugins=None, registry=None) -> WorkflowOutcome`,
-`dump_workflow(project, path) -> Path`. Beta dumping emits workflow schema 3;
-marked beta-only YAML keys require schema 3 so older software rejects them instead
+`dump_workflow(project, path) -> Path`. Current dumping emits workflow schema 3;
+new YAML keys require schema 3 so older software rejects them instead
 of ignoring processing stages. Outcome fields are `project`, `result`,
-`outputs`. In 1.2.0 beta it also has `imported_files: list[Path]` and
+`outputs`. In 1.2.0 it also has `imported_files: list[Path]` and
 `warnings: list[str]`, both defaulting to empty lists so the original three-field
 constructor remains valid. Relative paths resolve against the YAML directory. Dumping references
 source imports/models; it does not embed arbitrary transformed current data or
@@ -4773,8 +4768,8 @@ complete import identity and reference format.
 
 #### 15.1 Beta workflow discovery, selection and preprocessing
 
-The following helpers require **1.2.0 beta** and are module imports, not new
-package-root exports. They implement the same contract as the beta YAML runner;
+The following helpers require **1.2.0** and are module imports, not new
+package-root exports. They implement the same contract as the YAML runner;
 using Python is not required merely to enumerate a folder anymore.
 
 From `curvemole.core.workflow_inputs`:
@@ -4973,7 +4968,7 @@ documented APIs, state assumptions, check success, retain warnings, preserve
 input files, and provide a run command. Supply a few non-sensitive representative
 rows when needed; repository source is unnecessary for this documented surface.
 
-> Using the attached CurveMole 1.1.0 Python audit, write `analysis.py` for Python
+> Using the attached CurveMole 1.2.0 Python audit, write `analysis.py` for Python
 > 3.12+. CSV has named columns `x`, `signal`, `sigma`. Fit constant background
 > plus an area-normalized Gaussian near 520 with positive sigma, mask 530-532,
 > report fitted values/errors/warnings, and save a new `.fitproj` plus numeric
@@ -4990,35 +4985,30 @@ certification or scientific validation of AI-generated analysis.
 
 ## Appendix G. YAML workflow reference
 
-**Stable API baseline: CurveMole 1.1.0. Beta additions require CurveMole 1.2.0 beta.**
-**Beta workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
-This testing edition documents both the stable baseline and the marked 1.2.0 beta
-extensions. Folder/pattern imports, templates, shared curve selectors,
-preprocessing, stricter validation and the new output controls are beta additions;
-the 1.1.0 stable executable does not implement them. Check `curvemole --version`
-and use the documents attached to the exact beta build when using these features.
-Use `schema_version: 3` for new beta workflows. Marked extension keys require
-schema 3; schemas 1 and 2 accept only the legacy fields. This guard makes older
-CurveMole executables reject new recipes instead of silently ignoring their
-processing stages. This is the runner contract, not every desktop action.
+**Stable API baseline: CurveMole 1.2.0.**
+**Workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
+This reference documents CurveMole 1.2.0, including folder/pattern imports,
+templates, shared selectors, preprocessing, validation and output controls.
+Use `schema_version: 3` for these workflow fields. Schemas 1 and 2 retain
+their legacy fields; older executables can reject newer recipes.
+This is the runner contract, not every desktop action.
 
-**Current testing behavior.** This edition includes the November 2026 scientific
-and data-integrity corrections. Match it to the exact testing/beta build; those
-corrections and testing-only API additions must not be inferred for 1.1.0 Stable
-or an older beta from its version-family name alone.
+**Current release behavior.** This edition includes the November 2026 scientific
+and data-integrity corrections. Use the documents matching your installed release;
+these corrections are not implied for older executables.
 
-**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+**Scientific corrections (release, 2026-11-02).** The seven findings in the
 latest scientific audit are corrected in this edition: parameter scaling,
 nonlinear uncertainty derivatives, convolution alignment, compensated summation,
 profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact beta build;
+the changes and their limits. Use the documents attached to your exact release build;
 these corrections do not apply retroactively to earlier executables.
 
 ### W1. What a workflow can do
 
 A workflow imports data into one new project and one series, constructs models,
 optionally runs one fit plan, and optionally saves a project and an analysis
-bundle. In 1.2.0 beta, imports can select individual files, glob patterns or
+bundle. In 1.2.0, imports can select individual files, glob patterns or
 folders; optional preprocessing prepares the curves before model construction. The scientific engine is the same engine used by
 Python and the desktop application. YAML is a declarative recipe, not Python code
 or a general task scheduler.
@@ -5029,13 +5019,13 @@ The execution order is fixed:
 2. Register custom formula functions, then load explicitly trusted plugins.
 3. Create a fresh project and series; expand each import specification and import
    its files in the selected order.
-4. In 1.2.0 beta, apply optional preprocessing, then select curves for each model.
+4. In 1.2.0, apply optional preprocessing, then select curves for each model.
 5. Add components/constraints, remap declared curve identities in links, and
    resolve the complete parameter graph (even when no fit is requested).
 6. Run the single optional fit plan.
 7. Save `export.project`, then write `export.bundle`, when requested.
 
-The 1.2.0 beta preprocessing stage supports masks, fit ranges and the documented
+The 1.2.0 preprocessing stage supports masks, fit ranges and the documented
 scalar/formula transformations. There are no YAML stages for background
 subtraction, curve-to-curve calculator operations, repeated fits, conditional
 branches, loops, live folder monitoring, opening an existing `.fitproj`, explicit
@@ -5047,8 +5037,8 @@ contract. A plugin can register a fit solver usable through `fit.settings.solver
 ### W2. Run, validate, and inspect
 
 Install the exact downloaded CurveMole wheel in a Python 3.12+ environment. For
-new beta operations choose a `1.2.0bN` wheel, where N is the actual published beta
-sequence; a `1.1.0` wheel supports only the stable baseline. Then run:
+the current operations install the `1.2.0` wheel; older wheels may support
+only a subset of this interface. Then run:
 
 ```bash
 curvemole --version
@@ -5063,8 +5053,7 @@ curvemole run workflow.yml --json
 workflow path, repeated `--trust-plugin IDENTIFIER` options, and `--json` beyond
 the global options; it does not accept fit or export overrides.
 
-In 1.1.0, validation checks only the outer schema and container types. In 1.2.0
-beta, validation also checks supported keys and nested shapes in imports,
+In 1.1.0, validation checks only the outer schema and container types. In 1.2.0, validation also checks supported keys and nested shapes in imports,
 selectors, preprocessing, components/constraints, fit settings and exports, so
 misspelled keys are reported before execution. It does **not** read the input
 files, execute plugins, establish physical model suitability or prove fit
@@ -5081,7 +5070,7 @@ Normal JSON output from `run` has these keys:
 
 `success` and `statistics` are `null` when no fit ran. `outputs` contains paths to
 saved projects and created/updated bundle files; it omits unchanged bundle files.
-The actual statistics object contains the fit statistics. In 1.2.0 beta,
+The actual statistics object contains the fit statistics. In 1.2.0,
 `imported_files` records resolved input paths in import order and `warnings`
 reports skipped empty selections, for example when `allow_empty: true`. These
 two additional JSON keys are absent in the 1.1.0 baseline. `run` returns exit
@@ -5183,12 +5172,12 @@ All relative input paths, plugin manifest paths, project output paths and bundle
 paths resolve against the **workflow file's directory**, regardless of the
 terminal working directory. Absolute paths are also accepted. `~` and environment
 variables such as `$HOME` are not expanded. The legacy `path` remains a literal
-single-file path: put wildcard expressions in the beta `glob` field or use
+single-file path: put wildcard expressions in the `glob` field or use
 `directory`/`pattern`. Quote Windows paths with single quotes or use forward
 slashes. Extensions alone do not determine whether the text importer can read a
 file; supported calibrated WinSpec SPE 2.x spectra also use the importer.
 
-The beta validator rejects unknown keys in supported workflow blocks instead of
+The validator rejects unknown keys in supported workflow blocks instead of
 silently accepting typos. Function-specific initial-parameter and constraint names
 are checked at execution after the function configuration/plugins are available. The 1.1.0 runner can ignore some unused keys, so validation
 there is weaker. Validation is not a substitute for inspecting imported curves,
@@ -5204,7 +5193,7 @@ resolved parameters, convergence and output contents.
 | `custom_functions` | List; `[]` | Formula function definitions; registered before plugins and models |
 | `plugins` | List of manifest paths; `[]` | Local `.curvemole-plugin.json` files; explicit trust required |
 | `imports` | Required nonempty list | File specifications, expanded in order |
-| `preprocess` | List; `[]`; beta only | Ordered curve preprocessing before models/fitting |
+| `preprocess` | List; `[]`; 1.2.0+ | Ordered curve preprocessing before models/fitting |
 | `models` | List; `[]` | Model/component specifications attached to imported curves |
 | `fit` | Mapping; absent | One fit plan. Absent or `{}` skips fitting |
 | `export` | Mapping; `{}` | Optional project and/or bundle output |
@@ -5222,15 +5211,15 @@ Each `imports` item supports:
 | Key | Type/default | Contract |
 | --- | --- | --- |
 | `path` | One source selector | Literal single-file input; stable baseline supported |
-| `glob` | One source selector; beta only | File pattern relative to the workflow directory, or an absolute pattern |
-| `directory` | One source selector; beta only | Folder to scan; exactly one of `path`, `glob`, `directory` |
-| `pattern` | `"*.csv"`; directory only; beta | Pattern inside the selected directory |
-| `recursive` | `false`; batch sources; beta | Search directory descendants or enable explicit `**` in a glob |
-| `exclude` | `[]`; batch sources; beta | Exclusion pattern list |
-| `sort` | `natural`; batch sources; beta | `natural`, `lexical`, or `none` |
-| `allow_empty` | `false`; batch sources; beta | Accept a valid scan with no matching files |
-| `alias_template` | Absent; beta | Generate human-readable names for imported curves |
-| `curve_id_template` | Absent; beta | Generate stable workflow identities for links/selectors |
+| `glob` | One source selector; 1.2.0+ | File pattern relative to the workflow directory, or an absolute pattern |
+| `directory` | One source selector; 1.2.0+ | Folder to scan; exactly one of `path`, `glob`, `directory` |
+| `pattern` | `"*.csv"`; directory only; 1.2.0+ | Pattern inside the selected directory |
+| `recursive` | `false`; batch sources; 1.2.0+ | Search directory descendants or enable explicit `**` in a glob |
+| `exclude` | `[]`; batch sources; 1.2.0+ | Exclusion pattern list |
+| `sort` | `natural`; batch sources; 1.2.0+ | `natural`, `lexical`, or `none` |
+| `allow_empty` | `false`; batch sources; 1.2.0+ | Accept a valid scan with no matching files |
+| `alias_template` | Absent; 1.2.0+ | Generate human-readable names for imported curves |
+| `curve_id_template` | Absent; 1.2.0+ | Generate stable workflow identities for links/selectors |
 | `columns` | Required mapping | Passed to `ColumnMapping(**columns)` |
 | `config` | Optional mapping | Passed to `ImportConfig(**config)`; omit the whole key to auto-detect |
 | `aliases` | List of strings; `[]` | Replaces imported curve names, in output order |
@@ -5253,7 +5242,7 @@ remaps only the first dotted segment of each reference, not arbitrary text or
 component display names. Identity entries take precedence over aliases with the
 same spelling; avoid accidental collisions.
 
-For one file, both lists follow the order returned by the importer. In beta batch
+For one file, both lists follow the order returned by the importer. In batch
 imports the lists apply once to the flattened curves from all selected files,
 not repeatedly to each file. Choose `aliases` or `alias_template`, never both;
 likewise choose `curve_ids` or `curve_id_template`. Shorter explicit lists leave
@@ -5261,7 +5250,7 @@ remaining entries at import defaults; extra entries are unused. For repeatable
 linked workflows, provide a `curve_ids` entry for every referenced curve and
 explicit component `id` values. Aliases remain optional human-readable labels.
 
-#### W6.1 Folder and pattern selection (1.2.0 beta)
+#### W6.1 Folder and pattern selection (1.2.0)
 
 Use exactly one source selector per import item. `path: data/scan.csv` remains a
 literal file; `glob: "data/*.csv"` selects a pattern; `directory: data` with
@@ -5307,7 +5296,7 @@ identities are repeatable for a fixed file selection/order; adding or removing a
 file may change them. For enduring scientific identities, use meaningful explicit
 `curve_ids` or a suitable filename-derived template. Duplicate identities fail.
 
-#### W6.2 Complete folder-fit recipe (1.2.0 beta)
+#### W6.2 Complete folder-fit recipe (1.2.0)
 
 Place `scan2.csv` and `scan10.csv` in `data/` beside the workflow. Each has the
 same `x,y,sigma_y` layout as `examples/gaussian.csv`; copying that example twice
@@ -5415,7 +5404,7 @@ are excluded from fitted observations, N and degrees of freedom when weights are
 the active Y-error representation. Imported X errors do not determine the fit mask. Check retained point
 counts in results.
 
-In 1.2.0 beta, `spectra` accepts a list of nested mappings, each describing its own
+In 1.2.0, `spectra` accepts a list of nested mappings, each describing its own
 X/Y and error columns. Use it instead of shared `x`/`y` or `pairs` when spectra in
 the same file have different error layouts. For example,
 `columns: {spectra: [{x: 0, y: [1], sigma_y: 2}, {x: 3, y: [4], sigma_y: 5}]}`.
@@ -5539,7 +5528,7 @@ models:
           slope: {fixed: true}
 ```
 
-#### W7.1 Shared selectors and preprocessing (1.2.0 beta)
+#### W7.1 Shared selectors and preprocessing (1.2.0)
 
 Models, preprocessing steps and the fit plan share curve selection. Use one of
 `curve: identity`, `curves: [identity_a, identity_b]`, `curves: all`, `curves:
@@ -5730,14 +5719,14 @@ scalar parameter formulas; derived formulas have no X array. A nonfinite derived
 result is reported as unavailable. Invalid symbols or expressions can raise an
 expression error and fail an operation; use only parameters declared by the main
 formula and check each derived formula on representative parameter values.
-In the current testing edition, a formula may replace a non-builtin registration,
+In the current release edition, a formula may replace a non-builtin registration,
 but builtin identifier collisions are rejected. Choose a distinct identifier for
 each custom function. A workflow without an explicit Python registry uses an
 isolated registry; a supplied registry remains owned by its caller.
 Formula definitions are not arbitrary Python and need no executable-plugin
 approval.
 
-**Custom-function persistence:** 1.2.0 beta copies safe formula definitions into
+**Custom-function persistence:** 1.2.0 copies safe formula definitions into
 `Project.custom_functions`, using the project-format `derived_formulas` key, and
 `dump_workflow` writes them back as YAML `custom_functions` with `derived`.
 Saved projects/model exports therefore retain these safe definitions for later
@@ -5766,8 +5755,8 @@ execution are rejected. Keep formulas finite across the actual X domain.
 | Key in `fit` | Default | Meaning |
 | --- | --- | --- |
 | `mode` | `independent` | `independent`, `sequential`, `global`, or legacy `copy` |
-| `curves` | All imported curves | Nonempty selector list; beta also accepts `all`, `first`, `last` |
-| `curve`, `match` | Absent; beta | Alternative single-curve or wildcard selection; use only one selector |
+| `curves` | All imported curves | Nonempty selector list; 1.2.0+ also accepts `all`, `first`, `last` |
+| `curve`, `match` | Absent; 1.2.0+ | Alternative single-curve or wildcard selection; use only one selector |
 | `settings` | `{}` | `FitSettings` keyword arguments, listed below |
 | `spectrum_weights` | `{}` | Curve selector → finite positive weight |
 | `equal_contribution` | `false` | Divide each curve's weighted residual by the square root of its retained point count |
@@ -5886,19 +5875,19 @@ Rerunning YAML or fitting the current optimum is a new calculation.
 | Key in `export` | Default | Meaning |
 | --- | --- | --- |
 | `project` | Absent | Save the generated project; parent directories are created and suffix becomes `.fitproj` |
-| `project_overwrite` | `true`; beta | Allow replacing `export.project`; false refuses an existing project |
+| `project_overwrite` | `true`; 1.2.0+ | Allow replacing `export.project`; false refuses an existing project |
 | `bundle` | Absent | Export the standard analysis bundle with its default selections |
 | `versioned` | `false` | Add UTC `export-YYYYMMDD-HHMMSS` subdirectory under the bundle directory |
 | `overwrite` | `false` | Request updating existing bundle files, subject to ownership checks |
 
-These are the only YAML export keys. `project_overwrite` is a beta addition; the
+These are the only YAML export keys. `project_overwrite` is an addition in 1.2.0; the
 stable baseline always uses its existing direct project-save behaviour. Controls such as delimiter, selected bundle
 items, portable project copies, saved uncertainty samples, and current-view plot
 exports are Python/desktop features, not accepted YAML options.
 
 **Project and bundle replacement differ.** `export.project` saves directly with
 `save_project`; it can replace an existing project without consulting
-`export.overwrite`. In beta, set `project_overwrite: false` to refuse replacement,
+`export.overwrite`. In 1.2.0, set `project_overwrite: false` to refuse replacement,
 or choose a distinct project path when a previous file must be kept.
 `versioned` applies only to the bundle, not to the project filename.
 
@@ -5918,7 +5907,7 @@ worker only retains its in-memory project for that run. `run --json` is a summar
 use the saved `.fitproj` or exported result tables/JSON for detailed parameters,
 per-curve arrays, covariance, diagnostics and warnings.
 Retain the recipe with the saved results. Safe custom formulas are persisted by
-beta workflows as described in W9; executable plugin source still needs its own
+current workflows as described in W9; executable plugin source still needs its own
 archived manifest, module and dependencies.
 
 ### W13. Trusted executable plugins
@@ -5964,7 +5953,7 @@ outcome = run_workflow("workflow.yml")      # WorkflowOutcome
 print(outcome.project.name)
 print(outcome.result.success if outcome.result else None)
 print(outcome.outputs)                      # list[pathlib.Path]
-# In 1.2.0 beta: outcome.imported_files and outcome.warnings are also available.
+# In 1.2.0: outcome.imported_files and outcome.warnings are also available.
 ```
 
 Exact runner signature:
@@ -5972,7 +5961,7 @@ Exact runner signature:
 registry: FunctionRegistry | None = None) -> WorkflowOutcome`.
 Passing a registry permits caller-provided functions. `dump_workflow(project,
 path) -> pathlib.Path` writes YAML containing imports and model/component
-specifications. Beta dumping emits schema 3; the stable 1.1.0 dumper emits schema
+specifications. Current dumping emits schema 3; the stable 1.1.0 dumper emits schema
 2. `WorkflowOutcome` has `project`, `result` (`FitResult | None`),
 and `outputs` (`list[Path]`). Beta adds `imported_files` (`list[Path]`) and
 `warnings` (`list[str]`) with empty-list defaults, preserving the original
@@ -6007,7 +5996,7 @@ certification or a guarantee that generated scientific choices are correct.
 Example prompt:
 
 > Use the attached CurveMole YAML audit as the API contract. I am running
-> CurveMole 1.2.0 beta. Create one schema-3 workflow for the attached column
+> CurveMole 1.2.0. Create one schema-3 workflow for the attached column
 > layout. Use only documented fields
 > and function names. Ask for missing scientific assumptions. Return the complete
 > YAML, the validate/run commands, the expected outputs, and any limitations.
@@ -6029,7 +6018,7 @@ audits before asking the AI to adapt a workflow.
 
 The two downloadable Markdown documents are self-contained context packs for
 creating CurveMole automations with an AI assistant. Each records the interfaces
-verified against the stable 1.1.0 API and the marked 1.2.0 beta workflow additions,
+verified against the stable 1.1.0 API and the marked 1.2.0 workflow additions,
 including exact names, configuration fields,
 defaults, examples, return values and practical limits. Here, "audit" means an
 inspection of the implemented automation interface. It does not mean a security
@@ -6044,7 +6033,7 @@ Neither document requires an AI service or uploads data from CurveMole.
 
 Python is appropriate for loops, conditional processing, existing-project editing,
 unsupported transformations, explicit uncertainty analyses or selective exports.
-In 1.2.0 beta, YAML also supports folder/pattern imports, shared curve selectors,
+In 1.2.0, YAML also supports folder/pattern imports, shared curve selectors,
 masking, fit ranges and the documented scalar/formula preprocessing. Use schema 3
 for those additions. YAML follows a declarative sequence of imports, preprocessing,
 model construction, one fit and exports. YAML has no general task graph,
@@ -6054,11 +6043,11 @@ workflow with its own imported data; it does not edit the open GUI project.
 
 ### H.2 Download and version matching
 
-For 1.2.0 beta, use the versioned audits attached to the exact beta release.
-The latest testing-source editions are also available here:
+For 1.2.0, use the versioned audits attached to the exact release.
+The exact stable-source editions are also available here:
 
-- [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md)
-- [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md)
+- [Download Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-python-audit.md)
+- [Download YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-yaml-audit.md)
 
 Save each page as a `.md` file. On GitHub, **Download raw file** also saves the
 Markdown source. In a source checkout they are in `docs/`; Python distributions
@@ -6066,10 +6055,8 @@ and desktop packages include them with the bundled documentation. The read links
 above also work from the offline manual.
 
 Check `curvemole --version` and the CurveMole version declared inside the audit.
-These convenience URLs follow `testing`, so retain the documents attached to your
-exact beta build for reproducibility. The stable 1.1.0 editions remain available
-from the repository's `main` branch. Keep the audit's declared compatibility record
-with your analysis. If versions differ, ask the AI to flag the mismatch and verify the
+These URLs are pinned to this stable tag. Keep the matching documents with your
+analysis; historical editions remain available at their original release tags. If versions differ, ask the AI to flag the mismatch and verify the
 relevant contracts before producing an automation; do not assume a document for
 another release is current. These files supplement the current-version manual;
 they do not alter previously published release assets.
@@ -6098,7 +6085,7 @@ extension.
 A YAML request can be written as:
 
 ```text
-Use the attached audit for CurveMole 1.2.0 beta. Generate a complete schema-3
+Use the attached audit for CurveMole 1.2.0. Generate a complete schema-3
 workflow and the CLI commands to validate and run it. Import *.csv from data/
 in natural filename order. Files have a comma separator, a header and x, y, sigma_y
 columns; sigma_y means one standard deviation. Apply a constant background and
@@ -6164,7 +6151,7 @@ execution and fit convergence are necessary checks; the scientific interpretatio
 still requires the checks in Section 1.4.
 
 
-## Appendix I. Testing edition: integrity and resource limits
+## Appendix I. Release integrity and resource limits
 
 Inverse-variance weights follow reversible Y transformations: multiplying Y by
 `a` divides its inverse variance by `a**2`. Direct arbitrary residual multipliers
@@ -6212,7 +6199,7 @@ SHA-256 release digest; otherwise use the release's manual download page.
 
 ## Appendix J. Scientific audit corrections
 
-The seven findings checked on 2026-11-02 are corrected in this testing edition.
+The seven findings checked on 2026-11-02 are corrected in this release edition.
 Earlier release files retain their previous behavior. Independent regression tests
 compare calculations with analytic references and checked archive replay.
 

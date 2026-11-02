@@ -1,28 +1,25 @@
 # Python scripting reference
 
-**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.2.0 beta.**
-**Current testing behavior.** This edition includes the November 2026 scientific
-and data-integrity corrections. Match it to the exact testing/beta build; those
-corrections and testing-only API additions must not be inferred for 1.1.0 Stable
-or an older beta from its version-family name alone.
+**Stable API baseline: CurveMole 1.2.0.**
+**Current release behavior.** This edition includes the November 2026 scientific
+and data-integrity corrections. Use the documents matching your installed release;
+these corrections are not implied for older executables.
 
-Applies to Python **3.12+**. This testing edition documents the GUI-independent
-scientific engine and marks the new beta workflow helpers explicitly: callable
-names, argument names, return values, side effects, and limits. The 1.1.0 stable
-executable does not support the marked beta operations. Private names beginning with `_` and GUI
-classes are outside this scripting contract. Record the installed version and
-scientific dependency versions with your results.
+Applies to Python **3.12+**. This release documents the GUI-independent scientific
+engine: imports, arguments, return values, side effects and limits. Private names
+beginning with `_` and GUI classes are outside this scripting contract.
+Record the installed version and scientific dependency versions with your results.
 
-**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+**Scientific corrections (release, 2026-11-02).** The seven findings in the
 latest scientific audit are corrected in this edition: parameter scaling,
 nonlinear uncertainty derivatives, convolution alignment, compensated summation,
 profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact beta build;
+the changes and their limits. Use the documents attached to your exact release build;
 these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
 
-Install the 1.1.0 wheel in a Python environment, or run
+Install the 1.2.0 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does
@@ -951,7 +948,7 @@ not as a hard interruption of a running NumPy allocation.
 
 `portable=True` strips local paths. Detached snapshots require
 `update_project_path=False` when saving. Project schema is **4** and model schema
-is **2**. Workflow schema is **2** in the stable baseline and **3** for 1.2.0 beta
+is **2**. Workflow schema is **2** in 1.1.0 and **3** from 1.2.0
 additions; legacy workflow schemas 1/2 remain accepted for their older fields.
 Archives contain JSON/numeric arrays, not pickle. Older project schemas remain
 readable. An otherwise readable project with a newer schema opens
@@ -965,10 +962,10 @@ shared-file writes. `load_fitmodel` retains IDs and links; retarget links or use
 `curvemole.core.workflow` exports `load_workflow(path) -> dict`,
 `validate_workflow(value) -> list[str]`,
 `run_workflow(path, *, trust_plugins=None, registry=None) -> WorkflowOutcome`,
-`dump_workflow(project, path) -> Path`. Beta dumping emits workflow schema 3;
-marked beta-only YAML keys require schema 3 so older software rejects them instead
+`dump_workflow(project, path) -> Path`. Current dumping emits workflow schema 3;
+new YAML keys require schema 3 so older software rejects them instead
 of ignoring processing stages. Outcome fields are `project`, `result`,
-`outputs`. In 1.2.0 beta it also has `imported_files: list[Path]` and
+`outputs`. In 1.2.0 it also has `imported_files: list[Path]` and
 `warnings: list[str]`, both defaulting to empty lists so the original three-field
 constructor remains valid. Relative paths resolve against the YAML directory. Dumping references
 source imports/models; it does not embed arbitrary transformed current data or
@@ -981,8 +978,8 @@ complete import identity and reference format.
 
 ### 15.1 Beta workflow discovery, selection and preprocessing
 
-The following helpers require **1.2.0 beta** and are module imports, not new
-package-root exports. They implement the same contract as the beta YAML runner;
+The following helpers require **1.2.0** and are module imports, not new
+package-root exports. They implement the same contract as the YAML runner;
 using Python is not required merely to enumerate a folder anymore.
 
 From `curvemole.core.workflow_inputs`:
@@ -1181,7 +1178,7 @@ documented APIs, state assumptions, check success, retain warnings, preserve
 input files, and provide a run command. Supply a few non-sensitive representative
 rows when needed; repository source is unnecessary for this documented surface.
 
-> Using the attached CurveMole 1.1.0 Python audit, write `analysis.py` for Python
+> Using the attached CurveMole 1.2.0 Python audit, write `analysis.py` for Python
 > 3.12+. CSV has named columns `x`, `signal`, `sigma`. Fit constant background
 > plus an area-normalized Gaussian near 520 with positive sigma, mask 530-532,
 > report fitted values/errors/warnings, and save a new `.fitproj` plus numeric

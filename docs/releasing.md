@@ -58,7 +58,8 @@ It does not infer source-code behavior beyond what a commit claims.
 Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
 Python beta packages. Build versions are stamped only in the package workspace,
 using the final destination recorded in `.github/release-target.json`. The current
-target is `1.2.0`, producing `1.2.0bN` / `v1.2.0-beta.N` while stable remains `1.1.0`.
+target is recorded in `.github/release-target.json`; after a stable promotion,
+testing starts the next patch cycle unless a newer target is selected.
 The beta sequence is the Testing builds workflow run number; gaps are normal and
 it need not restart at 1 when the target changes. Previously published beta tags
 and assets remain unchanged. Failed older runs should be replaced by a new push
@@ -89,7 +90,7 @@ Each published beta includes versioned `User-Manual.pdf`, `User-Manual.tex`,
 `AI-Python-Audit.md` and `AI-YAML-Audit.md` assets in addition to desktop/Python
 packages. The release notes link the four documents and the checksum manifest
 covers them. The same docs remain bundled offline in the desktop/Python packages.
-Users should pair the beta-specific audit contract with the exact beta build;
+Users should pair the beta-specific audit contract with the exact release build;
 new workflow fields require `schema_version: 3` and are not implicitly supported
 by the older stable executable. Legacy workflow schemas 1/2 remain readable for
 their older fields.

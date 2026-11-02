@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.2.0] - 2026-11-02
+
 ### Added
 
 - Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
@@ -25,6 +26,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Style chronological What’s New release archive on desktop and mobile. ([`cbfbeef0`](https://github.com/SebRoLENS/curvemole/commit/cbfbeef0e94237fd557d3eefcd84482ff8d5ff92))
 - Swap double-click view scopes: left for unmasked points, right for all points. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
 - Prepare 1.2.0 beta with explicit shortcut additions and restored categories. ([`49760681`](https://github.com/SebRoLENS/curvemole/commit/49760681873e84ea83f3f035ef4f63919ed23bd7))
+- Run stable release jobs after optional promotion is skipped [release 1.2.0]. ([`e3d23ed8`](https://github.com/SebRoLENS/curvemole/commit/e3d23ed88175ae573e245f470e4f0c458183f5b6))
 
 ### Fixed
 
@@ -63,7 +65,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Document historical stable What’s New publication behavior. ([`d5c8b9f5`](https://github.com/SebRoLENS/curvemole/commit/d5c8b9f5d61a0ec881b7a582bb97f1a9e1f009d9))
 - Repair website generator syntax and remove duplicated trailing content. ([`23b9f54b`](https://github.com/SebRoLENS/curvemole/commit/23b9f54b7e238b719b832b7564711f194aa1b883))
 - Fix stable release staging of website citations. ([`ad1f16f2`](https://github.com/SebRoLENS/curvemole/commit/ad1f16f262b3ef91ee1a42b3cf9d9da7742ef8f8))
-<!-- END AUTOMATED CHANGES -->
 
 ### Fixed
 
