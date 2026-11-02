@@ -9,6 +9,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Added
 
 - Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
+- Add mouse and keyboard shortcut reference and swap double-click view scopes. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
 
 ### Changed
 
@@ -32,6 +33,9 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Handle concurrent requests and unresponsive remote sessions safely. ([`3dcb1428`](https://github.com/SebRoLENS/curvemole/commit/3dcb1428da4b0d05a4d3a9db937d4bf5e2223d45))
 - Preserve accepted transfer even if rejecting others fails. ([`1dc2706a`](https://github.com/SebRoLENS/curvemole/commit/1dc2706a9aec914aa15d1f3e29697304c08cce50))
 - Fix project-locking documentation formatting. ([`88831288`](https://github.com/SebRoLENS/curvemole/commit/88831288eb1a9e7fde7555b3a16e25fdc7a8dfd2))
+- Fix shortcut reference tests for native macOS key labels. ([`c3e0d745`](https://github.com/SebRoLENS/curvemole/commit/c3e0d745ab48f25a1c40bb39a7f1b028127a8079))
+- Fix scientific audit findings and publish tested beta corrections. ([`d72828c2`](https://github.com/SebRoLENS/curvemole/commit/d72828c25066bee8490b43ace2ec3b32f1972ccd))
+- Handle Windows parser recursion and native macOS shortcut checks. ([`f3ac6c06`](https://github.com/SebRoLENS/curvemole/commit/f3ac6c068fe7826cebbcf24e1925d67cc9b86f7e))
 
 ### Documentation
 
