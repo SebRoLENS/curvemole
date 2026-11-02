@@ -761,7 +761,7 @@ class FitPlanDialog(QDialog):
         advanced = QFormLayout(advanced_box)
         self.solver = QComboBox()
         solver_choices = (
-            ("Local least squares (automatic)", "local", "Default: fast local fit. Uses LM without bounds and TRF with bounds or robust loss."),
+            ("Local least squares (automatic)", "local", "Default: fast local fit. Selects a suitable method for the model, constraints and loss."),
             ("Differential Evolution + local refinement", "differential_evolution", "Global population search, then local fit. Useful when starting values are uncertain; slower."),
             ("Trust Region Reflective (TRF)", "trf", "Local least squares with parameter bounds and robust losses; good general choice."),
             ("Dogbox", "dogbox", "Local least squares with bounds; can suit a small number of parameters."),

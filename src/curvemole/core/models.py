@@ -214,7 +214,8 @@ class Model:
             }
             evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
             component_values[component.id] = evaluated
-        total = self._evaluate_global(np.asarray(x, dtype=float), component_values)
+        total = self._evaluate_global(np.asarray(x, dtype=float), component_values,
+                                      self._convolution_samples(x, prefix, values, registry))
         return (total, component_values) if components else total
 
     def evaluate_for_curve(self, curve, indices, **kwargs):
@@ -233,14 +234,35 @@ class Model:
             positions.get(c.id, len(positions)), rank[c.operator] if c.id not in positions else 0, c.id,
         ))
 
-    def _evaluate_global(self, x: np.ndarray, evaluated: dict[str, np.ndarray]) -> np.ndarray:
-        terms = sorted((c for c in self.components if c.enabled and c.id in evaluated
-                        and c.operator in {"add", "subtract"}), key=lambda c: c.id)
+    def _convolution_samples(self, x, prefix, values, registry):
+        """Use odd kernel grids, with an exact central lag, for even signals."""
+        x = np.asarray(x, dtype=float)
+        if len(x) < 2 or len(x) % 2:
+            return {}
+        kernels = {}
+        grid = x[0] + (x[-1] - x[0]) / 2 + (x[1] - x[0]) * np.arange(-len(x)//2, len(x)//2 + 1)
+        for component in self.components:
+            if component.enabled and component.operator == "convolve":
+                parameters = {name: float(values.get(self.parameter_path(prefix, component.id, name), p.value))
+                              for name, p in component.parameters.items()}
+                kernels[component.id] = registry.get(component.function_id).evaluate(
+                    grid, parameters, component.metadata)
+        return kernels
+
+    @property
+    def additive_components(self):
+        # Mathematical construction order is stable across freshly generated IDs.
+        return sorted((c for c in self.components if c.enabled and c.operator in {"add", "subtract"}),
+                      key=lambda c: (c.function_id, c.operator, tuple(c.parameters)))
+
+    def _evaluate_global(self, x: np.ndarray, evaluated: dict[str, np.ndarray], kernels=None) -> np.ndarray:
+        from curvemole.core.numerics import compensated_sum
+        kernels = kernels or {}
+        terms = [c for c in self.additive_components if c.id in evaluated]
         total = None
         if terms:
-            total = np.zeros_like(x, dtype=float)
-            for component in terms:
-                total += evaluated[component.id] * (1 if component.operator == "add" else -1)
+            total = compensated_sum((evaluated[c.id] * (1 if c.operator == "add" else -1)
+                                     for c in terms), x)
         operations = [c for c in self.ordered_operations if c.enabled and c.id in evaluated]
         index = 0
         while index < len(operations):
@@ -251,11 +273,13 @@ class Model:
                 # cropping would make three kernels depend on their insertion order.
                 arrays = [] if total is None else [total]
                 while index < len(operations) and operations[index].operator == "convolve":
-                    arrays.append(evaluated[operations[index].id])
+                    operation = operations[index]
+                    arrays.append(kernels.get(operation.id, evaluated[operation.id])
+                                  if arrays else evaluated[operation.id])
                     index += 1
                 if len(arrays) > 1:
                     differences = np.diff(x)
-                    tolerance = np.finfo(float).eps * max(1., float(np.max(np.abs(x), initial=0.))) * 16
+                    tolerance = np.finfo(float).eps * float(np.max(np.abs(x), initial=0.)) * 16
                     if (len(x) < 2 or not np.all(np.isfinite(x))
                             or not (np.all(differences > 0) or np.all(differences < 0))
                             or not np.allclose(differences, differences[0], rtol=1e-7, atol=tolerance)):
@@ -280,8 +304,7 @@ class Model:
         return np.zeros_like(x, dtype=float) if total is None else total
 
     def calculation_expression(self) -> str:
-        enabled = [c for c in self.components if c.enabled]
-        terms = sorted((c for c in enabled if c.operator in {"add", "subtract"}), key=lambda c: c.id)
+        terms = self.additive_components
         expression = ""
         for component in terms:
             sign = "+" if component.operator == "add" else "−"
@@ -313,7 +336,7 @@ class Model:
         if values is None:
             values = resolve_parameter_values(self.parameter_map(prefix))
         selected = set(component_ids) if component_ids is not None else None
-        result = np.zeros_like(x, dtype=float)
+        background_terms = []
         global_operations = any(c.enabled and c.operator not in {"add", "subtract"} for c in self.components)
         if evaluated_components is None and global_operations:
             _, evaluated_components = self.evaluate(x, curve_id=curve_id, values=values, registry=registry, components=True)
@@ -337,7 +360,7 @@ class Model:
             }
             evaluated = (evaluated_components[component.id] if evaluated_components is not None
                          else definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata))
-            result += evaluated if component.operator == "add" else -evaluated
+            background_terms.append(evaluated if component.operator == "add" else -evaluated)
             included.add(component.id)
         if included and any(
             c.enabled and c.operator not in {"add", "subtract"} for c in self.components
@@ -346,8 +369,10 @@ class Model:
             for component in self.components:
                 if component.operator in {"add", "subtract"} and component.id not in included:
                     evaluated[component.id] = np.zeros_like(x, dtype=float)
-            return self._evaluate_global(np.asarray(x, dtype=float), evaluated)
-        return result
+            return self._evaluate_global(np.asarray(x, dtype=float), evaluated,
+                                         self._convolution_samples(x, prefix, values, registry))
+        from curvemole.core.numerics import compensated_sum
+        return compensated_sum(background_terms, x)
 
     def derived_quantities(
         self,

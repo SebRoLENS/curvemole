@@ -42,7 +42,13 @@
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
+% The reference exceeds 100 pages; reserve room for three-digit TOC numbers.
 \makeatletter
+\renewcommand*{\@pnumwidth}{2.5em}
+\renewcommand*{\@tocrmarg}{3.5em}
+% Start the introductory notice on its own page after the contents.
+\let\CurveMoleTableOfContents\tableofcontents
+\renewcommand*{\tableofcontents}{\CurveMoleTableOfContents\clearpage}
 \renewcommand{\maketitle}{%
   \begin{titlepage}
     \centering

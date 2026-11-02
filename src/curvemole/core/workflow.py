@@ -79,7 +79,7 @@ def run_workflow(
         if project_output.exists() and not export_spec.get("project_overwrite", True):
             raise CurveMoleError(f"Project output already exists (project_overwrite is false): {project_output}")
 
-    registry = registry or default_registry()
+    registry = registry if registry is not None else default_registry().copy()
     custom_specs = []
     for custom in workflow.get("custom_functions", []):
         definition = formula_definition(
@@ -91,7 +91,7 @@ def run_workflow(
             bounds={key: tuple(value) for key, value in custom.get("bounds", {}).items()},
             derived_formulas=custom.get("derived", {}),
         )
-        registry.register(definition, replace=True)
+        registry.register_custom(definition, replace=True)
         custom_specs.append({
             "identifier": custom["identifier"],
             "display_name": custom.get("display_name", custom["identifier"]),

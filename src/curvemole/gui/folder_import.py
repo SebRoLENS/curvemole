@@ -397,6 +397,11 @@ class FolderImportController:
     def commit(self, acquisition):
         window = self.window
         series = copy.deepcopy(acquisition.dataset.series)
+        from curvemole.core.data import Dataset
+        from curvemole.core.models import Model
+        previous_series = list(window.project.dataset.series)
+        next_series = [*previous_series, *series]
+        Dataset(next_series).validate_unique_ids()
         ids = {c.id for s in series for c in s.curves}
         if not ids:
             raise ValueError("Workflow returned no spectra.")
@@ -406,31 +411,31 @@ class FolderImportController:
         results = copy.deepcopy(acquisition.results)
         if not set(models) <= ids:
             raise ValueError("Processor returned models outside the imported acquisition.")
-        previous_results = {
-            key: copy.deepcopy(window.project.results[key])
-            for key in results
-            if key in window.project.results
-        }
+        from curvemole.core.folder_import import merge_acquisition_results
+        previous_results = dict(window.project.results)
+        merged_results = merge_acquisition_results(previous_results, results, ids)
+        previous_models = dict(window.project.models)
+        next_models = dict(previous_models)
+        for item in series:
+            for curve in item.curves:
+                next_models[curve.id] = models.get(curve.id, Model(name=f"Model for {curve.name}"))
         follow = self.follow
         active_before = window.active_curve_id
+        active_after = next(c.id for s in reversed(series) for c in reversed(s.curves))
 
         def redo():
-            for item in series:
-                window.project.add_series(copy.deepcopy(item))
-            window.project.models.update(copy.deepcopy(models))
-            window.project.results.update(copy.deepcopy(results))
+            # All validation/copying precedes QUndoStack.push: a Python exception
+            # from a Qt redo virtual cannot be relied on to abort that push.
+            window.project.dataset.series[:] = next_series
+            window.project.models = dict(next_models)
+            window.project.results = dict(merged_results)
             if follow:
-                window.active_curve_id = series[-1].curves[-1].id
+                window.active_curve_id = active_after
 
         def undo():
-            window.project.dataset.series[:] = [
-                s for s in window.project.dataset.series if s.id not in {v.id for v in series}
-            ]
-            for curve_id in ids:
-                window.project.models.pop(curve_id, None)
-            for key in results:
-                window.project.results.pop(key, None)
-            window.project.results.update(copy.deepcopy(previous_results))
+            window.project.dataset.series[:] = previous_series
+            window.project.models = dict(previous_models)
+            window.project.results = dict(previous_results)
             window.active_curve_id = (
                 active_before if active_before in {c.id for c in window.project.curves} else None
             )

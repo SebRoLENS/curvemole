@@ -318,3 +318,13 @@ an edit, metadata update and publish cycle for each owned deposition. Any bulk
 update must retain every record's version, DOI, files and other metadata, change
 only the description prefix, and be idempotent. It requires the owner's Zenodo
 credentials; the public DOI synchronisation workflow cannot perform these edits.
+
+
+### Beta manual source consistency
+
+The testing documentation job installs the document toolchain and invokes
+`beta_release.py documents` on the exact tested checkout. That command runs
+`scripts/build_manual.py` against `docs/manual.md` and stages a fresh TeX/PDF in a
+temporary build directory. It never edits tracked stable manual/version metadata.
+Missing toolchain, invalid source or a failed PDF build blocks documentation and
+therefore publication; it never substitutes an older committed PDF silently.

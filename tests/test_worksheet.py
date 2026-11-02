@@ -37,9 +37,9 @@ def test_worksheet_shows_current_values_errors_weights_and_combined_masks(worksh
         "x", "y", "sigma_y", "weight", "masked",
     ]
     assert [[model.data(model.index(row, column)) for column in range(5)] for row in range(3)] == [
-        ["0.0", "4.0", "0.2", "1.0", "False"],
-        ["1.0", "6.0", "0.4", "2.0", "True"],
-        ["2.0", "8.0", "0.6", "3.0", "True"],
+        ["0.0", "4.0", "0.2", "0.25", "False"],
+        ["1.0", "6.0", "0.4", "0.5", "True"],
+        ["2.0", "8.0", "0.6", "0.75", "True"],
     ]
     assert model.headerData(2, Qt.Orientation.Vertical) == "3"
     assert not model.flags(model.index(0, 0)) & Qt.ItemFlag.ItemIsEditable

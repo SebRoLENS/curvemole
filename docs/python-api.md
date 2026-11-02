@@ -1,12 +1,24 @@
 # Python scripting reference
 
 **Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.1.1 beta.**
+**Current testing behavior.** This edition includes the November 2026 scientific
+and data-integrity corrections. Match it to the exact testing/beta build; those
+corrections and testing-only API additions must not be inferred for 1.1.0 Stable
+or an older beta from its version-family name alone.
+
 Applies to Python **3.12+**. This testing edition documents the GUI-independent
 scientific engine and marks the new beta workflow helpers explicitly: callable
 names, argument names, return values, side effects, and limits. The 1.1.0 stable
 executable does not support the marked beta operations. Private names beginning with `_` and GUI
 classes are outside this scripting contract. Record the installed version and
 scientific dependency versions with your results.
+
+**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+latest scientific audit are corrected in this edition: parameter scaling,
+nonlinear uncertainty derivatives, convolution alignment, compensated summation,
+profile confidence regions and saved execution provenance. Appendix J describes
+the changes and their limits. Use the documents attached to your exact beta build;
+these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
 
@@ -106,7 +118,10 @@ Import the following from `curvemole.core.importers`:
 | `import_file(path, mapping, config=None)` | `list[Curve]`, including multiple Y columns or X/Y pairs |
 | `import_many(paths, mapping, *, config=None, series_name="Imported series")` | `Series` of curves in input order |
 | `ImportPreview(path, config).curves(mapping)` | `list[Curve]`; parse once for repeated preview mappings |
-| `repeated_spectrum_mappings(column_count, *, y_per_x=1, error_kind="none", first_column=0)` | `list[ColumnMapping]` for repeated positional groups |
+| `repeated_spectrum_mappings(...)` | `list[ColumnMapping]` for repeated positional groups |
+
+`repeated_spectrum_mappings(column_count, *, y_per_x=1, error_kind="none",
+first_column=0)` accepts the column count and returns repeated positional mappings.
 
 `ImportConfig` fields/defaults: `delimiter=None`, `decimal="."`,
 `comment_prefixes=("#", ";", "%", "!")`, `header=None`,
@@ -210,9 +225,15 @@ using a numerical first-order local derivative with respect to the target axis.
 Affine scaling is exact; nonlinear propagation is a local approximation.
 Asymmetric Y sides swap for a negative derivative. Uncertainty in other input
 columns, correlations, and operand-curve errors are not jointly propagated.
-Explicit weights are retained rather than recomputed by arbitrary formulas;
-review their interpretation after changing Y. Normalization uses current data,
+Inverse-variance weights follow the same local Y-uncertainty propagation;
+direct arbitrary residual multipliers retain their declared multiplier semantics. Normalization uses current data,
 including masked rows.
+
+Nonlinear formula derivatives use local, scale-aware perturbations and
+Richardson extrapolation. For `z=y**3`, the audited tiny-value example now agrees
+with `sigma_z=abs(3*y**2)*sigma_y`. Propagation remains a first-order local
+approximation; input correlations and uncertainties in other columns are not
+jointly propagated.
 
 ```python
 from curvemole.core.calculator import apply_scalar
@@ -245,10 +266,11 @@ timestamps/version metadata.
 | `remove_curve(curve_id)` | Return removed curve; validate remaining link dependencies and remove affected model/result records |
 | `affected_curve_ids(curve_ids)` | Return set including transitive dependents and recorded global-fit coupling |
 | `invalidate_fits(curve_ids, *, preserve=())` | Return affected IDs minus preserve; mark fitted curves Modified/outdated |
-| `model_for(curve_id)` | Return/create curve's model |
-| `add_component(curve_id, component)` | Add to model and mark project changed |
+| `model_for(curve_id)` | Return/create curve's model; read-only missing models are temporary and not inserted |
+| `add_component(curve_id, component)` | Add to model, invalidate its fit/dependents and mark project changed |
 | `parameter_map()` | `{full_path: Parameter}` for all models |
 | `resolved_parameter_values()` | Resolve links project-wide into `{path: float}` |
+| `ensure_editable()` | Check write access before mutation; raises on read-only project |
 | `touch()` | Mark dirty, advance revision/timestamp; raises on read-only project |
 | `mark_saved(path=None)` | Mark saved; normal scripts use `save_project` |
 | `snapshot(reason, payload)` | Append history event; does not fit/save |
@@ -260,7 +282,9 @@ fit_ranges=False, component_ids=None) -> None` atomically copies selected model
 aspects across destinations. `component_ids` limits source functions; include
 functions referenced by links. With `structure=False`, source positions match
 the same destination positions. Relative links retarget to destination curves;
-absolute references remain fixed.
+absolute references remain fixed. A successful copy invalidates fitted destination
+curves and their transitive linked/global-fit dependents; previous result payloads
+remain as outdated history.
 
 Add a `Series` to the project before passing it explicitly to `add_curve`.
 The default `ui_state` is `{"autoscale_enabled": True, "autoscale_mode": "all"}`.
@@ -328,19 +352,19 @@ background: set `.is_background=True`. Other component fields: `enabled=True`,
 
 Models use global roles: sum enabled `add` and subtract enabled `subtract`
 components, then apply `multiply`, `divide`, `convolve` to the total.
-`operation_order` contains operation component IDs; unspecified operations sort
-by multiply/divide/convolve and ID. `display_order` / `display_components` control
-presentation. Convolution uses FFT integration, absolute uniform X spacing, and a
-centered crop. An actual convolution of two or more arrays requires a finite,
-strictly monotonic, uniformly spaced X axis (increasing or decreasing); irregular
-sampling, duplicates or invalid X raise `DataValidationError`. Resample explicitly
-before convolution. Fitting evaluates convolution on the **full current curve
-grid**, then selects unmasked/in-range residual rows, so masking does not change
-the convolution grid. `evaluate_for_curve` implements this selection; for local
-models it evaluates only selected X values. Its wrapper forwards `values`,
-`registry`, and other compatible `evaluate` keywords, but `components=True` is
-not a supported result-selection mode for convolution. Use `evaluate` directly
-for component arrays.
+The starting sum uses compensated accumulation independent of random IDs.
+`operation_order` controls global operations; unspecified operations use role/ID
+order. Presentation remains separate through `display_order`/`display_components`.
+Convolution uses full FFT integration with absolute uniform X spacing and a
+single centered crop for consecutive kernels. A finite, strictly monotonic,
+uniform grid is required at every scale. For even-length signals, kernels are
+sampled on an odd grid with an exact central lag, removing the half-sample shift;
+ascending and descending axes give the same physical center. Kernel coordinates
+retain the input-domain midpoint convention. Choose a sufficiently wide, finely
+sampled window: finite-window truncation and discretization remain approximations.
+Fitting evaluates convolution on the full current grid, then selects residual
+rows through `evaluate_for_curve`. Use `evaluate(..., components=True)` directly
+when individual arrays are needed.
 
 For project-linked models, use
 `model.evaluate(curve.x, curve_id=curve.id,
@@ -386,6 +410,11 @@ positive. `link_tolerance_mode="percent"` uses `abs(source)*tolerance/100`, with
 tolerance < 100. Set target starting value inside the feasible interval.
 `link_bounds(source_value)` returns intersected bounds or raises `ConstraintError`.
 
+Nonlinear linked-parameter gradients use bound-aware, scale-aware three-point
+differences and Richardson extrapolation before covariance propagation. The cubic
+link agrees with `SE(b)=abs(3*a**2)*SE(a)` at the audited small scales. These remain
+local covariance uncertainties; strong nonlinearity can require resampling.
+
 `link_scope` is `relative` (default) or `absolute` and governs copying.
 `link_reference_scopes` can specify each reference occurrence's scope in order.
 `effective_link_reference_scopes()` returns explicit/inherited scopes;
@@ -415,12 +444,28 @@ preserving comparisons such as `y == 1` and keyword-free conditional expressions
 An assignment to a different target raises `ExpressionError`. Coordinate and
 column calculator helpers use this parser; it does not execute Python.
 
+The testing interpreter limits source size (16,384 characters), AST complexity
+(2,048 nodes, depth 64), integer results (4,096 bits), array/broadcast results
+(10,000,000 elements) and aggregate array work (50,000,000 elements). Excesses
+raise `ExpressionError`; powers and broadcasting are checked before large results
+are computed. Trusted Python plugin callbacks are outside these limits.
+
 ## 9. Custom formulas and function registry
 
 Registry methods: `register(definition, *, replace=False)`,
 `unregister(identifier)`, `get(identifier)`, `values() -> tuple`,
 `identifiers() -> tuple`, `extend(definitions)`. Duplicate registration without
 `replace=True` raises `DataValidationError`.
+
+The testing API also provides `copy()` for an isolated registration table,
+`register_custom(definition, *, replace=False)` to reject formula collisions with
+builtin identifiers, and `set_project_functions(specifications)` to validate and
+replace a project's formula layer atomically. Clearing that layer restores the
+previous definitions that have not been removed or disabled. Desktop project functions, the library and workflow formulas
+use the checked path. Explicit low-level `register(..., replace=True)` remains an
+extension API; avoid mutating the shared default registry when isolation is needed.
+A registry copy shares evaluator/definition objects; replacing registrations is
+isolated, while directly mutating a shared definition object is not a deep copy.
 
 ```python
 from curvemole import Component, FunctionRegistry
@@ -594,7 +639,7 @@ Import from `curvemole.core.initialization`:
 
 | Callable | Return |
 | --- | --- |
-| `find_peak_suggestions(curve, *, sign="positive", prominence=None, distance=None, max_peaks=50)` | Prominence-sorted list; sign positive/negative/both |
+| `find_peak_suggestions(curve, *, sign="positive", prominence=None, distance=None, max_peaks=50)` | Prominence-sorted list; sign positive/negative/both; widths in local X coordinates, including irregular grids; sorts X/Y together and rejects duplicate X |
 | `PeakSuggestion(x, height, fwhm, prominence, sign)` | Center, signed height, FWHM estimate, prominence, sign +/-1 |
 | `component_from_suggestion(suggestion, function_id="gaussian", *, registry=None)` | Estimated Gaussian/Lorentzian/Voigt/pseudo-Voigt |
 | `initialise_peak_component(component, suggestion, *, registry=None)` | Modify/return peak, including recognized custom peak roles |
@@ -622,8 +667,8 @@ is accepted by the enum but does not copy structure in `Fitter.fit`; explicitly
 call `Project.copy_fit` first.
 
 Independent fits use each existing curve/model separately; global fits jointly
-optimize selected curves and cross-curve links. The core package installs the
-propagating sequential implementation automatically. Its **first selected curve
+optimize selected curves and cross-curve links. `Fitter` delegates directly to the
+canonical propagating sequential implementation. Its **first selected curve
 is a prepared seed and is not fitted again**. Prepare/fit that curve explicitly
 before the sequential call. Subsequent curves receive copied source functions
 by component ID; existing functions with those IDs are retained, not overwritten.
@@ -669,6 +714,14 @@ a frozen executable. Notebook kernels may not support spawning processes.
 ## 12. Complete FitSettings catalogue
 
 All names are actual constructor keywords; `settings.validate()` checks them.
+Built-in optimizers use dimensionless coordinates based on parameter and data
+scales; numerical Jacobians, automatic DE limits and bound diagnostics use those
+scales rather than a floor of one physical unit. Positive built-in widths have a
+float64 normal minimum (about `2.225e-308`), rather than machine epsilon. Explicit
+bounds remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific judgment.
+Optimizer coordinate tolerances, including explicit `x_scale`, apply after this
+normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 
 | Field | Default | Meaning/choices |
 | --- | --- | --- |
@@ -735,14 +788,37 @@ residual is **observed minus fitted**; optimizer residual has opposite sign.
 
 Global statistics: `N`, `k`, `degrees_of_freedom`, `RSS`, `RMSE`, `chi_square`,
 `reduced_chi_square`, `R_squared`, `AIC`, `AICc`, `BIC`. Per-curve statistics:
-`N`, `RSS`, `RMSE`, `R_squared`. AIC/AICc/BIC are unavailable for robust losses;
-insufficient degrees/rank may leave covariance unavailable. Matrix rows follow
+`N`, `RSS`, `RMSE`, `R_squared`. Gaussian information criteria use the likelihood
+of the weighted residuals, including its precision normalization. A relative or
+unknown noise scale adds one likelihood parameter; independent fits retain their
+separate fitted noise scales. The result records `negative_twice_log_likelihood`
+and `likelihood_parameters`. AIC/AICc/BIC are unavailable for robust losses,
+active interval-error arrays (including equal lower/upper half-widths) and
+arbitrary spectrum balancing. Insufficient degrees
+or rank may leave covariance unavailable. Matrix rows follow
 `free_parameter_paths`. Independent-batch matrices may be `BlockDiagonalMatrix`;
 `np.asarray(matrix)` densifies and can require substantial memory.
 
 `result.to_dict(arrays=False)` omits sampled curve/matrix arrays;
 `to_dict(arrays=True)` includes them. `FitResult.from_dict(mapping)` restores
 only outputs with complete arrays. Save full arrays for uncertainty baselines.
+
+New fit results record `provenance`: original model/constraint snapshots,
+input content hashes, ordered parameters, initial solver coordinates, scales,
+resolved solver bounds/method, settings, seeds, function/plugin fingerprints,
+CurveMole source identity, Python/NumPy/SciPy versions and backend/thread details.
+Profile and resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature have no
+reconstructible original state. Keep original data and scripts: hashes identify
+inputs but do not store a separate copy of every historical dataset.
+
+`Fitter.replay(result, curves, *, verify_environment=True, **fit_keywords)`
+reconstructs the saved initial plan/models and checks input hashes, function and
+solver fingerprints. The default also rejects a changed numerical environment.
+Use `verify_environment=False` explicitly for a comparison across environments.
+Older results without initial-state provenance raise `FitError`. Replay needs the
+original matching curves; later transformations can change their content hash.
+A new fit from a saved optimum is distinct from replay.
 
 `curvemole.core.diagnostics.residual_diagnostics(residual, *, max_lag=None,
 histogram_bins="auto") -> ResidualDiagnostics` returns standardized residuals,
@@ -767,6 +843,16 @@ workers=1, cancellation=None, progress=None)`:
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
   block length for each curve.
+
+Both bootstrap methods standardize sigma and inverse-variance noise equivalently;
+automatic block lengths use the same standardized residuals. Supplied noise
+scales remain active for resampling when `use_data_errors=False` disables their
+use in the fit. Arbitrary direct residual multipliers do not define noise scales.
+Large global fits with at least 16 free parameters use sparse numerical
+derivatives when the dependency pattern is less than half full; automatic local
+mode selects TRF for these problems. Explicit LM and plugin solver callbacks
+retain a dense Jacobian interface. Covariance reduction uses bounded row chunks;
+the final parameter covariance still occupies quadratic parameter storage.
 
 ```python
 from curvemole import FitPlan
@@ -798,10 +884,25 @@ settings. `maximum_attempts` caps attempts.
 upper=None, points=31, confidence_level=0.95, spectrum_weight=1.0,
 equal_contribution=False, workers=1, cancellation=None, progress=None)` returns
 `ProfileResult` with `parameter_path`, `values`, `delta_chi_square`,
-`confidence_level`, `interval`, `failed_points`, and `.to_dict()`. Limits must be
+`confidence_level`, `interval`, `failed_points`, `confidence_regions`, `warnings`,
+`provenance`, and `.to_dict()`. Limits must be
 finite/increasing and inside parameter bounds; at least three points are needed.
 Equality-linked targets and joint cross-spectrum linked profiles are unavailable;
-use resampling for the linked global case.
+use resampling for the linked global case. Gaussian profiles use a chi-square
+difference for known absolute noise and $N\log(Q/Q_{min})$ for an estimated common
+noise scale. Robust losses, active interval-error arrays (symmetric or asymmetric), and
+arbitrary spectrum balancing are rejected; use bootstrap. Interval arrays that
+are ignored with `use_data_errors=False` do not trigger that restriction. A zero-residual fit cannot estimate an unknown noise
+scale: provide known sigma. Convolution preserves the full regular grid before
+selecting fitted rows.
+
+Profile threshold crossings are refined by bracketed refits. `confidence_regions`
+contains every connected region detected by the scan; `interval` selects the region
+containing the fitted estimate and never bridges rejected gaps. Disconnected sets
+are marked **Critical**. `warnings` reports incomplete scans or unrefined endpoints;
+inspect every region and extend the scan where needed. A finite grid can still miss
+a narrow remote mode. The default Gaussian-location example now agrees with the
+analytic 95% interval, approximately +/-1.959964 standard errors.
 
 `resampling_batch(method, jobs, *, replicates, option=None, workers=1,
 adaptive=None, cancellation=None, progress=None, on_result=None)` returns a list
@@ -816,17 +917,37 @@ selection/integration.
 
 ## 15. Saving projects/models and YAML interoperability
 
+Saved state and full computational replay require different information. Ordinary
+fit records retain final parameters and settings but do not systematically store
+the original initial vector, resolved DE search bounds, exact Python/NumPy/SciPy
+and backend versions, RNG implementation, or source/plugin fingerprints used for
+that analysis. Keep the original script/workflow, inputs and environment alongside
+the project. A seed alone is insufficient; refitting the saved optimum can also
+recompute different automatic search bounds.
+
 Import from `curvemole.core.serialization`:
 
 | Callable | Return/behavior |
 | --- | --- |
-| `save_project(project, path, *, include_uncertainty_samples=True, portable=False, update_project_path=True)` | `Path`; atomic `.fitproj`, creates parent and normalizes suffix |
-| `load_project(path, *, partial_recovery=False)` | Restored `Project` |
-| `validate_project_archive(path, *, raise_on_error=True)` | `list[str]` failures; raises by default when nonempty |
+| `save_project(project, path, *, include_uncertainty_samples=True, portable=False, update_project_path=True, pre_commit_check=None)` | `Path`; atomic `.fitproj`, creates parent and normalizes suffix |
+| `load_project(path, *, partial_recovery=False, limits=None, cancellation=None)` | Restored `Project` |
+| `validate_project_archive(path, *, raise_on_error=True, limits=None)` | `list[str]` failures; raises by default when nonempty |
 | `capture_project_snapshot(project)` | Detached `ProjectSaveSnapshot` |
 | `save_fitmodel(model, path, *, custom_functions=None)` | `Path` to JSON `.fitmodel` |
 | `load_fitmodel(path)` | `(Model, list_of_custom_function_specs)` |
 | `ProjectLock(Path(path))` | Context manager; inspect `.acquired` before shared-file edits |
+
+`pre_commit_check` is an optional callable executed after archive validation and
+immediately before replacing the destination; raising cancels that replacement.
+It supports a caller's lock/digest guard and does not itself acquire a lock.
+
+The testing reader and validator accept `limits=ArchiveLimits(...)`, imported from
+`curvemole.core.archive_validation`. Defaults are 100,000 ZIP members, 1 GiB expanded
+content, 256 MiB per array and 32 MiB of manifest. Larger trusted loads can opt in
+to larger limits. `save_project` still validates against the default limits: raising
+a read limit does not enlarge its save budget. `load_project` optionally accepts a
+cancellation object with `raise_if_cancelled()`; checks occur during streamed reads,
+not as a hard interruption of a running NumPy allocation.
 
 `portable=True` strips local paths. Detached snapshots require
 `update_project_path=False` when saving. Project schema is **4** and model schema
@@ -932,7 +1053,7 @@ Import from `curvemole.core.export`:
 | `export_function_parameters(project, path, *, include_covariance=False)` | `Path`; one row per spectrum with parameter/error columns |
 | `export_parameter_covariances(project, parameter_path)` | `list[Path]`; covariance directory derives from parameter-file path; requires per-curve fit records |
 | `value_with_error(value, error)` | Formatted value/error string |
-| `export_bundle(project, directory, *, result=None, delimiter=",", versioned=False, overwrite=False, include_uncertainty_samples=True, selection=None, current_view=None)` | `ExportSummary`: directory and created/updated/unchanged/preserved_external path lists |
+| `export_bundle(project, directory, *, result=None, delimiter=",", versioned=False, overwrite=False, include_uncertainty_samples=True, selection=None, current_view=None)` | `ExportSummary`: directory and the `created`, `updated`, `unchanged`, `preserved_external` path lists |
 
 `ExportSelection` defaults all fields True except `original_x=False`: `x`, `y`,
 `total_fit`, `residual`, `background`, `components`, `sigma_y`, `weights`,
@@ -957,8 +1078,16 @@ include_background=True, include_components=True, include_total_fit=True,
 include_residual=True)`, `spectrum_export_dataframe(project, curve_id, *,
 options=None, registry=None) -> DataFrame`,
 `export_spectra(project, directory, curve_ids, *, options=None,
-registry=None) -> list[Path]`. Quick spectrum export writes destination files
-directly; choose a new directory to preserve previous exports.
+registry=None, overwrite=False) -> list[Path]`. Numeric exports use 17 significant
+digits and stage conversions before publishing. Existing files require explicit
+overwrite; symbolic-link destinations are refused. Multi-file filesystem failures
+can still leave a partial set of published files.
+Numeric spectrum exports preserve explicit weights and write
+`weights_are_inverse_variance` as 1 (inverse variance) or 0 (direct multiplier).
+Wide and quick tables disambiguate all colliding headers with `__2`, `__3`, ... .
+Returned DataFrames also expose `attrs["column_roles"]` for the allocated X/Y
+names (and original X in wide exports), so callers need not infer axis identity
+from display labels.
 
 `export_figure(curves, models, path, *, registry=None, dpi=300, width=9.0,
 height=5.5, transparent=False, include_components=True, include_residuals=True,

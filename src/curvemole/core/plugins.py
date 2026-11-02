@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import importlib.metadata
 import importlib.util
 import json
@@ -79,9 +78,12 @@ class PluginManager:
         self.trusted_identifiers = set(trusted_identifiers or ())
         self.loaded: dict[str, PluginMetadata] = {}
         self.function_owners: dict[str, str] = {}
+        self.source_fingerprints: dict[str, str] = {}
         self.storage = Path(storage) if storage is not None else None
         self.installed: dict[str, dict[str, Any]] = {}
         self.errors: dict[str, str] = {}
+        self._loading: set[str] = set()
+        self._disabled_owners: set[str] = set()
         self.symbols: dict[str, str] = {}
         self.names: dict[str, str] = {}
         self.session_path: Path | None = None
@@ -220,10 +222,68 @@ class PluginManager:
         if candidate.kind != "local":
             return candidate.metadata.version
         manifest = Path(candidate.reference)
-        source = manifest.parent / (candidate.metadata.module or "")
-        return hashlib.sha256(manifest.read_bytes() + source.read_bytes()).hexdigest()
+        from curvemole.plugin_fingerprint import fingerprint
+        root = manifest.parent.resolve()
+        excluded = []
+        if self.storage is not None:
+            storage = self.storage.resolve()
+            if storage != root and storage.is_relative_to(root):
+                excluded.append(storage)
+            elif storage == root:
+                excluded.append(storage / "installed.json")
+                excluded.extend(storage.glob("session-*.json"))
+        # Flat plugin directories may host unrelated plugins and GUI settings.
+        # Cover local Python helpers, excluding other entry points unless imported;
+        # package plugins also own their package resources. Extra flat resources
+        # can be declared explicitly in the manifest's "files" list.
+        owned = set(root.rglob("*.py"))
+        source = root / candidate.metadata.module
+        for other in root.glob("*.curvemole-plugin.json"):
+            if other == manifest:
+                continue
+            try:
+                other_source = root / json.loads(other.read_text())["module"]
+                if other_source != source:
+                    owned.discard(other_source)
+            except (OSError, ValueError, KeyError, TypeError):
+                continue
+        import ast
+        pending = [source]
+        seen = set()
+        while pending:
+            module = pending.pop()
+            if module in seen or not module.is_file():
+                continue
+            seen.add(module)
+            owned.add(module)
+            try:
+                tree = ast.parse(module.read_text())
+            except (OSError, ValueError, SyntaxError):
+                continue
+            for node in ast.walk(tree):
+                imported = ([alias.name for alias in node.names] if isinstance(node, ast.Import)
+                            else [node.module or ""] if isinstance(node, ast.ImportFrom) else [])
+                for name in imported:
+                    dependency = root.joinpath(*name.split(".")).with_suffix(".py")
+                    if dependency.is_file():
+                        pending.append(dependency)
+        if source.parent != root:
+            owned.update(source.parent.rglob("*"))
+        owned.add(manifest)
+        for value in json.loads(manifest.read_text()).get("files", []):
+            resource = root / value
+            if not resource.resolve().is_relative_to(root):
+                raise CurveMoleError("Plugin resource escapes its source folder.")
+            owned.add(resource)
+            if resource.is_dir():
+                owned.update(resource.rglob("*"))
+        return fingerprint(root, excluded_paths=excluded, included_paths=owned)
 
     def invoke(self, owner: str, callback: Any, *args: Any, **kwargs: Any) -> Any:
+        if (owner in self._disabled_owners or
+                (owner not in self._loading and owner in self.installed
+                 and not self.installed[owner].get("enabled", False))):
+            raise CurveMoleError(f"Plugin {owner} is disabled.")
         if owner in self.errors:
             raise CurveMoleError(f"Plugin {owner} is disabled: {self.errors[owner]}")
         try:
@@ -240,7 +300,9 @@ class PluginManager:
 
     def disable(self, identifier: str, reason: str | None = None) -> None:
         from curvemole.core.extensions import extensions
+        self._disabled_owners.add(identifier)
         extensions.remove_owner(identifier)
+        self.registry.remove_owner(identifier)
         for function, owner in list(self.function_owners.items()):
             if owner == identifier:
                 if (function in self.registry.identifiers()
@@ -321,6 +383,9 @@ class PluginManager:
             raise CurveMoleError("Plugin source changed; review and trust it again.")
         self.errors.pop(metadata.identifier, None)
         self.names[metadata.identifier] = metadata.name or metadata.identifier
+        self._disabled_owners.discard(metadata.identifier)
+        self.source_fingerprints[metadata.identifier] = fingerprint
+        self._loading.add(metadata.identifier)
         try:
             if candidate.kind == "local":
                 loaded = self._load_local(candidate)
@@ -339,6 +404,8 @@ class PluginManager:
         except BaseException as exc:
             self.disable(metadata.identifier, "Loading failed")
             raise CurveMoleError(f"Plugin loading failed: {exc}") from exc
+        finally:
+            self._loading.discard(metadata.identifier)
         self.trusted_identifiers.add(metadata.identifier)
         self.loaded[metadata.identifier] = metadata
         previous = self.installed.get(metadata.identifier, {})

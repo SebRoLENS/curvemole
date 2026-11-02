@@ -1,7 +1,7 @@
 # YAML workflow authoring reference
 
 **Stable API baseline: CurveMole 1.1.0. Beta additions require CurveMole 1.1.1 beta.**
-**Beta workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-10-29.**
+**Beta workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
 This testing edition documents both the stable baseline and the marked 1.1.1 beta
 extensions. Folder/pattern imports, templates, shared curve selectors,
 preprocessing, stricter validation and the new output controls are beta additions;
@@ -11,6 +11,18 @@ Use `schema_version: 3` for new beta workflows. Marked extension keys require
 schema 3; schemas 1 and 2 accept only the legacy fields. This guard makes older
 CurveMole executables reject new recipes instead of silently ignoring their
 processing stages. This is the runner contract, not every desktop action.
+
+**Current testing behavior.** This edition includes the November 2026 scientific
+and data-integrity corrections. Match it to the exact testing/beta build; those
+corrections and testing-only API additions must not be inferred for 1.1.0 Stable
+or an older beta from its version-family name alone.
+
+**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+latest scientific audit are corrected in this edition: parameter scaling,
+nonlinear uncertainty derivatives, convolution alignment, compensated summation,
+profile confidence regions and saved execution provenance. Appendix J describes
+the changes and their limits. Use the documents attached to your exact beta build;
+these corrections do not apply retroactively to earlier executables.
 
 ## W1. What a workflow can do
 
@@ -408,8 +420,9 @@ asymmetric confidence intervals are converted to Gaussian tail scales using
 `error_confidence_level`, choosing the upper/lower scale according to the fitted
 prediction's side of the observed value. Nonfinite X/Y, nonfinite or nonpositive
 Y-error scales, and nonfinite or negative weights are excluded through the
-curve's effective mask. Zero weights remain valid but contribute zero to the
-objective. Imported X errors do not determine the fit mask. Check retained point
+curve's effective mask. Zero-weight rows remain available in the worksheet but
+are excluded from fitted observations, N and degrees of freedom when weights are
+the active Y-error representation. Imported X errors do not determine the fit mask. Check retained point
 counts in results.
 
 In 1.1.1 beta, `spectra` accepts a list of nested mappings, each describing its own
@@ -486,7 +499,7 @@ Built-in function identifiers and parameters:
 | `cubic_spline` | `y0 … yN: 0` | `metadata.x_nodes` supplies at least two finite strictly increasing X nodes |
 
 Peak areas and centers are unbounded by default. Positive built-in width lower
-bounds are machine epsilon. `Component.create` clamps initial values to the
+bounds are the float64 normal minimum (about `2.225e-308`). `Component.create` clamps initial values to the
 function's default bounds; explicit constraint bounds are subsequently validated
 against the resulting value. Set sensible positive initial widths and physically
 appropriate bounds explicitly. All eight functions are usable as any component
@@ -503,16 +516,20 @@ Global composition first sums all Add functions and subtracts all Subtract
 functions. Multiply, Divide and Convolve then act on that complete sum. Their
 fallback order is Multiply, Divide, Convolve, with component ID as a tie-breaker;
 use explicit IDs and `operation_order` for a chosen order. This is not a nested
-expression language. The legacy `composition_mode` key is ignored; supported
-schemas 1, 2 and 3 all use the current global roles. A component's position in the YAML list does
-not create parentheses. FFT convolution requires a finite, uniformly spaced,
-strictly monotonic X grid; ascending and descending axes are supported. Irregular
-or nonmonotonic grids raise a data-validation error: resample them beforehand
-using Python or another data-preparation tool. Integration uses absolute uniform
-X spacing. Fitting evaluates convolution on the full current grid before masks
-or fit ranges select residual rows, so excluding points does not alter the
-convolved model itself. Choose a sufficient window width; consecutive
-convolutions are evaluated together and cropped once.
+expression language. The legacy `composition_mode` key is ignored; schemas 1, 2
+and 3 use the current global roles. YAML list position does not create parentheses.
+Convolution uses full FFT integration with absolute uniform X spacing and a
+single centered crop for consecutive kernels. A finite, strictly monotonic,
+uniform grid is required at every scale. For even-length signals, kernels are
+sampled on an odd grid with an exact central lag, removing the half-sample shift;
+ascending and descending axes give the same physical center. Kernel coordinates
+retain the input-domain midpoint convention. Choose a sufficiently wide, finely
+sampled window: finite-window truncation and discretization remain approximations.
+Masks and fit ranges select rows after full-grid convolution.
+
+Add/Subtract accumulation uses compensated summation independent of random IDs.
+Explicit IDs remain useful for links and operation ordering, rather than for
+controlling summation roundoff.
 
 For example, this model evaluates `(constant + gaussian) * response`:
 
@@ -723,7 +740,10 @@ scalar parameter formulas; derived formulas have no X array. A nonfinite derived
 result is reported as unavailable. Invalid symbols or expressions can raise an
 expression error and fail an operation; use only parameters declared by the main
 formula and check each derived formula on representative parameter values.
-Registration uses replacement, so do not reuse a built-in identifier accidentally.
+In the current testing edition, a formula may replace a non-builtin registration,
+but builtin identifier collisions are rejected. Choose a distinct identifier for
+each custom function. A workflow without an explicit Python registry uses an
+isolated registry; a supplied registry remains owned by its caller.
 Formula definitions are not arbitrary Python and need no executable-plugin
 approval.
 
@@ -804,6 +824,15 @@ Only the following built-in settings are passed to `FitSettings`; spell names
 exactly. An unrecognised setting raises `TypeError`. Do not add GUI-only controls
 such as propagation thresholds or Monte Carlo replicate counts here.
 
+Built-in optimizers use dimensionless coordinates based on parameter and data
+scales; numerical Jacobians, automatic DE limits and bound diagnostics use those
+scales rather than a floor of one physical unit. Positive built-in widths have a
+float64 normal minimum (about `2.225e-308`), rather than machine epsilon. Explicit
+bounds remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific judgment.
+Optimizer coordinate tolerances, including explicit `x_scale`, apply after this
+normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
+
 | Setting | Default | Meaning/accepted values |
 | --- | --- | --- |
 | `solver` | `local` | `local`, `trf`, `dogbox`, `lm`, `differential_evolution`, `nelder_mead`, `powell`, `lbfgsb`, or an enabled registered plugin solver ID |
@@ -836,7 +865,7 @@ such as propagation thresholds or Monte Carlo replicate counts here.
 | `minimize_maxiter` | `0` | Nonnegative integer; 0 keeps the minimizer's automatic iteration limit |
 | `powell_xtol` | `0.0001` | Finite positive Powell X tolerance |
 | `powell_ftol` | `0.0001` | Finite positive Powell objective tolerance |
-| `lbfgsb_ftol` | `0.000000002220446049250313` | Finite positive L-BFGS-B objective tolerance |
+| `lbfgsb_ftol` | `2.220446049250313e-9` | Finite positive L-BFGS-B objective tolerance |
 | `lbfgsb_gtol` | `0.00001` | Finite positive L-BFGS-B gradient tolerance |
 | `lbfgsb_maxls` | `20` | Positive integer maximum line-search steps |
 | `lbfgsb_maxcor` | `10` | Positive integer stored correction pairs |
@@ -852,6 +881,17 @@ executable plugin model functions cannot be reconstructed automatically in worke
 processes. `workers` is not a general parallelisation switch for every mode.
 
 ## W12. Output contract and reruns
+
+New fit results record `provenance`: original model/constraint snapshots,
+input content hashes, ordered parameters, initial solver coordinates, scales,
+resolved solver bounds/method, settings, seeds, function/plugin fingerprints,
+CurveMole source identity, Python/NumPy/SciPy versions and backend/thread details.
+Profile and resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature have no
+reconstructible original state. Keep original data and scripts: hashes identify
+inputs but do not store a separate copy of every historical dataset.
+For checked initial-state replay use the Python `Fitter.replay` interface.
+Rerunning YAML or fitting the current optimum is a new calculation.
 
 | Key in `export` | Default | Meaning |
 | --- | --- | --- |

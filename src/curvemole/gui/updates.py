@@ -8,7 +8,6 @@ import os
 import platform
 import re
 import stat
-import subprocess
 import sys
 import time
 from contextlib import suppress
@@ -126,6 +125,9 @@ class UpdateController(QObject):
 
     def __init__(self, window: Any) -> None:
         super().__init__(window)
+        if platform.system() == "Windows":
+            from curvemole.gui.windows_update_fix import _cleanup_stale_update_files
+            _cleanup_stale_update_files(_running_desktop_binary())
         self.window = window
         self.settings = QSettings("CurveMole", "CurveMole")
         channel = str(self.settings.value("updates/channel", default_channel(__version__)))
@@ -447,6 +449,10 @@ class UpdateController(QObject):
                 self.window._open_external(str(payload.get("html_url") or RELEASE_PAGE))
 
     def _download_update(self, asset: ReleaseAsset, latest: str) -> None:
+        if platform.system() == "Windows":
+            from curvemole.gui.windows_update_fix import _download_windows_update
+            _download_windows_update(self, asset, latest)
+            return
         if self._download_reply is not None:
             self.window._notify(self.window.tr("An update download is already in progress."))
             return
@@ -534,6 +540,10 @@ class UpdateController(QObject):
                 raise RuntimeError(self.window.tr("The downloaded update could not be located."))
 
             expected = asset.digest.lower()
+            if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
+                raise RuntimeError(self.window.tr(
+                    "The release has no supported SHA-256 digest. "
+                    "Download it manually from the release page instead."))
             if expected.startswith("sha256:"):
                 actual = _sha256(path)
                 if actual != expected.split(":", 1)[1]:
@@ -561,6 +571,10 @@ class UpdateController(QObject):
                 self.window.fit_action.setEnabled(True)
 
     def _install_download(self, downloaded: Path, asset: ReleaseAsset, latest: str) -> None:
+        if platform.system() == "Windows":
+            from curvemole.gui.windows_update_fix import _install_windows_download
+            _install_windows_download(self, downloaded, asset, latest)
+            return
         current = _running_desktop_binary()
         if current is None:
             raise RuntimeError(self.window.tr("The running CurveMole executable could not be identified."))
@@ -596,60 +610,6 @@ class UpdateController(QObject):
             )
             return
 
-        if system == "Windows":
-            if not self.window._confirm_discard_or_save():
-                downloaded.unlink(missing_ok=True)
-                return
-            helper = current.parent / f".curvemole-update-{os.getpid()}.cmd"
-            helper.write_text(
-                self._windows_helper_script(current, destination, downloaded),
-                encoding="utf-8",
-            )
-            QMessageBox.information(
-                self.window,
-                self.window.tr("CurveMole updated"),
-                self.window.tr(
-                    "The update is verified. CurveMole will close, replace the old executable, remove it from disk, and start the new version."
-                ),
-            )
-            creationflags = 0
-            creationflags |= getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-            creationflags |= getattr(subprocess, "DETACHED_PROCESS", 0)
-            subprocess.Popen(
-                ["cmd.exe", "/c", str(helper)],
-                close_fds=True,
-                creationflags=creationflags,
-            )
-            # _confirm_discard_or_save() already handled the user's choice; avoid
-            # prompting a second time from MainWindow.closeEvent during restart.
-            self.window.project.dirty = False
-            self.window.close()
-            return
-
         raise RuntimeError(
             self.window.tr("Automatic executable replacement is not supported on this platform.")
         )
-
-    @staticmethod
-    def _windows_helper_script(current: Path, destination: Path, downloaded: Path) -> str:
-        pid = os.getpid()
-        current_text = str(current)
-        destination_text = str(destination)
-        downloaded_text = str(downloaded)
-        return f"""@echo off
-setlocal
-:wait_for_curvemole
-tasklist /FI "PID eq {pid}" 2>NUL | find "{pid}" >NUL
-if not errorlevel 1 (
-  >NUL 2>&1 timeout /T 1 /NOBREAK
-  goto wait_for_curvemole
-)
-move /Y "{downloaded_text}" "{destination_text}" >NUL
-if errorlevel 1 goto update_failed
-if /I not "{current_text}"=="{destination_text}" del /F /Q "{current_text}" >NUL 2>&1
-start "" "{destination_text}"
-del /F /Q "%~f0" >NUL 2>&1
-exit /B 0
-:update_failed
-exit /B 1
-"""

@@ -20,6 +20,7 @@ import numpy as np
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
+from curvemole.core.jacobians import jacobian_svd, residual_sparsity, weighted_gram
 from curvemole.core.matrices import (
     BlockDiagonalMatrix,
     covariance_statistics,
@@ -27,6 +28,7 @@ from curvemole.core.matrices import (
     matrix_payload,
 )
 from curvemole.core.models import Model
+from curvemole.core.numerics import derivative_steps, parameter_scales, scale_jacobian
 from curvemole.core.parameters import EqualityParameterResolver, Parameter
 from curvemole.core.process_pool import bounded_results, managed_process_pool
 from curvemole.core.registry import FunctionRegistry, default_registry
@@ -241,6 +243,7 @@ class FitResult:
     elapsed_seconds: float = 0.0
     cancelled: bool = False
     paused_curve_id: str | None = None
+    provenance: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self, *, arrays: bool = False) -> dict[str, Any]:
         return {
@@ -263,6 +266,7 @@ class FitResult:
             "elapsed_seconds": self.elapsed_seconds,
             "cancelled": self.cancelled,
             "paused_curve_id": self.paused_curve_id,
+            "provenance": self.provenance,
         }
 
     @classmethod
@@ -315,6 +319,7 @@ class FitResult:
             elapsed_seconds=float(value.get("elapsed_seconds", 0.0)),
             cancelled=bool(value.get("cancelled", False)),
             paused_curve_id=value.get("paused_curve_id"),
+            provenance=copy.deepcopy(value.get("provenance", {})),
         )
 
 
@@ -444,6 +449,13 @@ class _Problem:
             # A newly added bound may exclude the previous starting value.
             # Build a feasible starting point before validating the graph.
             self.values(self.initial)
+        self.scales = parameter_scales(self.parameters, self.free_paths, self.curves, self.coordinates)
+        structure = residual_sparsity(
+            self.curves, self.models, self.parameters, self.free_paths, self._data)
+        self._jacobian_sparsity = None
+        if structure is not None:
+            from scipy.optimize._numdiff import group_columns
+            self._jacobian_sparsity = (structure, group_columns(structure))
 
     @property
     def initial(self) -> np.ndarray:
@@ -492,7 +504,8 @@ class _Problem:
         try:
             return np.atleast_2d(approx_derivative(
                 physical,
-                vector, method="2-point", bounds=self.bounds,
+                vector, method="3-point", bounds=self.bounds,
+                abs_step=derivative_steps(vector, self.scales),
             ))
         finally:
             self.values(vector, commit=True)
@@ -533,17 +546,20 @@ class _Problem:
             self._jacobian_base = (vector.copy(), residual)
         return residual
 
-    def jacobian(self, vector: np.ndarray) -> np.ndarray:
+    def jacobian(self, vector: np.ndarray, *, dense: bool = False):
         # Keep numerical-difference probes out of the solver's nfev budget.
         # Use SciPy's bound-aware two-point routine, as least_squares does.
         from scipy.optimize._numdiff import approx_derivative
         base = self._jacobian_base
         f0 = base[1] if base is not None and np.array_equal(base[0], vector) else None
         try:
-            return approx_derivative(
+            result = approx_derivative(
                 lambda point: self.residual(point, report=False),
-                vector, method="2-point", bounds=self.bounds, f0=f0,
+                vector, method="3-point", bounds=self.bounds, f0=f0,
+                abs_step=derivative_steps(vector, self.scales),
+                sparsity=self._jacobian_sparsity,
             )
+            return result.toarray() if dense and hasattr(result, "toarray") else result
         finally:
             self.values(vector)
 
@@ -578,6 +594,13 @@ class _Problem:
                 weighted_residual=weighted,
                 statistics={
                     "N": len(observed),
+                    "likelihood_supported": int(
+                        (not self.plan.settings.use_data_errors or curve.current_error_y_minus is None)
+                        and not self.plan.equal_contribution
+                        and self.plan.spectrum_weights.get(curve.id, 1.0) == 1.0),
+                    "noise_scale_known": int(absolute_noise_scale(self.plan.settings, self.curves)),
+                    "log_precision_sum": (float(np.log(point_scale).sum())
+                                          if point_scale is not None else 0.0),
                     "RSS": rss,
                     "RMSE": math.sqrt(rss / len(observed)),
                     "R_squared": 1 - rss / tss if tss > 0 else None,
@@ -599,6 +622,7 @@ class Fitter:
         cancellation: CancellationToken | None = None,
         progress: ProgressCallback | None = None,
         on_curve_result: CurveResultCallback | None = None,
+        _record_provenance: bool = True,
     ) -> FitResult:
         plan.validate()
         curve_map = {curve.id: curve for curve in curves} if not isinstance(curves, Mapping) else curves
@@ -607,6 +631,16 @@ class Fitter:
         except KeyError as exc:
             raise FitError(f"Fit plan references unknown curve: {exc.args[0]}") from exc
         cancellation = cancellation or CancellationToken()
+        from curvemole.core.provenance import fit_record
+        record = fit_record(plan, selected, models, self.registry) if _record_provenance else None
+        if on_curve_result is not None and record is not None:
+            callback = on_curve_result
+            def on_curve_result(curve_id, current):
+                from curvemole.core.provenance import select_fit_record
+                local_record = select_fit_record(record, curve_id)
+                local_record['executions'] = copy.deepcopy(current.provenance.get('executions', []))
+                current.provenance = local_record
+                callback(curve_id, current)
         started = time.monotonic()
         if plan.mode == FitMode.GLOBAL:
             result = self._fit_problem(selected, models, plan, cancellation, progress)
@@ -617,9 +651,46 @@ class Fitter:
         else:
             result = self._fit_independent(selected, models, plan, cancellation, progress, on_curve_result)
         result.elapsed_seconds = time.monotonic() - started
+        if record is not None:
+            record['executions'] = result.provenance.get('executions', [])
+            result.provenance = record
         if progress and not result.paused_curve_id:
             progress(1.0, result.message)
         return result
+
+    def replay(self, result: FitResult, curves, *, verify_environment=True, **kwargs):
+        """Replay saved initial conditions, rejecting changed data/definitions."""
+        from curvemole.core.provenance import environment_record, function_records
+        record = result.provenance
+        if record.get('kind') != 'fit' or not record.get('initial_models'):
+            raise FitError('This result has no replayable initial-state provenance.')
+        available = {c.id: c for c in curves} if not isinstance(curves, Mapping) else curves
+        for cid, digest in record['input_hashes'].items():
+            if cid not in available or available[cid].content_hash != digest:
+                raise FitError(f'Cannot replay: input data changed or missing for {cid}.')
+        models = {cid: Model.from_dict(copy.deepcopy(value))
+                  for cid, value in record['initial_models'].items()}
+        if {key: value['sha256'] for key, value in function_records(self.registry, models).items()} != {key: value['sha256'] for key, value in record['functions'].items()}:
+            raise FitError('Cannot replay: function definitions changed.')
+        if verify_environment and environment_record() != record['environment']:
+            raise FitError('Cannot replay exactly: numerical environment changed.')
+        from curvemole.core.extensions import extensions
+        extension = next((entry for entry in extensions.values('fit_solvers')
+                          if entry.identifier == record['plan']['settings']['solver']), None)
+        identity = None if extension is None else {'identifier': extension.identifier,
+                    'owner': extension.owner, 'source_sha256': extension.source_sha256}
+        if identity != record.get('solver_extension'):
+            raise FitError('Cannot replay: solver extension changed or missing.')
+        saved = record['plan']
+        if saved['mode'] == 'sequential':
+            from curvemole.core.sequential_fit import SequentialFitPlan
+            plan_type = SequentialFitPlan
+        else:
+            plan_type = FitPlan
+        plan = plan_type(list(saved['curve_ids']), FitMode(saved['mode']),
+                       FitSettings(**saved['settings']), dict(saved['spectrum_weights']),
+                       saved['equal_contribution'], **record.get('sequential_options', {}))
+        return self.fit(plan, available, models, **kwargs)
 
     def fit_single(
         self,
@@ -749,41 +820,8 @@ class Fitter:
         cancellation: CancellationToken,
         progress: ProgressCallback | None,
     ) -> FitResult:
-        results: list[FitResult] = []
-        previous_model: Model | None = None
-        for index, curve in enumerate(curves):
-            cancellation.raise_if_cancelled()
-            model = models[curve.id]
-            if previous_model is not None:
-                _copy_matching_values(previous_model, model)
-            if progress:
-                progress(index / len(curves), f"Sequential fit: {curve.name}")
-            local_plan = FitPlan(
-                [curve.id],
-                FitMode.SEQUENTIAL,
-                copy.deepcopy(plan.settings),
-                {curve.id: plan.spectrum_weights.get(curve.id, 1.0)},
-                plan.equal_contribution,
-            )
-            try:
-                current = self._fit_problem(
-                    [curve], models, local_plan, cancellation,
-                    progress=_batch_progress(progress, index, len(curves)),
-                )
-            except (FitError, ConstraintError) as exc:
-                merged = _merge_results(results, plan.mode, plan.settings)
-                merged.success = False
-                merged.status = -2
-                merged.message = (
-                    f"Sequential fit paused at '{curve.name}': {exc}. "
-                    "Correct the model manually, then continue explicitly."
-                )
-                merged.paused_curve_id = curve.id
-                curve.state = CurveState.FAILED
-                return merged
-            results.append(current)
-            previous_model = model
-        return _merge_results(results, plan.mode, plan.settings)
+        from curvemole.core.sequential_fit import _fit_sequential_propagating
+        return _fit_sequential_propagating(self, curves, models, plan, cancellation, progress)
 
     def _fit_problem(
         self,
@@ -813,13 +851,28 @@ class Fitter:
             lower, upper = problem.bounds
             settings = plan.settings
             initial = np.clip(problem.initial, lower, upper)
+            scales = problem.scales
+            execution = {'curve_ids': [curve.id for curve in curves],
+                         'parameter_order': list(problem.free_paths),
+                         'initial_solver_vector': initial.tolist(),
+                         'parameter_scales': scales.tolist()}
+            if plan.mode == FitMode.SEQUENTIAL:
+                execution['initial_models'] = {curve.id: copy.deepcopy(models[curve.id].to_dict())
+                                               for curve in curves}
+
+            def scaled_residual(vector, *, report=True):
+                return problem.residual(vector * scales, report=report)
+
+            def scaled_jacobian(vector, *, dense=False):
+                return scale_jacobian(problem.jacobian(vector * scales, dense=dense), scales)
+
             if settings.solver == "differential_evolution":
                 lower, upper = _automatic_de_bounds(problem, settings)
                 if progress:
                     progress(0.0, "Differential Evolution initial search")
                 differential = optimize.differential_evolution(
-                    lambda vector: _objective(problem.residual(vector, report=False), settings),
-                    list(zip(lower, upper, strict=True)),
+                    lambda vector: _objective(scaled_residual(vector, report=False), settings),
+                    list(zip(lower / scales, upper / scales, strict=True)),
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
                     popsize=settings.de_popsize,
@@ -833,13 +886,15 @@ class Fitter:
                     callback=lambda intermediate_result: cancellation.cancelled,
                 )
                 cancellation.raise_if_cancelled()
-                initial = differential.x
+                initial = differential.x * scales
+            execution['solver_bounds'] = [lower.tolist(), upper.tolist()]
             from curvemole.core.extensions import extensions
             custom = next((entry for entry in extensions.values("fit_solvers")
                            if entry.identifier == settings.solver), None)
             if custom is not None:
                 from types import SimpleNamespace
-                request = SimpleNamespace(residual=problem.residual, jacobian=problem.jacobian,
+                request = SimpleNamespace(residual=problem.residual,
+                    jacobian=lambda vector: problem.jacobian(vector, dense=True),
                     initial=initial.copy(), bounds=(lower.copy(), upper.copy()),
                     settings=copy.deepcopy(settings), cancellation=cancellation)
                 least_squares = custom.callback(request)
@@ -863,17 +918,18 @@ class Fitter:
                         raise FitError("Initial simplex dimension does not match the free parameters.")
                     if problem.coordinates is not None:
                         simplex = np.asarray([problem.coordinates.encode(vertex) for vertex in simplex])
-                        options["initial_simplex"] = simplex
+                    options["initial_simplex"] = simplex / scales
                     if np.any(simplex < lower) or np.any(simplex > upper):
                         raise FitError("Initial simplex vertices must satisfy parameter bounds.")
                 minimised = optimize.minimize(
-                    lambda vector: _objective(problem.residual(vector), settings),
-                    initial, method=method, bounds=list(zip(lower, upper, strict=True)),
+                    lambda vector: _objective(scaled_residual(vector), settings),
+                    initial / scales, method=method,
+                    bounds=list(zip(lower / scales, upper / scales, strict=True)),
                     options=options,
                 )
                 cancellation.raise_if_cancelled()
                 from types import SimpleNamespace
-                vector = np.clip(minimised.x, lower, upper)
+                vector = np.clip(minimised.x * scales, lower, upper)
                 least_squares = SimpleNamespace(
                     x=vector, fun=problem.residual(vector, report=False),
                     jac=problem.jacobian(vector), nfev=minimised.nfev,
@@ -883,14 +939,18 @@ class Fitter:
             else:
                 method = (settings.solver if settings.solver in {"trf", "dogbox", "lm"}
                           else _select_method(settings, lower, upper))
+                if (method == "lm" and settings.local_method == "auto" and settings.solver != "lm"
+                        and problem._jacobian_sparsity is not None):
+                    method = "trf"
                 if method == "lm" and (np.any(np.isfinite(lower)) or
                                        np.any(np.isfinite(upper)) or settings.loss != "linear"):
                     raise FitError("Levenberg-Marquardt requires no bounds and linear loss.")
                 least_squares = optimize.least_squares(
-                    problem.residual,
-                    initial,
-                    jac=problem.jacobian,
-                    bounds=(lower, upper),
+                    scaled_residual,
+                    initial / scales,
+                    jac=(lambda vector: scaled_jacobian(vector, dense=True)) if method == "lm"
+                        else scaled_jacobian,
+                    bounds=(lower / scales, upper / scales),
                     method=method,
                     loss=settings.loss,
                     f_scale=settings.f_scale,
@@ -900,11 +960,22 @@ class Fitter:
                     xtol=settings.xtol,
                     gtol=settings.gtol,
                 )
+                least_squares.x = least_squares.x * scales
+                least_squares.jac = scale_jacobian(least_squares.jac, 1 / scales)
+            execution['resolved_method'] = (settings.solver if custom is not None else method)
             if progress:
                 progress(
                     min(least_squares.nfev / settings.max_nfev, 1.0),
                     f"Evaluation {least_squares.nfev}",
                 )
+            cancellation.raise_if_cancelled()
+            # Only scipy least_squares modifies J for a robust loss. Minimize
+            # and extension paths above already reconstructed the raw J.
+            covariance_jacobian = (
+                problem.jacobian(least_squares.x)
+                if settings.loss != "linear" and custom is None
+                and settings.solver not in {"nelder_mead", "powell", "lbfgsb"}
+                else least_squares.jac)
         except FitCancelled:
             _restore_parameters(problem.parameters if "problem" in locals() else {}, original_parameter_state)
             for curve in curves:
@@ -927,12 +998,15 @@ class Fitter:
         outputs = problem.outputs(values)
         warnings: list[str] = []
         covariance, correlation, errors = _covariance(
-            least_squares.jac,
+            scale_jacobian(covariance_jacobian, scales),
             np.asarray(least_squares.fun),
             settings,
             curves,
             warnings,
         )
+        if covariance is not None:
+            covariance = covariance * np.outer(scales, scales)
+            errors, correlation = covariance_statistics(covariance)
         estimates = _parameter_estimates(
             problem,
             least_squares.x,
@@ -972,6 +1046,7 @@ class Fitter:
             free_parameter_paths=list(problem.free_paths),
             covariance=covariance,
             correlation=correlation,
+            provenance={'executions': [execution]},
         )
         if least_squares.success:
             for curve in curves:
@@ -1053,7 +1128,7 @@ def _automatic_de_bounds(problem: _Problem, settings: FitSettings) -> tuple[np.n
                 scale = y_span / x_span if x_span else y_span
             else:
                 scale = y_span
-            scale = max(scale, 1.0)
+            scale = max(scale, float(problem.scales[index]))
         if not math.isfinite(lower[index]):
             lower[index] = value - scale * settings.de_lower_percent / 100
         if not math.isfinite(upper[index]):
@@ -1075,6 +1150,15 @@ def _restore_parameters(
         parameter.value, parameter.standard_error, parameter.ci_low, parameter.ci_high = state
 
 
+def absolute_noise_scale(settings: FitSettings, curves: Sequence[Curve]) -> bool:
+    """Whether residual scale is known, rather than estimated from fitted RSS."""
+    if not settings.use_data_errors:
+        return False
+    if settings.absolute_sigma is not None:
+        return settings.absolute_sigma
+    return all(curve.has_y_errors for curve in curves)
+
+
 def _covariance(
     jacobian: np.ndarray,
     weighted_residual: np.ndarray,
@@ -1087,24 +1171,39 @@ def _covariance(
         warnings.append("Covariance is unavailable because degrees of freedom are not positive.")
         return None, None, None
     try:
-        _, singular_values, vh = np.linalg.svd(jacobian, full_matrices=False)
+        singular_values, vh = jacobian_svd(jacobian)
         threshold = np.finfo(float).eps * max(jacobian.shape) * singular_values[0]
         keep = singular_values > threshold
         if np.count_nonzero(keep) < columns:
             warnings.append("Covariance is rank-deficient; pseudo-inverse uncertainties are reported.")
         bread = (vh[keep].T / singular_values[keep] ** 2) @ vh[keep]
         if settings.loss != "linear":
-            meat = jacobian.T @ ((weighted_residual**2)[:, None] * jacobian)
-            covariance = bread @ meat @ bread * rows / (rows - columns)
+            # J must differentiate the original weighted residual, not SciPy's
+            # loss-modified Jacobian. psi is expressed in residual units.
+            z = (weighted_residual / settings.f_scale) ** 2
+            if settings.loss == "huber":
+                root = np.sqrt(np.maximum(z, np.finfo(float).tiny))
+                rho_prime = np.where(z <= 1, 1.0, 1 / root)
+                psi_prime = (z < 1).astype(float)
+            elif settings.loss == "soft_l1":
+                rho_prime = 1 / np.sqrt(1 + z)
+                psi_prime = (1 + z) ** -1.5
+            else:  # cauchy
+                rho_prime = 1 / (1 + z)
+                psi_prime = (1 - z) / (1 + z) ** 2
+            influence = weighted_residual * rho_prime
+            sensitivity = weighted_gram(jacobian, psi_prime)
+            if np.linalg.matrix_rank(sensitivity) < columns:
+                warnings.append("Robust covariance is unavailable: singular influence sensitivity.")
+                return None, None, None
+            bread = np.linalg.pinv(sensitivity, hermitian=True)
+            meat = weighted_gram(jacobian, influence ** 2)
+            covariance = bread @ meat @ bread.T * rows / (rows - columns)
             warnings.append(
                 "Robust-loss uncertainty uses a sandwich covariance; resampling is recommended."
             )
         else:
-            absolute = settings.absolute_sigma
-            if not settings.use_data_errors:
-                absolute = False
-            if absolute is None:
-                absolute = all(curve.has_y_errors for curve in curves)
+            absolute = absolute_noise_scale(settings, curves)
             covariance = bread
             if not absolute:
                 covariance = covariance * float(np.dot(weighted_residual, weighted_residual)) / (
@@ -1134,23 +1233,21 @@ def _parameter_estimates(
     all_paths = [path for path, parameter in problem.parameters.items()
                  if parameter.link and not (parameter.fixed and parameter.link_relation != "equal")]
     if covariance is not None and all_paths:
-        base = np.asarray([values[path] for path in all_paths], dtype=float)
-        gradients = np.zeros((len(all_paths), len(problem.free_paths)), dtype=float)
-        for index in range(len(problem.free_paths)):
-            step = math.sqrt(np.finfo(float).eps) * max(1.0, abs(optimum[index]))
-            shifted = optimum.copy()
-            shifted[index] = min(max(shifted[index] + step, problem.bounds[0][index]), problem.bounds[1][index])
-            actual = shifted[index] - optimum[index]
-            if actual == 0:
-                shifted[index] = max(optimum[index] - step, problem.bounds[0][index])
-                actual = shifted[index] - optimum[index]
-            if actual == 0:
-                continue
-            shifted_values = problem.values(shifted)
-            gradients[:, index] = (
-                np.asarray([shifted_values[path] for path in all_paths], dtype=float) - base
-            ) / actual
-        problem.values(optimum, commit=True)
+        from scipy.optimize._numdiff import approx_derivative
+
+        def linked(point):
+            current = problem.values(point)
+            return np.asarray([current[path] for path in all_paths], dtype=float)
+
+        step = derivative_steps(optimum, problem.scales)
+        try:
+            coarse = np.atleast_2d(approx_derivative(linked, optimum, method="3-point",
+                                                   bounds=problem.bounds, abs_step=step))
+            fine = np.atleast_2d(approx_derivative(linked, optimum, method="3-point",
+                                                 bounds=problem.bounds, abs_step=step / 2))
+            gradients = (4 * fine - coarse) / 3
+        finally:
+            problem.values(optimum, commit=True)
         linked_gradients = {path: gradients[index] for index, path in enumerate(all_paths)}
 
     for path, parameter in problem.parameters.items():
@@ -1164,8 +1261,13 @@ def _parameter_estimates(
             variance = float(gradient @ covariance @ gradient)
             error = math.sqrt(max(variance, 0))
         value = float(values[path])
-        tolerance = 1e-8 * max(1.0, abs(value))
         minimum, maximum = problem.physical_bounds(path, values)
+        physical_scale = (problem.scales[free_index[path]] if path in free_index
+                          else max(abs(value), np.finfo(float).tiny))
+        if problem.coordinates is not None and path in problem.coordinates.dynamic:
+            physical_scale = max(abs(value), abs(values[problem.coordinates.sources[path]]),
+                                 np.finfo(float).tiny)
+        tolerance = max(1e-8 * physical_scale, 4 * abs(np.spacing(value)))
         global_minimum, global_maximum = (
             problem.coordinates.domains[path] if problem.coordinates is not None
             else (parameter.minimum, parameter.maximum)
@@ -1228,12 +1330,31 @@ def _global_statistics(
         "AICc": None,
         "BIC": None,
     }
-    if loss == "linear" and n > 0 and rss > 0:
-        aic = n * math.log(rss / n) + 2 * k
-        result["AIC"] = aic
-        result["AICc"] = aic + 2 * k * (k + 1) / (n - k - 1) if n > k + 1 else None
-        result["BIC"] = n * math.log(rss / n) + k * math.log(n)
+    supported = all(item.statistics.get("likelihood_supported", int(np.array_equal(
+        item.residual, item.weighted_residual))) for item in outputs.values())
+    if loss == "linear" and n > 0 and supported:
+        known = all(item.statistics.get("noise_scale_known", 0) for item in outputs.values())
+        log_precision = sum(float(item.statistics.get("log_precision_sum", 0.0))
+                            for item in outputs.values())
+        if known:
+            deviance = chi_square + n * math.log(2 * math.pi) - 2 * log_precision
+            likelihood_k = k
+        elif chi_square > 0:
+            deviance = n * (math.log(2 * math.pi) + 1 + math.log(chi_square / n)) - 2 * log_precision
+            likelihood_k = k + 1  # the estimated common noise scale is a parameter
+        else:
+            return result  # zero estimated variance has no finite maximised likelihood
+        _information_criteria(result, deviance, likelihood_k, n)
     return result
+
+
+def _information_criteria(result, deviance: float, parameter_count: int, n: int) -> None:
+    result["negative_twice_log_likelihood"] = deviance
+    result["likelihood_parameters"] = parameter_count
+    result["AIC"] = deviance + 2 * parameter_count
+    result["AICc"] = (result["AIC"] + 2 * parameter_count * (parameter_count + 1)
+                      / (n - parameter_count - 1) if n > parameter_count + 1 else None)
+    result["BIC"] = deviance + parameter_count * math.log(n)
 
 
 def _copy_matching_values(source: Model, target: Model) -> None:
@@ -1286,6 +1407,15 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
             _, corr = covariance_statistics(block)
             correlations.append(corr)
         correlation = BlockDiagonalMatrix(correlations)
+    statistics = _global_statistics(outputs, len(free_paths), settings.loss) if outputs else {}
+    if all("negative_twice_log_likelihood" in r.statistics for r in results):
+        _information_criteria(statistics,
+            sum(r.statistics["negative_twice_log_likelihood"] for r in results),
+            sum(r.statistics["likelihood_parameters"] for r in results),
+            int(statistics["N"]))
+    else:
+        for key in ("AIC", "AICc", "BIC"):
+            statistics[key] = None
     return FitResult(
         success=all(result.success for result in results),
         mode=mode,
@@ -1294,10 +1424,12 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
         evaluations=sum(result.evaluations for result in results),
         parameters=parameters,
         curve_outputs=outputs,
-        statistics=_global_statistics(outputs, len(free_paths), settings.loss) if outputs else {},
+        statistics=statistics,
         warnings=warnings,
         settings=copy.deepcopy(settings),
         free_parameter_paths=free_paths,
         covariance=covariance,
         correlation=correlation,
+        provenance={'executions': [execution for result in results
+                                   for execution in result.provenance.get('executions', [])]},
     )

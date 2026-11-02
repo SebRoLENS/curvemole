@@ -125,6 +125,10 @@ def summarize(project, baseline, analysis, method):
             if not low <= value <= high:
                 flag(1, "The original fit lies outside the interval; inspect bias or alternative minima.")
             if method == "profile_likelihood":
+                if len(analysis.get("confidence_regions", [])) > 1:
+                    flag(2, "Disconnected confidence set: inspect all confidence regions; a single interval is insufficient.")
+                for warning in analysis.get("warnings", []):
+                    flag(1, warning)
                 if baseline.get("settings", {}).get("loss", "linear") != "linear":
                     flag(1, "Chi-square profile thresholds are not calibrated for a robust-loss optimum.")
                 if curve is not None and (not curve.has_y_errors or

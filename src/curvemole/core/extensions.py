@@ -23,6 +23,7 @@ class Contribution:
     auto_show: bool = False
     symbol: str = "◆"
     plugin_name: str = ""
+    source_sha256: str | None = None
 
 
 class ExtensionRegistry:
@@ -58,6 +59,7 @@ class PluginAPI:
         marked = dataclass_replace(
             definition, display_name=f"{self._manager.symbol(self.identifier)} {definition.display_name}", evaluator=evaluate,
             custom_metadata={**definition.custom_metadata, "plugin_owner": self.identifier,
+                             "plugin_source_sha256": self._manager.source_fingerprints.get(self.identifier),
                              "plugin_symbol": self._manager.symbol(self.identifier),
                              "plugin_name": self._manager.plugin_name(self.identifier)})
         self._manager.registry.register(marked)
@@ -90,5 +92,6 @@ class PluginAPI:
         extensions.entries[key] = Contribution(
             self.identifier, key, f"{self._manager.symbol(self.identifier)} {label}", kind,
             guarded, description, auto_show, self._manager.symbol(self.identifier),
-            self._manager.plugin_name(self.identifier))
+            self._manager.plugin_name(self.identifier),
+            self._manager.source_fingerprints.get(self.identifier))
         return key

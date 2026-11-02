@@ -85,7 +85,6 @@ from curvemole.core.fitting import (
     FitSettings,
     Fitter,
 )
-from curvemole.core.functions import formula_definition
 from curvemole.core.importers import import_file
 from curvemole.core.initialization import (
     PeakSuggestion,
@@ -724,7 +723,7 @@ class MainWindow(QMainWindow):
         from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
         ensure_gui_garbage_collection()
         super().__init__()
-        self.registry = default_registry()
+        self.registry = default_registry().copy()
         self.project = project or Project()
         from curvemole.core.analysis_errors import restore_uncertainty_reports
         restore_uncertainty_reports(self.project)
@@ -1502,6 +1501,7 @@ class MainWindow(QMainWindow):
         self._project_disk_digest = None
         self._clear_project_session_state()
         self.project = Project()
+        self._load_custom_functions()
         self.active_curve_id = None
         self.selected_component_id = None
         self.undo_stack.clear()
@@ -1517,16 +1517,26 @@ class MainWindow(QMainWindow):
             if not selected:
                 return
             path = selected
+        if not self._confirm_discard_or_save():
+            return
+        lock = None
+        adopted = False
         try:
-            project = load_project(path)
-            if not self._confirm_discard_or_save():
-                return
+            existing = self._project_lock
+            same = (existing is not None and existing.acquired
+                    and existing.project_path.resolve() == Path(path).resolve() and existing.owns())
+            lock = existing if same else ProjectLock(Path(path))
+            if not same:
+                lock.__enter__()
+            from curvemole.gui.project_loading import load_project_responsive
+            project, digest = load_project_responsive(self, path, load_project, snapshot=True)
+            self.registry.copy().set_project_functions(project.custom_functions)
             self._cancel_project_transfer()
-            self._release_lock()
-            lock = ProjectLock(Path(path))
-            lock.__enter__()
+            if not same:
+                self._release_lock()
             self._project_lock = lock
-            self._project_disk_digest = file_digest(path)
+            self._project_disk_digest = digest
+            adopted = True
             if not lock.acquired:
                 project.read_only = True
                 self._notify(self.tr("Project is already open elsewhere; opened read-only."), warning=True)
@@ -1566,8 +1576,14 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Control requested; waiting for the other computer."))
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
+        finally:
+            if lock is not None and not adopted and lock is not self._project_lock:
+                lock.__exit__(None, None, None)
 
     def _can_replace_project(self) -> bool:
+        if getattr(self, "_project_loading", False):
+            self._notify(self.tr("Wait for project loading to finish."), warning=True)
+            return False
         if self._thread is not None:
             self._notify(self.tr("Wait for the running task before opening another project."), warning=True)
             return False
@@ -2166,6 +2182,10 @@ class MainWindow(QMainWindow):
         if not self.active_curve_id:
             return
         curve_id = self.active_curve_id
+        self._change_parameter_for_curve(curve_id, component_id, name, field, value)
+
+    def _change_parameter_for_curve(self, curve_id, component_id, name, field, value) -> None:
+        """One validation and undo path for single and multi-spectrum editors."""
         if field == "fixed" and value and not self._can_fix_parameter(curve_id, component_id, name):
             return
         parameter = self.project.model_for(curve_id).component(component_id).parameters[name]
@@ -3185,7 +3205,8 @@ class MainWindow(QMainWindow):
             task["completed"].add(curve_id)
         self.project.results.setdefault("uncertainty", {})[method] = result
         self.project.results.setdefault("uncertainty_by_curve", {}).setdefault(curve_id, {})[method] = result
-        analysis = result.to_dict()
+        analysis = (result.to_dict(include_samples=False)
+                    if hasattr(result, "samples") else result.to_dict())
         if method not in {"covariance", "profile_likelihood"}:
             samples = np.asarray(result.samples)
             if samples.ndim == 2 and samples.shape[0] >= 3 and samples.shape[1] > 1:
@@ -4383,20 +4404,7 @@ class MainWindow(QMainWindow):
             series.setHidden(bool(query) and visible_children == 0)
 
     def _load_custom_functions(self) -> None:
-        for value in self.project.custom_functions:
-            try:
-                definition = formula_definition(
-                    value["identifier"],
-                    value.get("display_name", value["identifier"]),
-                    value["formula"],
-                    kind=value.get("kind", "generic"),
-                    defaults=value.get("defaults"),
-                    bounds={key: tuple(bounds) for key, bounds in value.get("bounds", {}).items()},
-                    derived_formulas=value.get("derived_formulas", {}),
-                )
-                self.registry.register(definition, replace=True)
-            except Exception as exc:
-                self._log(f"Custom function skipped: {exc}")
+        self.registry.set_project_functions(self.project.custom_functions)
 
     def _autosave(self) -> None:
         self._autosave_controller.request()
@@ -4535,6 +4543,9 @@ class MainWindow(QMainWindow):
         return False
 
     def _ensure_editable(self) -> bool:
+        if getattr(self, "_project_loading", False):
+            self._notify(self.tr("Wait for project loading to finish."), warning=True)
+            return False
         editor = getattr(self, "_function_point_editor", None)
         if editor is not None and editor.active and not editor.committing:
             self.plot_workspace.cancel_placement()
@@ -4758,6 +4769,8 @@ class MainWindow(QMainWindow):
             self._log(f"Project lock monitor could not update: {exc}")
 
     def _poll_project_transfer(self) -> None:
+        if getattr(self, "_project_loading", False):
+            return
         request, path = self._transfer_request, self._transfer_path
         if request is None or path is None or self.project.path != path:
             self._cancel_project_transfer()
@@ -4791,9 +4804,6 @@ class MainWindow(QMainWindow):
                 )
                 return
             digest = response["project_sha256"]
-            if file_digest(path) != digest:
-                # An acknowledgement may synchronize before the project itself.
-                return
             lock = ProjectLock(path, takeover_from=request["owner_session"])
             lock.__enter__()
             if not lock.acquired:
@@ -4808,13 +4818,17 @@ class MainWindow(QMainWindow):
                     )
                 return
             try:
-                project = load_project(path)
+                from curvemole.gui.project_loading import load_project_responsive
+                project, loaded_digest = load_project_responsive(
+                    self, path, load_project, snapshot=True, expected_digest=digest)
+                probe = self.registry.copy()
+                probe.set_project_functions(project.custom_functions)
             except Exception:
                 lock.__exit__(None, None, None)
                 raise
             self._release_lock()
             self._project_lock = lock
-            self._project_disk_digest = digest
+            self._project_disk_digest = loaded_digest
             self.project = project
             self.active_curve_id = project.curves[0].id if project.curves else None
             self.selected_component_id = None

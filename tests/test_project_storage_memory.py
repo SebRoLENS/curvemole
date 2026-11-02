@@ -45,7 +45,9 @@ def test_results_are_binary_and_history_is_streamed_without_expanding_records(tm
     with zipfile.ZipFile(destination) as archive:
         manifest = json.loads(archive.read("manifest.json"))
         assert manifest["schema_version"] == 4
-        assert archive.getinfo("manifest.json").file_size < 15_000
+        # Runtime and initial-state provenance add bounded metadata to each fit.
+        assert archive.getinfo("manifest.json").file_size < 25_000
+        assert manifest["project"]["results"]["last_fit"]["provenance"]["schema_version"] == 1
         assert manifest["project"]["fit_history"] == {"storage": "history.jsonl", "count": 100}
         assert any(name.startswith("results/arrays/") for name in archive.namelist())
         assert not any(name.endswith((".pkl", ".pickle")) for name in archive.namelist())

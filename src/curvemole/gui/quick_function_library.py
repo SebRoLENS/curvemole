@@ -250,7 +250,7 @@ def _load_user_function_library(window: MainWindow) -> None:
     for source in sorted(directory.glob(f"*{_FUNCTION_SUFFIX}")):
         try:
             definition = import_custom_function(source)
-            window.registry.register(definition, replace=True)
+            window.registry.register_custom(definition, replace=True)
         except Exception as exc:
             window._log(f"User function skipped ({source.name}): {exc}")
     _refresh_quick_function_selector(window)
@@ -594,7 +594,7 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
         # Save first: a function must never appear to have been added successfully
         # if its reusable on-disk representation could not be written.
         export_custom_function(definition, destination)
-        panel.registry.register(definition, replace=True)
+        panel.registry.register_custom(definition, replace=True)
         if panel.project is not None:
             panel.project.custom_functions = [
                 value
@@ -743,8 +743,10 @@ def _install() -> None:
         )
 
     def load_custom_functions(window: MainWindow) -> None:
-        original_load_custom_functions(window)
+        # Remove the old project layer before reloading persistent definitions.
+        window.registry.set_project_functions([])
         _load_user_function_library(window)
+        original_load_custom_functions(window)
         _refresh_quick_function_selector(window)
 
     def add_component(window: MainWindow) -> None:

@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import errno
+import os
 import re
+import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -14,6 +18,7 @@ if TYPE_CHECKING:
 
 from curvemole.core.data import Curve
 from curvemole.core.errors import CurveMoleError
+from curvemole.core.export_columns import ExportColumns
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
 
@@ -81,10 +86,9 @@ def spectrum_export_dataframe(
             )
 
     exported_data = data - background if options.subtract_background else data
-    columns: dict[str, np.ndarray] = {
-        _axis_label(curve.x_label, curve.x_unit): x,
-        _data_label(curve, options.subtract_background): exported_data,
-    }
+    columns = ExportColumns()
+    columns.add(_axis_label(curve.x_label, curve.x_unit), x, role="x")
+    columns.add(_data_label(curve, options.subtract_background), exported_data, role="y")
     if curve.current_sigma_y is not None:
         columns["sigma_y"] = curve.current_sigma_y
     if curve.current_error_y_minus is not None:
@@ -93,6 +97,9 @@ def spectrum_export_dataframe(
         columns["error_confidence_percent"] = np.full(len(curve), curve.error_confidence_level * 100)
     if curve.current_sigma_x is not None:
         columns["sigma_x"] = curve.current_sigma_x
+    if curve.current_weights is not None:
+        columns["weight"] = curve.current_weights
+        columns["weights_are_inverse_variance"] = np.full(len(curve), int(curve.weights_are_inverse_variance))
 
     if options.include_background and model is not None and model.components:
         columns["Background"] = background
@@ -126,6 +133,7 @@ def spectrum_export_dataframe(
         columns["Residual_data_minus_fit"] = data - total
 
     frame = pd.DataFrame(columns)
+    frame.attrs["column_roles"] = columns.roles
     if options.unmasked_only:
         frame = frame.loc[~curve.effective_mask].reset_index(drop=True)
     return frame
@@ -138,6 +146,7 @@ def export_spectra(
     *,
     options: SpectrumExportOptions | None = None,
     registry: FunctionRegistry | None = None,
+    overwrite: bool = False,
 ) -> list[Path]:
     """Write one wide numeric file per selected spectrum."""
     if not curve_ids:
@@ -154,28 +163,63 @@ def export_spectra(
                project.resolved_parameter_values() if needs_model else {})
     created: list[Path] = []
     used_names: set[str] = set()
+    destinations = []
     for curve_id in curve_ids:
-        curve = context[0][curve_id]
-        frame = spectrum_export_dataframe(
-            project,
-            curve_id,
-            options=options,
-            registry=registry,
-            _context=context,
-        )
-        filename = spectrum_export_filename(curve)
-        filename = _deduplicate_filename(filename, used_names)
+        filename = _deduplicate_filename(spectrum_export_filename(context[0][curve_id]), used_names)
         used_names.add(filename.casefold())
         destination = root / filename
-        frame.to_csv(
-            destination,
-            sep=_source_delimiter(curve),
-            index=False,
-            encoding="utf-8",
-            lineterminator="\n",
-            float_format="%.12g",
-        )
-        created.append(destination)
+        if destination.is_symlink():
+            raise CurveMoleError(f"Refusing a symbolic-link export destination: {destination}")
+        if destination.exists() and (not overwrite or not destination.is_file()):
+            raise FileExistsError(f"Export destination already exists: {destination}")
+        destinations.append(destination)
+    # Stage all numeric conversions before committing any destination.
+    staged = []
+    try:
+        for curve_id, destination in zip(curve_ids, destinations, strict=True):
+            curve = context[0][curve_id]
+            frame = spectrum_export_dataframe(
+                project,
+                curve_id,
+                options=options,
+                registry=registry,
+                _context=context,
+            )
+            descriptor, name = tempfile.mkstemp(prefix=".curvemole-export-", dir=root)
+            temporary = Path(name)
+            staged.append((temporary, destination))
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="") as stream:
+                frame.to_csv(stream, sep=_source_delimiter(curve), index=False,
+                             lineterminator="\n", float_format="%.17g")
+                stream.flush()
+                os.fsync(stream.fileno())
+        for temporary, destination in staged:
+            if destination.is_symlink():
+                raise CurveMoleError(f"Refusing a symbolic-link export destination: {destination}")
+            if overwrite:
+                os.replace(temporary, destination)
+            else:
+                # Atomic exclusive publication when supported by the filesystem.
+                try:
+                    os.link(temporary, destination)
+                except OSError as exc:
+                    if exc.errno not in {errno.EPERM, errno.ENOTSUP, errno.EXDEV}:
+                        raise
+                    # FAT and some network shares have no hard links. "xb"
+                    # still refuses any existing file, including a symlink.
+                    handle = destination.open("xb")
+                    try:
+                        with handle, temporary.open("rb") as source:
+                            shutil.copyfileobj(source, handle, length=1024*1024)
+                            handle.flush()
+                            os.fsync(handle.fileno())
+                    except BaseException:
+                        destination.unlink(missing_ok=True)
+                        raise
+            created.append(destination)
+    finally:
+        for temporary, _ in staged:
+            temporary.unlink(missing_ok=True)
     return created
 
 

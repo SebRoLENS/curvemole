@@ -52,12 +52,19 @@ class Project:
         return self.dataset.curves
 
     def add_series(self, series: Series) -> None:
+        self.ensure_editable()
         self.dataset.add_series(series)
         for curve in series.curves:
             self.models.setdefault(curve.id, Model(name=f"Model for {curve.name}"))
         self.touch()
 
     def add_curve(self, curve: Curve, series: Series | None = None) -> Series:
+        self.ensure_editable()
+        if series is not None and not any(item is series for item in self.dataset.series):
+            raise DataValidationError("The destination series does not belong to this project.")
+        identities = {item.id for item in self.dataset.series} | {item.id for item in self.curves}
+        if curve.id in identities:
+            raise DataValidationError(f"Curve id '{curve.id}' already exists in this project.")
         if series is None:
             if not self.dataset.series:
                 self.dataset.add_series(Series("Imported data"))
@@ -84,6 +91,7 @@ class Project:
                                   "Remove these links first:\n" + "\n".join(dependents))
 
     def remove_curves(self, curve_ids) -> list[Curve]:
+        self.ensure_editable()
         identities = list(dict.fromkeys(curve_ids))
         self.validate_curve_removal(identities)
         return [self._remove_curve(identity) for identity in identities]
@@ -109,6 +117,7 @@ class Project:
             affected = expanded
 
     def invalidate_fits(self, curve_ids, *, preserve=()) -> set[str]:
+        self.ensure_editable()
         affected = self.affected_curve_ids(curve_ids) - set(preserve)
         for curve in self.curves:
             if curve.id in affected and curve.state == CurveState.FITTED:
@@ -116,6 +125,7 @@ class Project:
         return affected
 
     def _remove_curve(self, curve_id: str) -> Curve:
+        self.ensure_editable()
         self.invalidate_fits({curve_id})
         fitted = self.results.get("fit_by_curve", {})
         global_key = fitted.get(curve_id, {}).get("global_key") if isinstance(fitted, dict) else None
@@ -139,7 +149,10 @@ class Project:
     def model_for(self, curve_id: str) -> Model:
         if curve_id not in self.models:
             curve = self.dataset.curve(curve_id)
-            self.models[curve_id] = Model(name=f"Model for {curve.name}")
+            model = Model(name=f"Model for {curve.name}")
+            if self.read_only:
+                return model  # a read must not create project-owned state
+            self.models[curve_id] = model
         return self.models[curve_id]
 
     def parameter_map(self) -> dict[str, Parameter]:
@@ -153,7 +166,9 @@ class Project:
         return resolve_parameter_values(self.parameter_map())
 
     def add_component(self, curve_id: str, component: Component) -> None:
+        self.ensure_editable()
         self.model_for(curve_id).add(component)
+        self.invalidate_fits({curve_id})
         self.touch()
 
     def copy_fit(
@@ -204,6 +219,7 @@ class Project:
                 curve = self.dataset.curve(identity)
                 curve.masks, curve.active_mask, curve.fit_ranges = before_data[identity]
             raise
+        self.invalidate_fits(targets)
         self.touch()
 
     def _copy_fit_impl(
@@ -349,9 +365,13 @@ class Project:
             if fit_ranges:
                 target_curve.fit_ranges = list(source_curve.fit_ranges)
 
-    def touch(self) -> None:
+    def ensure_editable(self) -> None:
+        """Check before mutating, so rejected writes have no side effects."""
         if self.read_only:
             raise PermissionError("This project is open read-only. Use Save As to create an editable copy.")
+
+    def touch(self) -> None:
+        self.ensure_editable()
         self.dirty = True
         self.revision += 1
         self.modified_at = datetime.now(UTC).isoformat()
@@ -363,6 +383,7 @@ class Project:
         self.dirty = False
 
     def snapshot(self, reason: str, payload: dict[str, Any]) -> None:
+        self.ensure_editable()
         # The public Python/plugin API can replace history with an ordinary list.
         if not isinstance(self.fit_history, CompactHistory):
             self.fit_history = CompactHistory(self.fit_history)

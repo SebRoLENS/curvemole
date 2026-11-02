@@ -22,6 +22,12 @@ from typing import Any
 
 import numpy as np
 
+from curvemole.core.archive_validation import (
+    ArchiveLimits,
+    preflight_archive,
+    read_array_header,
+    validate_manifest,
+)
 from curvemole.core.data import (
     Curve,
     CurveState,
@@ -364,13 +370,17 @@ def save_project(
         raise
 
 
-def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project:
+def load_project(path: str | Path, *, partial_recovery: bool = False,
+                 limits: ArchiveLimits | None = None, cancellation=None) -> Project:
     source = Path(path)
     if not source.is_file():
         raise ProjectFormatError(f"Project does not exist: {source}")
     try:
         with zipfile.ZipFile(source, "r") as archive:
-            manifest, failures = _validate_archive(archive)
+            archive._curvemole_cancellation = cancellation
+            manifest, failures = _validate_archive(archive, limits=limits)
+            if not isinstance(manifest.get("project"), dict):
+                raise ProjectFormatError("Manifest project must be an object")
             if failures and not partial_recovery:
                 raise ProjectFormatError("Project validation failed: " + "; ".join(failures))
             schema = int(manifest.get("schema_version", -1))
@@ -528,23 +538,27 @@ def load_project(path: str | Path, *, partial_recovery: bool = False) -> Project
             return project
     except zipfile.BadZipFile as exc:
         raise ProjectFormatError(f"'{source}' is not a valid .fitproj ZIP archive.") from exc
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError, RecursionError) as exc:
+        raise ProjectFormatError(f"Invalid project structure: {exc}") from exc
 
 
 def validate_project_archive(
-    path: str | Path, *, raise_on_error: bool = True
+    path: str | Path, *, raise_on_error: bool = True, limits: ArchiveLimits | None = None
 ) -> list[str]:
     try:
         with zipfile.ZipFile(path, "r") as archive:
-            _manifest, failures = _validate_archive(archive)
-    except (OSError, zipfile.BadZipFile) as exc:
+            _manifest, failures = _validate_archive(archive, limits=limits)
+    except (OSError, zipfile.BadZipFile, ProjectFormatError) as exc:
         failures = [str(exc)]
     if failures and raise_on_error:
         raise ProjectFormatError("Project validation failed: " + "; ".join(failures))
     return failures
 
 
-def _validate_archive(archive):
-    """Parse metadata once and stream every member through CRC/checksum checks."""
+def _validate_archive(archive, *, limits=None):
+    """Validate schema and resource bounds before streaming CRC/checksums."""
+    limits = limits or ArchiveLimits()
+    preflight_archive(archive, limits)
     failures = []
     try:
         with archive.open("manifest.json") as stream:
@@ -552,7 +566,7 @@ def _validate_archive(archive):
     except KeyError:
         failures.append("Missing manifest.json")
         manifest = {}
-    except (ValueError, UnicodeError, EOFError, OSError, zipfile.BadZipFile, zlib.error) as exc:
+    except (ValueError, UnicodeError, EOFError, OSError, zipfile.BadZipFile, zlib.error, RecursionError) as exc:
         failures.append(f"Invalid manifest JSON: {exc}")
         manifest = {}
     if not isinstance(manifest, dict):
@@ -563,16 +577,30 @@ def _validate_archive(archive):
         failures.append("Manifest checksums must be an object")
         checksums = {}
     names = set(archive.namelist())
+    if len(names) != len(archive.infolist()):
+        failures.append("Duplicate ZIP members")
+    failures.extend(validate_manifest(manifest, names))
     failures.extend(f"Missing entry: {name}" for name in checksums if name not in names)
     for member in archive.infolist():
         if member.filename == "manifest.json" or member.is_dir():
             continue
         digest = hashlib.sha256()
         try:
+            token = getattr(archive, "_curvemole_cancellation", None)
+            if token is not None:
+                token.raise_if_cancelled()
+            if member.filename.endswith(".npy"):
+                try:
+                    with archive.open(member) as header:
+                        read_array_header(header, member.file_size, limits)
+                except (ValueError, EOFError) as exc:
+                    failures.append(f"Invalid NumPy header: {member.filename}: {exc}")
             with archive.open(member) as stream:
                 while chunk := stream.read(1024 * 1024):
+                    if token is not None:
+                        token.raise_if_cancelled()
                     digest.update(chunk)
-        except (zipfile.BadZipFile, EOFError, OSError, zlib.error) as exc:
+        except (zipfile.BadZipFile, EOFError, OSError, zlib.error, ValueError) as exc:
             failures.append(f"ZIP CRC/read failed: {member.filename}: {exc}")
             continue
         expected = checksums.get(member.filename)
@@ -794,8 +822,17 @@ def _write_array(
 
 
 def _read_array(archive: zipfile.ZipFile, name: str) -> np.ndarray:
+    token = getattr(archive, "_curvemole_cancellation", None)
+    if token is not None:
+        token.raise_if_cancelled()
+    limits = getattr(archive, "_curvemole_limits", ArchiveLimits())
     with archive.open(name, "r") as stream:
-        return np.load(stream, allow_pickle=False)
+        read_array_header(stream, archive.getinfo(name).file_size, limits)
+        stream.seek(0)
+        result = np.load(stream, allow_pickle=False)
+    if token is not None:
+        token.raise_if_cancelled()
+    return result
 
 
 def _try_array(archive: zipfile.ZipFile, name: str) -> np.ndarray | None:

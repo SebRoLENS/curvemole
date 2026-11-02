@@ -19,13 +19,15 @@ from curvemole.core.serialization import _atomic_json
 REQUEST_TTL_SECONDS = 24 * 60 * 60
 
 
-def file_digest(path: str | Path) -> str | None:
+def file_digest(path: str | Path, *, cancellation=None) -> str | None:
     """Hash project bytes, not modification times (which may be preserved by sync)."""
     source = Path(path)
     try:
         digest = hashlib.sha256()
         with source.open("rb") as stream:
             for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                if cancellation is not None:
+                    cancellation.raise_if_cancelled()
                 digest.update(chunk)
         return digest.hexdigest()
     except FileNotFoundError:

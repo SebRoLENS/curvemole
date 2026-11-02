@@ -5,10 +5,13 @@ import hashlib
 from pathlib import Path
 
 
-def fingerprint(folder: Path) -> str:
+def fingerprint(folder: Path, *, excluded_paths=(), included_paths=None) -> str:
     digest = hashlib.sha256()
-    for path in sorted(folder.rglob("*"), key=lambda item: item.relative_to(folder).as_posix()):
+    paths = folder.rglob("*") if included_paths is None else included_paths
+    for path in sorted(paths, key=lambda item: item.relative_to(folder).as_posix()):
         relative = path.relative_to(folder)
+        if any(path == excluded or excluded in path.parents for excluded in excluded_paths):
+            continue
         if path.is_symlink():
             raise ValueError("Symlinks are not allowed in plugins")
         if any(part in {"__pycache__", ".pytest_cache"} for part in relative.parts) or path.suffix == ".pyc":

@@ -204,7 +204,7 @@ def test_beta_stamping_preserves_dependencies_and_does_not_mutate_stable_metadat
         beta.stamp("1.0.2", tmp_path)
 
 
-def test_beta_documents_use_reviewed_sources_and_exact_build_names(tmp_path):
+def test_beta_documents_build_current_source_without_changing_stable_files(tmp_path, monkeypatch):
     beta = beta_script()
     root = tmp_path / "source"
     sources = {
@@ -219,12 +219,25 @@ def test_beta_documents_use_reviewed_sources_and_exact_build_names(tmp_path):
         path.write_bytes(payload)
     output = tmp_path / "documents"
 
+    (root / "docs/manual.md").write_text("CURRENT MANUAL WITH NEW SHORTCUTS")
+    calls = []
+    def build(arguments, **kwargs):
+        calls.append((arguments, kwargs))
+        text = (root / "docs/manual.md").read_text()
+        Path(arguments[arguments.index("--tex-output") + 1]).write_text(text)
+        Path(arguments[arguments.index("--pdf-output") + 1]).write_bytes(b"%PDF-1.7\n" + text.encode())
+    monkeypatch.setattr(beta.subprocess, "run", build)
     prepared = beta.prepare_documents("1.1.1b23", output, root)
+    assert len(calls) == 1 and calls[0][1]["check"]
+
 
     assert {path.name for path in prepared} == set(beta.documentation_assets("1.1.1b23"))
     assert set(beta.documentation_assets("1.1.1b23")) <= beta.expected_assets("1.1.1b23")
     for target, source in beta.documentation_assets("1.1.1b23").items():
-        assert (output / target).read_bytes() == sources[source]
+        if target.endswith((".pdf", ".tex")):
+            assert b"CURRENT MANUAL WITH NEW SHORTCUTS" in (output / target).read_bytes()
+        else:
+            assert (output / target).read_bytes() == sources[source]
         assert (root / source).read_bytes() == sources[source]
     assert all("1.1.1b23" in path.name for path in prepared)
     with pytest.raises(ValueError):

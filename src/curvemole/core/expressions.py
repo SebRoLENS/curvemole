@@ -19,6 +19,14 @@ import numpy as np
 
 from curvemole.core.errors import ExpressionError
 
+# Bounds apply to mathematical work, independently of the syntax whitelist.
+MAX_EXPRESSION_CHARACTERS = 16_384
+MAX_EXPRESSION_NODES = 2_048
+MAX_EXPRESSION_DEPTH = 64
+MAX_INTEGER_BITS = 4_096
+MAX_ARRAY_ELEMENTS = 10_000_000
+MAX_EVALUATION_ELEMENTS = 50_000_000
+
 _REFERENCE = re.compile(r"\$\{([^{}]+)\}")
 
 
@@ -100,6 +108,8 @@ class SafeExpression:
     def compile(cls, source: str) -> SafeExpression:
         if not source or not source.strip():
             raise ExpressionError("Expression is empty.")
+        if len(source) > MAX_EXPRESSION_CHARACTERS:
+            raise ExpressionError("Expression exceeds the source-size limit.")
         references: list[tuple[str, str]] = []
 
         def replace(match: re.Match[str]) -> str:
@@ -115,6 +125,14 @@ class SafeExpression:
             tree = ast.parse(rewritten, mode="eval")
         except SyntaxError as exc:
             raise ExpressionError(f"Invalid expression at column {exc.offset}: {exc.msg}") from exc
+        pending = [(tree, 0)]
+        count = 0
+        while pending:
+            node, depth = pending.pop()
+            count += 1
+            if count > MAX_EXPRESSION_NODES or depth > MAX_EXPRESSION_DEPTH:
+                raise ExpressionError("Expression exceeds the complexity limit.")
+            pending.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
         _Validator().visit(tree)
         return cls(source=source, _tree=tree, _references=tuple(references))
 
@@ -188,11 +206,34 @@ class _Validator(ast.NodeVisitor):
     def visit_Constant(self, node: ast.Constant) -> None:
         if not isinstance(node.value, (int, float, bool)):
             raise ExpressionError("Only numeric and boolean constants are allowed.")
+        if isinstance(node.value, int) and node.value.bit_length() > MAX_INTEGER_BITS:
+            raise ExpressionError("Integer constant exceeds the arithmetic-size limit.")
 
 
 class _Interpreter(ast.NodeVisitor):
     def __init__(self, environment: Mapping[str, Any]) -> None:
         self.environment = environment
+        self.remaining_elements = MAX_EVALUATION_ELEMENTS
+
+    def visit(self, node):
+        value = super().visit(node)
+        if isinstance(value, int) and value.bit_length() > MAX_INTEGER_BITS:
+            raise ExpressionError("Integer result exceeds the arithmetic-size limit.")
+        if isinstance(value, np.ndarray):
+            if value.dtype.hasobject or value.size > MAX_ARRAY_ELEMENTS:
+                raise ExpressionError("Expression array exceeds the supported numeric-size limit.")
+            self.remaining_elements -= value.size
+            if self.remaining_elements < 0:
+                raise ExpressionError("Expression exceeds the evaluation-work limit.")
+        return value
+
+    def _check_broadcast(self, values):
+        try:
+            shape = np.broadcast_shapes(*(np.shape(v) for v in values))
+        except ValueError as exc:
+            raise ExpressionError(f"Incompatible expression shapes: {exc}") from exc
+        if math.prod(shape) > MAX_ARRAY_ELEMENTS:
+            raise ExpressionError("Expression broadcast exceeds the array-size limit.")
 
     def visit_Name(self, node: ast.Name) -> Any:
         if node.id in self.environment:
@@ -208,7 +249,13 @@ class _Interpreter(ast.NodeVisitor):
         operation = _BINOPS.get(type(node.op))
         if operation is None:
             raise ExpressionError(f"Unsupported operator: {type(node.op).__name__}")
-        return operation(self.visit(node.left), self.visit(node.right))
+        left, right = self.visit(node.left), self.visit(node.right)
+        self._check_broadcast([left, right])
+        if (isinstance(node.op, ast.Pow) and isinstance(left, int) and isinstance(right, int)
+                and right > 0 and abs(left) > 1
+                and (abs(left).bit_length() - 1) * right > MAX_INTEGER_BITS):
+            raise ExpressionError("Power exceeds the arithmetic-size limit.")
+        return operation(left, right)
 
     def visit_UnaryOp(self, node: ast.UnaryOp) -> Any:
         operation = _UNARYOPS.get(type(node.op))
@@ -218,7 +265,9 @@ class _Interpreter(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> Any:
         function = _FUNCTIONS[node.func.id]
-        return function(*(self.visit(argument) for argument in node.args))
+        values = [self.visit(argument) for argument in node.args]
+        self._check_broadcast(values)
+        return function(*values)
 
     def visit_Compare(self, node: ast.Compare) -> Any:
         left = self.visit(node.left)
@@ -226,6 +275,7 @@ class _Interpreter(ast.NodeVisitor):
         for operation_node, comparator in zip(node.ops, node.comparators, strict=True):
             operation = _CMPOPS[type(operation_node)]
             right = self.visit(comparator)
+            self._check_broadcast([result, left, right])
             result = np.logical_and(result, operation(left, right))
             left = right
         return result
@@ -235,13 +285,16 @@ class _Interpreter(ast.NodeVisitor):
         values = [self.visit(value) for value in node.values]
         result = values[0]
         for value in values[1:]:
+            self._check_broadcast([result, value])
             result = operation(result, value)
         return result
 
     def visit_IfExp(self, node: ast.IfExp) -> Any:
         condition = self.visit(node.test)
         if np.ndim(condition):
-            return np.where(condition, self.visit(node.body), self.visit(node.orelse))
+            values = [condition, self.visit(node.body), self.visit(node.orelse)]
+            self._check_broadcast(values)
+            return np.where(*values)
         return self.visit(node.body) if bool(condition) else self.visit(node.orelse)
 
     def generic_visit(self, node: ast.AST) -> Any:

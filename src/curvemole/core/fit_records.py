@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 
-from curvemole.core.fitting import FitMode, FitPlan, FitResult, FitSettings
+from curvemole.core.fitting import FitMode, FitPlan, FitResult, FitSettings, _global_statistics
 
 
 def plan_to_record(plan: FitPlan) -> dict[str, Any]:
@@ -38,6 +38,7 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
         matrix = getattr(result, field)
         matrices[field] = (None if matrix is None else matrix.submatrix(indices)
                            if hasattr(matrix, "submatrix") else np.asarray(matrix)[np.ix_(indices, indices)])
+    from curvemole.core.provenance import select_fit_record
     output = copy.deepcopy(result.curve_outputs[curve_id])
     return replace(
         result,
@@ -47,9 +48,11 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
             if path.startswith(curve_id + ".")
         }),
         curve_outputs={curve_id: output},
-        statistics=copy.deepcopy(output.statistics),
+        statistics=(copy.deepcopy(result.statistics) if len(result.curve_outputs) == 1 else
+                    _global_statistics({curve_id: output}, len(indices), result.settings.loss)),
         warnings=copy.deepcopy(result.warnings),
         settings=copy.deepcopy(result.settings),
+        provenance=select_fit_record(result.provenance, curve_id),
         free_parameter_paths=[result.free_parameter_paths[i] for i in indices],
         covariance=matrices["covariance"],
         correlation=matrices["correlation"],

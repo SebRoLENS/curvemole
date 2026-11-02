@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
+from curvemole.core.export_columns import ExportColumns
 from curvemole.core.fitting import FitResult
-from curvemole.core.functions import formula_definition
 from curvemole.core.matrices import BlockDiagonalMatrix, matrix_from_value
 from curvemole.core.models import Model
 from curvemole.core.notebook import export_notebook
@@ -135,13 +135,13 @@ def wide_dataframe(
 
     selection = selection or ExportSelection()
     registry = registry or default_registry()
-    columns: dict[str, Any] = {}
+    columns = ExportColumns()
     if selection.original_x:
-        columns[f"{curve.x_label} original"] = curve.original_x[curve.row_indices]
+        columns.add(f"{curve.x_label} original", curve.original_x[curve.row_indices], role="original_x")
     if selection.x:
-        columns[_label(curve.x_label, curve.x_unit)] = curve.x
+        columns.add(_label(curve.x_label, curve.x_unit), curve.x, role="x")
     if selection.y:
-        columns[_label(curve.y_label, curve.y_unit)] = curve.y
+        columns.add(_label(curve.y_label, curve.y_unit), curve.y, role="y")
     if model is not None and model.components and any((selection.total_fit, selection.residual, selection.background, selection.components)):
         total, components = model.evaluate(
             curve.x,
@@ -176,9 +176,12 @@ def wide_dataframe(
         columns["error_confidence_percent"] = curve.error_confidence_level * 100
     if selection.weights and curve.current_weights is not None:
         columns["weight"] = curve.current_weights
+        columns["weights_are_inverse_variance"] = np.full(len(curve), int(curve.weights_are_inverse_variance))
     if selection.mask_flag:
         columns["masked"] = curve.effective_mask
-    return pd.DataFrame(columns)
+    frame = pd.DataFrame(columns)
+    frame.attrs["column_roles"] = columns.roles
+    return frame
 
 
 def tidy_dataframe(
@@ -202,10 +205,11 @@ def tidy_dataframe(
                 selection=selection,
                 parameter_values=parameter_values,
             )
-            x_column = _label(curve.x_label, curve.x_unit)
-            x_values = curve.x if x_column not in wide else wide[x_column].to_numpy()
+            roles = wide.attrs.get("column_roles", {})
+            x_column = roles.get("x")
+            x_values = curve.x if x_column is None else wide[x_column].to_numpy()
             for column in wide.columns:
-                if column == x_column or column.endswith(" original"):
+                if column in {x_column, roles.get("original_x")}:
                     continue
                 component, quantity = _tidy_column(column)
                 frames.append(
@@ -786,7 +790,8 @@ def export_bundle(
     if selection.spectra and project.curves:
         from curvemole.core.spectrum_export import export_spectra
 
-        export_spectra(project, root / "spectra", [curve.id for curve in project.curves], registry=registry)
+        export_spectra(project, root / "spectra", [curve.id for curve in project.curves],
+                       registry=registry, overwrite=overwrite)
 
     parameter_path = root / "function_parameters.csv"
     if selection.function_parameters:
@@ -1391,20 +1396,8 @@ if __name__ == "__main__":
 
 
 def _registry_for_project(project: Project) -> FunctionRegistry:
-    registry = default_registry()
-    for value in project.custom_functions:
-        if not value.get("formula"):
-            continue
-        definition = formula_definition(
-            value["identifier"],
-            value.get("display_name", value["identifier"]),
-            value["formula"],
-            kind=value.get("kind", "generic"),
-            defaults=value.get("defaults"),
-            bounds={key: tuple(bounds) for key, bounds in value.get("bounds", {}).items()},
-            derived_formulas=value.get("derived_formulas", {}),
-        )
-        registry.register(definition, replace=True)
+    registry = default_registry().copy()
+    registry.set_project_functions([v for v in project.custom_functions if v.get("formula")])
     return registry
 
 

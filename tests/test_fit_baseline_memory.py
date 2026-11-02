@@ -45,7 +45,14 @@ def test_individual_baseline_copies_only_selected_spectrum_and_covariance_block(
     np.testing.assert_array_equal(baseline.covariance, result.covariance[np.ix_([0, 2], [0, 2])])
     np.testing.assert_array_equal(baseline.correlation, np.eye(2))
     assert not np.shares_memory(baseline.covariance, result.covariance)
-    assert baseline.statistics == {"chi_square": 1.25}
+    # Recompute complete local diagnostics, without copying the other spectrum
+    # or reusing the deliberately incomplete synthetic batch statistics.
+    assert baseline.statistics["N"] == 5
+    assert baseline.statistics["k"] == 2
+    assert baseline.statistics["degrees_of_freedom"] == 3
+    assert baseline.statistics["chi_square"] == pytest.approx(
+        np.dot(result.curve_outputs["first"].weighted_residual,
+               result.curve_outputs["first"].weighted_residual))
     for field in ("message", "status", "evaluations", "timestamp", "elapsed_seconds",
                   "cancelled", "paused_curve_id"):
         assert getattr(baseline, field) == getattr(result, field)

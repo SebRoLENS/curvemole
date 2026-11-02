@@ -156,7 +156,13 @@
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
+% The reference exceeds 100 pages; reserve room for three-digit TOC numbers.
 \makeatletter
+\renewcommand*{\@pnumwidth}{2.5em}
+\renewcommand*{\@tocrmarg}{3.5em}
+% Start the introductory notice on its own page after the contents.
+\let\CurveMoleTableOfContents\tableofcontents
+\renewcommand*{\tableofcontents}{\CurveMoleTableOfContents\clearpage}
 \renewcommand{\maketitle}{%
   \begin{titlepage}
     \centering
@@ -219,16 +225,29 @@
 \tableofcontents
 }
 CurveMole is a desktop-first, scriptable application for fitting
-one-dimensional scientific curves. This manual describes the behavior of
-CurveMole 1.1.0 Stable. The Markdown file is the authoritative source.
-The LaTeX source and PDF edition are generated automatically from it and
-must carry the same version number.
+one-dimensional scientific curves. The stable API baseline is CurveMole
+1.1.0 Stable. This testing edition documents the current local testing
+code on top of that baseline; it does not claim that all testing
+behavior is present in the stable release. The Markdown file is the
+authoritative source. The LaTeX source and PDF edition are generated
+automatically from it and must carry the same version number.
 
 \textbf{Testing edition for CurveMole 1.1.1 beta.} The title retains the
 stable API baseline, 1.1.0. Marked beta sections and Appendices F/G
-describe the additional workflow capabilities in 1.1.1 beta; they are
-not implemented by the 1.1.0 stable executable. Use the manual and AI
-audits attached to your exact beta download.
+describe the additional workflow capabilities in 1.1.1 beta. The current
+testing edition also includes the scientific and data-integrity
+corrections summarized in Appendix I; these changes must not be assumed
+to exist in the 1.1.0 stable executable. Use the manual and AI audits
+attached to your exact beta download. The content was checked against
+the local testing code on 2026-11-02.
+
+\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+findings in the latest scientific audit are corrected in this edition:
+parameter scaling, nonlinear uncertainty derivatives, convolution
+alignment, compensated summation, profile confidence regions and saved
+execution provenance. Appendix J describes the changes and their limits.
+Use the documents attached to your exact beta build; these corrections
+do not apply retroactively to earlier executables.
 
 Useful links:
 
@@ -242,8 +261,8 @@ Useful links:
 \item
   \href{https://github.com/SebRoLENS/curvemole/issues}{Issue tracker}
 \item
-  \href{https://github.com/SebRoLENS/curvemole\#how-to-cite}{Version DOI
-  and citation}
+  \href{https://github.com/SebRoLENS/curvemole\#how-to-cite}{Version
+  DOI, Concept DOI, RRID and citation}
 \item
   \href{quick-start.md}{Quick Start}
 \item
@@ -285,10 +304,11 @@ Python API, formula builder, and plugins.
 \section{1.2 Version policy for the
 manual}\label{version-policy-for-the-manual}
 
-The version in the title and in the line at the top of this file
-identifies the CurveMole release whose behavior is documented. It is not
-an independent document version. For example, a manual marked 1.1.0
-describes CurveMole 1.1.0.
+In a release edition, the title and version marker identify the
+CurveMole release being documented, rather than an independent document
+revision. A testing edition retains the stable version metadata and
+identifies its additional behavior in the testing notice and
+minimum-version labels.
 
 Testing editions retain this stable baseline in the title. A testing
 notice and explicit minimum-version labels distinguish upcoming beta
@@ -353,6 +373,11 @@ chemical meaning, or predictive validity. In particular:
   uncertainty method used.
 \end{itemize}
 
+For this testing edition, also read Appendix J before interpreting
+transformed errors, nonlinear links, convolution centres or profile
+intervals. Solver success and an assessment of \textbf{OK} do not detect
+every demonstrated numerical error.
+
 \chapter{2. Core concepts}\label{core-concepts}
 
 CurveMole keeps the scientific engine independent from the graphical
@@ -364,6 +389,9 @@ workflows, and Python API all operate on the same domain objects.
 A project is the complete analysis workspace. It can contain data,
 models, masks, transformations, fit results, custom formulas, history,
 and interface state. Projects are saved as \texttt{.fitproj} files.
+Restoring a workspace preserves its saved state. Replaying the original
+optimization also requires its initial model and numerical environment;
+these are not fully captured by every fit record (Appendix J.7).
 
 \section{2.2 Series and curves}\label{series-and-curves}
 
@@ -1051,8 +1079,10 @@ is chosen on entry in Overlay/Waterfall; mouse buttons determine the
 operation.
 
 Offsets never modify data and are removed when converting pointer
-positions back to scientific coordinates. Fitting and export use the
-original numeric coordinates, not screen offsets.
+positions back to scientific coordinates. Fitting and numeric data
+export use the underlying current numeric coordinates. Current-view
+figure exports preserve the selected display positions, including
+waterfall offsets.
 
 The compact coordinate readout displays the pointer position on one
 line. Hover over it to see the full values and the nearest finite point
@@ -1060,8 +1090,11 @@ from the active curve. Overlay and Waterfall views use adaptive
 peak-preserving downsampling and clip drawing to the visible range for
 dense spectra. Single view keeps the full display resolution. Descending
 x arrays may be reversed only in the temporary display copy so that fast
-clipping remains available. Fitting, project storage, and export always
-use the complete original arrays.
+clipping remains available. Fitting, project storage, and numeric export
+use full-resolution data, rather than that display copy. Fits use
+current transformed observations with the selected masks and fit ranges;
+numeric exports can optionally keep only unmasked rows. Projects retain
+immutable originals as well as reversible transformations.
 
 Model functions initially receive names such as \textbf{Voigt1},
 \textbf{Voigt2}, and \textbf{Gaussian1}. Right-click a function and
@@ -1083,20 +1116,22 @@ confused with the fitted sum.
 \section{5.3 Navigation and axes}\label{navigation-and-axes}
 
 Normal plot navigation is available when neither placement nor Mask mode
-is active. Left double-click frames all experimental data, including
-masked points. Right double-click frames only unmasked experimental
-points. Hold the right button and drag to pan the spectrum; a single
-right-click opens the plot context menu after the double-click interval.
-Display controls wrap onto additional rows when dock resizing narrows
-the plot. Axes always retain the original data units. Numeric tick
-labels switch to scientific notation only when their decimal
-representation is too wide for the available space; this never changes
-spectrum values or adds an SI unit prefix. The mouse wheel remains
-available during peak placement, spline placement, Quick Fit, and live
-fit refreshes. A refresh preserves the current viewport instead of
-resetting a zoom chosen by the user. When the plot has keyboard focus,
-Up and Down activate the previous or next checked spectrum in project
-order. Up/Down in the curve tree also skips unchecked spectra.
+is active. Right double-click frames all experimental data, including
+masked points. Left double-click frames only unmasked experimental
+points. These gestures are independent of the \textbf{Autoscale}
+checkbox and its \textbf{All points / Unmasked points} selector. Hold
+the right button and drag to pan the spectrum; a single right-click
+opens the plot context menu after the double-click interval. Display
+controls wrap onto additional rows when dock resizing narrows the plot.
+Axes always retain the original data units. Numeric tick labels switch
+to scientific notation only when their decimal representation is too
+wide for the available space; this never changes spectrum values or adds
+an SI unit prefix. The mouse wheel remains available during peak
+placement, spline placement, Quick Fit, and live fit refreshes. A
+refresh preserves the current viewport instead of resetting a zoom
+chosen by the user. When the plot has keyboard focus, Up and Down
+activate the previous or next checked spectrum in project order. Up/Down
+in the curve tree also skips unchecked spectra.
 
 Use \textbf{View \textgreater{} Axes} for:
 
@@ -1569,9 +1604,14 @@ multiplies residuals by \(\sqrt{w_i}\). A generic weight column directly
 multiplies residuals by its value. This distinction is intentional and
 is recorded in the curve metadata.
 
-Zero generic weight is allowed and gives a point zero numerical
-influence. A zero or negative \texttt{sigma\_y} is invalid and excludes
-the row.
+A zero weight is retained in the dataset, but when weights are the
+active Y-error representation it is excluded from fitted rows, N and
+degrees of freedom. Turning off data-error weighting retains such rows
+when X/Y are finite. A zero or negative \texttt{sigma\_y} is invalid and
+excludes the row while that error weighting is enabled. Inverse-variance
+weights follow Y-uncertainty propagation: multiplying Y by \texttt{a}
+divides those weights by \texttt{a**2}. Arbitrary direct residual
+multipliers retain their declared multiplier semantics.
 
 For a confidence level \(C\), interval half-widths are converted to
 approximate Gaussian scales by dividing each side by
@@ -1768,10 +1808,17 @@ available to later formulas. Normal calculator operations on X/Y are
 also reflected in their mapped columns. Calculations are local to each
 spectrum, even when spectra originated in the same file. In a
 multi-spectrum batch \texttt{cN} always means position N in each file;
-check that the files have compatible layouts. Uncertainty propagation is
-not inferred for custom formulas; changing an auxiliary uncertainty
-column does not remap the uncertainty arrays originally selected for
-fitting.
+check that the files have compatible layouts. Formulas updating X or Y
+propagate supplied uncertainty using the local derivative with respect
+to that target axis; inverse-variance Y weights follow the same rule.
+This does not jointly propagate errors in other columns or correlations
+between inputs. Changing an auxiliary uncertainty column does not remap
+the error arrays originally selected for fitting. Nonlinear formula
+derivatives use local, scale-aware perturbations and Richardson
+extrapolation. For \texttt{z=y**3}, the audited tiny-value example now
+agrees with \texttt{sigma\_z=abs(3*y**2)*sigma\_y}. Propagation remains
+a first-order local approximation; input correlations and uncertainties
+in other columns are not jointly propagated.
 
 Name and \textbf{Save formula} to retain the expression and destination
 in the project, then recall it through Saved formulas. Retained columns,
@@ -2017,13 +2064,22 @@ reciprocal, and one Convolve function is itself. An empty or fully
 disabled model is zero. Consecutive convolutions use full FFT
 convolution with uniform x-spacing scaling and crop once back to the
 input length, so inserting the same kernels in another order does not
-change edge handling. FFT convolution requires a finite, uniformly
-spaced, strictly monotonic X axis; resample irregular data onto a
-regular grid first. Ascending and descending grids are supported. Masks
-and fit ranges select residuals after evaluation on the full current
-data grid: excluding points does not change the convolved model itself.
-Marked additive backgrounds receive the same global factors and
-convolutions as the full model when their contribution is evaluated.
+change edge handling. Convolution uses full FFT integration with
+absolute uniform X spacing and a single centered crop for consecutive
+kernels. A finite, strictly monotonic, uniform grid is required at every
+scale. For even-length signals, kernels are sampled on an odd grid with
+an exact central lag, removing the half-sample shift; ascending and
+descending axes give the same physical center. Kernel coordinates retain
+the input-domain midpoint convention. Choose a sufficiently wide, finely
+sampled window: finite-window truncation and discretization remain
+approximations. Fitting evaluates the full current grid before selecting
+residual rows. Marked additive backgrounds receive the same global
+operations as the full model.
+
+Add/Subtract terms use compensated summation in construction order
+independent of random component IDs. The cancellation example
+\texttt{1e16+1-1e16} now retains 1. Compensation reduces rounding loss;
+it is not arbitrary-precision arithmetic.
 
 The same global roles apply to every project, model file and workflow,
 including files saved by earlier versions. There is no separate
@@ -2816,10 +2872,13 @@ graph. CurveMole resolves the graph before fitting, detects cycles, and
 reevaluates the relations at each model evaluation. Equality and
 advanced-expression targets are derived values rather than independent
 optimizer variables. If covariance is available, their standard errors
-are propagated numerically from free parameters. Targets with \textbf{At
-least}, \textbf{At most}, or \textbf{Similar} relations remain
-independent optimizer variables constrained by their current allowed
-intervals.
+are propagated numerically from free parameters. Nonlinear link
+gradients use scale-aware three-point differences and Richardson
+extrapolation before propagating covariance. The small cubic-link
+reference now agrees with its analytic derivative; these remain local
+uncertainties (Appendix J.3). Targets with \textbf{At least}, \textbf{At
+most}, or \textbf{Similar} relations remain independent optimizer
+variables constrained by their current allowed intervals.
 
 \section{9.5 Safe expression language}\label{safe-expression-language}
 
@@ -2988,8 +3047,23 @@ automatically selects:
 \item
   Levenberg-Marquardt for an unbounded ordinary least-squares problem;
 \item
-  trust-region reflective when bounds or a robust loss require it.
+  trust-region reflective when bounds or a robust loss require it, or
+  when a global fit with at least 16 free parameters has a sufficiently
+  sparse dependency structure. This avoids a dense residual-by-parameter
+  matrix; equality and relational links between spectra remain part of
+  the problem.
 \end{itemize}
+
+Built-in optimizers use dimensionless coordinates based on parameter and
+data scales; numerical Jacobians, automatic DE limits and bound
+diagnostics use those scales rather than a floor of one physical unit.
+Positive built-in widths have a float64 normal minimum (about
+\texttt{2.225e-308}), rather than machine epsilon. Explicit bounds
+remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific
+judgment. Optimizer coordinate tolerances, including explicit
+\texttt{x\_scale}, apply after this normalization; supplied Nelder-Mead
+simplex vertices remain physical parameters.
 
 The graphical dialog exposes the maximum number of evaluations and
 confidence level. New fit plans default to 1,000 evaluations and use a
@@ -3096,9 +3170,14 @@ peak shape.
 
 Robust loss can reduce the influence of large residuals, but it is not a
 substitute for understanding outliers, detector artifacts, or an
-incomplete model. AIC, AICc, and BIC are reported only for the linear
-loss. Robust-loss covariance uses a sandwich estimate, and CurveMole
-recommends explicit resampling.
+incomplete model. AIC, AICc, and BIC require linear loss and a supported
+Gaussian noise model: active interval-error arrays (including equal
+half-widths) and arbitrary spectrum balancing also make them
+unavailable. Their likelihood uses point precision and counts any
+estimated noise scale. Robust-loss covariance uses a sandwich estimate
+based on the original weighted-residual Jacobian and the chosen loss's
+influence function; a singular sensitivity makes that estimate
+unavailable. CurveMole recommends explicit resampling.
 
 For \texttt{soft\_l1}, \texttt{huber} and \texttt{cauchy}, the
 \textbf{Loss scale (f\_scale)} field appears. It must be positive and
@@ -3211,11 +3290,15 @@ RMSE & \(\sqrt{\mathrm{RSS}/N}\) \\
 Chi-square & Sum of squared weighted residuals \\
 Reduced chi-square & Chi-square divided by \(N-k\) when positive \\
 Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\) \\
-AIC & Gaussian ordinary least-squares expression when applicable \\
-AICc & Small-sample correction when \(N>k+1\) \\
-BIC & Gaussian ordinary least-squares expression when applicable \\
+AIC & \(-2\log L_{max}+2K\) for a supported Gaussian noise model \\
+AICc & \(AIC+2K(K+1)/(N-K-1)\) when \(N>K+1\) \\
+BIC & \(-2\log L_{max}+K\log N\) \\
 \end{longtable}
 }
+
+Here \(k\) counts free model parameters and \(K\) additionally counts
+any fitted noise scales. Information criteria include Gaussian
+normalization constants.
 
 The descriptive \(R^2\) can be misleading for baselines, constrained
 fits, or models without an intercept. It is included as a familiar
@@ -3251,6 +3334,12 @@ confidence intervals use the applicable static/global limits instead of
 these conditional limits. A parameter at a bound is flagged because its
 true uncertainty is generally asymmetric and not adequately summarized
 by a symmetric covariance interval.
+
+These are local normal intervals, not exact Student-t intervals for a
+small linear sample with an estimated variance. Linked errors use
+scale-aware gradients; bound diagnostics use local parameter scales and
+floating-point spacing. See Appendix J.1/J.3 for the audited regression
+cases.
 
 \section{11.5 Residual diagnostics}\label{residual-diagnostics}
 
@@ -3543,7 +3632,12 @@ This accommodates the supplied relative noise levels without adding
 measurement noise a second time. Masked rows do not supply residuals.
 This assumes exchangeability of the standardized residuals and can be
 inappropriate when residuals remain serially correlated or
-heteroscedastic.
+heteroscedastic. Inverse-variance weights use the equivalent relative
+scales \texttt{1/sqrt(weight)}, so they produce the same bootstrap as
+equivalent sigma values. Arbitrary direct residual multipliers do not
+declare a noise variance and retain empirical resampling. Supplied noise
+scales are used for resampling even when the fit's data-error weighting
+is disabled; they must be positive and finite on fitted rows.
 
 \section{12.3 Block bootstrap}\label{block-bootstrap}
 
@@ -3562,9 +3656,22 @@ decision.
 
 Choose one free parameter that is not fixed or equality-linked.
 CurveMole fixes it across a finite grid, refits all remaining free
-parameters, and compares chi-square with the baseline. The default grid
-spans approximately three covariance standard errors on either side, or
-a fallback span when no standard error is available, while respecting
+parameters, and compares a Gaussian likelihood ratio with the baseline.
+With known absolute Y noise scales it uses the chi-square difference.
+With an unknown common noise scale it profiles that scale using
+\(N\log(Q/Q_{min})\), where \(Q\) is the weighted residual sum of
+squares. This likelihood-ratio formula is invariant to a common
+rescaling of residual units; the numerical optimization remains subject
+to the scaling limits in Appendix J.1. Robust losses, active
+interval-error arrays (even equal lower/upper half-widths) and arbitrary
+spectrum balancing are not supported by this Gaussian profile; use
+bootstrap for those cases. Interval arrays ignored with data-error
+weighting disabled do not trigger that restriction. A zero-residual
+baseline without known noise cannot estimate the noise scale and is
+rejected with an explanation. Convolution is evaluated on the full
+regular grid before masked rows are selected. The default grid spans
+approximately three covariance standard errors on either side, or a
+fallback span when no standard error is available, while respecting
 bounds.
 
 The default uses 31 grid points and a one-parameter chi-square
@@ -3572,10 +3679,16 @@ threshold. The grid size, confidence level and lower/upper scan limits
 can be changed in the panel; blank limits select the automatic range,
 and explicit limits must respect parameter bounds. Failed grid points
 are counted. The desktop profile currently requires a single-spectrum
-baseline; it does not profile a global multi-spectrum fit. A profile
-interval is more informative than a symmetric standard error near bounds
-or in nonlinear problems, but grid resolution should be considered when
-interpreting endpoints.
+baseline; it does not profile a global multi-spectrum fit. Profile
+threshold crossings are refined by bracketed refits.
+\texttt{confidence\_regions} contains every connected region detected by
+the scan; \texttt{interval} selects the region containing the fitted
+estimate and never bridges rejected gaps. Disconnected sets are marked
+\textbf{Critical}. \texttt{warnings} reports incomplete scans or
+unrefined endpoints; inspect every region and extend the scan where
+needed. A finite grid can still miss a narrow remote mode. The default
+Gaussian-location example now agrees with the analytic 95\% interval,
+approximately +/-1.959964 standard errors.
 
 \section{12.5 Reproducibility and failed
 replicates}\label{reproducibility-and-failed-replicates}
@@ -3594,6 +3707,17 @@ failed-replica counts. Keep the \texttt{.fitproj} project, or select a
 project copy in the analysis bundle, to retain the recorded counts,
 failure messages and adaptive configuration alongside the parameter
 assessments.
+
+New fit results record \texttt{provenance}: original model/constraint
+snapshots, input content hashes, ordered parameters, initial solver
+coordinates, scales, resolved solver bounds/method, settings, seeds,
+function/plugin fingerprints, CurveMole source identity,
+Python/NumPy/SciPy versions and backend/thread details. Profile and
+resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature
+have no reconstructible original state. Keep original data and scripts:
+hashes identify inputs but do not store a separate copy of every
+historical dataset.
 
 \chapter{13. Projects, saving, and
 recovery}\label{projects-saving-and-recovery}
@@ -3643,6 +3767,14 @@ documented in \url{project-format.md}.
 CurveMole writes a temporary sibling file, validates the archive, and
 then atomically replaces the destination. A failed save should therefore
 not partially overwrite a previous valid project.
+
+Opening confirms the current project's save/discard choice before
+reading the candidate. Validation, data reading and digest checks run in
+a cancellable worker while the interface processes events. Editing and
+another Open/New operation are blocked during that read. An error or
+cancellation leaves the previous project and its lock intact. A detected
+file change during opening asks for another try; external changes after
+opening are checked again before a coordinated save.
 
 \section{13.3 Project locks and read-only
 mode}\label{project-locks-and-read-only-mode}
@@ -4045,10 +4177,15 @@ options:
 
 The x and spectrum columns are always written. Output names follow
 \texttt{\textless{}spectrum\textgreater{}\_curvemole.\textless{}original\ extension\textgreater{}};
-duplicate names receive a numeric suffix. The original delimiter is
-retained when practical, otherwise the output is tab-delimited. Headers
-describe axis labels, units, functions, background state, total fit, and
-residuals, and never contain whitespace so they remain safe for
+duplicate names receive a numeric suffix. Available error columns and
+explicit point weights are included. A numeric
+\texttt{weights\_are\_inverse\_variance} column distinguishes
+inverse-variance weights (1) from direct residual multipliers (0).
+Colliding column labels receive a \texttt{\_\_2}, \texttt{\_\_3},
+\ldots{} suffix, preserving all numeric fields. The original delimiter
+is retained when practical, otherwise the output is tab-delimited.
+Headers describe axis labels, units, functions, background state, total
+fit, and residuals, and never contain whitespace so they remain safe for
 whitespace parsers. An unknown original extension is preserved.
 
 \section{14.9 Quick export: function
@@ -4470,7 +4607,12 @@ reproducibility}\label{api-compatibility-and-reproducibility}
 Use the documented package-root API for reusable scripts; internal
 modules are implementation details and may evolve. Pin the exact
 CurveMole version in automated research workflows and record it with
-results, together with dependency versions.
+results, together with dependency versions. Save the initial
+script/workflow and inputs before fitting. A saved fitted model is a new
+starting state: repeating the same seed from that state can change DE's
+automatic bounds. See Appendix J.7 for the information absent from
+ordinary fit records and Appendix J.5 for fresh component IDs under
+strong cancellation.
 
 \chapter{18. Function Builder and
 plugins}\label{function-builder-and-plugins}
@@ -4895,7 +5037,10 @@ Choose a new directory or a versioned export. If updating an existing
 bundle, keep the project that records ownership of its exported files
 and explicitly enable update. Older bundles may instead have a
 \texttt{.curvemole-export.json} ownership manifest; retain it. CurveMole
-will not claim ownership of unrelated colliding files.
+will not claim ownership of unrelated colliding files. For the separate
+numeric spectrum export, an existing destination requires explicit
+replacement confirmation; symbolic-link destinations are refused even
+with overwrite.
 
 \section{19.14 A resampling analysis has many failed
 replicates}\label{a-resampling-analysis-has-many-failed-replicates}
@@ -4965,7 +5110,9 @@ Archive at least:
 \begin{itemize}
 \tightlist
 \item
-  exact CurveMole version and DOI;
+  exact CurveMole version and its version DOI;
+\item
+  software RRID for identification in published methods;
 \item
   original data and import mapping;
 \item
@@ -5040,19 +5187,55 @@ expectations; trust only reviewed plugin code.
 
 \section{20.3 Citation}\label{citation}
 
-If CurveMole contributes to published work, cite the exact version used.
-The release DOI is inserted into \texttt{CITATION.cff} and the
-repository README after Zenodo archival. Until archival completes, the
-versioned GitHub release is the authoritative record:
+\subsection{20.3.1 Research using
+CurveMole}\label{research-using-curvemole}
+
+Cite the exact software version used in your bibliography. This manual
+describes \textbf{CurveMole 1.1.0}, whose reference is:
 
 \begin{quote}
-Romi, S. (2026). \emph{CurveMole: Modular Scientific Curve Fitting}
-(Version 1.1.0) {[}Computer software{]}. GitHub.
-https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.0
+Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version
+1.1.0) {[}Computer software{]}. Zenodo.
+https://doi.org/10.5281/zenodo.23730744
 \end{quote}
 
-The repository provides \textbf{Cite this repository} from
-\texttt{CITATION.cff}.
+If you used another release, including a beta, use that release's own
+version DOI from its GitHub release notes or Zenodo record. Never
+substitute the current stable DOI for a different version.
+
+\subsection{20.3.2 Identification in the
+methods}\label{identification-in-the-methods}
+
+Use the software name, exact version and version-independent SciCrunch
+RRID:
+
+\begin{quote}
+Data were analysed with CurveMole version 1.1.0 (RRID:SCR\_029214).
+\end{quote}
+
+\href{https://scicrunch.org/resolver/RRID:SCR_029214}{RRID:SCR\_029214}
+identifies the software; the version DOI identifies the archived
+release. The methods sentence accompanies the bibliographic reference.
+
+\subsection{20.3.3 Referring to the project in
+general}\label{referring-to-the-project-in-general}
+
+Use the \textbf{Concept DOI} when discussing CurveMole as a project
+across versions:
+
+\begin{quote}
+Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting {[}Computer
+software{]}. Zenodo. https://doi.org/10.5281/zenodo.22113854
+\end{quote}
+
+The Concept DOI (10.5281/zenodo.22113854) represents all versions. It
+resolves to the latest Zenodo archive, which may be a beta, and does not
+identify the version used for an analysis or the latest stable download.
+
+The \href{citing.md}{citation guide} explains historical versions and
+plugin references. \href{citation.bib}{Version BibTeX},
+\href{concept-citation.bib}{project BibTeX} and GitHub's \textbf{Cite
+this repository} are generated from \texttt{CITATION.cff}.
 
 \section{20.4 Author and contact}\label{author-and-contact}
 
@@ -5071,7 +5254,11 @@ license obligations.
 \chapter{Appendix A. Keyboard
 shortcuts}\label{appendix-a.-keyboard-shortcuts}
 
-Shortcuts use single keys or Ctrl+letter.
+Menu and toolbar shortcuts use plain keys or Ctrl+letter. Contextual
+editing also uses the special keys listed below. The table uses portable
+Qt spellings; \textbf{Help \textgreater{} Shortcuts\ldots{}} shows the
+native labels and actual bindings for this window, including loaded
+plugins. Native modifier labels can differ on macOS.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
@@ -5106,12 +5293,30 @@ Double-click during manual-point placement & Finish after the minimum
 number of points \\
 Right-click during manual-point placement & Remove the nearest point \\
 Right-drag / left-drag with Mask active & Mask / unmask an interval \\
-Up / Down with plot focus & Activate previous / next spectrum \\
+Up / Down with plot focus & Activate previous / next checked spectrum \\
+Left double-click in normal navigation & Frame unmasked experimental
+points \\
+Right double-click in normal navigation & Frame all experimental points,
+including masked points \\
+Enter / Return during placement & Finish after the required minimum
+points \\
+Delete / Backspace in data-point editing & Delete the selected
+experimental point \\
+F2 in the series/spectra tree & Rename the selected editable item \\
+F4 in the function list & Open the selected function's composition
+menu \\
 \end{longtable}
 }
 
 \section{Keyboard shortcuts for menu and toolbar
 commands}\label{keyboard-shortcuts-for-menu-and-toolbar-commands}
+
+Open \textbf{Help \textgreater{} Shortcuts\ldots{}} for the
+\textbf{Mouse} and \textbf{Keyboard} tabs. The Mouse tab explains
+navigation, masking, function placement, point editing and selection.
+The searchable Keyboard tab lists the currently assigned menu, toolbar
+and plugin shortcuts, together with keys that apply only in a particular
+editing context.
 
 Every command in the top menus and toolbars has a dedicated keyboard
 shortcut, including the Background and Initialize with points toggles.
@@ -5269,14 +5474,27 @@ contracts.
 reference}\label{appendix-f.-python-scripting-reference}
 
 \textbf{Stable API baseline: CurveMole 1.1.0. Workflow extensions
-require 1.1.1 beta.} Applies to Python \textbf{3.12+}. This testing
-edition documents the GUI-independent scientific engine and marks the
-new beta workflow helpers explicitly: callable names, argument names,
-return values, side effects, and limits. The 1.1.0 stable executable
-does not support the marked beta operations. Private names beginning
-with \texttt{\_} and GUI classes are outside this scripting contract.
-Record the installed version and scientific dependency versions with
-your results.
+require 1.1.1 beta.} \textbf{Current testing behavior.} This edition
+includes the November 2026 scientific and data-integrity corrections.
+Match it to the exact testing/beta build; those corrections and
+testing-only API additions must not be inferred for 1.1.0 Stable or an
+older beta from its version-family name alone.
+
+Applies to Python \textbf{3.12+}. This testing edition documents the
+GUI-independent scientific engine and marks the new beta workflow
+helpers explicitly: callable names, argument names, return values, side
+effects, and limits. The 1.1.0 stable executable does not support the
+marked beta operations. Private names beginning with \texttt{\_} and GUI
+classes are outside this scripting contract. Record the installed
+version and scientific dependency versions with your results.
+
+\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+findings in the latest scientific audit are corrected in this edition:
+parameter scaling, nonlinear uncertainty derivatives, convolution
+alignment, compensated summation, profile confidence regions and saved
+execution provenance. Appendix J describes the changes and their limits.
+Use the documents attached to your exact beta build; these corrections
+do not apply retroactively to earlier executables.
 
 \section{1. Installation and imports}\label{installation-and-imports}
 
@@ -5404,10 +5622,13 @@ preview is a pandas DataFrame \\
 & \texttt{Series} of curves in input order \\
 \texttt{ImportPreview(path,\ config).curves(mapping)} &
 \texttt{list{[}Curve{]}}; parse once for repeated preview mappings \\
-\texttt{repeated\_spectrum\_mappings(column\_count,\ *,\ y\_per\_x=1,\ error\_kind="none",\ first\_column=0)}
-& \texttt{list{[}ColumnMapping{]}} for repeated positional groups \\
+\texttt{repeated\_spectrum\_mappings(...)} &
+\texttt{list{[}ColumnMapping{]}} for repeated positional groups \\
 \end{longtable}
 }
+
+\texttt{repeated\_spectrum\_mappings(column\_count,\ *,\ y\_per\_x=1,\ error\_kind="none",\ first\_column=0)}
+accepts the column count and returns repeated positional mappings.
 
 \texttt{ImportConfig} fields/defaults: \texttt{delimiter=None},
 \texttt{decimal="."},
@@ -5615,9 +5836,17 @@ derivative with respect to the target axis. Affine scaling is exact;
 nonlinear propagation is a local approximation. Asymmetric Y sides swap
 for a negative derivative. Uncertainty in other input columns,
 correlations, and operand-curve errors are not jointly propagated.
-Explicit weights are retained rather than recomputed by arbitrary
-formulas; review their interpretation after changing Y. Normalization
-uses current data, including masked rows.
+Inverse-variance weights follow the same local Y-uncertainty
+propagation; direct arbitrary residual multipliers retain their declared
+multiplier semantics. Normalization uses current data, including masked
+rows.
+
+Nonlinear formula derivatives use local, scale-aware perturbations and
+Richardson extrapolation. For \texttt{z=y**3}, the audited tiny-value
+example now agrees with \texttt{sigma\_z=abs(3*y**2)*sigma\_y}.
+Propagation remains a first-order local approximation; input
+correlations and uncertainties in other columns are not jointly
+propagated.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -5678,13 +5907,16 @@ remaining link dependencies and remove affected model/result records \\
 transitive dependents and recorded global-fit coupling \\
 \texttt{invalidate\_fits(curve\_ids,\ *,\ preserve=())} & Return
 affected IDs minus preserve; mark fitted curves Modified/outdated \\
-\texttt{model\_for(curve\_id)} & Return/create curve's model \\
-\texttt{add\_component(curve\_id,\ component)} & Add to model and mark
-project changed \\
+\texttt{model\_for(curve\_id)} & Return/create curve's model; read-only
+missing models are temporary and not inserted \\
+\texttt{add\_component(curve\_id,\ component)} & Add to model,
+invalidate its fit/dependents and mark project changed \\
 \texttt{parameter\_map()} & \texttt{\{full\_path:\ Parameter\}} for all
 models \\
 \texttt{resolved\_parameter\_values()} & Resolve links project-wide into
 \texttt{\{path:\ float\}} \\
+\texttt{ensure\_editable()} & Check write access before mutation; raises
+on read-only project \\
 \texttt{touch()} & Mark dirty, advance revision/timestamp; raises on
 read-only project \\
 \texttt{mark\_saved(path=None)} & Mark saved; normal scripts use
@@ -5701,7 +5933,10 @@ atomically copies selected model aspects across destinations.
 \texttt{component\_ids} limits source functions; include functions
 referenced by links. With \texttt{structure=False}, source positions
 match the same destination positions. Relative links retarget to
-destination curves; absolute references remain fixed.
+destination curves; absolute references remain fixed. A successful copy
+invalidates fitted destination curves and their transitive
+linked/global-fit dependents; previous result payloads remain as
+outdated history.
 
 Add a \texttt{Series} to the project before passing it explicitly to
 \texttt{add\_curve}. The default \texttt{ui\_state} is
@@ -5833,23 +6068,23 @@ serialization \\
 
 Models use global roles: sum enabled \texttt{add} and subtract enabled
 \texttt{subtract} components, then apply \texttt{multiply},
-\texttt{divide}, \texttt{convolve} to the total.
-\texttt{operation\_order} contains operation component IDs; unspecified
-operations sort by multiply/divide/convolve and ID.
-\texttt{display\_order} / \texttt{display\_components} control
-presentation. Convolution uses FFT integration, absolute uniform X
-spacing, and a centered crop. An actual convolution of two or more
-arrays requires a finite, strictly monotonic, uniformly spaced X axis
-(increasing or decreasing); irregular sampling, duplicates or invalid X
-raise \texttt{DataValidationError}. Resample explicitly before
-convolution. Fitting evaluates convolution on the \textbf{full current
-curve grid}, then selects unmasked/in-range residual rows, so masking
-does not change the convolution grid. \texttt{evaluate\_for\_curve}
-implements this selection; for local models it evaluates only selected X
-values. Its wrapper forwards \texttt{values}, \texttt{registry}, and
-other compatible \texttt{evaluate} keywords, but
-\texttt{components=True} is not a supported result-selection mode for
-convolution. Use \texttt{evaluate} directly for component arrays.
+\texttt{divide}, \texttt{convolve} to the total. The starting sum uses
+compensated accumulation independent of random IDs.
+\texttt{operation\_order} controls global operations; unspecified
+operations use role/ID order. Presentation remains separate through
+\texttt{display\_order}/\texttt{display\_components}. Convolution uses
+full FFT integration with absolute uniform X spacing and a single
+centered crop for consecutive kernels. A finite, strictly monotonic,
+uniform grid is required at every scale. For even-length signals,
+kernels are sampled on an odd grid with an exact central lag, removing
+the half-sample shift; ascending and descending axes give the same
+physical center. Kernel coordinates retain the input-domain midpoint
+convention. Choose a sufficiently wide, finely sampled window:
+finite-window truncation and discretization remain approximations.
+Fitting evaluates convolution on the full current grid, then selects
+residual rows through \texttt{evaluate\_for\_curve}. Use
+\texttt{evaluate(...,\ components=True)} directly when individual arrays
+are needed.
 
 For project-linked models, use
 \texttt{model.evaluate(curve.x,\ curve\_id=curve.id,\ values=project.resolved\_parameter\_values())}.
@@ -5910,6 +6145,12 @@ target starting value inside the feasible interval.
 \texttt{link\_bounds(source\_value)} returns intersected bounds or
 raises \texttt{ConstraintError}.
 
+Nonlinear linked-parameter gradients use bound-aware, scale-aware
+three-point differences and Richardson extrapolation before covariance
+propagation. The cubic link agrees with \texttt{SE(b)=abs(3*a**2)*SE(a)}
+at the audited small scales. These remain local covariance
+uncertainties; strong nonlinearity can require resampling.
+
 \texttt{link\_scope} is \texttt{relative} (default) or \texttt{absolute}
 and governs copying. \texttt{link\_reference\_scopes} can specify each
 reference occurrence's scope in order.
@@ -5952,6 +6193,13 @@ assignment to a different target raises \texttt{ExpressionError}.
 Coordinate and column calculator helpers use this parser; it does not
 execute Python.
 
+The testing interpreter limits source size (16,384 characters), AST
+complexity (2,048 nodes, depth 64), integer results (4,096 bits),
+array/broadcast results (10,000,000 elements) and aggregate array work
+(50,000,000 elements). Excesses raise \texttt{ExpressionError}; powers
+and broadcasting are checked before large results are computed. Trusted
+Python plugin callbacks are outside these limits.
+
 \section{9. Custom formulas and function
 registry}\label{custom-formulas-and-function-registry}
 
@@ -5961,6 +6209,20 @@ Registry methods: \texttt{register(definition,\ *,\ replace=False)},
 \texttt{identifiers()\ -\textgreater{}\ tuple},
 \texttt{extend(definitions)}. Duplicate registration without
 \texttt{replace=True} raises \texttt{DataValidationError}.
+
+The testing API also provides \texttt{copy()} for an isolated
+registration table,
+\texttt{register\_custom(definition,\ *,\ replace=False)} to reject
+formula collisions with builtin identifiers, and
+\texttt{set\_project\_functions(specifications)} to validate and replace
+a project's formula layer atomically. Clearing that layer restores the
+previous definitions that have not been removed or disabled. Desktop
+project functions, the library and workflow formulas use the checked
+path. Explicit low-level \texttt{register(...,\ replace=True)} remains
+an extension API; avoid mutating the shared default registry when
+isolation is needed. A registry copy shares evaluator/definition
+objects; replacing registrations is isolated, while directly mutating a
+shared definition object is not a deep copy.
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -6202,7 +6464,9 @@ Return
 \bottomrule\noalign{}
 \endlastfoot
 \texttt{find\_peak\_suggestions(curve,\ *,\ sign="positive",\ prominence=None,\ distance=None,\ max\_peaks=50)}
-& Prominence-sorted list; sign positive/negative/both \\
+& Prominence-sorted list; sign positive/negative/both; widths in local X
+coordinates, including irregular grids; sorts X/Y together and rejects
+duplicate X \\
 \texttt{PeakSuggestion(x,\ height,\ fwhm,\ prominence,\ sign)} & Center,
 signed height, FWHM estimate, prominence, sign +/-1 \\
 \texttt{component\_from\_suggestion(suggestion,\ function\_id="gaussian",\ *,\ registry=None)}
@@ -6243,15 +6507,16 @@ enum but does not copy structure in \texttt{Fitter.fit}; explicitly call
 \texttt{Project.copy\_fit} first.
 
 Independent fits use each existing curve/model separately; global fits
-jointly optimize selected curves and cross-curve links. The core package
-installs the propagating sequential implementation automatically. Its
-\textbf{first selected curve is a prepared seed and is not fitted
-again}. Prepare/fit that curve explicitly before the sequential call.
-Subsequent curves receive copied source functions by component ID;
-existing functions with those IDs are retained, not overwritten. An
-initially empty target model is usually appropriate for full
-propagation. The models collection must be mutable because targets may
-be replaced. Prefer \texttt{SequentialFitPlan} for the controls below.
+jointly optimize selected curves and cross-curve links. \texttt{Fitter}
+delegates directly to the canonical propagating sequential
+implementation. Its \textbf{first selected curve is a prepared seed and
+is not fitted again}. Prepare/fit that curve explicitly before the
+sequential call. Subsequent curves receive copied source functions by
+component ID; existing functions with those IDs are retained, not
+overwritten. An initially empty target model is usually appropriate for
+full propagation. The models collection must be mutable because targets
+may be replaced. Prefer \texttt{SequentialFitPlan} for the controls
+below.
 
 \texttt{SequentialFitPlan} extends \texttt{FitPlan} with defaults:
 \texttt{monitor\_residuals=True}, \texttt{residual\_ratio\_limit=2.5},
@@ -6301,7 +6566,16 @@ executable. Notebook kernels may not support spawning processes.
 catalogue}\label{complete-fitsettings-catalogue}
 
 All names are actual constructor keywords; \texttt{settings.validate()}
-checks them.
+checks them. Built-in optimizers use dimensionless coordinates based on
+parameter and data scales; numerical Jacobians, automatic DE limits and
+bound diagnostics use those scales rather than a floor of one physical
+unit. Positive built-in widths have a float64 normal minimum (about
+\texttt{2.225e-308}), rather than machine epsilon. Explicit bounds
+remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific
+judgment. Optimizer coordinate tolerances, including explicit
+\texttt{x\_scale}, apply after this normalization; supplied Nelder-Mead
+simplex vertices remain physical parameters.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
@@ -6427,16 +6701,43 @@ Global statistics: \texttt{N}, \texttt{k},
 \texttt{chi\_square}, \texttt{reduced\_chi\_square},
 \texttt{R\_squared}, \texttt{AIC}, \texttt{AICc}, \texttt{BIC}.
 Per-curve statistics: \texttt{N}, \texttt{RSS}, \texttt{RMSE},
-\texttt{R\_squared}. AIC/AICc/BIC are unavailable for robust losses;
-insufficient degrees/rank may leave covariance unavailable. Matrix rows
-follow \texttt{free\_parameter\_paths}. Independent-batch matrices may
-be \texttt{BlockDiagonalMatrix}; \texttt{np.asarray(matrix)} densifies
-and can require substantial memory.
+\texttt{R\_squared}. Gaussian information criteria use the likelihood of
+the weighted residuals, including its precision normalization. A
+relative or unknown noise scale adds one likelihood parameter;
+independent fits retain their separate fitted noise scales. The result
+records \texttt{negative\_twice\_log\_likelihood} and
+\texttt{likelihood\_parameters}. AIC/AICc/BIC are unavailable for robust
+losses, active interval-error arrays (including equal lower/upper
+half-widths) and arbitrary spectrum balancing. Insufficient degrees or
+rank may leave covariance unavailable. Matrix rows follow
+\texttt{free\_parameter\_paths}. Independent-batch matrices may be
+\texttt{BlockDiagonalMatrix}; \texttt{np.asarray(matrix)} densifies and
+can require substantial memory.
 
 \texttt{result.to\_dict(arrays=False)} omits sampled curve/matrix
 arrays; \texttt{to\_dict(arrays=True)} includes them.
 \texttt{FitResult.from\_dict(mapping)} restores only outputs with
 complete arrays. Save full arrays for uncertainty baselines.
+
+New fit results record \texttt{provenance}: original model/constraint
+snapshots, input content hashes, ordered parameters, initial solver
+coordinates, scales, resolved solver bounds/method, settings, seeds,
+function/plugin fingerprints, CurveMole source identity,
+Python/NumPy/SciPy versions and backend/thread details. Profile and
+resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature
+have no reconstructible original state. Keep original data and scripts:
+hashes identify inputs but do not store a separate copy of every
+historical dataset.
+
+\texttt{Fitter.replay(result,\ curves,\ *,\ verify\_environment=True,\ **fit\_keywords)}
+reconstructs the saved initial plan/models and checks input hashes,
+function and solver fingerprints. The default also rejects a changed
+numerical environment. Use \texttt{verify\_environment=False} explicitly
+for a comparison across environments. Older results without
+initial-state provenance raise \texttt{FitError}. Replay needs the
+original matching curves; later transformations can change their content
+hash. A new fit from a saved optimum is distinct from replay.
 
 \texttt{curvemole.core.diagnostics.residual\_diagnostics(residual,\ *,\ max\_lag=None,\ histogram\_bins="auto")\ -\textgreater{}\ ResidualDiagnostics}
 returns standardized residuals, histogram, Q-Q arrays, autocorrelation,
@@ -6472,6 +6773,18 @@ Three methods return \texttt{ResamplingResult} and share arguments
   blocks; None estimates block length for each curve.
 \end{itemize}
 
+Both bootstrap methods standardize sigma and inverse-variance noise
+equivalently; automatic block lengths use the same standardized
+residuals. Supplied noise scales remain active for resampling when
+\texttt{use\_data\_errors=False} disables their use in the fit.
+Arbitrary direct residual multipliers do not define noise scales. Large
+global fits with at least 16 free parameters use sparse numerical
+derivatives when the dependency pattern is less than half full;
+automatic local mode selects TRF for these problems. Explicit LM and
+plugin solver callbacks retain a dense Jacobian interface. Covariance
+reduction uses bounded row chunks; the final parameter covariance still
+occupies quadratic parameter storage.
+
 \begin{Shaded}
 \begin{Highlighting}[]
 \ImportTok{from}\NormalTok{ curvemole }\ImportTok{import}\NormalTok{ FitPlan}
@@ -6506,10 +6819,29 @@ attempts.
 returns \texttt{ProfileResult} with \texttt{parameter\_path},
 \texttt{values}, \texttt{delta\_chi\_square},
 \texttt{confidence\_level}, \texttt{interval}, \texttt{failed\_points},
+\texttt{confidence\_regions}, \texttt{warnings}, \texttt{provenance},
 and \texttt{.to\_dict()}. Limits must be finite/increasing and inside
 parameter bounds; at least three points are needed. Equality-linked
 targets and joint cross-spectrum linked profiles are unavailable; use
-resampling for the linked global case.
+resampling for the linked global case. Gaussian profiles use a
+chi-square difference for known absolute noise and \(N\log(Q/Q_{min})\)
+for an estimated common noise scale. Robust losses, active
+interval-error arrays (symmetric or asymmetric), and arbitrary spectrum
+balancing are rejected; use bootstrap. Interval arrays that are ignored
+with \texttt{use\_data\_errors=False} do not trigger that restriction. A
+zero-residual fit cannot estimate an unknown noise scale: provide known
+sigma. Convolution preserves the full regular grid before selecting
+fitted rows.
+
+Profile threshold crossings are refined by bracketed refits.
+\texttt{confidence\_regions} contains every connected region detected by
+the scan; \texttt{interval} selects the region containing the fitted
+estimate and never bridges rejected gaps. Disconnected sets are marked
+\textbf{Critical}. \texttt{warnings} reports incomplete scans or
+unrefined endpoints; inspect every region and extend the scan where
+needed. A finite grid can still miss a narrow remote mode. The default
+Gaussian-location example now agrees with the analytic 95\% interval,
+approximately +/-1.959964 standard errors.
 
 \texttt{resampling\_batch(method,\ jobs,\ *,\ replicates,\ option=None,\ workers=1,\ adaptive=None,\ cancellation=None,\ progress=None,\ on\_result=None)}
 returns a list for jobs
@@ -6527,6 +6859,15 @@ but does not imply GUI selection/integration.
 \section{15. Saving projects/models and YAML
 interoperability}\label{saving-projectsmodels-and-yaml-interoperability}
 
+Saved state and full computational replay require different information.
+Ordinary fit records retain final parameters and settings but do not
+systematically store the original initial vector, resolved DE search
+bounds, exact Python/NumPy/SciPy and backend versions, RNG
+implementation, or source/plugin fingerprints used for that analysis.
+Keep the original script/workflow, inputs and environment alongside the
+project. A seed alone is insufficient; refitting the saved optimum can
+also recompute different automatic search bounds.
+
 Import from \texttt{curvemole.core.serialization}:
 
 {\def\LTcaptype{none} % do not increment counter
@@ -6543,13 +6884,13 @@ Return/behavior
 \endhead
 \bottomrule\noalign{}
 \endlastfoot
-\texttt{save\_project(project,\ path,\ *,\ include\_uncertainty\_samples=True,\ portable=False,\ update\_project\_path=True)}
+\texttt{save\_project(project,\ path,\ *,\ include\_uncertainty\_samples=True,\ portable=False,\ update\_project\_path=True,\ pre\_commit\_check=None)}
 & \texttt{Path}; atomic \texttt{.fitproj}, creates parent and normalizes
 suffix \\
-\texttt{load\_project(path,\ *,\ partial\_recovery=False)} & Restored
-\texttt{Project} \\
-\texttt{validate\_project\_archive(path,\ *,\ raise\_on\_error=True)} &
-\texttt{list{[}str{]}} failures; raises by default when nonempty \\
+\texttt{load\_project(path,\ *,\ partial\_recovery=False,\ limits=None,\ cancellation=None)}
+& Restored \texttt{Project} \\
+\texttt{validate\_project\_archive(path,\ *,\ raise\_on\_error=True,\ limits=None)}
+& \texttt{list{[}str{]}} failures; raises by default when nonempty \\
 \texttt{capture\_project\_snapshot(project)} & Detached
 \texttt{ProjectSaveSnapshot} \\
 \texttt{save\_fitmodel(model,\ path,\ *,\ custom\_functions=None)} &
@@ -6560,6 +6901,22 @@ suffix \\
 \texttt{.acquired} before shared-file edits \\
 \end{longtable}
 }
+
+\texttt{pre\_commit\_check} is an optional callable executed after
+archive validation and immediately before replacing the destination;
+raising cancels that replacement. It supports a caller's lock/digest
+guard and does not itself acquire a lock.
+
+The testing reader and validator accept
+\texttt{limits=ArchiveLimits(...)}, imported from
+\texttt{curvemole.core.archive\_validation}. Defaults are 100,000 ZIP
+members, 1 GiB expanded content, 256 MiB per array and 32 MiB of
+manifest. Larger trusted loads can opt in to larger limits.
+\texttt{save\_project} still validates against the default limits:
+raising a read limit does not enlarge its save budget.
+\texttt{load\_project} optionally accepts a cancellation object with
+\texttt{raise\_if\_cancelled()}; checks occur during streamed reads, not
+as a hard interruption of a running NumPy allocation.
 
 \texttt{portable=True} strips local paths. Detached snapshots require
 \texttt{update\_project\_path=False} when saving. Project schema is
@@ -6730,8 +7087,9 @@ parameter-file path; requires per-curve fit records \\
 \texttt{value\_with\_error(value,\ error)} & Formatted value/error
 string \\
 \texttt{export\_bundle(project,\ directory,\ *,\ result=None,\ delimiter=",",\ versioned=False,\ overwrite=False,\ include\_uncertainty\_samples=True,\ selection=None,\ current\_view=None)}
-& \texttt{ExportSummary}: directory and
-created/updated/unchanged/preserved\_external path lists \\
+& \texttt{ExportSummary}: directory and the \texttt{created},
+\texttt{updated}, \texttt{unchanged}, \texttt{preserved\_external} path
+lists \\
 \end{longtable}
 }
 
@@ -6763,9 +7121,18 @@ external files. Keep the project's ownership metadata when rerunning.
 \texttt{curvemole.core.spectrum\_export} provides
 \texttt{SpectrumExportOptions(subtract\_background=False,\ unmasked\_only=False,\ include\_background=True,\ include\_components=True,\ include\_total\_fit=True,\ include\_residual=True)},
 \texttt{spectrum\_export\_dataframe(project,\ curve\_id,\ *,\ options=None,\ registry=None)\ -\textgreater{}\ DataFrame},
-\texttt{export\_spectra(project,\ directory,\ curve\_ids,\ *,\ options=None,\ registry=None)\ -\textgreater{}\ list{[}Path{]}}.
-Quick spectrum export writes destination files directly; choose a new
-directory to preserve previous exports.
+\texttt{export\_spectra(project,\ directory,\ curve\_ids,\ *,\ options=None,\ registry=None,\ overwrite=False)\ -\textgreater{}\ list{[}Path{]}}.
+Numeric exports use 17 significant digits and stage conversions before
+publishing. Existing files require explicit overwrite; symbolic-link
+destinations are refused. Multi-file filesystem failures can still leave
+a partial set of published files. Numeric spectrum exports preserve
+explicit weights and write \texttt{weights\_are\_inverse\_variance} as 1
+(inverse variance) or 0 (direct multiplier). Wide and quick tables
+disambiguate all colliding headers with \texttt{\_\_2}, \texttt{\_\_3},
+\ldots{} . Returned DataFrames also expose
+\texttt{attrs{[}"column\_roles"{]}} for the allocated X/Y names (and
+original X in wide exports), so callers need not infer axis identity
+from display labels.
 
 \texttt{export\_figure(curves,\ models,\ path,\ *,\ registry=None,\ dpi=300,\ width=9.0,\ height=5.5,\ transparent=False,\ include\_components=True,\ include\_residuals=True,\ include\_error\_bars=True,\ parameter\_values=None,\ theme="light")\ -\textgreater{}\ Path}
 creates a standalone figure. Width/height are inches; theme is
@@ -6899,7 +7266,7 @@ reference}\label{appendix-g.-yaml-workflow-reference}
 
 \textbf{Stable API baseline: CurveMole 1.1.0. Beta additions require
 CurveMole 1.1.1 beta.} \textbf{Beta workflow schema: 3; legacy schemas 1
-and 2 remain accepted. Checked on 2026-10-29.} This testing edition
+and 2 remain accepted. Checked on 2026-11-02.} This testing edition
 documents both the stable baseline and the marked 1.1.1 beta extensions.
 Folder/pattern imports, templates, shared curve selectors,
 preprocessing, stricter validation and the new output controls are beta
@@ -6911,6 +7278,20 @@ keys require schema 3; schemas 1 and 2 accept only the legacy fields.
 This guard makes older CurveMole executables reject new recipes instead
 of silently ignoring their processing stages. This is the runner
 contract, not every desktop action.
+
+\textbf{Current testing behavior.} This edition includes the November
+2026 scientific and data-integrity corrections. Match it to the exact
+testing/beta build; those corrections and testing-only API additions
+must not be inferred for 1.1.0 Stable or an older beta from its
+version-family name alone.
+
+\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+findings in the latest scientific audit are corrected in this edition:
+parameter scaling, nonlinear uncertainty derivatives, convolution
+alignment, compensated summation, profile confidence regions and saved
+execution provenance. Appendix J describes the changes and their limits.
+Use the documents attached to your exact beta build; these corrections
+do not apply retroactively to earlier executables.
 
 \section{W1. What a workflow can do}\label{w1.-what-a-workflow-can-do}
 
@@ -7528,10 +7909,11 @@ asymmetric confidence intervals are converted to Gaussian tail scales
 using \texttt{error\_confidence\_level}, choosing the upper/lower scale
 according to the fitted prediction's side of the observed value.
 Nonfinite X/Y, nonfinite or nonpositive Y-error scales, and nonfinite or
-negative weights are excluded through the curve's effective mask. Zero
-weights remain valid but contribute zero to the objective. Imported X
-errors do not determine the fit mask. Check retained point counts in
-results.
+negative weights are excluded through the curve's effective mask.
+Zero-weight rows remain available in the worksheet but are excluded from
+fitted observations, N and degrees of freedom when weights are the
+active Y-error representation. Imported X errors do not determine the
+fit mask. Check retained point counts in results.
 
 In 1.1.1 beta, \texttt{spectra} accepts a list of nested mappings, each
 describing its own X/Y and error columns. Use it instead of shared
@@ -7696,20 +8078,20 @@ increasing X nodes \\
 }
 
 Peak areas and centers are unbounded by default. Positive built-in width
-lower bounds are machine epsilon. \texttt{Component.create} clamps
-initial values to the function's default bounds; explicit constraint
-bounds are subsequently validated against the resulting value. Set
-sensible positive initial widths and physically appropriate bounds
-explicitly. All eight functions are usable as any component role.
-Construction options are distinct from fitted parameters: polynomial
-\texttt{metadata.order} must be an actual integer from 0 through 50 (not
-\texttt{2.0}, a string, or a Boolean). Function-declared option defaults
-are inserted by \texttt{Component.create}; declared option types/ranges
-are validated before parameter construction. Python/plugin
-point-initialization callbacks are not YAML stages. Two spline nodes use
-linear interpolation between the nodes and constant endpoint values
-outside that interval; three or more use a natural cubic spline with
-extrapolation.
+lower bounds are the float64 normal minimum (about \texttt{2.225e-308}).
+\texttt{Component.create} clamps initial values to the function's
+default bounds; explicit constraint bounds are subsequently validated
+against the resulting value. Set sensible positive initial widths and
+physically appropriate bounds explicitly. All eight functions are usable
+as any component role. Construction options are distinct from fitted
+parameters: polynomial \texttt{metadata.order} must be an actual integer
+from 0 through 50 (not \texttt{2.0}, a string, or a Boolean).
+Function-declared option defaults are inserted by
+\texttt{Component.create}; declared option types/ranges are validated
+before parameter construction. Python/plugin point-initialization
+callbacks are not YAML stages. Two spline nodes use linear interpolation
+between the nodes and constant endpoint values outside that interval;
+three or more use a natural cubic spline with extrapolation.
 
 Global composition first sums all Add functions and subtracts all
 Subtract functions. Multiply, Divide and Convolve then act on that
@@ -7717,17 +8099,21 @@ complete sum. Their fallback order is Multiply, Divide, Convolve, with
 component ID as a tie-breaker; use explicit IDs and
 \texttt{operation\_order} for a chosen order. This is not a nested
 expression language. The legacy \texttt{composition\_mode} key is
-ignored; supported schemas 1, 2 and 3 all use the current global roles.
-A component's position in the YAML list does not create parentheses. FFT
-convolution requires a finite, uniformly spaced, strictly monotonic X
-grid; ascending and descending axes are supported. Irregular or
-nonmonotonic grids raise a data-validation error: resample them
-beforehand using Python or another data-preparation tool. Integration
-uses absolute uniform X spacing. Fitting evaluates convolution on the
-full current grid before masks or fit ranges select residual rows, so
-excluding points does not alter the convolved model itself. Choose a
-sufficient window width; consecutive convolutions are evaluated together
-and cropped once.
+ignored; schemas 1, 2 and 3 use the current global roles. YAML list
+position does not create parentheses. Convolution uses full FFT
+integration with absolute uniform X spacing and a single centered crop
+for consecutive kernels. A finite, strictly monotonic, uniform grid is
+required at every scale. For even-length signals, kernels are sampled on
+an odd grid with an exact central lag, removing the half-sample shift;
+ascending and descending axes give the same physical center. Kernel
+coordinates retain the input-domain midpoint convention. Choose a
+sufficiently wide, finely sampled window: finite-window truncation and
+discretization remain approximations. Masks and fit ranges select rows
+after full-grid convolution.
+
+Add/Subtract accumulation uses compensated summation independent of
+random IDs. Explicit IDs remain useful for links and operation ordering,
+rather than for controlling summation roundoff.
 
 For example, this model evaluates
 \texttt{(constant\ +\ gaussian)\ *\ response}:
@@ -8024,9 +8410,12 @@ formulas have no X array. A nonfinite derived result is reported as
 unavailable. Invalid symbols or expressions can raise an expression
 error and fail an operation; use only parameters declared by the main
 formula and check each derived formula on representative parameter
-values. Registration uses replacement, so do not reuse a built-in
-identifier accidentally. Formula definitions are not arbitrary Python
-and need no executable-plugin approval.
+values. In the current testing edition, a formula may replace a
+non-builtin registration, but builtin identifier collisions are
+rejected. Choose a distinct identifier for each custom function. A
+workflow without an explicit Python registry uses an isolated registry;
+a supplied registry remains owned by its caller. Formula definitions are
+not arbitrary Python and need no executable-plugin approval.
 
 \textbf{Custom-function persistence:} 1.1.1 beta copies safe formula
 definitions into \texttt{Project.custom\_functions}, using the
@@ -8152,6 +8541,17 @@ spell names exactly. An unrecognised setting raises \texttt{TypeError}.
 Do not add GUI-only controls such as propagation thresholds or Monte
 Carlo replicate counts here.
 
+Built-in optimizers use dimensionless coordinates based on parameter and
+data scales; numerical Jacobians, automatic DE limits and bound
+diagnostics use those scales rather than a floor of one physical unit.
+Positive built-in widths have a float64 normal minimum (about
+\texttt{2.225e-308}), rather than machine epsilon. Explicit bounds
+remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific
+judgment. Optimizer coordinate tolerances, including explicit
+\texttt{x\_scale}, apply after this normalization; supplied Nelder-Mead
+simplex vertices remain physical parameters.
+
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
   >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3333}}
@@ -8230,8 +8630,8 @@ the minimizer's automatic iteration limit \\
 tolerance \\
 \texttt{powell\_ftol} & \texttt{0.0001} & Finite positive Powell
 objective tolerance \\
-\texttt{lbfgsb\_ftol} & \texttt{0.000000002220446049250313} & Finite
-positive L-BFGS-B objective tolerance \\
+\texttt{lbfgsb\_ftol} & \texttt{2.220446049250313e-9} & Finite positive
+L-BFGS-B objective tolerance \\
 \texttt{lbfgsb\_gtol} & \texttt{0.00001} & Finite positive L-BFGS-B
 gradient tolerance \\
 \texttt{lbfgsb\_maxls} & \texttt{20} & Positive integer maximum
@@ -8255,6 +8655,19 @@ a general parallelisation switch for every mode.
 
 \section{W12. Output contract and
 reruns}\label{w12.-output-contract-and-reruns}
+
+New fit results record \texttt{provenance}: original model/constraint
+snapshots, input content hashes, ordered parameters, initial solver
+coordinates, scales, resolved solver bounds/method, settings, seeds,
+function/plugin fingerprints, CurveMole source identity,
+Python/NumPy/SciPy versions and backend/thread details. Profile and
+resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature
+have no reconstructible original state. Keep original data and scripts:
+hashes identify inputs but do not store a separate copy of every
+historical dataset. For checked initial-state replay use the Python
+\texttt{Fitter.replay} interface. Rerunning YAML or fitting the current
+optimum is a new calculation.
 
 {\def\LTcaptype{none} % do not increment counter
 \begin{longtable}[]{@{}
@@ -8651,5 +9064,181 @@ the software version, input data, settings, random seeds and output
 files together. Correct execution and fit convergence are necessary
 checks; the scientific interpretation still requires the checks in
 Section 1.4.
+
+\chapter{Appendix I. Testing edition: integrity and resource
+limits}\label{appendix-i.-testing-edition-integrity-and-resource-limits}
+
+Inverse-variance weights follow reversible Y transformations:
+multiplying Y by \texttt{a} divides its inverse variance by
+\texttt{a**2}. Direct arbitrary residual multipliers retain their
+declared multiplier semantics. Undo restores the original weights.
+Zero-derivative transformations do not create infinite statistical
+information.
+
+Per-spectrum numeric exports use 17 significant digits. The Python
+\texttt{export\_spectra(...,\ overwrite=False)} default refuses existing
+destinations; the GUI asks before replacing files. Symbolic-link
+destinations are refused even when overwrite is requested. Numeric
+conversions are staged before publication. A multi-file export can still
+be partially published if a filesystem commit fails; existing files are
+never implicitly replaced.
+
+Custom project functions are scoped to the current project. Custom
+definitions loaded from projects, the library or workflows may not reuse
+builtin identifiers. The low-level registry
+\texttt{register(...,\ replace=True)} remains an explicit extension API;
+a supplied workflow registry is owned by its caller. The default
+workflow registry and automatic export registry are isolated from the
+global registry.
+
+Project opening validates and reads in a cancellable worker while the
+GUI processes events. The default \texttt{ArchiveLimits} budget is
+100,000 ZIP members, 1 GiB total expanded content, 256 MiB per numeric
+array and 32 MiB of manifest. Array dimensions are checked from the
+header before allocating; the current loader accepts at most eight array
+dimensions. The Python API reader and validator can explicitly receive a
+larger \texttt{limits=ArchiveLimits(...)} for trusted large data.
+Project saves still validate against the default budget; raising a read
+limit alone does not enlarge the save budget. A rejected read-only
+mutation has no side effects; copying a fit invalidates its targets and
+transitive linked dependents, retaining historical results as outdated.
+
+Safe mathematical expressions accept at most 16,384 source characters,
+2,048 AST nodes and depth 64. Integer results are bounded to 4,096 bits;
+powers are checked before computation. Arrays and broadcasts are limited
+to 10,000,000 elements, with an aggregate evaluation-work budget of
+50,000,000 elements. These limits bound the built-in expression
+interpreter; they do not sandbox trusted Python plugins or impose a hard
+operating-system deadline on their code.
+
+Local plugin approval fingerprints include Python helper sources. Flat
+plugin folders exclude other plugins' entry points unless imported;
+package plugins also cover their package resources. Extra resources in a
+flat folder can be declared as a manifest \texttt{files} list of
+relative paths. Dependencies installed outside the plugin source folder
+remain part of the trusted Python environment. Changed fingerprints
+require renewed approval. Desktop automatic updates require a valid
+SHA-256 release digest; otherwise use the release's manual download
+page.
+
+\chapter{Appendix J. Scientific audit
+corrections}\label{appendix-j.-scientific-audit-corrections}
+
+The seven findings checked on 2026-11-02 are corrected in this testing
+edition. Earlier release files retain their previous behavior.
+Independent regression tests compare calculations with analytic
+references and checked archive replay.
+
+\section{J.1 Units, parameter scales and numerical
+controls}\label{j.1-units-parameter-scales-and-numerical-controls}
+
+Built-in optimizers use dimensionless coordinates based on parameter and
+data scales; numerical Jacobians, automatic DE limits and bound
+diagnostics use those scales rather than a floor of one physical unit.
+Positive built-in widths have a float64 normal minimum (about
+\texttt{2.225e-308}), rather than machine epsilon. Explicit bounds
+remain preferable for difficult searches. Extreme overflow, underflow,
+nonidentifiability and poor starting values still require scientific
+judgment. Optimizer coordinate tolerances, including explicit
+\texttt{x\_scale}, apply after this normalization; supplied Nelder-Mead
+simplex vertices remain physical parameters.
+
+The Gaussian reference recovers center 0.4 and sigma 0.8 after coherent
+X/area rescaling by 1, \texttt{1e-9} and \texttt{1e-18}, for both local
+and DE fits. The irregular \texttt{{[}0,1,2,4,8{]}*1e-18} grid is now
+rejected by FFT validation.
+
+\section{J.2 Nonlinear formula uncertainty
+propagation}\label{j.2-nonlinear-formula-uncertainty-propagation}
+
+Nonlinear formula derivatives use local, scale-aware perturbations and
+Richardson extrapolation. For \texttt{z=y**3}, the audited tiny-value
+example now agrees with \texttt{sigma\_z=abs(3*y**2)*sigma\_y}.
+Propagation remains a first-order local approximation; input
+correlations and uncertainties in other columns are not jointly
+propagated.
+
+The previous \texttt{y=1e-9}, \texttt{sigma\_y=1e-11} cubic error was
+about \texttt{3.66685e-22}; the corrected propagated value is
+\texttt{3e-29}. Inverse-variance propagation uses the same corrected
+derivative.
+
+\section{J.3 Nonlinear linked-parameter
+uncertainty}\label{j.3-nonlinear-linked-parameter-uncertainty}
+
+Nonlinear linked-parameter gradients use bound-aware, scale-aware
+three-point differences and Richardson extrapolation before covariance
+propagation. The cubic link agrees with \texttt{SE(b)=abs(3*a**2)*SE(a)}
+at the audited small scales. These remain local covariance
+uncertainties; strong nonlinearity can require resampling.
+
+\section{J.4 Convolution alignment on even-length
+grids}\label{j.4-convolution-alignment-on-even-length-grids}
+
+Convolution uses full FFT integration with absolute uniform X spacing
+and a single centered crop for consecutive kernels. A finite, strictly
+monotonic, uniform grid is required at every scale. For even-length
+signals, kernels are sampled on an odd grid with an exact central lag,
+removing the half-sample shift; ascending and descending axes give the
+same physical center. Kernel coordinates retain the input-domain
+midpoint convention. Choose a sufficiently wide, finely sampled window:
+finite-window truncation and discretization remain approximations.
+
+The Gaussian signal/kernel case now recovers center 0.25 with 100 or 101
+samples and either axis direction, instead of compensating a half-sample
+offset.
+
+\section{J.5 Cancellation and fresh component
+IDs}\label{j.5-cancellation-and-fresh-component-ids}
+
+Enabled Add/Subtract terms use Neumaier compensated summation and
+ordering that is independent of random IDs. All permutations of
+\texttt{1e16+1-1e16} retain 1; the associated fit recovers the small
+offset 1. Ordinary float64 limits still apply.
+
+\section{J.6 Profile confidence
+regions}\label{j.6-profile-confidence-regions}
+
+Profile threshold crossings are refined by bracketed refits.
+\texttt{confidence\_regions} contains every connected region detected by
+the scan; \texttt{interval} selects the region containing the fitted
+estimate and never bridges rejected gaps. Disconnected sets are marked
+\textbf{Critical}. \texttt{warnings} reports incomplete scans or
+unrefined endpoints; inspect every region and extend the scan where
+needed. A finite grid can still miss a narrow remote mode. The default
+Gaussian-location example now agrees with the analytic 95\% interval,
+approximately +/-1.959964 standard errors.
+
+In the \texttt{y=a**2} reference the confidence set has separate
+negative and positive regions. Zero is excluded and the assessment is
+Critical. Failures are reported; failed grid points never join accepted
+regions across an unknown gap.
+
+\section{J.7 Reproducibility and saved analysis
+provenance}\label{j.7-reproducibility-and-saved-analysis-provenance}
+
+New fit results record \texttt{provenance}: original model/constraint
+snapshots, input content hashes, ordered parameters, initial solver
+coordinates, scales, resolved solver bounds/method, settings, seeds,
+function/plugin fingerprints, CurveMole source identity,
+Python/NumPy/SciPy versions and backend/thread details. Profile and
+resampling outputs also retain their baseline identity and actual
+analysis configuration. Historical results created before this feature
+have no reconstructible original state. Keep original data and scripts:
+hashes identify inputs but do not store a separate copy of every
+historical dataset.
+
+\texttt{Fitter.replay(result,\ curves,\ verify\_environment=True)}
+reconstructs the saved initial models and plan, checks data and
+function/solver identity, and rejects a changed numerical environment by
+default. \texttt{verify\_environment=False} permits an explicit
+comparison across environments; it does not promise exact equality. A
+direct new fit from the saved optimum remains a new calculation. Replay
+of the audited DE result after archive save/load preserves its initial
+vector, resolved bounds and final parameters. Fixed/adaptive Monte Carlo
+and bootstrap comparisons also match between one and two workers in the
+tested environment. These checks do not promise identical floating-point
+results or random streams across versions, machines, changed plugins or
+different thread/backend settings.
 
 \end{document}

@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import os
-import platform
 import shutil
 import subprocess
 import tempfile
 import zipfile
 from contextlib import suppress
 from pathlib import Path
-from typing import Any
 
 from PySide6.QtCore import QUrl
 from PySide6.QtNetwork import QNetworkRequest
@@ -117,7 +115,12 @@ def windows_update_script(
         "  }",
         "  if (-not (Test-Path -LiteralPath $destination)) { throw 'The new CurveMole executable is missing.' }",
         "  if ($expectedSha256) {",
-        "    $actualSha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()",
+        "    $sha256 = [System.Security.Cryptography.SHA256]::Create()",
+        "    try {",
+        "      $stream = [System.IO.File]::OpenRead($destination)",
+        "      try { $hashBytes = $sha256.ComputeHash($stream) } finally { $stream.Dispose() }",
+        "    } finally { $sha256.Dispose() }",
+        "    $actualSha256 = ([System.BitConverter]::ToString($hashBytes)).Replace('-', '').ToLowerInvariant()",
         "    if ($actualSha256 -ne $expectedSha256) { throw 'The staged update failed SHA-256 verification.' }",
         "  }",
         "",
@@ -378,46 +381,3 @@ def _install_windows_download(
     app = QApplication.instance()
     if app is not None:
         app.quit()
-
-
-def _install_fix() -> None:
-    if getattr(UpdateController, "_curvemole_windows_update_fix", False):
-        return
-
-    original_init = UpdateController.__init__
-    original_download = UpdateController._download_update
-    original_install = UpdateController._install_download
-
-    def init(controller: UpdateController, window: Any) -> None:
-        if platform.system() == "Windows":
-            _cleanup_stale_update_files(_updates._running_desktop_binary())
-        original_init(controller, window)
-
-    def download_update(
-        controller: UpdateController,
-        asset: ReleaseAsset,
-        latest: str,
-    ) -> None:
-        if platform.system() != "Windows":
-            original_download(controller, asset, latest)
-            return
-        _download_windows_update(controller, asset, latest)
-
-    def install_download(
-        controller: UpdateController,
-        downloaded: Path,
-        asset: ReleaseAsset,
-        latest: str,
-    ) -> None:
-        if platform.system() != "Windows":
-            original_install(controller, downloaded, asset, latest)
-            return
-        _install_windows_download(controller, downloaded, asset, latest)
-
-    UpdateController.__init__ = init
-    UpdateController._download_update = download_update
-    UpdateController._install_download = install_download
-    UpdateController._curvemole_windows_update_fix = True
-
-
-_install_fix()

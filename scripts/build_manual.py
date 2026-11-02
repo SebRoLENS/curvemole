@@ -235,8 +235,8 @@ def build(source: Path, tex_output: Path, pdf_output: Path) -> None:
         shutil.copy2(built_pdf, pdf_output)
         normalise_pdf_document_id(pdf_output, tex_output)
 
-    print(f"Built {tex_output.relative_to(ROOT)}")
-    print(f"Built {pdf_output.relative_to(ROOT)}")
+    print(f"Built {os.path.relpath(tex_output, ROOT)}")
+    print(f"Built {os.path.relpath(pdf_output, ROOT)}")
 
 
 def main() -> None:

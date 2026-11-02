@@ -1,5 +1,12 @@
 # CurveMole Quick Start
 
+**Scientific corrections (testing, 2026-11-02).** The seven findings in the
+latest scientific audit are corrected in this edition: parameter scaling,
+nonlinear uncertainty derivatives, convolution alignment, compensated summation,
+profile confidence regions and saved execution provenance. Appendix J describes
+the changes and their limits. Use the documents attached to your exact beta build;
+these corrections do not apply retroactively to earlier executables.
+
 Use **View all** in the main icon toolbar (also in the plot context menu and **View > Axes**)
 to frame all experimental samples, including masked regions. **View unmasked**,
 alongside it, frames only unmasked samples. Neither command includes model

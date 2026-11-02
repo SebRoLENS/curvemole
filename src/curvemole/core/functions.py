@@ -150,7 +150,7 @@ class FunctionDefinition:
         return result
 
 
-_POSITIVE = np.finfo(np.float64).eps
+_POSITIVE = np.finfo(np.float64).tiny
 _SQRT_2PI = math.sqrt(2 * math.pi)
 
 

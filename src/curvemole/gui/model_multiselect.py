@@ -844,29 +844,7 @@ def _install_main_window() -> None:
         curve_id = _find_component_curve(window, component_id)
         if curve_id is None:
             return
-        if field == "fixed" and value and not window._can_fix_parameter(curve_id, component_id, name):
-            return
-        parameter = window.project.model_for(curve_id).component(component_id).parameters[name]
-        old = getattr(parameter, field)
-        try:
-            setattr(parameter, field, value)
-            parameter.validate()
-            window._validate_all_links()
-            setattr(parameter, field, old)
-        except Exception as exc:
-            setattr(parameter, field, old)
-            window._show_error(window.tr("Parameter constraint"), exc)
-            window.model_panel.refresh_parameters()
-            return
-        def assign(value):
-            target = window.project.model_for(curve_id).component(component_id).parameters[name]
-            setattr(target, field, value)
-        window._push_change(
-            window.tr("Edit parameter"),
-            lambda: assign(value),
-            lambda: assign(old),
-            modified_curve_ids={curve_id},
-        )
+        window._change_parameter_for_curve(curve_id, component_id, name, field, value)
 
     def edit_parameter_link(window: MainWindow, component_id: str, name: str) -> None:
         curve_id = _find_component_curve(window, component_id)

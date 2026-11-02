@@ -130,6 +130,9 @@ class UncertaintyResults(QWidget):
                 text += f" · {analysis['completed']}/{analysis['requested']} completed · {analysis['failed']} failed"
         elif self.method == "profile_likelihood":
             text += f" · {analysis['failed_points']} failed grid points"
+            text += f" · Confidence regions: {analysis.get('confidence_regions', [analysis['interval']])}"
+            if analysis.get("warnings"):
+                text += " · " + " ".join(analysis["warnings"])
         if failure:
             text = ("Uncertainty analysis failed: " + failure["message"]
                     + "\nPrevious completed result retained: " + text)

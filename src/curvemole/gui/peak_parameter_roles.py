@@ -266,7 +266,7 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
     host = panel.window()
     if not isinstance(host, MainWindow):
         try:
-            panel.registry.register(definition, replace=True)
+            panel.registry.register_custom(definition, replace=True)
             _store_in_project(panel, definition)
             panel.functionAdded.emit(identifier)
             QMessageBox.information(panel, panel.tr("Function Builder"), panel.tr("Function added."))
@@ -280,7 +280,7 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
     destination = directory / f"{identifier}{quick_library._FUNCTION_SUFFIX}"
     try:
         export_custom_function(definition, destination)
-        panel.registry.register(definition, replace=True)
+        panel.registry.register_custom(definition, replace=True)
         _store_in_project(panel, definition)
         panel.functionAdded.emit(identifier)
         quick_library._refresh_quick_function_selector(host)

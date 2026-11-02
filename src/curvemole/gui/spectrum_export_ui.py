@@ -227,13 +227,20 @@ def _export_spectra_data(window: MainWindow) -> None:
             return
         try:
             destination = dialog.directory.text().strip()
-            created = export_spectra(
-                window.project,
-                destination,
-                dialog.selected_curve_ids(),
-                options=dialog.options(),
-                registry=window.registry,
-            )
+            arguments = dict(options=dialog.options(), registry=window.registry)
+            try:
+                created = export_spectra(window.project, destination,
+                                         dialog.selected_curve_ids(), **arguments)
+            except FileExistsError:
+                answer = QMessageBox.question(
+                    window, window.tr("Replace exported files?"),
+                    window.tr("Some export files already exist. Replace the existing export files?"),
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No)
+                if answer != QMessageBox.StandardButton.Yes:
+                    return
+                created = export_spectra(window.project, destination,
+                    dialog.selected_curve_ids(), overwrite=True, **arguments)
             window.settings.setValue("spectrum_export_directory", destination)
             window._notify(
                 window.tr("Spectrum export complete: ")

@@ -415,6 +415,9 @@ class Curve:
                     included |= (self._x >= min(lo, hi)) & (self._x <= max(lo, hi))
                 excluded |= ~included
             keep = ~excluded
+        if use_data_errors and not self.has_y_errors and self._weights_current is not None:
+            # Zero-weight rows contribute no information, including to N and dof.
+            keep &= self._weights_current > 0
         if np.count_nonzero(keep) < 2:
             raise DataValidationError(f"Curve '{self.name}' has fewer than two usable points.")
         weight_scale: np.ndarray | None = None
@@ -576,6 +579,11 @@ class Curve:
         minus = None if self.error_y_minus is None else self.error_y_minus.copy()
         plus = None if self.error_y_plus is None else self.error_y_plus.copy()
         weights = None if self.weights is None else self.weights.copy()
+        weight_sigma = None
+        if weights is not None and self.weights_are_inverse_variance:
+            # Propagate a unit sigma factor, preserving original weights exactly
+            # when no Y scaling occurs (no inverse/sqrt round-trip noise).
+            weight_sigma = np.ones_like(weights)
         rows = np.arange(len(x))
         original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
         from curvemole.core.columns import evaluate_columns
@@ -610,6 +618,8 @@ class Curve:
                     sigma, sigma_x, minus, plus, weights = (
                         None if value is None else value[keep]
                         for value in (sigma, sigma_x, minus, plus, weights))
+                    if weight_sigma is not None:
+                        weight_sigma = weight_sigma[keep]
                     columns = {key: value[keep] for key, value in columns.items()}
                 for axis, values in (("x", x), ("y", y)):
                     if axis in self.column_axes:
@@ -620,18 +630,20 @@ class Curve:
             if op in {"custom_formula", "column_formula"}:
                 target = next((axis for axis in ("x", "y")
                                if target == axis or target == self.column_axes.get(axis)), target)
-                errors = sigma_x if target == "x" else (sigma if sigma is not None else minus)
+                errors = sigma_x if target == "x" else (sigma if sigma is not None else
+                                                        minus if minus is not None else weight_sigma)
                 if target in {"x", "y"} and errors is not None:
                     # Local propagation for arbitrary formulas; affine operations are exact.
                     values = x if target == "x" else y
-                    step = np.cbrt(np.finfo(float).eps) * np.maximum(1, np.abs(values))
-                    endpoints = []
-                    for sign in (-1, 1):
+                    from curvemole.core.numerics import local_derivative
+
+                    def evaluate_shifted(shifted, x=x, y=y, target=target, op=op,
+                                         columns=columns, p=p, transformation=transformation):
                         xx, yy = x.copy(), y.copy()
                         if target == "x":
-                            xx += sign * step
+                            xx = shifted
                         else:
-                            yy += sign * step
+                            yy = shifted
                         if op == "column_formula":
                             shifted_columns = {key: val.copy() for key, val in columns.items()}
                             if target in self.column_axes:
@@ -640,11 +652,14 @@ class Curve:
                                                       shifted_columns, self.column_labels, self.column_axes)
                         else:
                             xx, yy, _ = transformation.apply(xx, yy, None)
-                        endpoints.append(xx if target == "x" else yy)
-                    derivative = (endpoints[1] - endpoints[0]) / (2 * step)
+                        return xx if target == "x" else yy
+
+                    derivative = local_derivative(evaluate_shifted, values, errors)
                     if target == "x":
                         sigma_x *= np.abs(derivative)
                     else:
+                        if weight_sigma is not None:
+                            weight_sigma *= np.abs(derivative)
                         if sigma is not None:
                             sigma *= np.abs(derivative)
                         if minus is not None:
@@ -676,6 +691,8 @@ class Curve:
                     negative = factor < 0
                     minus = np.where(negative, next_plus, next_minus)
                     plus = np.where(negative, next_minus, next_plus)
+                if weight_sigma is not None and derivative is None:
+                    _, _, weight_sigma = transformation.apply(x, y, weight_sigma)
                 x, y, sigma = transformation.apply(x, y, sigma)
             for axis, values in (("x", x), ("y", y)):
                 if axis in self.column_axes:
@@ -684,6 +701,11 @@ class Curve:
         self._x, self._y, self._sigma_y_current = x, y, sigma
         self._error_y_minus_current, self._error_y_plus_current = minus, plus
         self._sigma_x_current = sigma_x
+        if weight_sigma is not None:
+            with np.errstate(divide="ignore", invalid="ignore"):
+                weights = weights / weight_sigma**2
+            # A zero derivative supplies no usable variance information.
+            weights[weight_sigma == 0] = np.nan
         self._weights_current = weights
         self._row_indices = rows
         self._mask_original_excluded = original_masks
@@ -761,8 +783,7 @@ class Dataset:
         return [curve for group in self.series for curve in group.curves]
 
     def add_series(self, series: Series) -> None:
-        if any(item.id == series.id for item in self.series):
-            raise DataValidationError(f"Series id '{series.id}' already exists.")
+        Dataset([*self.series, series]).validate_unique_ids()
         self.series.append(series)
 
     def curve(self, curve_id: str) -> Curve:

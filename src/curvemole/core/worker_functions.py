@@ -19,8 +19,6 @@ def worker_formula_specs(
     formulas = {}
     for curve_id in curve_ids:
         for component in models[curve_id].components:
-            if not component.enabled:
-                continue
             definition = registry.get(component.function_id)
             if definition.evaluator is builtins.get(component.function_id):
                 continue

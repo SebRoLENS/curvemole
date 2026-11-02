@@ -8,6 +8,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 
@@ -50,7 +52,7 @@ def expected_assets(version: str) -> set[str]:
 
 
 def documentation_assets(version: str) -> dict[str, str]:
-    """Map downloadable beta document names to their reviewed source editions."""
+    """Name beta assets; the manual editions are generated from current Markdown."""
     if not re.fullmatch(r"\d+\.\d+\.\d+b[1-9]\d*", version):
         raise ValueError("Expected a PEP 440 beta version")
     prefix = f"CurveMole-{version}"
@@ -63,15 +65,29 @@ def documentation_assets(version: str) -> dict[str, str]:
 
 
 def prepare_documents(version: str, directory: Path, root: Path = Path(".")) -> list[Path]:
-    """Package committed manuals/audits without changing stable source metadata."""
+    """Build the manual from this checkout without editing tracked stable metadata."""
     sources = documentation_assets(version)
-    payloads = {name: (root / source).read_bytes() for name, source in sources.items()}
+    root = root.resolve()
+    # Read all non-generated inputs first, so missing inputs create no partial output.
+    payloads = {name: (root / source).read_bytes() for name, source in sources.items()
+                if not name.endswith((".pdf", ".tex"))}
+    if not (root / "docs/manual.md").is_file():
+        raise FileNotFoundError(root / "docs/manual.md")
+    with tempfile.TemporaryDirectory(prefix="curvemole-beta-manual-") as temporary:
+        build = Path(temporary)
+        tex, pdf = build / "manual.tex", build / "manual.pdf"
+        subprocess.run([sys.executable, str(root / "scripts/build_manual.py"),
+                        "--source", str(root / "docs/manual.md"),
+                        "--tex-output", str(tex), "--pdf-output", str(pdf)],
+                       cwd=root, check=True)
+        payloads[f"CurveMole-{version}-User-Manual.tex"] = tex.read_bytes()
+        payloads[f"CurveMole-{version}-User-Manual.pdf"] = pdf.read_bytes()
     for name, payload in payloads.items():
         if not payload:
-            raise ValueError(f"Empty beta documentation: {sources[name]}")
+            raise ValueError(f"Empty beta documentation: {name}")
         if name.endswith(".pdf"):
             if not payload.startswith(b"%PDF-"):
-                raise ValueError("The committed beta manual is not a PDF")
+                raise ValueError("The generated beta manual is not a PDF")
         else:
             payload.decode("utf-8")
     directory.mkdir(parents=True, exist_ok=True)
@@ -83,19 +99,29 @@ def prepare_documents(version: str, directory: Path, root: Path = Path(".")) -> 
     return outputs
 
 
+def file_digest(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def publish(version: str, directory: Path) -> None:
     if not re.fullmatch(r"\d+\.\d+\.\d+b[1-9]\d*", version):
         raise ValueError("Only beta versions may use this publisher")
     # Validate all required platform artifacts before creating any public release.
     for status in directory.glob("macos-signing-*.json"):
         status.unlink()
-    files = {path.name: path for path in directory.iterdir() if path.is_file()}
+    generated = {"SHA256SUMS.txt", "beta-notes.md"}
+    files = {path.name: path for path in directory.iterdir()
+             if path.is_file() and path.name not in generated}
     if set(files) != expected_assets(version):
         raise ValueError(f"Unexpected beta assets: {set(files) ^ expected_assets(version)}")
-    checks = {name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in files.items()}
+    checks = {name: file_digest(path) for name, path in files.items()}
     checksum = directory / "SHA256SUMS.txt"
     checksum.write_text("".join(f"{digest}  {name}\n" for name, digest in sorted(checks.items())), encoding="utf-8")
-    checks[checksum.name] = hashlib.sha256(checksum.read_bytes()).hexdigest()
+    checks[checksum.name] = file_digest(checksum)
     files[checksum.name] = checksum
     tag = "v" + version.replace("b", "-beta.")
     repository = os.environ["GITHUB_REPOSITORY"]

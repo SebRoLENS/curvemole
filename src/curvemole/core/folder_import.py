@@ -51,3 +51,38 @@ class FolderScan:
             elif now - previous[1] >= self.settle:
                 ready.append((path, signature))
         return ready
+
+
+CURVE_RESULT_MAPS = frozenset({
+    "fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
+    "uncertainty_failures_by_curve", "uncertainty_display_method_by_curve", "global_fit_baselines",
+})
+
+
+def merge_acquisition_results(existing, incoming, curve_ids):
+    """Merge only schema-defined keyed records; never drop prior analyses."""
+    import copy
+    merged = dict(existing)
+    history = list(existing.get("import_result_history", []))
+    for key, value in incoming.items():
+        if key == "import_result_history":
+            if not isinstance(value, list):
+                raise ValueError("Import result history must be a list.")
+            history.extend(copy.deepcopy(value))
+            continue
+        if key in CURVE_RESULT_MAPS:
+            previous = existing.get(key, {})
+            if not isinstance(previous, dict) or not isinstance(value, dict):
+                raise ValueError(f"Import result '{key}' must be a mapping.")
+            if key != "global_fit_baselines" and not set(value) <= curve_ids:
+                raise ValueError(f"Import result '{key}' refers to unrelated spectra.")
+            if set(previous) & set(value):
+                raise ValueError(f"Import result '{key}' collides with existing analyses.")
+            merged[key] = {**previous, **copy.deepcopy(value)}
+        else:
+            if key in existing:
+                history.append({"key": key, "value": existing[key]})
+            merged[key] = copy.deepcopy(value)
+    if history:
+        merged["import_result_history"] = history
+    return merged

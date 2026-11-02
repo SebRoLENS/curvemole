@@ -613,13 +613,6 @@ def _install_live_manual_points() -> None:
     MainWindow._curvemole_live_manual_points = True
 
 
-_ORIGINAL_INSTALL = manual_points.install_manual_point_support
-
-
 def install_manual_point_support_with_live_controls() -> None:
-    """Install normal manual-point support, then add live previews and reusable handles."""
-    _ORIGINAL_INSTALL()
-    _install_live_manual_points()
-
-
-manual_points.install_manual_point_support = install_manual_point_support_with_live_controls
+    """Compatibility entry point for the canonical manual-point installer."""
+    manual_points.install_manual_point_support()

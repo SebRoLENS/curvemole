@@ -100,6 +100,8 @@ def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, f
     if method == "covariance":
         interval = (estimate.get("ci_low"), estimate.get("ci_high"))
     elif method == "profile_likelihood":
+        if len(analysis.get("confidence_regions", [])) > 1 or analysis.get("warnings"):
+            return None
         if analysis.get("parameter_path") != path:
             return None
         interval = analysis.get("interval")

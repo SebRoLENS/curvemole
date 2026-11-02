@@ -181,6 +181,7 @@ def update_manual(version: str) -> None:
         previous = re.escape(previous_version)
         for pattern in (
             rf"(This manual describes the behavior of CurveMole ){previous}\b",
+            rf"(The stable API baseline is CurveMole ){previous}\b",
             rf"((?:CurveMole|curvemole)-){previous}(?=[-.])",
             rf"(version ){previous}(?= optimizer\b)",
         ):

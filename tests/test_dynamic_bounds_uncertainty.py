@@ -20,7 +20,7 @@ from curvemole.core.uncertainty_summary import summarize
 def test_profile_dynamic_target_keeps_relation_and_marks_infeasible_points(
     relation, source_value, tolerance, mode, limits, failed, monkeypatch,
 ):
-    curve = Curve("Profile", np.arange(10.), np.full(10, source_value + 2))
+    curve = Curve("Profile", np.arange(10.), np.full(10, source_value + 2), sigma_y=np.ones(10))
     source = Component.create("constant", initial={"offset": source_value})
     source.parameters["offset"].fixed = True
     target = Component.create("constant", initial={"offset": 2})
@@ -57,7 +57,7 @@ def test_profile_dynamic_target_keeps_relation_and_marks_infeasible_points(
 
 
 def test_profile_source_with_no_remaining_free_parameters_reports_infeasible_points(monkeypatch):
-    curve = Curve("Profile source", np.arange(10.), np.full(10, 1.5))
+    curve = Curve("Profile source", np.arange(10.), np.full(10, 1.5), sigma_y=np.ones(10))
     source = Component.create("constant", initial={"offset": .5})
     source.parameters["offset"].minimum = 0
     source.parameters["offset"].maximum = 2
@@ -91,7 +91,7 @@ def test_profile_source_with_no_remaining_free_parameters_reports_infeasible_poi
 
 
 def test_profile_dynamic_target_refits_source_inside_relation_on_every_iteration(monkeypatch):
-    curve = Curve("Changing source", np.arange(10.), np.full(10, 3.))
+    curve = Curve("Changing source", np.arange(10.), np.full(10, 3.), sigma_y=np.ones(10))
     source = Component.create("constant", initial={"offset": 1})
     source.parameters["offset"].minimum = 0
     source.parameters["offset"].maximum = 10
@@ -186,7 +186,7 @@ def test_global_resampling_resolves_cross_spectrum_sources_and_keeps_dynamic_bou
 def test_uncertainty_summary_respects_fixed_dynamic_parameter_metadata():
     from curvemole import Project
 
-    curve = Curve("Fixed bound", np.arange(10.), np.full(10, 1.5))
+    curve = Curve("Fixed bound", np.arange(10.), np.full(10, 1.5), sigma_y=np.ones(10))
     source = Component.create("constant", initial={"offset": .5})
     target = Component.create("constant", initial={"offset": 1})
     target.parameters["offset"].fixed = True
@@ -234,7 +234,7 @@ def test_linked_global_profile_rejects_source_and_target_before_scanning(relatio
 
 
 def test_separable_global_profile_remains_available():
-    curves = [Curve(name, np.arange(10.), np.full(10, value))
+    curves = [Curve(name, np.arange(10.), np.full(10, value), sigma_y=np.ones(10))
               for name, value in (("First", 1), ("Second", 2))]
     models = {curve.id: Model(components=[Component.create("constant", initial={"offset": 0})])
               for curve in curves}

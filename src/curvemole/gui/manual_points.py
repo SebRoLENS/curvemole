@@ -474,3 +474,5 @@ def install_manual_point_support() -> None:
     _install_function_builder()
     _install_plot_workspace()
     _install_main_window()
+    from curvemole.gui.manual_points_live import _install_live_manual_points
+    _install_live_manual_points()

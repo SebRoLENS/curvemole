@@ -956,7 +956,7 @@ class FunctionBuilderPanel(QWidget):
                 kind=str(self.kind.currentData()),
                 derived_formulas=derived,
             )
-            self.registry.register(definition, replace=True)
+            self.registry.register_custom(definition, replace=True)
             if self.project is not None:
                 self.project.custom_functions = [
                     value for value in self.project.custom_functions if value.get("identifier") != identifier

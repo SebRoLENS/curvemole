@@ -471,10 +471,4 @@ def _fit_sequential_propagating(
 
 
 def install_sequential_fit_support() -> None:
-    if getattr(Fitter, "_curvemole_propagating_sequential_fit", False):
-        return
-    Fitter._fit_sequential = _fit_sequential_propagating
-    Fitter._curvemole_propagating_sequential_fit = True
-
-
-install_sequential_fit_support()
+    """Compatibility entry point; Fitter now delegates explicitly to this module."""

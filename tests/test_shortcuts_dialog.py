@@ -34,8 +34,7 @@ def test_help_action_opens_mouse_and_keyboard_reference(window, monkeypatch):
         assert [dialog.tabs.tabText(i) for i in range(dialog.tabs.count())] == ["Mouse", "Keyboard"]
         assert "Right double-click" in dialog.mouse.toPlainText()
         assert "Mask mode" in dialog.mouse.toPlainText()
-        save_key = QKeySequence("Ctrl+S").toString(QKeySequence.SequenceFormat.NativeText)
-        assert save_key in {row[1] for row in _rows(dialog)}
+        assert "Ctrl+S" in {row[1] for row in _rows(dialog)}
         opened.append(dialog)
         return QDialog.DialogCode.Rejected
 
@@ -64,11 +63,8 @@ def test_keyboard_reference_includes_current_commands_buttons_and_plugins(window
         dialog.deleteLater()
 
 
-@pytest.mark.parametrize("query", ["save project", None, "edit data points"],
-                         ids=["command", "native-shortcut", "context"])
+@pytest.mark.parametrize("query", ["save project", "ctrl+s", "edit data points"])
 def test_keyboard_search_matches_commands_keys_and_contexts(window, query):
-    if query is None:
-        query = QKeySequence("Ctrl+S").toString(QKeySequence.SequenceFormat.NativeText).casefold()
     dialog = ShortcutsDialog(window, "Mouse gestures")
     try:
         dialog.search.setText(query)

@@ -53,6 +53,12 @@ def find_peak_suggestions(
     x, y = curve.x[keep], curve.y[keep]
     if len(x) < 3:
         return []
+    # The signal algorithms work in sample order. Sort coordinates together,
+    # accepting descending/unsorted acquisition without inventing a global dx.
+    order = np.argsort(x, kind="stable")
+    x, y = x[order], y[order]
+    if np.any(np.diff(x) <= 0):
+        raise DataValidationError("Peak suggestions require unique X coordinates.")
     from scipy.signal import find_peaks, peak_widths
     baseline = float(np.nanmedian(y))
     centred = y - baseline
@@ -68,14 +74,15 @@ def find_peak_suggestions(
             distance=distance,
         )
         if len(indices):
-            widths = peak_widths(transformed, indices, rel_height=0.5)[0]
-            median_dx = float(np.nanmedian(np.abs(np.diff(np.sort(x)))))
+            _, _, left, right = peak_widths(transformed, indices, rel_height=0.5)
+            positions = np.arange(len(x))
+            widths = np.interp(right, positions, x) - np.interp(left, positions, x)
             for local, index in enumerate(indices):
                 suggestions.append(
                     PeakSuggestion(
                         x=float(x[index]),
                         height=float(centred[index]),
-                        fwhm=max(float(widths[local] * median_dx), np.finfo(float).eps),
+                        fwhm=max(float(widths[local]), np.finfo(float).eps),
                         prominence=float(properties["prominences"][local]),
                         sign=selected_sign,
                     )
