@@ -42,6 +42,13 @@ SKIP_RE = re.compile(
     re.I,
 )
 ORDER = ("Added", "Changed", "Fixed", "Documentation")
+# Historical subjects can describe an implementation rather than its user-facing
+# category. Keep reviewed corrections tied to immutable commits, without rewriting
+# history or changing how unrelated "Add ..." commits are classified.
+COMMIT_CATEGORIES = {
+    "a650228c73adb576ebbb571321da2b34813ec91d": "Fixed",
+    "67a30d6165da14304d245a598a1578a6dbc46c09": "Changed",
+}
 
 
 def git(*arguments: str) -> str:
@@ -122,7 +129,7 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
         if key in seen:
             continue
         seen.add(key)
-        group = classify(subject)
+        group = COMMIT_CATEGORIES.get(sha, classify(subject))
         groups[group].append(
             f"- {subject}. ([`{sha[:8]}`](https://github.com/SebRoLENS/curvemole/commit/{sha}))"
         )

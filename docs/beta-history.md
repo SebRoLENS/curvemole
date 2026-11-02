@@ -6,10 +6,6 @@ Generated from beta tags and the GitHub release catalog (when available). Beta r
 
 Changes since `v1.1.1-beta.50` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.50...v1.1.1-beta.86)).
 
-### Added
-
-- Add mouse and keyboard shortcut reference and swap double-click view scopes. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
-
 ### Changed
 
 - Backfill beta-cycle changes from stable 1.1.0 through current testing. ([`3a52b91c`](https://github.com/SebRoLENS/curvemole/commit/3a52b91c47d8b2cae67f94fecd639c09dac30577))
@@ -19,6 +15,7 @@ Changes since `v1.1.1-beta.50` ([compare](https://github.com/SebRoLENS/curvemole
 - Render historical stable releases on What’s New with curated 1.1.0 backfill. ([`ae59b894`](https://github.com/SebRoLENS/curvemole/commit/ae59b89433d59deaea5d6d46a0d5a69a4774b983))
 - Show stable release archive in What’s New from 1.0.0 onward. ([`cabbd7ad`](https://github.com/SebRoLENS/curvemole/commit/cabbd7ad72bd9fc2ca519874359c47ab4092ce85))
 - Style chronological What’s New release archive on desktop and mobile. ([`cbfbeef0`](https://github.com/SebRoLENS/curvemole/commit/cbfbeef0e94237fd557d3eefcd84482ff8d5ff92))
+- Add mouse and keyboard shortcut reference and swap double-click view scopes. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
 
 ### Fixed
 
@@ -37,10 +34,6 @@ Changes since `v1.1.1-beta.50` ([compare](https://github.com/SebRoLENS/curvemole
 
 Changes since `v1.1.1-beta.20` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.20...v1.1.1-beta.50)).
 
-### Added
-
-- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
-
 ### Changed
 
 - Coordinate shared-folder transfer and lock ownership in desktop. ([`fd8c402d`](https://github.com/SebRoLENS/curvemole/commit/fd8c402dc0e346b0f4ed59caf50483ceacc3c650))
@@ -48,6 +41,7 @@ Changes since `v1.1.1-beta.20` ([compare](https://github.com/SebRoLENS/curvemole
 
 ### Fixed
 
+- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
 - Harden project lock identities and guarded commit. ([`d25eb73f`](https://github.com/SebRoLENS/curvemole/commit/d25eb73f0ffba35584d1fd065cd9634766c9429d))
 - Avoid same-host handoff prompts and preserve editability if reply fails. ([`32218baf`](https://github.com/SebRoLENS/curvemole/commit/32218bafd23c5415a4142acbc7dc4169c6b62caf))
 - Guard Save As destinations and gracefully handle transfer errors. ([`26945515`](https://github.com/SebRoLENS/curvemole/commit/26945515fdfd602c3cc6f98f207a977dac24ff7f))

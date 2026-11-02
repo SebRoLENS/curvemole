@@ -115,3 +115,24 @@ def test_malformed_markers_are_rejected_before_replacement(changelog_repo):
                          encoding="utf-8")
     with pytest.raises(ValueError, match="Malformed"):
         tool.sync_changelog(path=changelog)
+
+
+def test_reviewed_commit_categories_override_misleading_add_subjects(changelog_repo, monkeypatch):
+    tool, _repo, changelog = changelog_repo
+    handoff = "a650228c73adb576ebbb571321da2b34813ec91d"
+    shortcuts = "67a30d6165da14304d245a598a1578a6dbc46c09"
+    monkeypatch.setattr(tool, "commits", lambda base, head: [
+        (handoff, "Add provider-independent file handoff protocol [skip release]"),
+        (shortcuts, "Add mouse and keyboard shortcut reference and swap double-click view scopes [skip release]"),
+        ("12345678", "Add a separate new feature"),
+    ])
+    groups = tool.change_groups("v1.1.0", "HEAD")
+    assert len(groups["Fixed"]) == len(groups["Changed"]) == len(groups["Added"]) == 1
+    assert handoff in groups["Fixed"][0]
+    assert shortcuts in groups["Changed"][0]
+    assert "separate new feature" in groups["Added"][0]
+    # The same classifications feed cumulative notes and beta release summaries.
+    tool.sync_changelog(path=changelog)
+    _base, beta = tool.beta_changes(version="1.1.1b1")
+    assert tool.render_groups(groups) in changelog.read_text(encoding="utf-8")
+    assert beta == tool.render_groups(groups)

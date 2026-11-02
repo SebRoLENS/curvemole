@@ -19,6 +19,12 @@ Write descriptive, user-facing commit subjects (e.g. "Fix stale lock takeover")
 because these provide the automatic summaries. CI-only/test/import-formatting
 commits are filtered out; they remain traceable in full Git history.
 
+Reviewed category corrections for historical subjects are keyed by their full
+commit SHA in `COMMIT_CATEGORIES` in `.github/scripts/changelog_tools.py`. Regenerate
+the cumulative changelog and beta history after changing these entries; the same
+classification is used for future beta notes and stable preparation. Do not edit
+the generated blocks or rewrite the original commits to correct a category.
+
 After every validated Testing builds run, a dedicated workflow job regenerates
 `CHANGELOG.md` and `docs/beta-history.md` using Git history and the published
 GitHub beta catalog. The job commits only if files changed and `testing` still
