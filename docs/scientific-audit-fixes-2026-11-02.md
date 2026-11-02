@@ -146,3 +146,9 @@ La verifica finale comprende anche background, aggiornamenti e canali di rilasci
 Ruff e il validatore dei workflow del repository sono stati eseguiti. Il PDF di
 140 pagine è stato rigenerato e le pagine delle correzioni controllate visivamente.
 La CI della beta ripete i controlli sulle piattaforme previste prima di pubblicare.
+
+Durante la CI multipiattaforma sono state corrette anche due incompatibilità:
+i test delle scorciatoie ora confrontano le etichette native Qt (simbolo Command
+su macOS), e un `RecursionError` del parser AST viene tradotto nell’errore
+controllato di complessità delle espressioni. La prima build ha correttamente
+bloccato la pubblicazione quando questi controlli non erano superati.

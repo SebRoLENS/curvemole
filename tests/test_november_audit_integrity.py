@@ -261,3 +261,11 @@ def test_acquisition_merge_preserves_display_choices_and_incoming_history():
         merged["import_result_history"]
         == old["import_result_history"] + new["import_result_history"]
     )
+
+
+def test_parser_recursion_is_reported_as_expression_complexity(monkeypatch):
+    def reject(*args, **kwargs):
+        raise RecursionError("platform parser recursion limit")
+    monkeypatch.setattr("curvemole.core.expressions.ast.parse", reject)
+    with pytest.raises(ExpressionError, match="parser complexity"):
+        SafeExpression.compile("1+2")

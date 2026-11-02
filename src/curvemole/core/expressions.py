@@ -123,6 +123,8 @@ class SafeExpression:
         rewritten = _REFERENCE.sub(replace, source)
         try:
             tree = ast.parse(rewritten, mode="eval")
+        except RecursionError as exc:
+            raise ExpressionError("Expression exceeds the parser complexity limit.") from exc
         except SyntaxError as exc:
             raise ExpressionError(f"Invalid expression at column {exc.offset}: {exc.msg}") from exc
         pending = [(tree, 0)]
