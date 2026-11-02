@@ -115,3 +115,38 @@ def test_malformed_markers_are_rejected_before_replacement(changelog_repo):
                          encoding="utf-8")
     with pytest.raises(ValueError, match="Malformed"):
         tool.sync_changelog(path=changelog)
+
+
+def test_project_save_and_lock_corrections_stay_fixed_in_generated_history(changelog_repo):
+    tool, repo, changelog = changelog_repo
+    corrections = [
+        commit(repo, "handoff.txt", "Add provider-independent file handoff protocol"),
+        commit(repo, "ownership.txt", "Coordinate shared-folder transfer and lock ownership in desktop"),
+        commit(repo, "save-as.txt", "Transfer project lock to Save As target and prevent concurrent overwrites"),
+    ]
+    feature = commit(repo, "feature.txt", "Add automatic spectrum preview")
+    command(repo, "tag", "v1.1.1-beta.50")
+
+    groups = tool.change_groups("v1.1.0", "HEAD")
+    for sha in corrections:
+        assert any(sha in entry for entry in groups["Fixed"])
+        assert not any(sha in entry for entry in groups["Added"])
+    assert any(feature in entry for entry in groups["Added"])
+
+    history = repo / "docs" / "beta-history.md"
+    tool.sync_changelog(path=changelog)
+    tool.sync_beta_history(path=history)
+    first_changelog = changelog.read_text(encoding="utf-8")
+    first_history = history.read_text(encoding="utf-8")
+    for text in (first_changelog, first_history):
+        added, fixed = text.split("### Added", 1)[1].split("### Fixed", 1)
+        assert "Add automatic spectrum preview" in added
+        assert "file handoff protocol" not in added
+        assert "Fix shared-project access coordination" in fixed
+        assert "Fix shared-folder project transfers" in fixed
+        assert "Prevent concurrent overwrites" in fixed
+
+    tool.sync_changelog(path=changelog)
+    tool.sync_beta_history(path=history)
+    assert changelog.read_text(encoding="utf-8") == first_changelog
+    assert history.read_text(encoding="utf-8") == first_history

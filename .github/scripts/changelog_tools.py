@@ -42,6 +42,16 @@ SKIP_RE = re.compile(
     re.I,
 )
 ORDER = ("Added", "Changed", "Fixed", "Documentation")
+# Saving safely and coordinating project locks correct gaps in existing behavior.
+# Curate misleading historical subjects without rewriting their Git commits.
+SUBJECT_OVERRIDES = {
+    "Add provider-independent file handoff protocol":
+        "Fix shared-project access coordination with a provider-independent file handoff protocol",
+    "Coordinate shared-folder transfer and lock ownership in desktop":
+        "Fix shared-folder project transfers and lock ownership in desktop",
+    "Transfer project lock to Save As target and prevent concurrent overwrites":
+        "Prevent concurrent overwrites by transferring the project lock to the Save As target",
+}
 
 
 def git(*arguments: str) -> str:
@@ -118,6 +128,7 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
                     "full tag history", "automatic history snapshots",
                 ))):
             continue
+        subject = SUBJECT_OVERRIDES.get(subject, subject)
         key = subject.casefold()
         if key in seen:
             continue

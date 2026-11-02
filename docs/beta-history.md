@@ -6,18 +6,12 @@ Generated from beta tags and the GitHub release catalog (when available). Beta r
 
 Changes since `v1.1.1-beta.20` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.20...v1.1.1-beta.50)).
 
-### Added
-
-- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
-
-### Changed
-
-- Coordinate shared-folder transfer and lock ownership in desktop. ([`fd8c402d`](https://github.com/SebRoLENS/curvemole/commit/fd8c402dc0e346b0f4ed59caf50483ceacc3c650))
-- Transfer project lock to Save As target and prevent concurrent overwrites. ([`38b552ca`](https://github.com/SebRoLENS/curvemole/commit/38b552ca5fa14216f23a6b01de9927eff999c944))
-
 ### Fixed
 
+- Fix shared-project access coordination with a provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
 - Harden project lock identities and guarded commit. ([`d25eb73f`](https://github.com/SebRoLENS/curvemole/commit/d25eb73f0ffba35584d1fd065cd9634766c9429d))
+- Fix shared-folder project transfers and lock ownership in desktop. ([`fd8c402d`](https://github.com/SebRoLENS/curvemole/commit/fd8c402dc0e346b0f4ed59caf50483ceacc3c650))
+- Prevent concurrent overwrites by transferring the project lock to the Save As target. ([`38b552ca`](https://github.com/SebRoLENS/curvemole/commit/38b552ca5fa14216f23a6b01de9927eff999c944))
 - Avoid same-host handoff prompts and preserve editability if reply fails. ([`32218baf`](https://github.com/SebRoLENS/curvemole/commit/32218bafd23c5415a4142acbc7dc4169c6b62caf))
 - Guard Save As destinations and gracefully handle transfer errors. ([`26945515`](https://github.com/SebRoLENS/curvemole/commit/26945515fdfd602c3cc6f98f207a977dac24ff7f))
 - Handle concurrent requests and unresponsive remote sessions safely. ([`3dcb1428`](https://github.com/SebRoLENS/curvemole/commit/3dcb1428da4b0d05a4d3a9db937d4bf5e2223d45))
