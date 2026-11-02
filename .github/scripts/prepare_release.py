@@ -242,6 +242,7 @@ def apply_version(version: str) -> None:
     update_citation(version)
     update_readme(version)
     update_manual(version)
+    run_path(str(Path(__file__).with_name("promote_documentation.py")))["promote"](ROOT, version)
     citations["write_extras"](ROOT, citations["metadata"](CITATION.read_text(encoding="utf-8")))
     # Freeze *all* user-facing commits since the prior stable tag, not just
     # the final promotion commit or whichever betas happened to be published.
