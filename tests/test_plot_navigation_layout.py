@@ -55,9 +55,13 @@ def window():
 
 
 @pytest.mark.parametrize("button", [Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton])
-def test_double_click_frames_experimental_points(window, button):
+@pytest.mark.parametrize("range_mode", ["all", "active"])
+@pytest.mark.parametrize("autoscale_enabled", [False, True])
+def test_double_click_frames_experimental_points(window, button, range_mode, autoscale_enabled):
     app, main = window
     workspace = main.plot_workspace
+    workspace.autoscale_mode.setCurrentIndex(1 if range_mode == "active" else 0)
+    workspace.autoscale_toggle.setChecked(autoscale_enabled)
     workspace.view_box.setRange(xRange=(0, 2), yRange=(10, 20), padding=0)
     app.processEvents()
     pos = workspace.graphics.mapFromScene(workspace.view_box.mapViewToScene(QPointF(1, 15)))
@@ -71,13 +75,15 @@ def test_double_click_frames_experimental_points(window, button):
     app.processEvents()
     x_range, y_range = workspace.view_box.viewRange()
     assert x_range[0] < 0
-    if button == Qt.MouseButton.LeftButton:
+    if button == Qt.MouseButton.RightButton:
         assert x_range[1] > 4
         assert y_range[1] > 1000
     else:
         assert 3 < x_range[1] < 4
         assert 3 < y_range[1] < 10
-        assert not workspace.view_box._context_menu_timer.isActive()
+    assert not workspace.view_box._context_menu_timer.isActive()
+    assert workspace.autoscale_toggle.isChecked() == autoscale_enabled
+    assert main.project.ui_state["autoscale_mode"] == range_mode
 
 
 @pytest.mark.parametrize("inverted", [False, True])

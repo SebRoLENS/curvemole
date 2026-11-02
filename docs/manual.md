@@ -556,8 +556,10 @@ so a data curve can never be confused with the fitted sum.
 ### 5.3 Navigation and axes
 
 Normal plot navigation is available when neither placement nor Mask mode is active.
-Left double-click frames all experimental data, including masked points. Right
-double-click frames only unmasked experimental points. Hold the right button and
+Right double-click frames all experimental data, including masked points. Left
+double-click frames only unmasked experimental points. These gestures are independent
+of the **Autoscale** checkbox and its **All points / Unmasked points** selector.
+Hold the right button and
 drag to pan the spectrum; a single right-click opens the plot context menu after
 the double-click interval. Display controls wrap onto
 additional rows when dock resizing narrows the plot.
@@ -3562,6 +3564,11 @@ Shortcuts use single keys or Ctrl+letter.
 
 
 ### Keyboard shortcuts for menu and toolbar commands
+
+Open **Help > Shortcuts…** for the **Mouse** and **Keyboard** tabs. The Mouse tab
+explains navigation, masking, function placement, point editing and selection.
+The searchable Keyboard tab lists the currently assigned menu, toolbar and plugin
+shortcuts, together with keys that apply only in a particular editing context.
 
 Every command in the top menus and toolbars has a dedicated keyboard shortcut,
 including the Background and Initialize with points toggles.

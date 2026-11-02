@@ -134,9 +134,9 @@ class MaskViewBox(pg.ViewBox):
             self._context_menu_event = None
             callback = None
             if event.button() == Qt.MouseButton.LeftButton:
-                callback = getattr(self, "data_range_callback", None)
-            elif event.button() == Qt.MouseButton.RightButton:
                 callback = getattr(self, "unmasked_range_callback", None)
+            elif event.button() == Qt.MouseButton.RightButton:
+                callback = getattr(self, "data_range_callback", None)
             if callback is not None:
                 callback()
                 event.accept()

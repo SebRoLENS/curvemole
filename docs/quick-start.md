@@ -8,6 +8,10 @@ full-resolution data regardless of adaptive rendering, respecting Waterfall
 offsets and visual background subtraction. With no usable samples, View unmasked
 leaves the current view unchanged.
 
+Right double-click frames all points; left double-click frames only unmasked
+points, independently of the Autoscale settings. Open **Help > Shortcuts…** for
+mouse gestures by mode and a searchable list of current keyboard shortcuts.
+
 ## 1. Import curves
 
 Press the **Import data** toolbar button (or choose **File → Import Data**) and

@@ -1223,6 +1223,9 @@ class MainWindow(QMainWindow):
         self.quick_start_action.triggered.connect(lambda: self.open_documentation("quick-start.md"))
         self.manual_action = QAction(self.tr("User manual"), self)
         self.manual_action.triggered.connect(lambda: self.open_documentation("manual.md"))
+        self.shortcuts_action = QAction(self.tr("Shortcuts…"), self)
+        self.shortcuts_action.setToolTip(self.tr("Browse mouse gestures and current keyboard shortcuts."))
+        self.shortcuts_action.triggered.connect(self.show_shortcuts)
         self.update_action = QAction(self.tr("Check for updates"), self)
         self.update_action.triggered.connect(
             lambda checked=False: self.check_for_updates(force=True)
@@ -1331,7 +1334,8 @@ class MainWindow(QMainWindow):
 
         self.help_menu = menu.addMenu(self.tr("&Help"))
         self.help_menu.addActions(
-            [self.quick_start_action, self.manual_action, self.update_action, self.report_action, self.about_action]
+            [self.quick_start_action, self.manual_action, self.shortcuts_action,
+             self.update_action, self.report_action, self.about_action]
         )
 
     def _build_toolbar(self) -> None:
@@ -3635,6 +3639,21 @@ class MainWindow(QMainWindow):
             self.tr("CurveMole could not open this item automatically. Copy it into your browser or file manager:")
             + f"\n\n{value}",
         )
+
+    def show_shortcuts(self) -> None:
+        from curvemole.gui.shortcuts_dialog import ShortcutsDialog
+
+        guide = Path(__file__).resolve().parents[3] / "docs" / "mouse-shortcuts.md"
+        if not guide.is_file():
+            guide = _resource_path("docs/mouse-shortcuts.md")
+        try:
+            mouse_text = guide.read_text(encoding="utf-8") if guide is not None else ""
+        except OSError:
+            mouse_text = ""
+        if not mouse_text:
+            mouse_text = self.tr("Mouse shortcut guide is unavailable. See the user manual.")
+        with transient_widget(ShortcutsDialog(self, mouse_text)) as dialog:
+            dialog.exec()
 
     def show_about(self) -> None:
         with transient_widget(AboutDialog(_resource_path("curvemole.png"), self)) as dialog:
