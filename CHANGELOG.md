@@ -33,6 +33,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Handle concurrent requests and unresponsive remote sessions safely. ([`3dcb1428`](https://github.com/SebRoLENS/curvemole/commit/3dcb1428da4b0d05a4d3a9db937d4bf5e2223d45))
 - Preserve accepted transfer even if rejecting others fails. ([`1dc2706a`](https://github.com/SebRoLENS/curvemole/commit/1dc2706a9aec914aa15d1f3e29697304c08cce50))
 - Fix project-locking documentation formatting. ([`88831288`](https://github.com/SebRoLENS/curvemole/commit/88831288eb1a9e7fde7555b3a16e25fdc7a8dfd2))
+- Fix shortcut reference tests for native macOS key labels. ([`c3e0d745`](https://github.com/SebRoLENS/curvemole/commit/c3e0d745ab48f25a1c40bb39a7f1b028127a8079))
 
 ### Documentation
 
