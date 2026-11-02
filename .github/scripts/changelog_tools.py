@@ -42,12 +42,13 @@ SKIP_RE = re.compile(
     re.I,
 )
 ORDER = ("Added", "Changed", "Fixed", "Documentation")
-# Historical subjects can describe an implementation rather than its user-facing
-# category. Keep reviewed corrections tied to immutable commits, without rewriting
-# history or changing how unrelated "Add ..." commits are classified.
-COMMIT_CATEGORIES = {
-    "a650228c73adb576ebbb571321da2b34813ec91d": "Fixed",
-    "67a30d6165da14304d245a598a1578a6dbc46c09": "Changed",
+# One historical commit may contain changes in more than one user-facing category.
+# Preserve its immutable identity while making each change explicit in the notes.
+COMMIT_NOTES = {
+    "67a30d6165da14304d245a598a1578a6dbc46c09": (
+        ("Added", "Add a Shortcuts menu with separate mouse and keyboard references"),
+        ("Changed", "Swap double-click view scopes: left for unmasked points, right for all points"),
+    ),
 }
 
 
@@ -129,10 +130,11 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
         if key in seen:
             continue
         seen.add(key)
-        group = COMMIT_CATEGORIES.get(sha, classify(subject))
-        groups[group].append(
-            f"- {subject}. ([`{sha[:8]}`](https://github.com/SebRoLENS/curvemole/commit/{sha}))"
-        )
+        entries = COMMIT_NOTES.get(sha, ((classify(subject), subject),))
+        for group, description in entries:
+            groups[group].append(
+                f"- {description}. ([`{sha[:8]}`](https://github.com/SebRoLENS/curvemole/commit/{sha}))"
+            )
     return groups
 
 
@@ -193,7 +195,10 @@ def freeze_stable(version: str, path: Path = CHANGELOG, head: str = "HEAD",
 
 
 def published_beta_tags(head: str = "HEAD") -> list[str]:
-    candidates = [tag for tag in tags() if BETA_RE.fullmatch(tag) and is_ancestor(tag, head)]
+    withdrawn = ROOT / ".github/beta-withdrawals.json"
+    excluded = {entry["tag"] for entry in json.loads(withdrawn.read_text())} if withdrawn.exists() else set()
+    candidates = [tag for tag in tags()
+                  if BETA_RE.fullmatch(tag) and tag not in excluded and is_ancestor(tag, head)]
     return sorted(candidates, key=lambda tag: (int(git("rev-list", "--count", tag)),
                                                tuple(map(int, BETA_RE.fullmatch(tag).groups()))))
 

@@ -19,11 +19,12 @@ Write descriptive, user-facing commit subjects (e.g. "Fix stale lock takeover")
 because these provide the automatic summaries. CI-only/test/import-formatting
 commits are filtered out; they remain traceable in full Git history.
 
-Reviewed category corrections for historical subjects are keyed by their full
-commit SHA in `COMMIT_CATEGORIES` in `.github/scripts/changelog_tools.py`. Regenerate
-the cumulative changelog and beta history after changing these entries; the same
-classification is used for future beta notes and stable preparation. Do not edit
-the generated blocks or rewrite the original commits to correct a category.
+Reviewed descriptions for historical commits are keyed by their full SHA in
+`COMMIT_NOTES` in `.github/scripts/changelog_tools.py`. Each commit can contribute
+separate entries to different categories, for example a new menu under Added and
+changed gestures under Changed. Regenerate the cumulative changelog and beta
+history after editing these records; future beta notes and stable preparation use
+the same entries. Do not edit generated blocks or rewrite original commits.
 
 After every validated Testing builds run, a dedicated workflow job regenerates
 `CHANGELOG.md` and `docs/beta-history.md` using Git history and the published
@@ -57,7 +58,7 @@ It does not infer source-code behavior beyond what a commit claims.
 Work on `testing`. Each push runs validation and builds Linux, Windows, macOS and
 Python beta packages. Build versions are stamped only in the package workspace,
 using the final destination recorded in `.github/release-target.json`. The current
-target is `1.1.1`, producing `1.1.1bN` / `v1.1.1-beta.N` while stable remains `1.1.0`.
+target is `1.2.0`, producing `1.2.0bN` / `v1.2.0-beta.N` while stable remains `1.1.0`.
 The beta sequence is the Testing builds workflow run number; gaps are normal and
 it need not restart at 1 when the target changes. Previously published beta tags
 and assets remain unchanged. Failed older runs should be replaced by a new push
@@ -334,3 +335,14 @@ The testing documentation job installs the document toolchain and invokes
 temporary build directory. It never edits tracked stable manual/version metadata.
 Missing toolchain, invalid source or a failed PDF build blocks documentation and
 therefore publication; it never substitutes an older committed PDF silently.
+
+## Explicit withdrawal of a superseded beta
+
+User-approved withdrawals are recorded in `.github/beta-withdrawals.json` with the
+exact old tag/source and replacement target. After a replacement beta is verified
+and published, the testing publisher checks both release identities and makes the
+old beta a draft. This removes its public release/download page while retaining
+its tag and assets for recovery. Stable releases cannot be withdrawn by this path.
+No Zenodo record or DOI is changed or reassigned. The changelog job then rebuilds
+the public beta catalog, excluding drafts. The current authorized withdrawal is
+`v1.1.1-beta.86`, superseded by the `1.2.0` beta cycle.

@@ -2,37 +2,13 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
-## [1.1.1-beta.86](https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.1-beta.86) — published 2026-11-02
-
-Changes since `v1.1.1-beta.50` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.50...v1.1.1-beta.86)).
-
-### Changed
-
-- Backfill beta-cycle changes from stable 1.1.0 through current testing. ([`3a52b91c`](https://github.com/SebRoLENS/curvemole/commit/3a52b91c47d8b2cae67f94fecd639c09dac30577))
-- Backfill all nine published beta releases with actual commit histories. ([`780de88d`](https://github.com/SebRoLENS/curvemole/commit/780de88d20a673f33e11634eed86ce5472293804))
-- Exclude GitHub release tooling metadata from user-facing feature summaries. ([`28722969`](https://github.com/SebRoLENS/curvemole/commit/2872296910a2eb42cd1ccba24479d96f51280e00))
-- Synchronize clean cumulative feature and fix history through current beta. ([`10b3634d`](https://github.com/SebRoLENS/curvemole/commit/10b3634d150a6703aa438b0273a3d2dface5d448))
-- Render historical stable releases on What’s New with curated 1.1.0 backfill. ([`ae59b894`](https://github.com/SebRoLENS/curvemole/commit/ae59b89433d59deaea5d6d46a0d5a69a4774b983))
-- Show stable release archive in What’s New from 1.0.0 onward. ([`cabbd7ad`](https://github.com/SebRoLENS/curvemole/commit/cabbd7ad72bd9fc2ca519874359c47ab4092ce85))
-- Style chronological What’s New release archive on desktop and mobile. ([`cbfbeef0`](https://github.com/SebRoLENS/curvemole/commit/cbfbeef0e94237fd557d3eefcd84482ff8d5ff92))
-- Add mouse and keyboard shortcut reference and swap double-click view scopes. ([`67a30d61`](https://github.com/SebRoLENS/curvemole/commit/67a30d6165da14304d245a598a1578a6dbc46c09))
-
-### Fixed
-
-- Fix shortcut reference tests for native macOS key labels. ([`c3e0d745`](https://github.com/SebRoLENS/curvemole/commit/c3e0d745ab48f25a1c40bb39a7f1b028127a8079))
-- Fix scientific audit findings and publish tested beta corrections. ([`d72828c2`](https://github.com/SebRoLENS/curvemole/commit/d72828c25066bee8490b43ace2ec3b32f1972ccd))
-- Handle Windows parser recursion and native macOS shortcut checks. ([`f3ac6c06`](https://github.com/SebRoLENS/curvemole/commit/f3ac6c068fe7826cebbcf24e1925d67cc9b86f7e))
-
-### Documentation
-
-- Document missing 1.1.0 stable changes from its published Git history. ([`bbc2e93c`](https://github.com/SebRoLENS/curvemole/commit/bbc2e93cee5339f201eb7a556042d09e20413dfd))
-- Repair website history renderer and build dated stable archive safely. ([`94a41ff8`](https://github.com/SebRoLENS/curvemole/commit/94a41ff8e864b3fdffcf82d19038f70e8ea6276a))
-- Document historical stable What’s New publication behavior. ([`d5c8b9f5`](https://github.com/SebRoLENS/curvemole/commit/d5c8b9f5d61a0ec881b7a582bb97f1a9e1f009d9))
-- Repair website generator syntax and remove duplicated trailing content. ([`23b9f54b`](https://github.com/SebRoLENS/curvemole/commit/23b9f54b7e238b719b832b7564711f194aa1b883))
-
 ## [1.1.1-beta.50](https://github.com/SebRoLENS/curvemole/releases/tag/v1.1.1-beta.50) — published 2026-10-30
 
 Changes since `v1.1.1-beta.20` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.20...v1.1.1-beta.50)).
+
+### Added
+
+- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
 
 ### Changed
 
@@ -41,7 +17,6 @@ Changes since `v1.1.1-beta.20` ([compare](https://github.com/SebRoLENS/curvemole
 
 ### Fixed
 
-- Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
 - Harden project lock identities and guarded commit. ([`d25eb73f`](https://github.com/SebRoLENS/curvemole/commit/d25eb73f0ffba35584d1fd065cd9634766c9429d))
 - Avoid same-host handoff prompts and preserve editability if reply fails. ([`32218baf`](https://github.com/SebRoLENS/curvemole/commit/32218bafd23c5415a4142acbc7dc4169c6b62caf))
 - Guard Save As destinations and gracefully handle transfer errors. ([`26945515`](https://github.com/SebRoLENS/curvemole/commit/26945515fdfd602c3cc6f98f207a977dac24ff7f))

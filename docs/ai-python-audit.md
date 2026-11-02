@@ -1,6 +1,6 @@
 # CurveMole Python API audit for AI-assisted scripting
 
-**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.1.1 beta.**
+**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.2.0 beta.**
 **Audit date: 2026-11-02.**
 
 Download this Markdown file and attach it directly to an AI conversation. It is
@@ -30,7 +30,7 @@ When using this document to generate code:
 Suggested user prompt:
 
 > Use only this attached CurveMole audit to write a complete Python script.
-> My installed version is [1.1.0 stable or exact 1.1.1 beta build].
+> My installed version is [1.1.0 stable or exact 1.2.0 beta build].
 > My files and column layout are [...], units are [...], the model and initial
 > values/bounds are [...], masks and preprocessing are [...], the desired fit and
 > uncertainty analysis are [...], and outputs should go to [...]. List missing
@@ -38,7 +38,7 @@ Suggested user prompt:
 
 ## Complete scripting contract
 
-**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.1.1 beta.**
+**Stable API baseline: CurveMole 1.1.0. Workflow extensions require 1.2.0 beta.**
 **Current testing behavior.** This edition includes the November 2026 scientific
 and data-integrity corrections. Match it to the exact testing/beta build; those
 corrections and testing-only API additions must not be inferred for 1.1.0 Stable
@@ -989,7 +989,7 @@ not as a hard interruption of a running NumPy allocation.
 
 `portable=True` strips local paths. Detached snapshots require
 `update_project_path=False` when saving. Project schema is **4** and model schema
-is **2**. Workflow schema is **2** in the stable baseline and **3** for 1.1.1 beta
+is **2**. Workflow schema is **2** in the stable baseline and **3** for 1.2.0 beta
 additions; legacy workflow schemas 1/2 remain accepted for their older fields.
 Archives contain JSON/numeric arrays, not pickle. Older project schemas remain
 readable. An otherwise readable project with a newer schema opens
@@ -1006,7 +1006,7 @@ shared-file writes. `load_fitmodel` retains IDs and links; retarget links or use
 `dump_workflow(project, path) -> Path`. Beta dumping emits workflow schema 3;
 marked beta-only YAML keys require schema 3 so older software rejects them instead
 of ignoring processing stages. Outcome fields are `project`, `result`,
-`outputs`. In 1.1.1 beta it also has `imported_files: list[Path]` and
+`outputs`. In 1.2.0 beta it also has `imported_files: list[Path]` and
 `warnings: list[str]`, both defaulting to empty lists so the original three-field
 constructor remains valid. Relative paths resolve against the YAML directory. Dumping references
 source imports/models; it does not embed arbitrary transformed current data or
@@ -1019,7 +1019,7 @@ complete import identity and reference format.
 
 ### 15.1 Beta workflow discovery, selection and preprocessing
 
-The following helpers require **1.1.1 beta** and are module imports, not new
+The following helpers require **1.2.0 beta** and are module imports, not new
 package-root exports. They implement the same contract as the beta YAML runner;
 using Python is not required merely to enumerate a folder anymore.
 

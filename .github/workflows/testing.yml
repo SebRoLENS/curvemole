@@ -130,6 +130,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BETA_VERSION: ${{ needs.plan.outputs.version }}
         run: python .github/scripts/beta_release.py publish
+      - name: Withdraw explicitly superseded betas after verified publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BETA_VERSION: ${{ needs.plan.outputs.version }}
+        run: python .github/scripts/withdraw_beta.py --replacement "$BETA_VERSION"
 
   doi:
     needs: [plan, validate, publish]

@@ -117,7 +117,7 @@ def test_malformed_markers_are_rejected_before_replacement(changelog_repo):
         tool.sync_changelog(path=changelog)
 
 
-def test_reviewed_commit_categories_override_misleading_add_subjects(changelog_repo, monkeypatch):
+def test_shortcut_menu_and_gesture_changes_are_listed_separately(changelog_repo, monkeypatch):
     tool, _repo, changelog = changelog_repo
     handoff = "a650228c73adb576ebbb571321da2b34813ec91d"
     shortcuts = "67a30d6165da14304d245a598a1578a6dbc46c09"
@@ -127,12 +127,39 @@ def test_reviewed_commit_categories_override_misleading_add_subjects(changelog_r
         ("12345678", "Add a separate new feature"),
     ])
     groups = tool.change_groups("v1.1.0", "HEAD")
-    assert len(groups["Fixed"]) == len(groups["Changed"]) == len(groups["Added"]) == 1
-    assert handoff in groups["Fixed"][0]
-    assert shortcuts in groups["Changed"][0]
-    assert "separate new feature" in groups["Added"][0]
+    assert "Fixed" not in groups
+    assert len(groups["Added"]) == 3 and len(groups["Changed"]) == 1
+    assert handoff in groups["Added"][0]
+    assert shortcuts in groups["Added"][1] and "Shortcuts menu" in groups["Added"][1]
+    assert shortcuts in groups["Changed"][0] and "left for unmasked" in groups["Changed"][0]
+    assert "separate new feature" in groups["Added"][2]
     # The same classifications feed cumulative notes and beta release summaries.
     tool.sync_changelog(path=changelog)
     _base, beta = tool.beta_changes(version="1.1.1b1")
     assert tool.render_groups(groups) in changelog.read_text(encoding="utf-8")
     assert beta == tool.render_groups(groups)
+
+
+def test_new_minor_beta_notes_include_all_unreleased_additions(changelog_repo):
+    tool, repo, _changelog = changelog_repo
+    commit(repo, "handoff.txt", "Add file handoff")
+    command(repo, "tag", "v1.1.1-beta.50")
+    commit(repo, "shortcuts.txt", "Add Shortcuts menu")
+    base, notes = tool.beta_changes(version="1.2.0b88")
+    assert base == "v1.1.0"
+    assert "Add file handoff" in notes and "Add Shortcuts menu" in notes
+
+
+def test_withdrawn_betas_do_not_reappear_in_offline_history(changelog_repo):
+    tool, repo, _changelog = changelog_repo
+    commit(repo, "first.txt", "Add earlier feature")
+    command(repo, "tag", "v1.1.1-beta.50")
+    commit(repo, "next.txt", "Add Shortcuts menu")
+    command(repo, "tag", "v1.1.1-beta.86")
+    (repo / ".github").mkdir()
+    (repo / ".github/beta-withdrawals.json").write_text('[{"tag":"v1.1.1-beta.86"}]')
+    assert tool.published_beta_tags() == ["v1.1.1-beta.50"]
+    history = repo / "beta-history.md"
+    tool.sync_beta_history(path=history)
+    assert "1.1.1-beta.50" in history.read_text()
+    assert "1.1.1-beta.86" not in history.read_text()

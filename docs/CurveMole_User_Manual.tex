@@ -232,9 +232,9 @@ behavior is present in the stable release. The Markdown file is the
 authoritative source. The LaTeX source and PDF edition are generated
 automatically from it and must carry the same version number.
 
-\textbf{Testing edition for CurveMole 1.1.1 beta.} The title retains the
+\textbf{Testing edition for CurveMole 1.2.0 beta.} The title retains the
 stable API baseline, 1.1.0. Marked beta sections and Appendices F/G
-describe the additional workflow capabilities in 1.1.1 beta. The current
+describe the additional workflow capabilities in 1.2.0 beta. The current
 testing edition also includes the scientific and data-integrity
 corrections summarized in Appendix I; these changes must not be assumed
 to exist in the 1.1.0 stable executable. Use the manual and AI audits
@@ -3755,7 +3755,7 @@ reduces memory while preserving recorded fits and sample values. Schemas
 1 through 3 remain readable. Newly saved projects require a reader
 supporting schema 4 block matrices; keep a backup when sharing with
 older installations. Model files remain at schema 2. The stable workflow
-format is schema 2; 1.1.1 beta adds workflow schema 3 for batch imports
+format is schema 2; 1.2.0 beta adds workflow schema 3 for batch imports
 and preprocessing while retaining support for legacy schema 1/2 recipes.
 
 NumPy arrays are loaded with \texttt{allow\_pickle=False}. CurveMole
@@ -4360,7 +4360,7 @@ workflows using the documented interfaces.
 \end{Shaded}
 
 Relative paths are resolved from the workflow file's directory. Stable
-1.1.0 supports schemas 1 and 2. \textbf{In 1.1.1 beta, use
+1.1.0 supports schemas 1 and 2. \textbf{In 1.2.0 beta, use
 \texttt{schema\_version:\ 3}} for folder/glob imports, naming templates,
 shared model selectors, preprocessing and the new output controls.
 Legacy schema 1/2 recipes remain supported with their original fields.
@@ -5474,7 +5474,7 @@ contracts.
 reference}\label{appendix-f.-python-scripting-reference}
 
 \textbf{Stable API baseline: CurveMole 1.1.0. Workflow extensions
-require 1.1.1 beta.} \textbf{Current testing behavior.} This edition
+require 1.2.0 beta.} \textbf{Current testing behavior.} This edition
 includes the November 2026 scientific and data-integrity corrections.
 Match it to the exact testing/beta build; those corrections and
 testing-only API additions must not be inferred for 1.1.0 Stable or an
@@ -6921,7 +6921,7 @@ as a hard interruption of a running NumPy allocation.
 \texttt{portable=True} strips local paths. Detached snapshots require
 \texttt{update\_project\_path=False} when saving. Project schema is
 \textbf{4} and model schema is \textbf{2}. Workflow schema is \textbf{2}
-in the stable baseline and \textbf{3} for 1.1.1 beta additions; legacy
+in the stable baseline and \textbf{3} for 1.2.0 beta additions; legacy
 workflow schemas 1/2 remain accepted for their older fields. Archives
 contain JSON/numeric arrays, not pickle. Older project schemas remain
 readable. An otherwise readable project with a newer schema opens
@@ -6941,7 +6941,7 @@ when applying to a different curve.
 dumping emits workflow schema 3; marked beta-only YAML keys require
 schema 3 so older software rejects them instead of ignoring processing
 stages. Outcome fields are \texttt{project}, \texttt{result},
-\texttt{outputs}. In 1.1.1 beta it also has
+\texttt{outputs}. In 1.2.0 beta it also has
 \texttt{imported\_files:\ list{[}Path{]}} and
 \texttt{warnings:\ list{[}str{]}}, both defaulting to empty lists so the
 original three-field constructor remains valid. Relative paths resolve
@@ -6958,7 +6958,7 @@ complete import identity and reference format.
 \subsection{15.1 Beta workflow discovery, selection and
 preprocessing}\label{beta-workflow-discovery-selection-and-preprocessing}
 
-The following helpers require \textbf{1.1.1 beta} and are module
+The following helpers require \textbf{1.2.0 beta} and are module
 imports, not new package-root exports. They implement the same contract
 as the beta YAML runner; using Python is not required merely to
 enumerate a folder anymore.
@@ -7265,9 +7265,9 @@ analysis.
 reference}\label{appendix-g.-yaml-workflow-reference}
 
 \textbf{Stable API baseline: CurveMole 1.1.0. Beta additions require
-CurveMole 1.1.1 beta.} \textbf{Beta workflow schema: 3; legacy schemas 1
+CurveMole 1.2.0 beta.} \textbf{Beta workflow schema: 3; legacy schemas 1
 and 2 remain accepted. Checked on 2026-11-02.} This testing edition
-documents both the stable baseline and the marked 1.1.1 beta extensions.
+documents both the stable baseline and the marked 1.2.0 beta extensions.
 Folder/pattern imports, templates, shared curve selectors,
 preprocessing, stricter validation and the new output controls are beta
 additions; the 1.1.0 stable executable does not implement them. Check
@@ -7297,7 +7297,7 @@ do not apply retroactively to earlier executables.
 
 A workflow imports data into one new project and one series, constructs
 models, optionally runs one fit plan, and optionally saves a project and
-an analysis bundle. In 1.1.1 beta, imports can select individual files,
+an analysis bundle. In 1.2.0 beta, imports can select individual files,
 glob patterns or folders; optional preprocessing prepares the curves
 before model construction. The scientific engine is the same engine used
 by Python and the desktop application. YAML is a declarative recipe, not
@@ -7317,7 +7317,7 @@ The execution order is fixed:
   Create a fresh project and series; expand each import specification
   and import its files in the selected order.
 \item
-  In 1.1.1 beta, apply optional preprocessing, then select curves for
+  In 1.2.0 beta, apply optional preprocessing, then select curves for
   each model.
 \item
   Add components/constraints, remap declared curve identities in links,
@@ -7330,7 +7330,7 @@ The execution order is fixed:
   requested.
 \end{enumerate}
 
-The 1.1.1 beta preprocessing stage supports masks, fit ranges and the
+The 1.2.0 beta preprocessing stage supports masks, fit ranges and the
 documented scalar/formula transformations. There are no YAML stages for
 background subtraction, curve-to-curve calculator operations, repeated
 fits, conditional branches, loops, live folder monitoring, opening an
@@ -7345,7 +7345,7 @@ usable through \texttt{fit.settings.solver}.
 inspect}\label{w2.-run-validate-and-inspect}
 
 Install the exact downloaded CurveMole wheel in a Python 3.12+
-environment. For new beta operations choose a \texttt{1.1.1bN} wheel,
+environment. For new beta operations choose a \texttt{1.2.0bN} wheel,
 where N is the actual published beta sequence; a \texttt{1.1.0} wheel
 supports only the stable baseline. Then run:
 
@@ -7367,7 +7367,7 @@ and \texttt{-\/-json} beyond the global options; it does not accept fit
 or export overrides.
 
 In 1.1.0, validation checks only the outer schema and container types.
-In 1.1.1 beta, validation also checks supported keys and nested shapes
+In 1.2.0 beta, validation also checks supported keys and nested shapes
 in imports, selectors, preprocessing, components/constraints, fit
 settings and exports, so misspelled keys are reported before execution.
 It does \textbf{not} read the input files, execute plugins, establish
@@ -7388,7 +7388,7 @@ Normal JSON output from \texttt{run} has these keys:
 \texttt{success} and \texttt{statistics} are \texttt{null} when no fit
 ran. \texttt{outputs} contains paths to saved projects and
 created/updated bundle files; it omits unchanged bundle files. The
-actual statistics object contains the fit statistics. In 1.1.1 beta,
+actual statistics object contains the fit statistics. In 1.2.0 beta,
 \texttt{imported\_files} records resolved input paths in import order
 and \texttt{warnings} reports skipped empty selections, for example when
 \texttt{allow\_empty:\ true}. These two additional JSON keys are absent
@@ -7662,8 +7662,8 @@ unused. For repeatable linked workflows, provide a \texttt{curve\_ids}
 entry for every referenced curve and explicit component \texttt{id}
 values. Aliases remain optional human-readable labels.
 
-\subsection{W6.1 Folder and pattern selection (1.1.1
-beta)}\label{w6.1-folder-and-pattern-selection-1.1.1-beta}
+\subsection{W6.1 Folder and pattern selection (1.2.0
+beta)}\label{w6.1-folder-and-pattern-selection-1.2.0-beta}
 
 Use exactly one source selector per import item.
 \texttt{path:\ data/scan.csv} remains a literal file;
@@ -7738,8 +7738,8 @@ removing a file may change them. For enduring scientific identities, use
 meaningful explicit \texttt{curve\_ids} or a suitable filename-derived
 template. Duplicate identities fail.
 
-\subsection{W6.2 Complete folder-fit recipe (1.1.1
-beta)}\label{w6.2-complete-folder-fit-recipe-1.1.1-beta}
+\subsection{W6.2 Complete folder-fit recipe (1.2.0
+beta)}\label{w6.2-complete-folder-fit-recipe-1.2.0-beta}
 
 Place \texttt{scan2.csv} and \texttt{scan10.csv} in \texttt{data/}
 beside the workflow. Each has the same \texttt{x,y,sigma\_y} layout as
@@ -7915,7 +7915,7 @@ fitted observations, N and degrees of freedom when weights are the
 active Y-error representation. Imported X errors do not determine the
 fit mask. Check retained point counts in results.
 
-In 1.1.1 beta, \texttt{spectra} accepts a list of nested mappings, each
+In 1.2.0 beta, \texttt{spectra} accepts a list of nested mappings, each
 describing its own X/Y and error columns. Use it instead of shared
 \texttt{x}/\texttt{y} or \texttt{pairs} when spectra in the same file
 have different error layouts. For example,
@@ -8136,8 +8136,8 @@ For example, this model evaluates
 \end{Highlighting}
 \end{Shaded}
 
-\subsection{W7.1 Shared selectors and preprocessing (1.1.1
-beta)}\label{w7.1-shared-selectors-and-preprocessing-1.1.1-beta}
+\subsection{W7.1 Shared selectors and preprocessing (1.2.0
+beta)}\label{w7.1-shared-selectors-and-preprocessing-1.2.0-beta}
 
 Models, preprocessing steps and the fit plan share curve selection. Use
 one of \texttt{curve:\ identity},
@@ -8417,7 +8417,7 @@ workflow without an explicit Python registry uses an isolated registry;
 a supplied registry remains owned by its caller. Formula definitions are
 not arbitrary Python and need no executable-plugin approval.
 
-\textbf{Custom-function persistence:} 1.1.1 beta copies safe formula
+\textbf{Custom-function persistence:} 1.2.0 beta copies safe formula
 definitions into \texttt{Project.custom\_functions}, using the
 project-format \texttt{derived\_formulas} key, and
 \texttt{dump\_workflow} writes them back as YAML
@@ -8790,7 +8790,7 @@ The workflow module also exposes:
 \BuiltInTok{print}\NormalTok{(outcome.project.name)}
 \BuiltInTok{print}\NormalTok{(outcome.result.success }\ControlFlowTok{if}\NormalTok{ outcome.result }\ControlFlowTok{else} \VariableTok{None}\NormalTok{)}
 \BuiltInTok{print}\NormalTok{(outcome.outputs)                      }\CommentTok{\# list[pathlib.Path]}
-\CommentTok{\# In 1.1.1 beta: outcome.imported\_files and outcome.warnings are also available.}
+\CommentTok{\# In 1.2.0 beta: outcome.imported\_files and outcome.warnings are also available.}
 \end{Highlighting}
 \end{Shaded}
 
@@ -8843,7 +8843,7 @@ Example prompt:
 
 \begin{quote}
 Use the attached CurveMole YAML audit as the API contract. I am running
-CurveMole 1.1.1 beta. Create one schema-3 workflow for the attached
+CurveMole 1.2.0 beta. Create one schema-3 workflow for the attached
 column layout. Use only documented fields and function names. Ask for
 missing scientific assumptions. Return the complete YAML, the
 validate/run commands, the expected outputs, and any limitations. If the
@@ -8868,7 +8868,7 @@ for}\label{h.1-what-the-two-audits-are-for}
 The two downloadable Markdown documents are self-contained context packs
 for creating CurveMole automations with an AI assistant. Each records
 the interfaces verified against the stable 1.1.0 API and the marked
-1.1.1 beta workflow additions, including exact names, configuration
+1.2.0 beta workflow additions, including exact names, configuration
 fields, defaults, examples, return values and practical limits. Here,
 ``audit'' means an inspection of the implemented automation interface.
 It does not mean a security certification, an executable script, or an
@@ -8904,7 +8904,7 @@ F and G \\
 
 Python is appropriate for loops, conditional processing,
 existing-project editing, unsupported transformations, explicit
-uncertainty analyses or selective exports. In 1.1.1 beta, YAML also
+uncertainty analyses or selective exports. In 1.2.0 beta, YAML also
 supports folder/pattern imports, shared curve selectors, masking, fit
 ranges and the documented scalar/formula preprocessing. Use schema 3 for
 those additions. YAML follows a declarative sequence of imports,
@@ -8917,7 +8917,7 @@ imported data; it does not edit the open GUI project.
 \section{H.2 Download and version
 matching}\label{h.2-download-and-version-matching}
 
-For 1.1.1 beta, use the versioned audits attached to the exact beta
+For 1.2.0 beta, use the versioned audits attached to the exact beta
 release. The latest testing-source editions are also available here:
 
 \begin{itemize}
@@ -8986,7 +8986,7 @@ A YAML request can be written as:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Use the attached audit for CurveMole 1.1.1 beta. Generate a complete schema{-}3}
+\NormalTok{Use the attached audit for CurveMole 1.2.0 beta. Generate a complete schema{-}3}
 \NormalTok{workflow and the CLI commands to validate and run it. Import *.csv from data/}
 \NormalTok{in natural filename order. Files have a comma separator, a header and x, y, sigma\_y}
 \NormalTok{columns; sigma\_y means one standard deviation. Apply a constant background and}
