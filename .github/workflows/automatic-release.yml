@@ -68,7 +68,7 @@ jobs:
 
   prepare:
     needs: plan
-    if: needs.plan.outputs.active == 'true' && needs.plan.outputs.commit_sha == ''
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.active == 'true' && needs.plan.outputs.commit_sha == ''
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
@@ -106,7 +106,7 @@ jobs:
 
   commit:
     needs: [plan, prepare]
-    if: always() && needs.plan.outputs.active == 'true' && (needs.plan.outputs.commit_sha != '' || needs.prepare.result == 'success')
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.active == 'true' && (needs.plan.outputs.commit_sha != '' || needs.prepare.result == 'success')
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     concurrency:
@@ -131,12 +131,14 @@ jobs:
 
   validate:
     needs: commit
+    if: always() && !cancelled() && needs.commit.result == 'success'
     uses: ./.github/workflows/validate.yml
     with:
       source_ref: ${{ needs.commit.outputs.commit_sha }}
 
   draft:
     needs: [plan, commit, validate]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.commit.result == 'success' && needs.validate.result == 'success'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -152,6 +154,7 @@ jobs:
 
   packages:
     needs: [plan, draft]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.draft.result == 'success'
     uses: ./.github/workflows/build-desktop.yml
     with:
       source_ref: v${{ needs.plan.outputs.version }}
@@ -159,6 +162,7 @@ jobs:
 
   doi:
     needs: [plan, packages]
+    if: always() && !cancelled() && needs.plan.result == 'success' && needs.packages.result == 'success'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -171,7 +175,7 @@ jobs:
 
   sync-testing:
     needs: [commit, packages]
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    if: always() && !cancelled() && needs.commit.result == 'success' && needs.packages.result == 'success' && (github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'))
     runs-on: ubuntu-22.04
     permissions:
       contents: write
