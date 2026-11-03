@@ -50,7 +50,7 @@ jobs:
       cancel-in-progress: true
       queue: single
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os == 'macos-14' && 15 || 10 }}
+    timeout-minutes: ${{ matrix.os != 'ubuntu-22.04' && 15 || 10 }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,8 +64,9 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --no-default-groups --group test
       - name: Tests
-        # The macOS offscreen GUI suite continues progressing beyond eight minutes.
-        timeout-minutes: ${{ matrix.os == 'macos-14' && 12 || 8 }}
+        # Valid desktop runs can approach/exceed eight minutes (Windows: 7m47s).
+        # Allow runner variation and Qt shutdown while retaining a bounded timeout.
+        timeout-minutes: ${{ matrix.os != 'ubuntu-22.04' && 12 || 8 }}
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
