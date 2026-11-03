@@ -79,7 +79,7 @@ jobs:
           if [[ "$RUNNER_OS" == Linux && "${{ matrix.python }}" == 3.12 ]]; then
             coverage+=(--cov=curvemole --cov-report=term-missing --cov-report=xml:coverage.xml)
           fi
-          uv run --no-sync pytest -q -o faulthandler_timeout=60 "${coverage[@]}"
+          uv run --no-sync python scripts/run_ci_tests.py -q -o faulthandler_timeout=60 "${coverage[@]}"
       - uses: actions/upload-artifact@v7
         if: runner.os == 'Linux' && matrix.python == '3.12'
         with:
