@@ -381,6 +381,10 @@ La correzione seleziona esplicitamente il Bash dell'installazione Git su Windows
 e usa percorsi output con slash compatibili. Un test riproduce il caso in cui
 il Bash WSL precede Git Bash nel PATH. I cinque controlli rimangono attivi su
 Windows; non sono stati disabilitati per far passare la matrice.
+La run successiva ha mostrato che il Git del runner proviene da `ucrt64/bin`:
+la ricerca risale ora fino alla radice dell'installazione, senza presumere
+una profondità fissa. I test coprono `cmd`, `bin`, `ucrt64/bin`, `mingw64/bin`
+e `usr/bin`, mantenendo escluso il launcher WSL.
 
 1. Su una normale beta o su una prova con `[beta artifacts only]`, verificare
    che documentazione preceda packaging e che il manuale offline corrisponda

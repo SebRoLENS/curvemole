@@ -35,18 +35,28 @@ def workflow_bash(*, windows: bool = os.name == "nt") -> str:
         raise RuntimeError("Git Bash is required to exercise workflow shell scripts")
     path = Path(executable).resolve()
     if windows:
-        path = path.parent.parent / "bin" / "bash.exe"
+        # Git Bash may put ucrt64/bin or mingw64/bin ahead of Git/cmd in
+        # PATH. Find the installation root instead of assuming a fixed depth.
+        for root in path.parents:
+            for relative in ("bin/bash.exe", "usr/bin/bash.exe"):
+                candidate = root / relative
+                if candidate.is_file():
+                    return str(candidate)
+        raise RuntimeError(f"Git Bash executable not found beside {path}")
     if not path.is_file():
         raise RuntimeError(f"Workflow Bash executable not found: {path}")
     return str(path)
 
 
-def test_windows_workflow_shell_uses_git_bash_instead_of_wsl(tmp_path, monkeypatch):
-    git_exe = tmp_path / "Git" / "cmd" / "git.exe"
+@pytest.mark.parametrize("git_relative", [
+    "cmd/git.exe", "bin/git.exe", "ucrt64/bin/git.exe", "mingw64/bin/git.exe", "usr/bin/git.exe",
+])
+def test_windows_workflow_shell_uses_git_bash_instead_of_wsl(tmp_path, monkeypatch, git_relative):
+    git_exe = tmp_path / "Git" / git_relative
     git_exe.parent.mkdir(parents=True)
     git_exe.touch()
     bash = tmp_path / "Git" / "bin" / "bash.exe"
-    bash.parent.mkdir()
+    bash.parent.mkdir(exist_ok=True)
     bash.touch()
     wsl = tmp_path / "System32" / "bash.exe"
     monkeypatch.setattr(shutil, "which", lambda name: str(git_exe if name == "git" else wsl))
