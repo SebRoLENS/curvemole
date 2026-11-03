@@ -1,0 +1,78 @@
+name: Desktop style screenshots
+
+on:
+  push:
+    branches: [testing]
+    paths:
+      - .github/workflows/desktop-style-screenshots.yml
+      - scripts/compare_desktop_styles.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-style-screenshots-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    if: github.ref == 'refs/heads/testing'
+    name: Current and Fusion / ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: Linux
+            backend: xcb
+          - os: windows-2022
+            platform: Windows
+            backend: windows
+          - os: macos-14
+            platform: macOS
+            backend: cocoa
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    env:
+      PYTHONPATH: src
+      QT_QPA_PLATFORM: ${{ matrix.backend }}
+      CURVEMOLE_DISABLE_UPDATE_CHECK: "1"
+      CURVEMOLE_DISABLE_PLUGINS: "1"
+      CURVEMOLE_SCREENSHOT_RUNNER: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Linux display dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install screenshot dependencies
+        run: uv sync --locked --no-default-groups --group screenshots
+      - name: Capture Linux native controls under X11
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1920x1200x24" uv run --no-sync python scripts/compare_desktop_styles.py --output style-screenshots/Linux
+      - name: Capture Windows and macOS native controls
+        if: runner.os != 'Linux'
+        run: uv run --no-sync python scripts/compare_desktop_styles.py --output style-screenshots/${{ matrix.platform }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: CurveMole-style-comparison-${{ matrix.platform }}
+          path: style-screenshots/${{ matrix.platform }}/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Summarize screenshot artifact
+        shell: bash
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+          ## ${{ matrix.platform }}: current style and Fusion
+          Download **CurveMole-style-comparison-${{ matrix.platform }}** below.
+          It includes light/dark side-by-side PNGs, original captures and environment metadata.
+          Screenshots use native Qt controls and the platform font on **${{ matrix.os }}**.
+          Window contents are captured; OS title bars and the macOS global menu are excluded.
+          This workflow only uploads screenshots. It never creates packages, tags or releases.
+          SUMMARY
