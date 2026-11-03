@@ -52,6 +52,8 @@ jobs:
     if: needs.discover.outputs.found == 'true'
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    outputs:
+      source_sha: ${{ steps.apply.outputs.source_sha }}
     permissions:
       contents: write
     concurrency:
@@ -69,9 +71,28 @@ jobs:
       - name: Install toolchain for the revised stable manual
         run: bash .github/scripts/install_document_toolchain.sh
       - name: Update only missing metadata and changed release notes
+        id: apply
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python .github/scripts/doi_workflow.py apply
+        run: |
+          python .github/scripts/doi_workflow.py apply
+          echo "source_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  sync-testing:
+    needs: apply
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    concurrency:
+      group: curvemole-testing-write
+      cancel-in-progress: false
+      queue: max
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.apply.outputs.source_sha }}
+          fetch-depth: 0
       - name: Keep testing aligned with metadata discovered after stable publication
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,4 +135,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BETA_VERSION: ${{ inputs.channel == 'beta' && inputs.version || '' }}
-        run: python .github/scripts/beta_doi.py --version "$BETA_VERSION"
+        run: python .github/scripts/beta_doi.py --version "$BETA_VERSION" --attempts "${{ inputs.channel == 'beta' && '10' || '1' }}"

@@ -88,6 +88,11 @@ def sync(version: str = "", *, attempts: int = 10, delay: float = 30) -> list[st
         pages = json.loads(gh("api", "--paginate", "--slurp",
                               f"repos/{repository}/releases?per_page=100"))
         releases = [item for page in pages for item in page if published_beta(item)]
+        # Backfills revisit only pending notes. An explicit version still checks
+        # Zenodo again, allowing an incorrect or stale DOI to be repaired.
+        releases = [item for item in releases if not re.search(
+            r"(?m)^\*\*Zenodo DOI:\*\* https://doi.org/10\.5281/zenodo\.\d+\s*$",
+            item.get("body") or "")]
     pending = list(releases)
     for attempt in range(attempts):
         remaining = []

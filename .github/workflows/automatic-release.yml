@@ -21,19 +21,19 @@ on:
         type: string
 
 permissions:
-  contents: write
-  actions: write
-  id-token: write
-  attestations: write
+  contents: read
 
 concurrency:
-  group: release-pipeline-${{ github.ref }}
+  # Main releases and testing promotions share the same stable publication state.
+  group: release-pipeline
   cancel-in-progress: false
   queue: max
 
 jobs:
   promotion:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
+    permissions:
+      contents: write
     uses: ./.github/workflows/promote-testing.yml
     with:
       bump: ${{ inputs.bump || 'patch' }}
@@ -108,6 +108,8 @@ jobs:
     needs: [plan, prepare]
     if: always() && !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.active == 'true' && (needs.plan.outputs.commit_sha != '' || needs.prepare.result == 'success')
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 5
     concurrency:
       group: curvemole-main-write
@@ -140,6 +142,8 @@ jobs:
     needs: [plan, commit, validate]
     if: always() && !cancelled() && needs.plan.result == 'success' && needs.commit.result == 'success' && needs.validate.result == 'success'
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -156,6 +160,10 @@ jobs:
     needs: [plan, draft]
     if: always() && !cancelled() && needs.plan.result == 'success' && needs.draft.result == 'success'
     uses: ./.github/workflows/build-desktop.yml
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     with:
       source_ref: v${{ needs.plan.outputs.version }}
     secrets: inherit
@@ -164,6 +172,8 @@ jobs:
     needs: [plan, packages]
     if: always() && !cancelled() && needs.plan.result == 'success' && needs.packages.result == 'success'
     runs-on: ubuntu-22.04
+    permissions:
+      actions: write
     timeout-minutes: 5
     steps:
       - name: Schedule DOI discovery after final publication
@@ -173,10 +183,25 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: gh workflow run sync-zenodo-doi.yml --repo "$GITHUB_REPOSITORY" --ref main -f "version=$VERSION"
 
+  plugins:
+    needs: [commit, packages]
+    if: always() && !cancelled() && needs.commit.result == 'success' && needs.packages.result == 'success'
+    uses: ./.github/workflows/community-plugins.yml
+    permissions:
+      contents: write
+    with:
+      source_ref: ${{ needs.commit.outputs.commit_sha }}
+      publish_stable: true
+
   sync-testing:
     needs: [commit, packages]
     if: always() && !cancelled() && needs.commit.result == 'success' && needs.packages.result == 'success' && (github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'))
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    concurrency:
+      group: curvemole-testing-write
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     steps:

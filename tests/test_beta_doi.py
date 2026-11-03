@@ -107,6 +107,13 @@ def test_completed_sync_is_idempotent_and_corrects_a_stale_doi(beta, monkeypatch
     assert "zenodo.456" in beta.updated_body(current["body"], "10.5281/zenodo.456")
 
 
+def test_backfill_does_not_query_zenodo_again_for_completed_notes(beta, monkeypatch):
+    current = release(body="Notes\n\n**Zenodo DOI:** https://doi.org/10.5281/zenodo.123")
+    monkeypatch.setattr(beta, "gh", lambda *args: json.dumps([[current]]))
+    monkeypatch.setattr(beta, "find_beta_doi", lambda *args: pytest.fail("Completed beta queried again"))
+    assert beta.sync(attempts=1) == []
+
+
 def test_delayed_archive_retries_then_reports_pending_without_inventing_a_doi(beta, monkeypatch):
     monkeypatch.setattr(beta, "gh", lambda *args: json.dumps(release()))
     monkeypatch.setattr(beta, "find_beta_doi", lambda *args: None)

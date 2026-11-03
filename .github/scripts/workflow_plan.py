@@ -18,6 +18,7 @@ DOCUMENT_PATHS = (
     "docs/manual.md", "docs/manual-preamble.tex", "docs/screenshots/",
     "src/curvemole/resources/curvemole.png", "scripts/build_manual.py",
     "src/curvemole/version.py", ".github/workflows/documentation.yml",
+    ".github/scripts/install_document_toolchain.sh",
 )
 SCREENSHOT_PATHS = (
     "src/curvemole/gui/", "src/curvemole/resources/", "scripts/generate_screenshots.py",
@@ -26,6 +27,7 @@ SCREENSHOT_PATHS = (
 PLUGIN_PATHS = (
     "custom_plugins/", "src/curvemole/core/", "src/curvemole/__init__.py",
     "pyproject.toml", "uv.lock", "scripts/validate_community_plugins.py",
+    "src/curvemole/plugin_fingerprint.py",
     ".github/workflows/community-plugins.yml",
 )
 
@@ -38,10 +40,10 @@ def touches(paths: list[str], patterns: tuple[str, ...]) -> bool:
 def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bool]:
     push = event == "push" and actor != "github-actions[bot]"
     release = push and "[skip release]" not in message and touches(paths, RELEASE_PATHS)
-    screenshots = push and not release and touches(paths, SCREENSHOT_PATHS)
+    screenshots = not release and touches(paths, SCREENSHOT_PATHS)
     return {
         "release": release,
-        "documentation": not release and (push or screenshots or touches(paths, DOCUMENT_PATHS)),
+        "documentation": not release and (screenshots or touches(paths, DOCUMENT_PATHS)),
         "screenshots": screenshots,
         "plugins": touches(paths, PLUGIN_PATHS),
         "candidate": push and "[skip release]" in message and touches(paths, RELEASE_PATHS),

@@ -81,10 +81,12 @@ stable DOI, manual version, or `main`. Each published beta's own Zenodo DOI is
 linked in that beta's release notes. Manual Testing builds default to artifacts only;
 publishing must be explicitly selected. Windows/macOS signing follows the stable
 pipeline. The manual retains the stable baseline version in its title, with
-clearly marked beta-specific reference sections. Rebuild and commit its PDF and
-LaTeX editions before a beta push. The validation job checks those committed
-editions before packaging. The separate documentation job copies them without
-stamping stable source/manual metadata, together with both standalone AI audits.
+clearly marked beta-specific reference sections. Keep the tracked PDF and LaTeX
+editions consistent when editing the manual. After source validation, the
+documentation job builds a fresh manual from the exact tested Markdown and
+packages both standalone AI audits. All desktop and Python package jobs consume
+that same artifact before building, so their offline manual matches the beta's
+standalone documentation without stamping stable source/manual metadata.
 
 Each published beta includes versioned `User-Manual.pdf`, `User-Manual.tex`,
 `AI-Python-Audit.md` and `AI-YAML-Audit.md` assets in addition to desktop/Python
@@ -159,7 +161,7 @@ Before publishing, GitHub Actions synchronises the version in the Python package
 tests, builds the Python packages, and generates LaTeX and PDF manuals from
 `docs/manual.md`. It then creates an annotated tag and GitHub Release.
 
-A second workflow builds and smoke-tests:
+The reusable packaging workflow builds and smoke-tests:
 
 - Linux x86_64 AppImage, with GitHub artifact attestation
 - Windows x86_64 per-user installer and portable ZIP
@@ -175,10 +177,15 @@ creating a separate Actions AppImage artifact. A downloadable Actions AppImage t
 artifact is built from a human-triggered `main` commit containing `[skip release]`,
 or as part of a `testing` beta build.
 
-The first installer-enabled release also publishes the legacy raw Windows executable
-so older self-updaters can reach the transition release. Remove that raw executable
-from the Windows artifact upload after the transition release succeeds; current
+The first installer-enabled release also published the legacy raw Windows executable
+so older self-updaters could reach the transition release. That transition is complete:
+the Windows artifact upload contains the installer and portable ZIP only. Current
 portable builds update from the ZIP and installed builds update through the installer.
+
+After stable publication the release pipeline explicitly validates and publishes
+the community plugin catalog from its prepared stable commit. This also covers
+manual testing promotions: a bot push to `main` does not start another push CI.
+When CI delegates a release, it leaves plugin publication to that pipeline.
 
 ## macOS signing and notarization
 
@@ -240,8 +247,10 @@ Develop and validate these changes on `testing`, committing with `[skip release]
 When the user requests immediate publication, promote only the reviewed
 citation/documentation/website changes to `main`, also with `[skip release]`.
 Do not include unrelated beta application code or change the stable version.
-Main CI rebuilds the current manual and publishes the website against the
-existing complete stable release. This does not require a new software release.
+Main CI rebuilds the current manual when manual inputs or GUI screenshots change;
+README-only and website-only edits do not install the document toolchain.
+Website publication still checks the existing complete stable release. This does
+not require a new software release.
 
 `CITATION.cff` is the source for the author, title, date, version DOI, Concept DOI
 and RRID. Run `python .github/scripts/citation_metadata.py` to regenerate all
@@ -336,6 +345,38 @@ The testing documentation job installs the document toolchain and invokes
 temporary build directory. It never edits tracked stable manual/version metadata.
 Missing toolchain, invalid source or a failed PDF build blocks documentation and
 therefore publication; it never substitutes an older committed PDF silently.
+Packaging waits for this artifact and installs its manual and audits in the
+temporary package checkout before building every desktop/Python distribution.
+
+## Workflow coordination and audit
+
+Stable releases and testing promotions share `release-pipeline`; they cannot
+prepare competing stable versions concurrently. Generated `main` writes retain
+`curvemole-main-write`. Changelog and metadata synchronization jobs share
+`curvemole-testing-write`, acquired only for the jobs that write `testing`.
+These writers use non-cancelling maximum queues; Git checks still reject stale
+or conflicting human pushes. PR CI cancels superseded runs as a whole; main CI
+keeps a non-cancelling maximum queue. Normal testing builds retain the current
+run and newest pending run.
+
+Packaging resolves its source ref once to a commit SHA. Only an exact
+`vMAJOR.MINOR.PATCH` input enters stable asset publication; branch names beginning
+with `v` remain artifact builds. Untagged manual builds retain a Linux artifact
+alongside the other platform artifacts. Stable AppImages still upload directly
+to the draft. Beta/Linux and other package artifacts expire after seven days.
+
+Hourly or infrastructure-triggered beta DOI backfills skip notes already carrying
+a version DOI and make one attempt for pending archives. An explicit version
+rechecks Zenodo and can repair a stale DOI; newly published betas retain the ten
+poll attempts. Stable discovery and website readiness paginate the release catalog
+so frequent betas cannot hide stable releases.
+
+The website accepts automatic notifications from successful main push CI and
+manual Automatic release runs only. PR completion cannot request a deployment.
+The existing release/DOI/readiness gates still apply.
+
+See the [detailed workflow audit of 3 November 2026](github-workflows-audit-2026-11-03.md)
+for findings, tradeoffs, verification and remaining operational checks.
 
 ## Explicit withdrawal of a superseded beta
 

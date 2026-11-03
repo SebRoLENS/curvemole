@@ -107,6 +107,19 @@ def file_digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def install_documents(version: str, directory: Path, root: Path = Path(".")) -> None:
+    """Bundle the same generated manual and audits as the beta release assets."""
+    payloads = {source: (directory / name).read_bytes()
+                for name, source in documentation_assets(version).items()}
+    for source, payload in payloads.items():
+        if not payload or (source.endswith(".pdf") and not payload.startswith(b"%PDF-")):
+            raise ValueError(f"Invalid beta documentation: {source}")
+        if not source.endswith(".pdf"):
+            payload.decode("utf-8")
+    for source, payload in payloads.items():
+        (root / source).write_bytes(payload)
+
+
 def publish(version: str, directory: Path) -> None:
     if not re.fullmatch(r"\d+\.\d+\.\d+b[1-9]\d*", version):
         raise ValueError("Only beta versions may use this publisher")
@@ -177,8 +190,9 @@ def publish(version: str, directory: Path) -> None:
     subprocess.run(["gh", "release", "upload", tag, "--repo", repository,
                     *map(str, files.values()), "--clobber"], check=True)
     # The list endpoint reliably includes drafts for an authenticated push token.
-    response = subprocess.check_output(["gh", "api", f"repos/{repository}/releases?per_page=100"], text=True)
-    current = next(item for item in json.loads(response) if item["tag_name"] == tag)
+    response = subprocess.check_output(["gh", "api", "--paginate", "--slurp",
+                                        f"repos/{repository}/releases?per_page=100"], text=True)
+    current = next(item for page in json.loads(response) for item in page if item["tag_name"] == tag)
     uploaded = {asset["name"]: asset for asset in current["assets"]}
     if set(uploaded) != set(checks) or any(
         uploaded[name].get("digest") != f"sha256:{digest}"
@@ -192,7 +206,7 @@ def publish(version: str, directory: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["plan", "stamp", "documents", "publish"])
+    parser.add_argument("command", choices=["plan", "stamp", "documents", "install-documents", "publish"])
     parser.add_argument("--version", default=os.environ.get("BETA_VERSION", ""))
     parser.add_argument("--directory", type=Path, default=Path("beta-assets"))
     args = parser.parse_args()
@@ -210,6 +224,8 @@ def main() -> None:
     elif args.command == "documents":
         for document in prepare_documents(args.version, args.directory):
             print(document)
+    elif args.command == "install-documents":
+        install_documents(args.version, args.directory)
     else:
         publish(args.version, args.directory)
 

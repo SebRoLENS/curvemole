@@ -142,6 +142,11 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in workflow['on']
     assert set(workflow['on']['workflow_run']['workflows']) == {'CI', 'Automatic release'}
+    condition = workflow['jobs']['deploy']['if']
+    assert "github.event.workflow_run.event == 'push'" in condition
+    assert "github.event.workflow_run.head_branch == 'main'" in condition
+    assert "github.event.workflow_run.event == 'workflow_dispatch'" in condition
+    assert "github.event.workflow_run.name == 'Automatic release'" in condition
     steps = workflow['jobs']['deploy']['steps']
     render = next(i for i, s in enumerate(steps) if 'render_demo_screenshots.py' in s.get('run', ''))
     deploy = next(i for i, s in enumerate(steps) if s.get('id') == 'deployment')
@@ -163,7 +168,7 @@ def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
     assert "needs.apply.result == 'skipped'" in condition
     assert publish['permissions']['actions'] == 'write'
     assert '-f mode=integrated' in publish['steps'][0]['run']
-    metadata_sync = workflow['jobs']['apply']['steps'][-1]
+    metadata_sync = workflow['jobs']['sync-testing']['steps'][-1]
     assert 'isDraft == false and .isPrerelease == false' in metadata_sync['run']
     assert 'promote_testing.py sync' in metadata_sync['run']
     website = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
@@ -187,7 +192,11 @@ def test_standalone_does_not_require_ci_but_still_requires_release_metadata(
 
     def api(path):
         assert 'ci.yml' not in path, 'Standalone publication must not query the full CI'
-        return [release] if path.startswith('releases?') else {'workflow_runs': []}
+        if path.startswith('releases?'):
+            if path.endswith('page=1'):
+                return [{'tag_name': f'v1.2.4-beta.{i}'} for i in range(100)]
+            return [release]
+        return {'workflow_runs': []}
 
     monkeypatch.setattr(website, 'api', api)
     monkeypatch.setattr(website, 'git', lambda *args: 'abc123')

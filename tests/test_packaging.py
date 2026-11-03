@@ -50,7 +50,7 @@ def test_all_desktop_builds_explicitly_collect_dynamic_svg_renderer() -> None:
     assert "packaging/curvemole.spec" in build
 
 
-def test_stable_appimage_is_direct_and_beta_artifact_requires_beta_version() -> None:
+def test_stable_appimage_is_direct_and_untagged_builds_retain_an_artifact() -> None:
     desktop = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "build-desktop.yml").read_text(encoding="utf-8")
     )
@@ -63,11 +63,11 @@ def test_stable_appimage_is_direct_and_beta_artifact_requires_beta_version() -> 
     artifacts = [step for step in linux_steps
                  if step.get("uses", "").startswith("actions/upload-artifact")]
     assert len(artifacts) == 1
-    assert artifacts[0]["if"] == "inputs.beta_version != ''"
+    assert artifacts[0]["if"] == "needs.preflight.outputs.release != 'true'"
     direct_upload = next(
         step for step in linux_steps if step.get("name") == "Attach Linux files directly to tagged release"
     )
-    assert "startsWith(inputs.source_ref, 'v')" in direct_upload["if"]
+    assert direct_upload["if"] == "needs.preflight.outputs.release == 'true'"
     assert "gh release upload" in direct_upload["run"]
     publish_steps = desktop["jobs"]["publish-release-assets"]["steps"]
     assert any("gh release download" in step.get("run", "") for step in publish_steps)

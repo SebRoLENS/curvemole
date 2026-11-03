@@ -21,6 +21,7 @@ jobs:
   plan:
     if: github.ref == 'refs/heads/testing'
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     outputs:
       version: ${{ steps.plan.outputs.version }}
     steps:
@@ -35,7 +36,7 @@ jobs:
       source_ref: ${{ github.sha }}
 
   packages:
-    needs: [plan, validate]
+    needs: [plan, validate, documents]
     # Metadata/infrastructure changes still run source validation without
     # publishing an otherwise identical application build.
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip release]')
@@ -77,8 +78,13 @@ jobs:
     # validation/publication. This commit never creates another beta release.
     # Stale runs skip their write; the next push regenerates from Git tags.
     needs: [validate, publish]
-    if: always() && needs.validate.result == 'success'
+    if: always() && !cancelled() && needs.validate.result == 'success'
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    concurrency:
+      group: curvemole-testing-write
+      cancel-in-progress: false
+      queue: max
     permissions:
       contents: write
     steps:
@@ -114,6 +120,7 @@ jobs:
       (github.event_name == 'push' && !contains(github.event.head_commit.message, '[beta artifacts only]')) ||
       (github.event_name == 'workflow_dispatch' && inputs.publish)
     runs-on: ubuntu-22.04
+    timeout-minutes: 15
     permissions:
       contents: write
     steps:
@@ -139,7 +146,7 @@ jobs:
   doi:
     needs: [plan, validate, publish]
     if: >-
-      always() && needs.validate.result == 'success' &&
+      always() && !cancelled() && needs.validate.result == 'success' &&
       (needs.publish.result == 'success' ||
        (github.event_name == 'push' && contains(github.event.head_commit.message, '[skip release]')))
     runs-on: ubuntu-22.04
@@ -156,4 +163,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           BETA_VERSION: ${{ needs.publish.result == 'success' && needs.plan.outputs.version || '' }}
-        run: python .github/scripts/beta_doi.py --version "$BETA_VERSION"
+        run: python .github/scripts/beta_doi.py --version "$BETA_VERSION" --attempts "${{ needs.publish.result == 'success' && '10' || '1' }}"

@@ -84,8 +84,13 @@ def ready(*, require_ci=True):
     version = re.search(r'^__version__ = "([\d.]+)"',
                         (ROOT / 'src/curvemole/version.py').read_text(encoding="utf-8"), re.M)[1]
     # Listing also handles an absent or draft release without treating DOI delay as an error.
-    releases = api('releases?per_page=100')
-    release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
+    release, page = {}, 1
+    while not release:
+        releases = api(f'releases?per_page=100&page={page}')
+        release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
+        if len(releases) < 100:
+            break
+        page += 1
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     if not release_ready(release, version, citation, (ROOT / 'README.md').read_text(encoding="utf-8")):
         return None, f'Waiting for v{version}: published packages/manual and matching Zenodo DOI.'

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import tarfile
 from pathlib import Path
@@ -27,14 +28,17 @@ lint = load("lint_workflows")
 
 @pytest.mark.parametrize("paths,event,message,expected", [
     (["src/curvemole/gui/panels.py", "docs/manual.md"], "push", "Fix UI", {"release"}),
-    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins", "documentation"}),
+    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins"}),
     (["docs/manual.md"], "push", "Explain fitting [skip release]", {"documentation"}),
     (["src/curvemole/gui/panels.py"], "push", "Fix UI [skip release]",
      {"documentation", "screenshots", "candidate"}),
     (["src/curvemole/core/fitting.py"], "pull_request", "Fix fit", {"plugins"}),
-    (["README.md"], "push", "Correct spelling", {"documentation"}),
-    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins", "documentation"}),
+    (["README.md"], "push", "Correct spelling", set()),
+    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins"}),
     (["docs/screenshots/import-file-preview.png"], "pull_request", "Preview", {"documentation"}),
+    (["src/curvemole/gui/panels.py"], "pull_request", "Preview UI", {"documentation", "screenshots"}),
+    ([".github/scripts/install_document_toolchain.sh"], "pull_request", "Fix tools", {"documentation"}),
+    (["src/curvemole/plugin_fingerprint.py"], "pull_request", "Fix fingerprint", {"plugins"}),
 ])
 def test_one_plan_avoids_duplicate_and_unrelated_jobs(paths, event, message, expected):
     result = policy.plan(paths, event, message, "maintainer")
@@ -401,3 +405,74 @@ def test_doi_lookup_skips_completed_releases_and_body_updates_are_idempotent(mon
     assert doi.discover("") == []
     assert doi.updated_body(body, "10.5281/zenodo.1234") == body
     assert doi.body_doi(doi.updated_body("Description", "10.5281/zenodo.1234")) == "10.5281/zenodo.1234"
+
+
+def test_stable_doi_discovery_is_not_hidden_by_a_full_page_of_betas(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / ".github/scripts"))
+    doi = load("doi_workflow")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    calls = []
+
+    def releases(*args):
+        calls.append(args[-1])
+        if args[-1].endswith("page=1"):
+            return json.dumps([{"draft": False, "prerelease": True} for _ in range(100)])
+        return json.dumps([{"draft": False, "prerelease": False, "tag_name": "v1.2.3", "body": ""}])
+
+    monkeypatch.setattr(doi, "gh", releases)
+    monkeypatch.setattr(doi.zenodo, "find_doi", lambda version: "10.5281/zenodo.123")
+    assert doi.discover("") == [{"version": "1.2.3", "doi": "10.5281/zenodo.123"}]
+    assert len(calls) == 2
+
+
+def test_workflow_writers_share_resource_locks_and_release_jobs_do_not_duplicate_plugins():
+    workflows = {p.stem: yaml.load(p.read_text(), Loader=yaml.BaseLoader)
+                 for p in (ROOT / ".github/workflows").glob("*.yml")}
+    release = workflows["automatic-release"]
+    assert release["concurrency"]["group"] == "release-pipeline"
+    writers = [workflows["testing"]["jobs"]["changelog"], release["jobs"]["sync-testing"],
+               workflows["sync-zenodo-doi"]["jobs"]["sync-testing"]]
+    for job in writers:
+        assert job["concurrency"] == {
+            "group": "curvemole-testing-write", "cancel-in-progress": "false", "queue": "max"}
+    assert "needs.plan.outputs.release != 'true'" in workflows["ci"]["jobs"]["plugins"]["if"]
+    assert release["jobs"]["plugins"]["with"]["publish_stable"] == "true"
+    assert set(release["jobs"]["plugins"]["needs"]) == {"commit", "packages"}
+    plugins = workflows["community-plugins"]
+    assert plugins["on"]["workflow_call"]["inputs"]["publish_stable"]["default"] == "false"
+    assert "inputs" not in (plugins["on"]["workflow_dispatch"] or {})
+    # Every actual runner gets a bounded execution time; callers inherit the callee's limits.
+    for workflow in workflows.values():
+        for job in workflow["jobs"].values():
+            if "runs-on" in job:
+                assert "timeout-minutes" in job
+
+
+@pytest.mark.parametrize("source,is_release", [
+    ("v1.2.3", True), ("validation", False), ("v1.2.3-beta.1", False), ("main", False),
+])
+def test_packaging_preflight_only_classifies_exact_stable_tags(tmp_path, source, is_release):
+    workflow = yaml.safe_load((ROOT / ".github/workflows/build-desktop.yml").read_text())
+    script = next(step["run"] for step in workflow["jobs"]["preflight"]["steps"]
+                  if step.get("id") == "check")
+    # Avoid the remote preflight itself; exercise the real workflow shell classifier.
+    script = 'python() { printf "build=true\\n" >> "$GITHUB_OUTPUT"; }\n' + script
+    output = tmp_path / "outputs"
+    subprocess.run(["bash", "-eo", "pipefail", "-c", script], check=True,
+                   env={**os.environ, "SOURCE_REF": source, "GITHUB_OUTPUT": str(output)})
+    assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
+        "build": "true", "release": str(is_release).lower()}
+
+
+def test_packaging_resolves_a_branch_once_and_all_build_jobs_use_its_sha(repository, monkeypatch):
+    workflow = yaml.safe_load((ROOT / ".github/workflows/build-desktop.yml").read_text())
+    jobs = workflow["jobs"]
+    script = next(step["run"] for step in jobs["preflight"]["steps"] if step.get("id") == "source")
+    monkeypatch.setenv("SOURCE_REF", "main")
+    original = git(repository, "rev-parse", "HEAD")
+    subprocess.run(["bash", "-eo", "pipefail", "-c", script], check=True)
+    output = Path(os.environ["GITHUB_OUTPUT"]).read_text()
+    assert f"source_sha={original}" in output
+    for name in ("prepare-icons", "python-packages", "linux", "windows", "macos"):
+        assert any(step.get("with", {}).get("ref") == "${{ needs.preflight.outputs.source_sha }}"
+                   for step in jobs[name]["steps"])

@@ -290,7 +290,10 @@ def test_beta_publication_checks_all_assets_and_never_sets_latest(tmp_path, monk
                   if name != "beta-notes.md"]
         if corrupt_upload:
             assets[0]["digest"] = "sha256:bad"
-        return json.dumps([{"tag_name": "v1.0.2-beta.1", "assets": assets}])
+        assert "--paginate" in command and "--slurp" in command
+        # A resumed draft can be beyond the first page of a busy release catalog.
+        return json.dumps([[{"tag_name": f"v0.0.{i}"} for i in range(100)],
+                           [{"tag_name": "v1.0.2-beta.1", "assets": assets}]])
 
     monkeypatch.setattr(beta.subprocess, "run", run)
     monkeypatch.setattr(beta.subprocess, "check_output", response)
@@ -316,10 +319,37 @@ def test_bootstrap_is_artifacts_only_and_testing_cannot_publish_stable():
     assert set(workflow["jobs"]["publish"]["needs"]) == {"plan", "packages", "documents"}
     documents = workflow["jobs"]["documents"]
     assert set(documents["needs"]) == {"plan", "validate"}
+    assert set(workflow["jobs"]["packages"]["needs"]) == {"plan", "validate", "documents"}
     assert "[skip release]" in documents["if"]
     assert any(step.get("with", {}).get("name") == "release-documentation"
                for step in documents["steps"])
     assert "automatic-release.yml" not in (ROOT / ".github/workflows/testing.yml").read_text()
+
+
+def test_beta_bundles_use_the_exact_published_documents(tmp_path):
+    import yaml
+
+    beta = beta_script()
+    assets, root = tmp_path / "assets", tmp_path / "package"
+    assets.mkdir()
+    (root / "docs").mkdir(parents=True)
+    for name, source in beta.documentation_assets("1.2.1b5").items():
+        (root / source).write_bytes(b"old bundled manual")
+        (assets / name).write_bytes(b"%PDF-1.7\nfresh manual" if name.endswith(".pdf") else b"fresh source")
+    beta.install_documents("1.2.1b5", assets, root)
+    for name, source in beta.documentation_assets("1.2.1b5").items():
+        assert (root / source).read_bytes() == (assets / name).read_bytes()
+    (assets / "CurveMole-1.2.1b5-User-Manual.pdf").write_bytes(b"invalid")
+    with pytest.raises(ValueError, match="Invalid beta documentation"):
+        beta.install_documents("1.2.1b5", assets, root)
+
+    desktop = yaml.load((ROOT / ".github/workflows/build-desktop.yml").read_text(), Loader=yaml.BaseLoader)
+    for name in ("python-packages", "linux", "windows", "macos"):
+        steps = desktop["jobs"][name]["steps"]
+        bundle = next(i for i, step in enumerate(steps) if "install-documents" in step.get("run", ""))
+        stamp = next(i for i, step in enumerate(steps) if step.get("run", "").endswith("beta_release.py stamp"))
+        assert bundle < stamp
+        assert steps[bundle - 1]["with"]["name"] == "release-documentation"
 
 
 def test_beta_plan_runs_before_installing_project_dependencies(tmp_path, monkeypatch):

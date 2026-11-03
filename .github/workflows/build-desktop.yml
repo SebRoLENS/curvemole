@@ -18,9 +18,7 @@ on:
         default: ""
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 concurrency:
   group: desktop-${{ inputs.source_ref || github.sha }}
@@ -32,10 +30,14 @@ env:
 
 jobs:
   preflight:
+    permissions:
+      contents: write
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     outputs:
       build: ${{ steps.check.outputs.build }}
+      release: ${{ steps.check.outputs.release }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -46,11 +48,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           SOURCE_REF: ${{ inputs.source_ref }}
         run: |
-          if [[ "$SOURCE_REF" == v* ]]; then
+          if [[ "$SOURCE_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'release=true' >> "$GITHUB_OUTPUT"
             python .github/scripts/release_assets.py preflight --tag "$SOURCE_REF"
           else
+            echo 'release=false' >> "$GITHUB_OUTPUT"
             echo 'build=true' >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Resolve the requested source once for all platforms
+        id: source
+        if: steps.check.outputs.build == 'true'
+        env:
+          SOURCE_REF: ${{ inputs.source_ref || github.sha }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$SOURCE_REF"
+          echo "source_sha=$(git rev-parse 'FETCH_HEAD^{commit}')" >> "$GITHUB_OUTPUT"
 
   prepare-icons:
     needs: preflight
@@ -61,10 +74,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate PNG, ICO, and ICNS icons
@@ -116,7 +129,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
+      - uses: actions/download-artifact@v7
+        if: inputs.beta_version != ''
+        with:
+          name: release-documentation
+          path: beta-documentation
+      - name: Bundle the generated beta manual and audits
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
       - name: Stamp beta package version
         if: inputs.beta_version != ''
         env:
@@ -124,7 +147,7 @@ jobs:
         run: python .github/scripts/beta_release.py stamp
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv build
       - uses: actions/upload-artifact@v7
@@ -139,7 +162,7 @@ jobs:
 
   linux:
     name: Linux AppImage x86_64
-    needs: prepare-icons
+    needs: [preflight, prepare-icons]
     runs-on: ubuntu-22.04
     timeout-minutes: 15
     permissions:
@@ -149,7 +172,17 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
+      - uses: actions/download-artifact@v7
+        if: inputs.beta_version != ''
+        with:
+          name: release-documentation
+          path: beta-documentation
+      - name: Bundle the generated beta manual and audits
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
       - name: Stamp beta package version
         if: inputs.beta_version != ''
         env:
@@ -161,7 +194,7 @@ jobs:
           path: generated-icons
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install build dependencies
@@ -204,20 +237,20 @@ jobs:
           echo "path=$SIGNATURE" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
-        if: inputs.beta_version != ''
+        if: needs.preflight.outputs.release != 'true'
         with:
           name: release-linux-x86_64
           path: |
             ${{ steps.appimage.outputs.path }}
             ${{ steps.signature.outputs.path }}
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 7
           compression-level: 0
 
-      # The AppImage is a release asset, not a reusable Actions test artifact.
-      # test-linux-candidate.yml provides the latter only for [skip release].
+      # Stable AppImages go directly to the draft. Untagged manual and beta
+      # builds retain an Actions artifact, just like the other platforms.
       - name: Attach Linux files directly to tagged release
-        if: startsWith(inputs.source_ref, 'v')
+        if: needs.preflight.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.source_ref }}
@@ -227,13 +260,23 @@ jobs:
 
   windows:
     name: Windows installer and portable x86_64
-    needs: prepare-icons
+    needs: [preflight, prepare-icons]
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
+      - uses: actions/download-artifact@v7
+        if: inputs.beta_version != ''
+        with:
+          name: release-documentation
+          path: beta-documentation
+      - name: Bundle the generated beta manual and audits
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
       - name: Stamp beta package version
         if: inputs.beta_version != ''
         env:
@@ -245,7 +288,7 @@ jobs:
           path: generated-icons
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --locked --no-default-groups --group packaging
 
@@ -334,7 +377,7 @@ jobs:
 
   macos:
     name: macOS DMG ${{ matrix.arch }}
-    needs: prepare-icons
+    needs: [preflight, prepare-icons]
     strategy:
       fail-fast: false
       matrix:
@@ -353,9 +396,19 @@ jobs:
         run: cp scripts/build_desktop.py "$RUNNER_TEMP/build_desktop.py"
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.ref }}
+          ref: ${{ needs.preflight.outputs.source_sha }}
       - name: Use current build checks with the selected application source
         run: cp "$RUNNER_TEMP/build_desktop.py" scripts/build_desktop.py
+      - uses: actions/download-artifact@v7
+        if: inputs.beta_version != ''
+        with:
+          name: release-documentation
+          path: beta-documentation
+      - name: Bundle the generated beta manual and audits
+        if: inputs.beta_version != ''
+        env:
+          BETA_VERSION: ${{ inputs.beta_version }}
+        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
       - name: Stamp beta package version
         if: inputs.beta_version != ''
         env:
@@ -367,7 +420,7 @@ jobs:
           path: generated-icons
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --locked --no-default-groups --group packaging
 
@@ -415,8 +468,8 @@ jobs:
 
   publish-release-assets:
     name: Attach packages to tagged release
-    if: startsWith(inputs.source_ref, 'v')
-    needs: [python-packages, linux, windows, macos]
+    if: needs.preflight.outputs.release == 'true'
+    needs: [preflight, python-packages, linux, windows, macos]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:

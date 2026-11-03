@@ -6,6 +6,10 @@ on:
       source_ref:
         required: true
         type: string
+      publish_stable:
+        description: Publish the source already committed by the stable release pipeline
+        type: boolean
+        default: false
   workflow_dispatch:
 
 # Community code never receives secrets or a writable repository token.
@@ -53,7 +57,7 @@ jobs:
     needs: validate
     # PR artifacts are test reports only. The public install bundle is built
     # exclusively from main, after every supported platform passes.
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: (github.ref == 'refs/heads/main' || inputs.publish_stable) && github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -123,7 +127,7 @@ jobs:
   publish-downloads:
     name: Publish stable plugin downloads
     needs: catalog
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: (github.ref == 'refs/heads/main' || inputs.publish_stable) && github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions:
@@ -149,7 +153,7 @@ jobs:
           current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
           if [ "$current_main" != "$TESTED_SHA" ]; then
             relevant_changes=$(gh api "repos/$GH_REPO/compare/$TESTED_SHA...$current_main" \
-              --jq '[.files[].filename | select(startswith("custom_plugins/") or startswith("src/curvemole/core/") or . == "src/curvemole/__init__.py" or . == "pyproject.toml" or . == "uv.lock" or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
+              --jq '[.files[].filename | select(startswith("custom_plugins/") or startswith("src/curvemole/core/") or . == "src/curvemole/__init__.py" or . == "src/curvemole/plugin_fingerprint.py" or . == "pyproject.toml" or . == "uv.lock" or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
             if [ "$relevant_changes" != "0" ]; then
               echo "Plugin sources or their validation pipeline changed; leave publication to a newer run."
               exit 0
