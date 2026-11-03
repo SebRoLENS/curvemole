@@ -11,7 +11,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.23910620"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23910620.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://doi.org/10.5281/zenodo.22113854"><img src="https://img.shields.io/badge/Concept%20DOI-10.5281%2Fzenodo.22113854-blue" alt="Concept DOI"></a>
   <a href="https://scicrunch.org/resolver/RRID:SCR_029214"><img src="https://img.shields.io/badge/RRID-SCR__029214-2b7282" alt="RRID"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -26,7 +26,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **1.2.0 Stable**.
+> **Status:** Version **1.2.1 Stable**.
 
 **AI-assisted development:** CurveMole is developed with extensive use of AI tools,
 under human direction. The software undergoes extensive hands-on human testing,
@@ -409,17 +409,19 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **1.2.0**
+Current public version: **1.2.1**
 
 ## How to cite
 
 **Research using CurveMole:** cite the exact version used. The reference below is
-for **1.2.0**; for another version, use its own release DOI.
+for **1.2.1**; for another version, use its own release DOI.
 
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. Zenodo.
-> https://doi.org/10.5281/zenodo.23910620
+Zenodo archival is pending; use this version's GitHub release until its DOI is available.
 
-**In the methods:** Data were analysed with CurveMole version 1.2.0 (RRID:SCR_029214).
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.1) [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.1
+
+**In the methods:** Data were analysed with CurveMole version 1.2.1 (RRID:SCR_029214).
 
 **The project in general:** use the [Concept DOI](https://doi.org/10.5281/zenodo.22113854)
 (10.5281/zenodo.22113854). It represents all versions and can resolve to a beta.

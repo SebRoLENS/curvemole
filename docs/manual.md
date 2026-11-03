@@ -1,14 +1,14 @@
-# CurveMole User Manual - 1.2.0
+# CurveMole User Manual - 1.2.1
 
-**Current manual version: 1.2.0**
+**Current manual version: 1.2.1**
 
 CurveMole is a desktop-first, scriptable application for fitting one-dimensional
-scientific curves. The stable API baseline is CurveMole 1.2.0 Stable.
+scientific curves. The stable API baseline is CurveMole 1.2.1 Stable.
 This release edition documents the released scientific engine and application.
 The Markdown file is the authoritative source. The LaTeX source and PDF edition are
 generated automatically from it and must carry the same version number.
 
-**Stable edition for CurveMole 1.2.0.** This release includes the workflow
+**Stable edition for CurveMole 1.2.1.** This release includes the workflow
 features documented in Appendices F/G and the scientific and data-integrity
 corrections summarized in Appendices I/J. Earlier executables can differ;
 keep the matching manual and automation references with your analysis.
@@ -214,14 +214,14 @@ choose **Open Anyway**, then **Open**, and authenticate if asked.
 In a terminal opened in the download directory:
 
 ```bash
-chmod +x CurveMole-1.2.0-linux-x86_64.AppImage
-./CurveMole-1.2.0-linux-x86_64.AppImage
+chmod +x CurveMole-1.2.1-linux-x86_64.AppImage
+./CurveMole-1.2.1-linux-x86_64.AppImage
 ```
 
 If the system cannot mount AppImages through FUSE, use extraction mode:
 
 ```bash
-APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-1.2.0-linux-x86_64.AppImage
+APPIMAGE_EXTRACT_AND_RUN=1 ./CurveMole-1.2.1-linux-x86_64.AppImage
 ```
 
 Some minimal Linux installations may need graphical runtime libraries supplied by
@@ -253,13 +253,13 @@ sha256sum -c SHA256SUMS.txt --ignore-missing
 On macOS:
 
 ```bash
-shasum -a 256 CurveMole-1.2.0-macos-arm64.dmg
+shasum -a 256 CurveMole-1.2.1-macos-arm64.dmg
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash .\CurveMole-1.2.0-windows-x86_64-setup.exe -Algorithm SHA256
+Get-FileHash .\CurveMole-1.2.1-windows-x86_64-setup.exe -Algorithm SHA256
 ```
 
 Compare the reported value with the corresponding line in `SHA256SUMS.txt`.
@@ -271,7 +271,7 @@ Use an isolated environment. From a downloaded wheel:
 ```bash
 python3 -m venv ~/.venv/curvemole
 source ~/.venv/curvemole/bin/activate
-python -m pip install ./curvemole-1.2.0-py3-none-any.whl
+python -m pip install ./curvemole-1.2.1-py3-none-any.whl
 curvemole gui
 ```
 
@@ -280,7 +280,7 @@ On Windows PowerShell, activation is:
 ```powershell
 py -m venv $env:USERPROFILE\.venv\curvemole
 & $env:USERPROFILE\.venv\curvemole\Scripts\Activate.ps1
-python -m pip install .\curvemole-1.2.0-py3-none-any.whl
+python -m pip install .\curvemole-1.2.1-py3-none-any.whl
 curvemole gui
 ```
 
@@ -834,7 +834,7 @@ Optional columns are:
 
 Only one of `sigma_y`, confidence-interval errors, generic weight, variance, or inverse variance can be selected
 for a given spectrum. Variance is converted to `sigma_y` by square root. `sigma_x` is
-stored in the project but is not used by the version 1.2.0 optimizer.
+stored in the project but is not used by the version 1.2.1 optimizer.
 
 For confidence intervals, choose **Y error (confidence interval)** and one symmetric
 half-width column, or check **Asymmetric error** and select **Y error +** and
@@ -3604,10 +3604,12 @@ trust only reviewed plugin code.
 #### 20.3.1 Research using CurveMole
 
 Cite the exact software version used in your bibliography. This manual describes
-**CurveMole 1.2.0**, whose reference is:
+**CurveMole 1.2.1**, whose reference is:
 
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. Zenodo.
-> https://doi.org/10.5281/zenodo.23910620
+Zenodo archival is pending; use this version's GitHub release until its DOI is available.
+
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.1) [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.1
 
 If you used another release, including a beta, use that release's own version DOI
 from its GitHub release notes or Zenodo record. Never substitute the current
@@ -3617,7 +3619,7 @@ stable DOI for a different version.
 
 Use the software name, exact version and version-independent SciCrunch RRID:
 
-> Data were analysed with CurveMole version 1.2.0 (RRID:SCR_029214).
+> Data were analysed with CurveMole version 1.2.1 (RRID:SCR_029214).
 
 [RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214) identifies the software; the version DOI
 identifies the archived release. The methods sentence accompanies the bibliographic reference.
@@ -3738,7 +3740,7 @@ commands receive shortcuts too; disabled commands remain unavailable by keyboard
 | `.zip` | Windows portable package or plugin download |
 | `.dmg` | macOS disk image |
 
-## Appendix D. Version 1.2.0 limitations
+## Appendix D. Version 1.2.1 limitations
 
 The following boundaries apply to this release:
 
@@ -3788,7 +3790,7 @@ relabelled as a newly audited release without checking the contracts.
 
 ## Appendix F. Python scripting reference
 
-**Stable API baseline: CurveMole 1.2.0.**
+**Stable API baseline: CurveMole 1.2.1.**
 **Current release behavior.** This edition includes the November 2026 scientific
 and data-integrity corrections. Use the documents matching your installed release;
 these corrections are not implied for older executables.
@@ -3807,7 +3809,7 @@ these corrections do not apply retroactively to earlier executables.
 
 ### 1. Installation and imports
 
-Install the 1.2.0 wheel in a Python environment, or run
+Install the 1.2.1 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does
@@ -4996,7 +4998,7 @@ certification or scientific validation of AI-generated analysis.
 
 ## Appendix G. YAML workflow reference
 
-**Stable API baseline: CurveMole 1.2.0.**
+**Stable API baseline: CurveMole 1.2.1.**
 **Workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
 This reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output controls.
