@@ -1,6 +1,6 @@
 # CurveMole Python API audit for AI-assisted scripting
 
-**Stable API baseline: CurveMole 1.2.1.**
+**Stable API baseline: CurveMole 1.2.2.**
 **Audit date: 2026-11-02.**
 
 Download this Markdown file and attach it directly to an AI conversation. It is
@@ -38,7 +38,7 @@ Suggested user prompt:
 
 ## Complete scripting contract
 
-**Stable API baseline: CurveMole 1.2.1.**
+**Stable API baseline: CurveMole 1.2.2.**
 **Current release behavior.** This edition includes the November 2026 scientific
 and data-integrity corrections. Use the documents matching your installed release;
 these corrections are not implied for older executables.
@@ -57,7 +57,7 @@ these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
 
-Install the 1.2.1 wheel in a Python environment, or run
+Install the 1.2.2 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does

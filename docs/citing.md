@@ -3,10 +3,12 @@
 ## Research using CurveMole
 
 Cite the **exact version used** in your bibliography. The current stable reference
-is for **1.2.1**:
+is for **1.2.2**:
 
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.1) [Computer software]. Zenodo.
-> https://doi.org/10.5281/zenodo.23912861
+Zenodo archival is pending; use this version's GitHub release until its DOI is available.
+
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.2) [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.2
 
 [Download version BibTeX](citation.bib). For another version, open its
 [GitHub release](https://github.com/SebRoLENS/curvemole/releases) and use the verified **Zenodo DOI**
@@ -17,7 +19,7 @@ While archival is pending, cite that exact GitHub release URL instead.
 
 Name the software, state the version you actually used, and include its SciCrunch RRID:
 
-> Data were analysed with CurveMole version 1.2.1 (RRID:SCR_029214).
+> Data were analysed with CurveMole version 1.2.2 (RRID:SCR_029214).
 
 [RRID:SCR_029214](https://scicrunch.org/resolver/RRID:SCR_029214) identifies CurveMole independently of version.
 Use this methods sentence alongside the version-specific bibliographic reference.

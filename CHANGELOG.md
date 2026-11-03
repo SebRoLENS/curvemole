@@ -5,20 +5,33 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.2.2] - 2026-11-03
+
 ### Added
 
 - Support all Git installation layouts in Windows workflow tests. ([`99779f9a`](https://github.com/SebRoLENS/curvemole/commit/99779f9ab3a9fc0dfc576a3af58fd50ab54cfec8))
+
+### Changed
+
+- Activate validated release and CI workflows. ([`6e54afec`](https://github.com/SebRoLENS/curvemole/commit/6e54afeccdde93e828f89b6bc68c2c59f915d3ab))
+- Allow runner variation in Windows GUI validation. ([`e2b79fbc`](https://github.com/SebRoLENS/curvemole/commit/e2b79fbc63b73c1f550ccd48e235cb0f789af074))
+- Activate Windows CI timeout headroom. ([`02b1a7a9`](https://github.com/SebRoLENS/curvemole/commit/02b1a7a90286de10edf84101ed46be2350e4db24))
+- End completed Windows CI test workers reliably. ([`ec2e13df`](https://github.com/SebRoLENS/curvemole/commit/ec2e13df323a906eebaf851a3d1f5ee9f90a6027))
+- Activate reliable Windows CI worker shutdown. ([`5510b896`](https://github.com/SebRoLENS/curvemole/commit/5510b896d00210f4fa6bfef4f2630880a53ae232))
+- Compare current and Fusion desktop styles across platforms. ([`a07c2279`](https://github.com/SebRoLENS/curvemole/commit/a07c2279a5f709f005e3adef3710cc9c10325195))
+- Install native X11 dependencies for desktop style screenshots. ([`a1c166f7`](https://github.com/SebRoLENS/curvemole/commit/a1c166f7d29611dc6b1ece9341810dc719bebcaf))
 
 ### Fixed
 
 - Fix workflow coordination and consistent release packaging. ([`490e57b5`](https://github.com/SebRoLENS/curvemole/commit/490e57b5128f91d3998a1fd6a27ada8f1f66197d))
 - Fix Git Bash selection in Windows workflow tests. ([`3381db2f`](https://github.com/SebRoLENS/curvemole/commit/3381db2f48a915bddea69d51d594bbb5967ebd8e))
+- Fix inconsistent desktop themes with Fusion controls by default. ([`c82291dc`](https://github.com/SebRoLENS/curvemole/commit/c82291dcf9b7e476fb7124db2e34bd5e2be9146c))
 
 ### Documentation
 
 - Fix website publication after stable documentation preparation. ([`60af148e`](https://github.com/SebRoLENS/curvemole/commit/60af148e6ba46e596b5b9b1e660d0ee076e59ddd))
-<!-- END AUTOMATED CHANGES -->
+- Recognize named stable promotions in website publication. ([`9bc14fc9`](https://github.com/SebRoLENS/curvemole/commit/9bc14fc968c61457dac8a2163bd3e13ab2c3a0f8))
+- Activate stable promotion website event guard. ([`db691767`](https://github.com/SebRoLENS/curvemole/commit/db691767b4bd4d3ad218496b16ca4a1de218a079))
 
 ## [1.2.1] - 2026-11-03
 

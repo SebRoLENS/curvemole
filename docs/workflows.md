@@ -1,6 +1,6 @@
 # YAML workflow authoring reference
 
-**Stable API baseline: CurveMole 1.2.1.**
+**Stable API baseline: CurveMole 1.2.2.**
 **Workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
 This reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output controls.
