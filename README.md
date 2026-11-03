@@ -11,7 +11,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
+  <a href="https://doi.org/10.5281/zenodo.23912861"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23912861.svg" alt="DOI"></a>
   <a href="https://doi.org/10.5281/zenodo.22113854"><img src="https://img.shields.io/badge/Concept%20DOI-10.5281%2Fzenodo.22113854-blue" alt="Concept DOI"></a>
   <a href="https://scicrunch.org/resolver/RRID:SCR_029214"><img src="https://img.shields.io/badge/RRID-SCR__029214-2b7282" alt="RRID"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -416,10 +416,8 @@ Current public version: **1.2.1**
 **Research using CurveMole:** cite the exact version used. The reference below is
 for **1.2.1**; for another version, use its own release DOI.
 
-Zenodo archival is pending; use this version's GitHub release until its DOI is available.
-
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.1) [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.1
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.1) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.23912861
 
 **In the methods:** Data were analysed with CurveMole version 1.2.1 (RRID:SCR_029214).
 
