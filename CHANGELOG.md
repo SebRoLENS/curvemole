@@ -5,11 +5,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.2.1] - 2026-11-03
+
 ### Fixed
 
 - Fix opening valid projects beyond automatic size thresholds. ([`bb3c2842`](https://github.com/SebRoLENS/curvemole/commit/bb3c2842db97799c3f23375760be7d83361ee3dc))
-<!-- END AUTOMATED CHANGES -->
 
 ## [1.2.0] - 2026-11-02
 

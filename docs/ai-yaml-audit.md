@@ -1,6 +1,6 @@
 # AI YAML automation audit - 1.2.0 extensions
 
-**Stable baseline: CurveMole 1.2.0.**
+**Stable baseline: CurveMole 1.2.1.**
 **Checked on 2026-11-02. Beta workflow schema is 3; legacy schemas 1 and 2 remain accepted.** This file is a standalone, downloadable context document
 for an AI creating CurveMole workflows. All core YAML contracts, defaults and
 limitations needed for the supported workflow stages are included below. The
@@ -46,7 +46,7 @@ release. Executable plugins need their own API documentation and explicit trust.
 
 ## Complete implementation contract
 
-**Stable API baseline: CurveMole 1.2.0.**
+**Stable API baseline: CurveMole 1.2.1.**
 **Workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
 This reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output controls.

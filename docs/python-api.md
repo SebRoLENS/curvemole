@@ -1,6 +1,6 @@
 # Python scripting reference
 
-**Stable API baseline: CurveMole 1.2.0.**
+**Stable API baseline: CurveMole 1.2.1.**
 **Current release behavior.** This edition includes the November 2026 scientific
 and data-integrity corrections. Use the documents matching your installed release;
 these corrections are not implied for older executables.
@@ -19,7 +19,7 @@ these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
 
-Install the 1.2.0 wheel in a Python environment, or run
+Install the 1.2.1 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does
