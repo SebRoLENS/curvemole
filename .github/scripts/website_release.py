@@ -15,11 +15,13 @@ from release_assets import expected_assets
 
 citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
 ROOT = Path(__file__).resolve().parents[2]
+# Stable preparation promotes the complete documentation set, not only citation
+# files. Share its canonical manifest so valid bot-generated release commits do
+# not look like unvalidated application changes to the Pages gate.
+release_files = run_path(str(Path(__file__).with_name("release_state.py")))["FILES"]
 GENERATED = {
-    'src/curvemole/version.py', 'pyproject.toml', 'uv.lock', 'README.md',
-    'CITATION.cff', 'CHANGELOG.md', 'docs/manual.md',
+    *release_files,
     *citations['GENERATED'],
-    'docs/CurveMole_User_Manual.tex', 'docs/CurveMole_User_Manual.pdf',
 }
 
 

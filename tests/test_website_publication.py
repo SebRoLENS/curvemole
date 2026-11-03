@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,39 @@ def test_unvalidated_source_blocks_publication(website, monkeypatch):
     monkeypatch.setattr(website, 'api', lambda path: {'workflow_runs': [{'conclusion': 'success', 'head_sha': 'old'}]})
     monkeypatch.setattr(website, 'generated_since', lambda sha: False)
     assert website.ready()[0] is None
+
+
+@pytest.mark.parametrize('change', ['prepared_release', 'application_code', 'human_documentation'])
+def test_generated_history_recognizes_release_documents_without_accepting_untested_code(
+        website, tmp_path, monkeypatch, change):
+    monkeypatch.chdir(tmp_path)
+
+    def git(*args):
+        return subprocess.check_output(['git', *args], text=True).strip()
+
+    git('init', '-q', '-b', 'testing')
+    git('config', 'user.name', 'Developer')
+    git('config', 'user.email', 'developer@example.test')
+    (tmp_path / 'baseline').write_text('validated source', encoding='utf-8')
+    git('add', 'baseline')
+    git('commit', '-qm', 'Validated source')
+    source = git('rev-parse', 'HEAD')
+    if change == 'prepared_release':
+        paths = [*website.release_files, 'docs/screenshots/fit-overview.png']
+    elif change == 'application_code':
+        paths = ['src/curvemole/core/fitting.py']
+    else:
+        paths = ['docs/python-api.md']
+    for name in paths:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('prepared metadata', encoding='utf-8')
+    git('add', '.')
+    if change != 'human_documentation':
+        git('config', 'user.name', 'github-actions[bot]')
+        git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+    git('commit', '-qm', 'Prepare release')
+    assert website.generated_since(source) is (change == 'prepared_release')
 
 
 @pytest.mark.parametrize('conclusion', ['success', 'failure', None])
