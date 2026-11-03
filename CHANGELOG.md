@@ -5,6 +5,21 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Added
+
+- Support all Git installation layouts in Windows workflow tests. ([`99779f9a`](https://github.com/SebRoLENS/curvemole/commit/99779f9ab3a9fc0dfc576a3af58fd50ab54cfec8))
+
+### Fixed
+
+- Fix workflow coordination and consistent release packaging. ([`490e57b5`](https://github.com/SebRoLENS/curvemole/commit/490e57b5128f91d3998a1fd6a27ada8f1f66197d))
+- Fix Git Bash selection in Windows workflow tests. ([`3381db2f`](https://github.com/SebRoLENS/curvemole/commit/3381db2f48a915bddea69d51d594bbb5967ebd8e))
+
+### Documentation
+
+- Fix website publication after stable documentation preparation. ([`60af148e`](https://github.com/SebRoLENS/curvemole/commit/60af148e6ba46e596b5b9b1e660d0ee076e59ddd))
+<!-- END AUTOMATED CHANGES -->
+
 ## [1.2.1] - 2026-11-03
 
 ### Fixed
