@@ -6,6 +6,7 @@ import json
 import re
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -180,7 +181,8 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     assert "github.event.workflow_run.event == 'push'" in condition
     assert "github.event.workflow_run.head_branch == 'main'" in condition
     assert "github.event.workflow_run.event == 'workflow_dispatch'" in condition
-    assert "github.event.workflow_run.name == 'Automatic release'" in condition
+    assert "github.event.workflow_run.path == '.github/workflows/automatic-release.yml'" in condition
+    assert 'workflow_run.name' not in condition
     steps = workflow['jobs']['deploy']['steps']
     render = next(i for i, s in enumerate(steps) if 'render_demo_screenshots.py' in s.get('run', ''))
     deploy = next(i for i, s in enumerate(steps) if s.get('id') == 'deployment')
@@ -209,6 +211,30 @@ def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
     assert website['on']['workflow_dispatch']['inputs']['mode']['default'] == 'standalone'
     check = next(s for s in website['jobs']['deploy']['steps'] if s.get('id') == 'readiness')
     assert check['env']['WEBSITE_PUBLICATION_MODE'] == "${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'integrated' }}"
+
+
+@pytest.mark.parametrize('name,path,event,branch,conclusion,repository,expected', [
+    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'success', 'same', True),
+    ('Stable release', 'automatic-release.yml', 'workflow_dispatch', 'main', 'success', 'same', True),
+    ('CI', 'ci.yml', 'push', 'main', 'success', 'same', True),
+    ('CI', 'ci.yml', 'push', 'testing', 'success', 'same', False),
+    ('CI', 'ci.yml', 'workflow_dispatch', 'main', 'success', 'same', False),
+    ('Automatic release', 'testing.yml', 'workflow_dispatch', 'testing', 'success', 'same', False),
+    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'failure', 'same', False),
+    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'success', 'fork', False),
+])
+def test_website_event_gate_accepts_named_promotions_and_rejects_unrelated_runs(
+        name, path, event, branch, conclusion, repository, expected):
+    workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+    run = SimpleNamespace(name=name, path='.github/workflows/' + path, event=event,
+                          head_branch=branch, conclusion=conclusion,
+                          head_repository=SimpleNamespace(full_name='owner/repo' if repository == 'same' else 'other/fork'))
+    github = SimpleNamespace(ref='refs/heads/main', repository='owner/repo',
+                             event_name='workflow_run', event=SimpleNamespace(workflow_run=run))
+    # Evaluate the actual YAML boolean guard against realistic event fields.
+    # A run's display name is dynamic; workflow path identifies its definition.
+    condition = ' '.join(workflow['jobs']['deploy']['if'].split()).replace('&&', ' and ').replace('||', ' or ')
+    assert eval(condition, {'__builtins__': {}}, {'github': github}) is expected
 
 
 @pytest.mark.parametrize('doi_ready', [True, False])
