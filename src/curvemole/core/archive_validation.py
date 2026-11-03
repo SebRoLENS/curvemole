@@ -8,7 +8,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from curvemole.core.errors import ConstraintError, ExpressionError, ProjectFormatError
+from curvemole.core.errors import (
+    ConstraintError,
+    ExpressionError,
+    ProjectFormatError,
+    ProjectResourceLimitError,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,8 +22,8 @@ class ArchiveLimits:
 
     members: int = 100_000
     expanded_bytes: int = 1024**3
-    array_bytes: int = 256 * 1024**2
-    manifest_bytes: int = 32 * 1024**2
+    array_bytes: int = 1024**3
+    manifest_bytes: int = 512 * 1024**2
 
     def __post_init__(self):
         if any(
@@ -30,14 +35,16 @@ class ArchiveLimits:
 
 def preflight_archive(archive, limits: ArchiveLimits) -> None:
     members = archive.infolist()
-    if len(members) > limits.members or sum(m.file_size for m in members) > limits.expanded_bytes:
-        raise ProjectFormatError("Project exceeds the archive resource budget.")
+    sizes = {"members": len(members), "expanded_bytes": sum(m.file_size for m in members)}
     try:
         manifest = archive.getinfo("manifest.json")
     except KeyError:
-        return  # structural validator reports the missing manifest
-    if manifest.file_size > limits.manifest_bytes:
-        raise ProjectFormatError("Project manifest exceeds the metadata-size limit.")
+        pass  # structural validator reports the missing manifest
+    else:
+        sizes["manifest_bytes"] = manifest.file_size
+    required = {name: size for name, size in sizes.items() if size > getattr(limits, name)}
+    if required:
+        raise ProjectResourceLimitError(required, {name: getattr(limits, name) for name in required})
     archive._curvemole_limits = limits
 
 
@@ -56,11 +63,14 @@ def read_array_header(stream, member_size: int, limits: ArchiveLimits):
     if (
         len(shape) > 8
         or any(d < 0 for d in shape)
-        or payload > limits.array_bytes
         or payload > member_size - stream.tell()
     ):
         raise ProjectFormatError(
-            "Project array has invalid dimensions or exceeds the array-size budget."
+            "Project array has invalid dimensions or a truncated payload (array-size mismatch)."
+        )
+    if payload > limits.array_bytes:
+        raise ProjectResourceLimitError(
+            {"array_bytes": payload}, {"array_bytes": limits.array_bytes}
         )
     return shape, fortran, dtype
 

@@ -978,11 +978,24 @@ It supports a caller's lock/digest guard and does not itself acquire a lock.
 
 The testing reader and validator accept `limits=ArchiveLimits(...)`, imported from
 `curvemole.core.archive_validation`. Defaults are 100,000 ZIP members, 1 GiB expanded
-content, 256 MiB per array and 32 MiB of manifest. Larger trusted loads can opt in
+content, 1 GiB per array and 512 MiB of manifest. Larger trusted loads can opt in
 to larger limits. `save_project` still validates against the default limits: raising
 a read limit does not enlarge its save budget. `load_project` optionally accepts a
 cancellation object with `raise_if_cancelled()`; checks occur during streamed reads,
 not as a hard interruption of a running NumPy allocation.
+
+When opening a project in the desktop application, exceeding a loading threshold
+shows **Project memory use**, including the observed size or entry count and the
+corresponding threshold. These are consent thresholds, not maximum project sizes:
+choose **Yes** to try opening a trusted file at your own risk, or **No** (the default)
+to keep the current project. Consent applies only to that opening attempt; another
+threshold reached later may require another confirmation. Integrity and structural
+validation remain active, including rejection of invalid array headers or truncated
+payloads. Older projects can legitimately contain substantial metadata because they
+stored numeric results and fit history inside the manifest. Parsing JSON can require
+substantially more memory than its on-disk size, potentially exhausting memory or
+making the application unresponsive. CLI and Python calls retain their default
+limits unless explicitly overridden through the Python API.
 
 `portable=True` strips local paths. Detached snapshots require
 `update_project_path=False` when saving. Project schema is **4** and model schema

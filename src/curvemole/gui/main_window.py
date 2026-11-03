@@ -75,7 +75,7 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
-from curvemole.core.errors import ConstraintError
+from curvemole.core.errors import ConstraintError, FitCancelled
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
@@ -1574,6 +1574,8 @@ class MainWindow(QMainWindow):
             if self._transfer_request is not None:
                 self._transfer_monitor.start()
                 self._notify(self.tr("Control requested; waiting for the other computer."))
+        except FitCancelled:
+            return
         except Exception as exc:
             self._show_error(self.tr("Open project"), exc)
         finally:
@@ -4839,6 +4841,8 @@ class MainWindow(QMainWindow):
             self._cancel_project_transfer()
             self.refresh_all()
             self._notify(self.tr("Project control transferred to this computer."))
+        except FitCancelled:
+            self._cancel_project_transfer()
         except Exception as exc:
             self._log(f"Project handoff check failed: {exc}")
 
