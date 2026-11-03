@@ -17,6 +17,7 @@ jobs:
   snapshot:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     outputs:
       main_sha: ${{ steps.snapshot.outputs.main_sha }}
       source_sha: ${{ steps.snapshot.outputs.source_sha }}
@@ -42,6 +43,7 @@ jobs:
     needs: [snapshot, validate]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/testing'
     runs-on: ubuntu-22.04
+    timeout-minutes: 5
     permissions:
       contents: write
     concurrency:

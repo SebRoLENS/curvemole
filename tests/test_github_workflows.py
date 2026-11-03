@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -25,16 +27,55 @@ assets = load("release_assets")
 lint = load("lint_workflows")
 
 
+def workflow_bash(*, windows: bool = os.name == "nt") -> str:
+    # Native Python can resolve System32/bash.exe (WSL) before Git Bash on
+    # Windows, even when pytest itself was launched by a Git Bash Actions step.
+    executable = shutil.which("git" if windows else "bash")
+    if not executable:
+        raise RuntimeError("Git Bash is required to exercise workflow shell scripts")
+    path = Path(executable).resolve()
+    if windows:
+        # Git Bash may put ucrt64/bin or mingw64/bin ahead of Git/cmd in
+        # PATH. Find the installation root instead of assuming a fixed depth.
+        for root in path.parents:
+            for relative in ("bin/bash.exe", "usr/bin/bash.exe"):
+                candidate = root / relative
+                if candidate.is_file():
+                    return str(candidate)
+        raise RuntimeError(f"Git Bash executable not found beside {path}")
+    if not path.is_file():
+        raise RuntimeError(f"Workflow Bash executable not found: {path}")
+    return str(path)
+
+
+@pytest.mark.parametrize("git_relative", [
+    "cmd/git.exe", "bin/git.exe", "ucrt64/bin/git.exe", "mingw64/bin/git.exe", "usr/bin/git.exe",
+])
+def test_windows_workflow_shell_uses_git_bash_instead_of_wsl(tmp_path, monkeypatch, git_relative):
+    git_exe = tmp_path / "Git" / git_relative
+    git_exe.parent.mkdir(parents=True)
+    git_exe.touch()
+    bash = tmp_path / "Git" / "bin" / "bash.exe"
+    bash.parent.mkdir(exist_ok=True)
+    bash.touch()
+    wsl = tmp_path / "System32" / "bash.exe"
+    monkeypatch.setattr(shutil, "which", lambda name: str(git_exe if name == "git" else wsl))
+    assert workflow_bash(windows=True) == str(bash.resolve())
+
+
 @pytest.mark.parametrize("paths,event,message,expected", [
     (["src/curvemole/gui/panels.py", "docs/manual.md"], "push", "Fix UI", {"release"}),
-    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins", "documentation"}),
+    (["src/curvemole/core/fitting.py"], "push", "Fix fit [skip release]", {"candidate", "plugins"}),
     (["docs/manual.md"], "push", "Explain fitting [skip release]", {"documentation"}),
     (["src/curvemole/gui/panels.py"], "push", "Fix UI [skip release]",
      {"documentation", "screenshots", "candidate"}),
     (["src/curvemole/core/fitting.py"], "pull_request", "Fix fit", {"plugins"}),
-    (["README.md"], "push", "Correct spelling", {"documentation"}),
-    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins", "documentation"}),
+    (["README.md"], "push", "Correct spelling", set()),
+    (["custom_plugins/by_community/example/main.py"], "push", "New plugin", {"plugins"}),
     (["docs/screenshots/import-file-preview.png"], "pull_request", "Preview", {"documentation"}),
+    (["src/curvemole/gui/panels.py"], "pull_request", "Preview UI", {"documentation", "screenshots"}),
+    ([".github/scripts/install_document_toolchain.sh"], "pull_request", "Fix tools", {"documentation"}),
+    (["src/curvemole/plugin_fingerprint.py"], "pull_request", "Fix fingerprint", {"plugins"}),
 ])
 def test_one_plan_avoids_duplicate_and_unrelated_jobs(paths, event, message, expected):
     result = policy.plan(paths, event, message, "maintainer")
@@ -401,3 +442,75 @@ def test_doi_lookup_skips_completed_releases_and_body_updates_are_idempotent(mon
     assert doi.discover("") == []
     assert doi.updated_body(body, "10.5281/zenodo.1234") == body
     assert doi.body_doi(doi.updated_body("Description", "10.5281/zenodo.1234")) == "10.5281/zenodo.1234"
+
+
+def test_stable_doi_discovery_is_not_hidden_by_a_full_page_of_betas(monkeypatch):
+    monkeypatch.syspath_prepend(str(ROOT / ".github/scripts"))
+    doi = load("doi_workflow")
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/example")
+    calls = []
+
+    def releases(*args):
+        calls.append(args[-1])
+        if args[-1].endswith("page=1"):
+            return json.dumps([{"draft": False, "prerelease": True} for _ in range(100)])
+        return json.dumps([{"draft": False, "prerelease": False, "tag_name": "v1.2.3", "body": ""}])
+
+    monkeypatch.setattr(doi, "gh", releases)
+    monkeypatch.setattr(doi.zenodo, "find_doi", lambda version: "10.5281/zenodo.123")
+    assert doi.discover("") == [{"version": "1.2.3", "doi": "10.5281/zenodo.123"}]
+    assert len(calls) == 2
+
+
+def test_workflow_writers_share_resource_locks_and_release_jobs_do_not_duplicate_plugins():
+    workflows = {p.stem: yaml.load(p.read_text(), Loader=yaml.BaseLoader)
+                 for p in (ROOT / ".github/workflows").glob("*.yml")}
+    release = workflows["automatic-release"]
+    assert release["concurrency"]["group"] == "release-pipeline"
+    writers = [workflows["testing"]["jobs"]["changelog"], release["jobs"]["sync-testing"],
+               workflows["sync-zenodo-doi"]["jobs"]["sync-testing"]]
+    for job in writers:
+        assert job["concurrency"] == {
+            "group": "curvemole-testing-write", "cancel-in-progress": "false", "queue": "max"}
+    assert "needs.plan.outputs.release != 'true'" in workflows["ci"]["jobs"]["plugins"]["if"]
+    assert release["jobs"]["plugins"]["with"]["publish_stable"] == "true"
+    assert set(release["jobs"]["plugins"]["needs"]) == {"commit", "packages"}
+    plugins = workflows["community-plugins"]
+    assert plugins["on"]["workflow_call"]["inputs"]["publish_stable"]["default"] == "false"
+    assert "inputs" not in (plugins["on"]["workflow_dispatch"] or {})
+    # Every actual runner gets a bounded execution time; callers inherit the callee's limits.
+    for workflow in workflows.values():
+        for job in workflow["jobs"].values():
+            if "runs-on" in job:
+                assert "timeout-minutes" in job
+
+
+@pytest.mark.parametrize("source,is_release", [
+    ("v1.2.3", True), ("validation", False), ("v1.2.3-beta.1", False), ("main", False),
+])
+def test_packaging_preflight_only_classifies_exact_stable_tags(tmp_path, source, is_release):
+    workflow = yaml.safe_load((ROOT / ".github/workflows/build-desktop.yml").read_text())
+    script = next(step["run"] for step in workflow["jobs"]["preflight"]["steps"]
+                  if step.get("id") == "check")
+    # Avoid the remote preflight itself; exercise the real workflow shell classifier.
+    script = 'python() { printf "build=true\\n" >> "$GITHUB_OUTPUT"; }\n' + script
+    output = tmp_path / "outputs"
+    subprocess.run([workflow_bash(), "-eo", "pipefail", "-c", script], check=True,
+                   env={**os.environ, "SOURCE_REF": source, "GITHUB_OUTPUT": output.as_posix()})
+    assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
+        "build": "true", "release": str(is_release).lower()}
+
+
+def test_packaging_resolves_a_branch_once_and_all_build_jobs_use_its_sha(repository, monkeypatch):
+    workflow = yaml.safe_load((ROOT / ".github/workflows/build-desktop.yml").read_text())
+    jobs = workflow["jobs"]
+    script = next(step["run"] for step in jobs["preflight"]["steps"] if step.get("id") == "source")
+    monkeypatch.setenv("SOURCE_REF", "main")
+    monkeypatch.setenv("GITHUB_OUTPUT", Path(os.environ["GITHUB_OUTPUT"]).as_posix())
+    original = git(repository, "rev-parse", "HEAD")
+    subprocess.run([workflow_bash(), "-eo", "pipefail", "-c", script], check=True)
+    output = Path(os.environ["GITHUB_OUTPUT"]).read_text()
+    assert f"source_sha={original}" in output
+    for name in ("prepare-icons", "python-packages", "linux", "windows", "macos"):
+        assert any(step.get("with", {}).get("ref") == "${{ needs.preflight.outputs.source_sha }}"
+                   for step in jobs[name]["steps"])

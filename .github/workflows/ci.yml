@@ -8,6 +8,11 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
+
 jobs:
   plan:
     runs-on: ubuntu-22.04
@@ -57,7 +62,7 @@ jobs:
 
   plugins:
     needs: plan
-    if: needs.plan.outputs.plugins == 'true'
+    if: needs.plan.outputs.plugins == 'true' && needs.plan.outputs.release != 'true'
     permissions:
       contents: write
     uses: ./.github/workflows/community-plugins.yml

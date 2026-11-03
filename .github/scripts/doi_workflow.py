@@ -52,7 +52,15 @@ def discover(version: str) -> list[dict]:
             raise ValueError("Invalid requested DOI version")
         releases = [json.loads(gh("api", f"repos/{repository}/releases/tags/v{version}"))]
     else:
-        releases = json.loads(gh("api", f"repos/{repository}/releases?per_page=20"))
+        # Frequent beta publications must not hide all stable releases from discovery.
+        releases, page = [], 1
+        while True:
+            batch = json.loads(gh("api", f"repos/{repository}/releases?per_page=100&page={page}"))
+            releases.extend(r for r in batch if not r["draft"] and not r["prerelease"]
+                            and re.fullmatch(r"v\d+\.\d+\.\d+", r["tag_name"]))
+            if len(releases) >= 10 or len(batch) < 100:
+                break
+            page += 1
     results = []
     regular = [r for r in releases if not r["draft"] and not r["prerelease"]
                and re.fullmatch(r"v\d+\.\d+\.\d+", r["tag_name"])][:10]
@@ -81,7 +89,7 @@ def discover(version: str) -> list[dict]:
 
 
 def apply(path: Path) -> None:
-    findings = json.loads(path.read_text())
+    findings = json.loads(path.read_text(encoding="utf-8"))
     for item in findings:
         version, doi = item["version"], item["doi"]
         if not re.fullmatch(r"\d+\.\d+\.\d+", version) or not re.fullmatch(r"10\.5281/zenodo\.\d+", doi):
@@ -107,7 +115,7 @@ def apply(path: Path) -> None:
         updated = updated_body(body, doi)
         if updated == body:
             continue
-        Path("doi-release-notes.md").write_text(updated)
+        Path("doi-release-notes.md").write_text(updated, encoding="utf-8")
         subprocess.run(["gh", "release", "edit", tag, "--notes-file", "doi-release-notes.md"], check=True)
 
 
@@ -125,8 +133,8 @@ def main() -> None:
         apply(args.file)
         return
     findings = discover(args.version)
-    args.file.write_text(json.dumps(findings))
-    with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+    args.file.write_text(json.dumps(findings), encoding="utf-8")
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
         stream.write(f"found={str(bool(findings)).lower()}\n")
 
 

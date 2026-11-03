@@ -15,11 +15,13 @@ from release_assets import expected_assets
 
 citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
 ROOT = Path(__file__).resolve().parents[2]
+# Stable preparation promotes the complete documentation set, not only citation
+# files. Share its canonical manifest so valid bot-generated release commits do
+# not look like unvalidated application changes to the Pages gate.
+release_files = run_path(str(Path(__file__).with_name("release_state.py")))["FILES"]
 GENERATED = {
-    'src/curvemole/version.py', 'pyproject.toml', 'uv.lock', 'README.md',
-    'CITATION.cff', 'CHANGELOG.md', 'docs/manual.md',
+    *release_files,
     *citations['GENERATED'],
-    'docs/CurveMole_User_Manual.tex', 'docs/CurveMole_User_Manual.pdf',
 }
 
 
@@ -84,8 +86,13 @@ def ready(*, require_ci=True):
     version = re.search(r'^__version__ = "([\d.]+)"',
                         (ROOT / 'src/curvemole/version.py').read_text(encoding="utf-8"), re.M)[1]
     # Listing also handles an absent or draft release without treating DOI delay as an error.
-    releases = api('releases?per_page=100')
-    release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
+    release, page = {}, 1
+    while not release:
+        releases = api(f'releases?per_page=100&page={page}')
+        release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
+        if len(releases) < 100:
+            break
+        page += 1
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     if not release_ready(release, version, citation, (ROOT / 'README.md').read_text(encoding="utf-8")):
         return None, f'Waiting for v{version}: published packages/manual and matching Zenodo DOI.'

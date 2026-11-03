@@ -4,6 +4,7 @@ import copy
 import importlib.util
 import json
 import re
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -60,6 +61,39 @@ def test_unvalidated_source_blocks_publication(website, monkeypatch):
     monkeypatch.setattr(website, 'api', lambda path: {'workflow_runs': [{'conclusion': 'success', 'head_sha': 'old'}]})
     monkeypatch.setattr(website, 'generated_since', lambda sha: False)
     assert website.ready()[0] is None
+
+
+@pytest.mark.parametrize('change', ['prepared_release', 'application_code', 'human_documentation'])
+def test_generated_history_recognizes_release_documents_without_accepting_untested_code(
+        website, tmp_path, monkeypatch, change):
+    monkeypatch.chdir(tmp_path)
+
+    def git(*args):
+        return subprocess.check_output(['git', *args], text=True).strip()
+
+    git('init', '-q', '-b', 'testing')
+    git('config', 'user.name', 'Developer')
+    git('config', 'user.email', 'developer@example.test')
+    (tmp_path / 'baseline').write_text('validated source', encoding='utf-8')
+    git('add', 'baseline')
+    git('commit', '-qm', 'Validated source')
+    source = git('rev-parse', 'HEAD')
+    if change == 'prepared_release':
+        paths = [*website.release_files, 'docs/screenshots/fit-overview.png']
+    elif change == 'application_code':
+        paths = ['src/curvemole/core/fitting.py']
+    else:
+        paths = ['docs/python-api.md']
+    for name in paths:
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('prepared metadata', encoding='utf-8')
+    git('add', '.')
+    if change != 'human_documentation':
+        git('config', 'user.name', 'github-actions[bot]')
+        git('config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com')
+    git('commit', '-qm', 'Prepare release')
+    assert website.generated_since(source) is (change == 'prepared_release')
 
 
 @pytest.mark.parametrize('conclusion', ['success', 'failure', None])
@@ -142,6 +176,11 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
     assert 'push' not in workflow['on']
     assert set(workflow['on']['workflow_run']['workflows']) == {'CI', 'Automatic release'}
+    condition = workflow['jobs']['deploy']['if']
+    assert "github.event.workflow_run.event == 'push'" in condition
+    assert "github.event.workflow_run.head_branch == 'main'" in condition
+    assert "github.event.workflow_run.event == 'workflow_dispatch'" in condition
+    assert "github.event.workflow_run.name == 'Automatic release'" in condition
     steps = workflow['jobs']['deploy']['steps']
     render = next(i for i, s in enumerate(steps) if 'render_demo_screenshots.py' in s.get('run', ''))
     deploy = next(i for i, s in enumerate(steps) if s.get('id') == 'deployment')
@@ -163,7 +202,7 @@ def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
     assert "needs.apply.result == 'skipped'" in condition
     assert publish['permissions']['actions'] == 'write'
     assert '-f mode=integrated' in publish['steps'][0]['run']
-    metadata_sync = workflow['jobs']['apply']['steps'][-1]
+    metadata_sync = workflow['jobs']['sync-testing']['steps'][-1]
     assert 'isDraft == false and .isPrerelease == false' in metadata_sync['run']
     assert 'promote_testing.py sync' in metadata_sync['run']
     website = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
@@ -187,7 +226,11 @@ def test_standalone_does_not_require_ci_but_still_requires_release_metadata(
 
     def api(path):
         assert 'ci.yml' not in path, 'Standalone publication must not query the full CI'
-        return [release] if path.startswith('releases?') else {'workflow_runs': []}
+        if path.startswith('releases?'):
+            if path.endswith('page=1'):
+                return [{'tag_name': f'v1.2.4-beta.{i}'} for i in range(100)]
+            return [release]
+        return {'workflow_runs': []}
 
     monkeypatch.setattr(website, 'api', api)
     monkeypatch.setattr(website, 'git', lambda *args: 'abc123')
