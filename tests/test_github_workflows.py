@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import tarfile
 from pathlib import Path
@@ -24,6 +25,32 @@ policy = load("workflow_plan")
 state = load("release_state")
 assets = load("release_assets")
 lint = load("lint_workflows")
+
+
+def workflow_bash(*, windows: bool = os.name == "nt") -> str:
+    # Native Python can resolve System32/bash.exe (WSL) before Git Bash on
+    # Windows, even when pytest itself was launched by a Git Bash Actions step.
+    executable = shutil.which("git" if windows else "bash")
+    if not executable:
+        raise RuntimeError("Git Bash is required to exercise workflow shell scripts")
+    path = Path(executable).resolve()
+    if windows:
+        path = path.parent.parent / "bin" / "bash.exe"
+    if not path.is_file():
+        raise RuntimeError(f"Workflow Bash executable not found: {path}")
+    return str(path)
+
+
+def test_windows_workflow_shell_uses_git_bash_instead_of_wsl(tmp_path, monkeypatch):
+    git_exe = tmp_path / "Git" / "cmd" / "git.exe"
+    git_exe.parent.mkdir(parents=True)
+    git_exe.touch()
+    bash = tmp_path / "Git" / "bin" / "bash.exe"
+    bash.parent.mkdir()
+    bash.touch()
+    wsl = tmp_path / "System32" / "bash.exe"
+    monkeypatch.setattr(shutil, "which", lambda name: str(git_exe if name == "git" else wsl))
+    assert workflow_bash(windows=True) == str(bash.resolve())
 
 
 @pytest.mark.parametrize("paths,event,message,expected", [
@@ -458,8 +485,8 @@ def test_packaging_preflight_only_classifies_exact_stable_tags(tmp_path, source,
     # Avoid the remote preflight itself; exercise the real workflow shell classifier.
     script = 'python() { printf "build=true\\n" >> "$GITHUB_OUTPUT"; }\n' + script
     output = tmp_path / "outputs"
-    subprocess.run(["bash", "-eo", "pipefail", "-c", script], check=True,
-                   env={**os.environ, "SOURCE_REF": source, "GITHUB_OUTPUT": str(output)})
+    subprocess.run([workflow_bash(), "-eo", "pipefail", "-c", script], check=True,
+                   env={**os.environ, "SOURCE_REF": source, "GITHUB_OUTPUT": output.as_posix()})
     assert dict(line.split("=", 1) for line in output.read_text().splitlines()) == {
         "build": "true", "release": str(is_release).lower()}
 
@@ -469,8 +496,9 @@ def test_packaging_resolves_a_branch_once_and_all_build_jobs_use_its_sha(reposit
     jobs = workflow["jobs"]
     script = next(step["run"] for step in jobs["preflight"]["steps"] if step.get("id") == "source")
     monkeypatch.setenv("SOURCE_REF", "main")
+    monkeypatch.setenv("GITHUB_OUTPUT", Path(os.environ["GITHUB_OUTPUT"]).as_posix())
     original = git(repository, "rev-parse", "HEAD")
-    subprocess.run(["bash", "-eo", "pipefail", "-c", script], check=True)
+    subprocess.run([workflow_bash(), "-eo", "pipefail", "-c", script], check=True)
     output = Path(os.environ["GITHUB_OUTPUT"]).read_text()
     assert f"source_sha={original}" in output
     for name in ("prepare-icons", "python-packages", "linux", "windows", "macos"):

@@ -368,6 +368,20 @@ manuali stabili: non sono cambiati sorgente o layout del manuale.
 
 ## 6. Controlli alla prossima esecuzione autorizzata
 
+### Riscontro della prima esecuzione GitHub
+
+La [run 41610054598](https://github.com/SebRoLENS/curvemole/actions/runs/41610054598)
+ha superato lint, Linux (Python 3.12/3.13/3.14) e macOS. Su Windows sono passati
+1981 test; cinque nuovi test dei comandi Bash sono falliti perché il processo
+Python risolveva `bash` nel launcher WSL di Windows, senza distribuzioni installate,
+anziché nel Git Bash usato dal runner Actions. Non era un errore del comando
+di packaging, che viene eseguito nel job Ubuntu di preflight.
+
+La correzione seleziona esplicitamente il Bash dell'installazione Git su Windows
+e usa percorsi output con slash compatibili. Un test riproduce il caso in cui
+il Bash WSL precede Git Bash nel PATH. I cinque controlli rimangono attivi su
+Windows; non sono stati disabilitati per far passare la matrice.
+
 1. Su una normale beta o su una prova con `[beta artifacts only]`, verificare
    che documentazione preceda packaging e che il manuale offline corrisponda
    al PDF scaricabile della stessa beta.
