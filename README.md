@@ -11,7 +11,7 @@
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Windows-x86__64-0078D4?logo=windows" alt="Windows"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/Linux-x86__64-FCC624?logo=linux&logoColor=black" alt="Linux"></a>
   <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/macOS-Intel%20%7C%20Apple%20Silicon-000000?logo=apple" alt="macOS"></a>
-  <a href="https://doi.org/10.5281/zenodo.23730744"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.23730744.svg" alt="DOI"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
   <a href="https://doi.org/10.5281/zenodo.22113854"><img src="https://img.shields.io/badge/Concept%20DOI-10.5281%2Fzenodo.22113854-blue" alt="Concept DOI"></a>
   <a href="https://scicrunch.org/resolver/RRID:SCR_029214"><img src="https://img.shields.io/badge/RRID-SCR__029214-2b7282" alt="RRID"></a>
   <a href="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml"><img src="https://github.com/SebRoLENS/curvemole/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
@@ -26,7 +26,7 @@ spectra, powder diffraction and XRD patterns, kinetic traces, and general x-y da
 The same scientific engine is shared by the graphical interface, Python API, command
 line, and reproducible YAML workflows.
 
-> **Status:** Version **1.1.0 Stable**.
+> **Status:** Version **1.2.0 Stable**.
 
 **AI-assisted development:** CurveMole is developed with extensive use of AI tools,
 under human direction. The software undergoes extensive hands-on human testing,
@@ -198,24 +198,24 @@ Inspect convergence and output files before processing a full dataset. Appendix 
 of the [manual](docs/manual.md#appendix-h-using-the-automation-audits-with-an-ai)
 explains this process and the choice between Python and YAML.
 
-### 1.2.0 beta: folder workflows and batch preparation
+### 1.2.0: folder workflows and batch preparation
 
 The `testing` edition adds folder and glob imports with natural ordering,
 exclusions and recursion, automatic curve naming/identities, one model definition
 for a selected batch, and masks/fit ranges/scalar or formula preprocessing. It
 also reports invalid workflow keys earlier, preserves safe custom formulas in
 saved projects, supports per-spectrum column layouts and can refuse replacement
-of an existing project. New fields require **1.2.0 beta** and
+of an existing project. New fields require **1.2.0** and
 `schema_version: 3`; older executables reject that schema instead of ignoring the
 requested processing. Legacy schemas 1 and 2 remain supported for their older
 fields. Stable 1.1.0 does not implement these additions.
 
 Use the [beta workflow reference](https://github.com/SebRoLENS/curvemole/blob/testing/docs/workflows.md),
-[beta Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md)
-and [beta YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md)
+[beta Python audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-python-audit.md)
+and [beta YAML audit](https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-yaml-audit.md)
 when generating beta automations. Each published beta also attaches a versioned
 PDF/LaTeX manual and both AI audits to its release, alongside the installers.
-Keep those documents with the exact beta build used. The stable documentation
+Keep those documents with the exact release build used. The stable documentation
 links above continue to describe the published stable release.
 
 ## Highlights
@@ -409,17 +409,19 @@ University of Florence (UNIFI)
 
 ## Version
 
-Current public version: **1.1.0**
+Current public version: **1.2.0**
 
 ## How to cite
 
 **Research using CurveMole:** cite the exact version used. The reference below is
-for **1.1.0**; for another version, use its own release DOI.
+for **1.2.0**; for another version, use its own release DOI.
 
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.1.0) [Computer software]. Zenodo.
-> https://doi.org/10.5281/zenodo.23730744
+Zenodo archival is pending; use this version's GitHub release until its DOI is available.
 
-**In the methods:** Data were analysed with CurveMole version 1.1.0 (RRID:SCR_029214).
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. GitHub.
+> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.0
+
+**In the methods:** Data were analysed with CurveMole version 1.2.0 (RRID:SCR_029214).
 
 **The project in general:** use the [Concept DOI](https://doi.org/10.5281/zenodo.22113854)
 (10.5281/zenodo.22113854). It represents all versions and can resolve to a beta.

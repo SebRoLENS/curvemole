@@ -67,7 +67,11 @@ def test_structured_cff_metadata_and_generated_sections_are_current():
     text = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     cff = yaml.safe_load(text)
     data = citations["metadata"](text)
-    assert data["doi"] == cff["doi"]
+    assert data["doi"] == cff.get("doi", "")
+    if not data["doi"]:
+        assert data["url"].endswith(f'/releases/tag/v{cff["version"]}')
+        assert "archival is pending" in citations["manual_section"](data)
+        assert "doi =" not in citations["bibtex"](data)
     assert data["authors"] == cff["authors"]
     assert citations["readme_section"](data).strip() in (ROOT / "README.md").read_text(encoding="utf-8")
     assert citations["manual_section"](data).strip() in (ROOT / "docs/manual.md").read_text(encoding="utf-8")

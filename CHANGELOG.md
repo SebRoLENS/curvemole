@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.2.0] - 2026-11-02
+
 ### Added
 
 - Add provider-independent file handoff protocol. ([`a650228c`](https://github.com/SebRoLENS/curvemole/commit/a650228c73adb576ebbb571321da2b34813ec91d))
@@ -64,7 +65,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Document historical stable What’s New publication behavior. ([`d5c8b9f5`](https://github.com/SebRoLENS/curvemole/commit/d5c8b9f5d61a0ec881b7a582bb97f1a9e1f009d9))
 - Repair website generator syntax and remove duplicated trailing content. ([`23b9f54b`](https://github.com/SebRoLENS/curvemole/commit/23b9f54b7e238b719b832b7564711f194aa1b883))
 - Fix stable release staging of website citations. ([`ad1f16f2`](https://github.com/SebRoLENS/curvemole/commit/ad1f16f262b3ef91ee1a42b3cf9d9da7742ef8f8))
-<!-- END AUTOMATED CHANGES -->
 
 ### Fixed
 

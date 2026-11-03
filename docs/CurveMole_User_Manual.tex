@@ -156,7 +156,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 1.1.0}
+\ohead{Version 1.2.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -175,7 +175,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Version 1.1.0\par}
+    {\sffamily\Large\color{CurveMoleGrey}Version 1.2.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -200,9 +200,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Version 1.1.0}
+\subtitle{Version 1.2.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 1.1.0}
+\date{Updated for CurveMole 1.2.0}
 
 \begin{document}
 \maketitle
@@ -215,28 +215,24 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. The stable API baseline is CurveMole
-1.1.0 Stable. This testing edition documents the current local testing
-code on top of that baseline; it does not claim that all testing
-behavior is present in the stable release. The Markdown file is the
-authoritative source. The LaTeX source and PDF edition are generated
-automatically from it and must carry the same version number.
+1.2.0 Stable. This release edition documents the released scientific
+engine and application. The Markdown file is the authoritative source.
+The LaTeX source and PDF edition are generated automatically from it and
+must carry the same version number.
 
-\textbf{Testing edition for CurveMole 1.2.0 beta.} The title retains the
-stable API baseline, 1.1.0. Marked beta sections and Appendices F/G
-describe the additional workflow capabilities in 1.2.0 beta. The current
-testing edition also includes the scientific and data-integrity
-corrections summarized in Appendix I; these changes must not be assumed
-to exist in the 1.1.0 stable executable. Use the manual and AI audits
-attached to your exact beta download. The content was checked against
-the local testing code on 2026-11-02.
+\textbf{Stable edition for CurveMole 1.2.0.} This release includes the
+workflow features documented in Appendices F/G and the scientific and
+data-integrity corrections summarized in Appendices I/J. Earlier
+executables can differ; keep the matching manual and automation
+references with your analysis.
 
-\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+\textbf{Scientific corrections (release, 2026-11-02).} The seven
 findings in the latest scientific audit are corrected in this edition:
 parameter scaling, nonlinear uncertainty derivatives, convolution
 alignment, compensated summation, profile confidence regions and saved
 execution provenance. Appendix J describes the changes and their limits.
-Use the documents attached to your exact beta build; these corrections
-do not apply retroactively to earlier executables.
+Use the documents attached to your exact release build; these
+corrections do not apply retroactively to earlier executables.
 
 Useful links:
 
@@ -368,7 +364,7 @@ chemical meaning, or predictive validity. In particular:
   uncertainty method used.
 \end{itemize}
 
-For this testing edition, also read Appendix J before interpreting
+For this release edition, also read Appendix J before interpreting
 transformed errors, nonlinear links, convolution centres or profile
 intervals. Solver success and an assessment of \textbf{OK} do not detect
 every demonstrated numerical error.
@@ -571,8 +567,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.1.0{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}1.1.0{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.2.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}1.2.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -580,7 +576,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.1.0{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.2.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -624,7 +620,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.1.0{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.2.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -632,7 +628,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{1}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{2}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -649,7 +645,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.1.0{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.2.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -660,7 +656,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{1}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{2}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1543,7 +1539,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 1.1.0 optimizer.
+version 1.2.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -3944,8 +3940,8 @@ reduces memory while preserving recorded fits and sample values. Schemas
 1 through 3 remain readable. Newly saved projects require a reader
 supporting schema 4 block matrices; keep a backup when sharing with
 older installations. Model files remain at schema 2. The stable workflow
-format is schema 2; 1.2.0 beta adds workflow schema 3 for batch imports
-and preprocessing while retaining support for legacy schema 1/2 recipes.
+format is schema 2; 1.2.0 adds workflow schema 3 for batch imports and
+preprocessing while retaining support for legacy schema 1/2 recipes.
 
 NumPy arrays are loaded with \texttt{allow\_pickle=False}. CurveMole
 projects never require executing a Python pickle. The format is
@@ -4644,7 +4640,7 @@ workflows using the documented interfaces.
 \end{Shaded}
 
 Relative paths are resolved from the workflow file's directory. Stable
-1.1.0 supports schemas 1 and 2. \textbf{In 1.2.0 beta, use
+1.1.0 supports schemas 1 and 2. \textbf{In 1.2.0, use
 \texttt{schema\_version:\ 3}} for folder/glob imports, naming templates,
 shared model selectors, preprocessing and the new output controls.
 Legacy schema 1/2 recipes remain supported with their original fields.
@@ -5514,12 +5510,15 @@ expectations; trust only reviewed plugin code.
 CurveMole}\label{research-using-curvemole}}
 
 Cite the exact software version used in your bibliography. This manual
-describes \textbf{CurveMole 1.1.0}, whose reference is:
+describes \textbf{CurveMole 1.2.0}, whose reference is:
+
+Zenodo archival is pending; use this version's GitHub release until its
+DOI is available.
 
 \begin{quote}
 Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version
-1.1.0) {[}Computer software{]}. Zenodo.
-https://doi.org/10.5281/zenodo.23730744
+1.2.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.0
 \end{quote}
 
 If you used another release, including a beta, use that release's own
@@ -5534,7 +5533,7 @@ Use the software name, exact version and version-independent SciCrunch
 RRID:
 
 \begin{quote}
-Data were analysed with CurveMole version 1.1.0 (RRID:SCR\_029214).
+Data were analysed with CurveMole version 1.2.0 (RRID:SCR\_029214).
 \end{quote}
 
 \href{https://scicrunch.org/resolver/RRID:SCR_029214}{RRID:SCR\_029214}
@@ -5848,9 +5847,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-version-1.1.0-limitations}{%
-\chapter{Appendix D. Version 1.1.0
-limitations}\label{appendix-d.-version-1.1.0-limitations}}
+\hypertarget{appendix-d.-version-1.2.0-limitations}{%
+\chapter{Appendix D. Version 1.2.0
+limitations}\label{appendix-d.-version-1.2.0-limitations}}
 
 The following boundaries apply to this release:
 
@@ -5926,33 +5925,29 @@ contracts.
 \chapter{Appendix F. Python scripting
 reference}\label{appendix-f.-python-scripting-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.1.0. Workflow extensions
-require 1.2.0 beta.} \textbf{Current testing behavior.} This edition
-includes the November 2026 scientific and data-integrity corrections.
-Match it to the exact testing/beta build; those corrections and
-testing-only API additions must not be inferred for 1.1.0 Stable or an
-older beta from its version-family name alone.
+\textbf{Stable API baseline: CurveMole 1.2.0.} \textbf{Current release
+behavior.} This edition includes the November 2026 scientific and
+data-integrity corrections. Use the documents matching your installed
+release; these corrections are not implied for older executables.
 
-Applies to Python \textbf{3.12+}. This testing edition documents the
-GUI-independent scientific engine and marks the new beta workflow
-helpers explicitly: callable names, argument names, return values, side
-effects, and limits. The 1.1.0 stable executable does not support the
-marked beta operations. Private names beginning with \texttt{\_} and GUI
-classes are outside this scripting contract. Record the installed
+Applies to Python \textbf{3.12+}. This release documents the
+GUI-independent scientific engine: imports, arguments, return values,
+side effects and limits. Private names beginning with \texttt{\_} and
+GUI classes are outside this scripting contract. Record the installed
 version and scientific dependency versions with your results.
 
-\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+\textbf{Scientific corrections (release, 2026-11-02).} The seven
 findings in the latest scientific audit are corrected in this edition:
 parameter scaling, nonlinear uncertainty derivatives, convolution
 alignment, compensated summation, profile confidence regions and saved
 execution provenance. Appendix J describes the changes and their limits.
-Use the documents attached to your exact beta build; these corrections
-do not apply retroactively to earlier executables.
+Use the documents attached to your exact release build; these
+corrections do not apply retroactively to earlier executables.
 
 \hypertarget{installation-and-imports}{%
 \section{1. Installation and imports}\label{installation-and-imports}}
 
-Install the 1.1.0 wheel in a Python environment, or run
+Install the 1.2.0 wheel in a Python environment, or run
 \texttt{python\ -m\ pip\ install\ -e\ .} from a source checkout. A
 desktop executable is not a general Python interpreter. Run scripts with
 \texttt{python\ analysis.py}; no Qt event loop or open CurveMole window
@@ -7816,11 +7811,11 @@ as a hard interruption of a running NumPy allocation.
 \texttt{portable=True} strips local paths. Detached snapshots require
 \texttt{update\_project\_path=False} when saving. Project schema is
 \textbf{4} and model schema is \textbf{2}. Workflow schema is \textbf{2}
-in the stable baseline and \textbf{3} for 1.2.0 beta additions; legacy
-workflow schemas 1/2 remain accepted for their older fields. Archives
-contain JSON/numeric arrays, not pickle. Older project schemas remain
-readable. An otherwise readable project with a newer schema opens
-read-only; invalid schema numbers or damaged content raise
+in 1.1.0 and \textbf{3} from 1.2.0 additions; legacy workflow schemas
+1/2 remain accepted for their older fields. Archives contain
+JSON/numeric arrays, not pickle. Older project schemas remain readable.
+An otherwise readable project with a newer schema opens read-only;
+invalid schema numbers or damaged content raise
 \texttt{ProjectFormatError}. Unsupported model-file schemas raise
 \texttt{ProjectFormatError}. \texttt{load\_project} does not acquire a
 project lock and \texttt{save\_project} does not itself honor another
@@ -7832,12 +7827,11 @@ when applying to a different curve.
 \texttt{load\_workflow(path)\ -\textgreater{}\ dict},
 \texttt{validate\_workflow(value)\ -\textgreater{}\ list{[}str{]}},
 \texttt{run\_workflow(path,\ *,\ trust\_plugins=None,\ registry=None)\ -\textgreater{}\ WorkflowOutcome},
-\texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ Path}. Beta
-dumping emits workflow schema 3; marked beta-only YAML keys require
-schema 3 so older software rejects them instead of ignoring processing
-stages. Outcome fields are \texttt{project}, \texttt{result},
-\texttt{outputs}. In 1.2.0 beta it also has
-\texttt{imported\_files:\ list{[}Path{]}} and
+\texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ Path}. Current
+dumping emits workflow schema 3; new YAML keys require schema 3 so older
+software rejects them instead of ignoring processing stages. Outcome
+fields are \texttt{project}, \texttt{result}, \texttt{outputs}. In 1.2.0
+it also has \texttt{imported\_files:\ list{[}Path{]}} and
 \texttt{warnings:\ list{[}str{]}}, both defaulting to empty lists so the
 original three-field constructor remains valid. Relative paths resolve
 against the YAML directory. Dumping references source imports/models; it
@@ -7854,10 +7848,10 @@ complete import identity and reference format.
 \subsection{15.1 Beta workflow discovery, selection and
 preprocessing}\label{beta-workflow-discovery-selection-and-preprocessing}}
 
-The following helpers require \textbf{1.2.0 beta} and are module
-imports, not new package-root exports. They implement the same contract
-as the beta YAML runner; using Python is not required merely to
-enumerate a folder anymore.
+The following helpers require \textbf{1.2.0} and are module imports, not
+new package-root exports. They implement the same contract as the YAML
+runner; using Python is not required merely to enumerate a folder
+anymore.
 
 From \texttt{curvemole.core.workflow\_inputs}:
 
@@ -8182,7 +8176,7 @@ command. Supply a few non-sensitive representative rows when needed;
 repository source is unnecessary for this documented surface.
 
 \begin{quote}
-Using the attached CurveMole 1.1.0 Python audit, write
+Using the attached CurveMole 1.2.0 Python audit, write
 \texttt{analysis.py} for Python 3.12+. CSV has named columns \texttt{x},
 \texttt{signal}, \texttt{sigma}. Fit constant background plus an
 area-normalized Gaussian near 520 with positive sigma, mask 530-532,
@@ -8201,44 +8195,36 @@ analysis.
 \chapter{Appendix G. YAML workflow
 reference}\label{appendix-g.-yaml-workflow-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.1.0. Beta additions require
-CurveMole 1.2.0 beta.} \textbf{Beta workflow schema: 3; legacy schemas 1
-and 2 remain accepted. Checked on 2026-11-02.} This testing edition
-documents both the stable baseline and the marked 1.2.0 beta extensions.
-Folder/pattern imports, templates, shared curve selectors,
-preprocessing, stricter validation and the new output controls are beta
-additions; the 1.1.0 stable executable does not implement them. Check
-\texttt{curvemole\ -\/-version} and use the documents attached to the
-exact beta build when using these features. Use
-\texttt{schema\_version:\ 3} for new beta workflows. Marked extension
-keys require schema 3; schemas 1 and 2 accept only the legacy fields.
-This guard makes older CurveMole executables reject new recipes instead
-of silently ignoring their processing stages. This is the runner
-contract, not every desktop action.
+\textbf{Stable API baseline: CurveMole 1.2.0.} \textbf{Workflow schema:
+3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.} This
+reference documents CurveMole 1.2.0, including folder/pattern imports,
+templates, shared selectors, preprocessing, validation and output
+controls. Use \texttt{schema\_version:\ 3} for these workflow fields.
+Schemas 1 and 2 retain their legacy fields; older executables can reject
+newer recipes. This is the runner contract, not every desktop action.
 
-\textbf{Current testing behavior.} This edition includes the November
-2026 scientific and data-integrity corrections. Match it to the exact
-testing/beta build; those corrections and testing-only API additions
-must not be inferred for 1.1.0 Stable or an older beta from its
-version-family name alone.
+\textbf{Current release behavior.} This edition includes the November
+2026 scientific and data-integrity corrections. Use the documents
+matching your installed release; these corrections are not implied for
+older executables.
 
-\textbf{Scientific corrections (testing, 2026-11-02).} The seven
+\textbf{Scientific corrections (release, 2026-11-02).} The seven
 findings in the latest scientific audit are corrected in this edition:
 parameter scaling, nonlinear uncertainty derivatives, convolution
 alignment, compensated summation, profile confidence regions and saved
 execution provenance. Appendix J describes the changes and their limits.
-Use the documents attached to your exact beta build; these corrections
-do not apply retroactively to earlier executables.
+Use the documents attached to your exact release build; these
+corrections do not apply retroactively to earlier executables.
 
 \hypertarget{w1.-what-a-workflow-can-do}{%
 \section{W1. What a workflow can do}\label{w1.-what-a-workflow-can-do}}
 
 A workflow imports data into one new project and one series, constructs
 models, optionally runs one fit plan, and optionally saves a project and
-an analysis bundle. In 1.2.0 beta, imports can select individual files,
-glob patterns or folders; optional preprocessing prepares the curves
-before model construction. The scientific engine is the same engine used
-by Python and the desktop application. YAML is a declarative recipe, not
+an analysis bundle. In 1.2.0, imports can select individual files, glob
+patterns or folders; optional preprocessing prepares the curves before
+model construction. The scientific engine is the same engine used by
+Python and the desktop application. YAML is a declarative recipe, not
 Python code or a general task scheduler.
 
 The execution order is fixed:
@@ -8255,8 +8241,8 @@ The execution order is fixed:
   Create a fresh project and series; expand each import specification
   and import its files in the selected order.
 \item
-  In 1.2.0 beta, apply optional preprocessing, then select curves for
-  each model.
+  In 1.2.0, apply optional preprocessing, then select curves for each
+  model.
 \item
   Add components/constraints, remap declared curve identities in links,
   and resolve the complete parameter graph (even when no fit is
@@ -8268,7 +8254,7 @@ The execution order is fixed:
   requested.
 \end{enumerate}
 
-The 1.2.0 beta preprocessing stage supports masks, fit ranges and the
+The 1.2.0 preprocessing stage supports masks, fit ranges and the
 documented scalar/formula transformations. There are no YAML stages for
 background subtraction, curve-to-curve calculator operations, repeated
 fits, conditional branches, loops, live folder monitoring, opening an
@@ -8284,9 +8270,9 @@ usable through \texttt{fit.settings.solver}.
 inspect}\label{w2.-run-validate-and-inspect}}
 
 Install the exact downloaded CurveMole wheel in a Python 3.12+
-environment. For new beta operations choose a \texttt{1.2.0bN} wheel,
-where N is the actual published beta sequence; a \texttt{1.1.0} wheel
-supports only the stable baseline. Then run:
+environment. For the current operations install the \texttt{1.2.0}
+wheel; older wheels may support only a subset of this interface. Then
+run:
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -8306,14 +8292,14 @@ and \texttt{-\/-json} beyond the global options; it does not accept fit
 or export overrides.
 
 In 1.1.0, validation checks only the outer schema and container types.
-In 1.2.0 beta, validation also checks supported keys and nested shapes
-in imports, selectors, preprocessing, components/constraints, fit
-settings and exports, so misspelled keys are reported before execution.
-It does \textbf{not} read the input files, execute plugins, establish
-physical model suitability or prove fit convergence. Column
-availability, registered functions, links and file collisions still need
-an actual run. Run the recipe on representative input and examine the
-results before batch use.
+In 1.2.0, validation also checks supported keys and nested shapes in
+imports, selectors, preprocessing, components/constraints, fit settings
+and exports, so misspelled keys are reported before execution. It does
+\textbf{not} read the input files, execute plugins, establish physical
+model suitability or prove fit convergence. Column availability,
+registered functions, links and file collisions still need an actual
+run. Run the recipe on representative input and examine the results
+before batch use.
 
 Normal JSON output from \texttt{run} has these keys:
 
@@ -8327,7 +8313,7 @@ Normal JSON output from \texttt{run} has these keys:
 \texttt{success} and \texttt{statistics} are \texttt{null} when no fit
 ran. \texttt{outputs} contains paths to saved projects and
 created/updated bundle files; it omits unchanged bundle files. The
-actual statistics object contains the fit statistics. In 1.2.0 beta,
+actual statistics object contains the fit statistics. In 1.2.0,
 \texttt{imported\_files} records resolved input paths in import order
 and \texttt{warnings} reports skipped empty selections, for example when
 \texttt{allow\_empty:\ true}. These two additional JSON keys are absent
@@ -8479,15 +8465,15 @@ and bundle paths resolve against the \textbf{workflow file's directory},
 regardless of the terminal working directory. Absolute paths are also
 accepted. \texttt{\textasciitilde{}} and environment variables such as
 \texttt{\$HOME} are not expanded. The legacy \texttt{path} remains a
-literal single-file path: put wildcard expressions in the beta
-\texttt{glob} field or use \texttt{directory}/\texttt{pattern}. Quote
-Windows paths with single quotes or use forward slashes. Extensions
-alone do not determine whether the text importer can read a file;
-supported calibrated WinSpec SPE 2.x spectra also use the importer.
+literal single-file path: put wildcard expressions in the \texttt{glob}
+field or use \texttt{directory}/\texttt{pattern}. Quote Windows paths
+with single quotes or use forward slashes. Extensions alone do not
+determine whether the text importer can read a file; supported
+calibrated WinSpec SPE 2.x spectra also use the importer.
 
-The beta validator rejects unknown keys in supported workflow blocks
-instead of silently accepting typos. Function-specific initial-parameter
-and constraint names are checked at execution after the function
+The validator rejects unknown keys in supported workflow blocks instead
+of silently accepting typos. Function-specific initial-parameter and
+constraint names are checked at execution after the function
 configuration/plugins are available. The 1.1.0 runner can ignore some
 unused keys, so validation there is weaker. Validation is not a
 substitute for inspecting imported curves, resolved parameters,
@@ -8554,7 +8540,7 @@ File specifications, expanded in order\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{preprocess}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-List; \texttt{{[}{]}}; beta only\strut
+List; \texttt{{[}{]}}; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Ordered curve preprocessing before models/fitting\strut
 \end{minipage}\tabularnewline
@@ -8615,7 +8601,7 @@ Literal single-file input; stable baseline supported\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{glob}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-One source selector; beta only\strut
+One source selector; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 File pattern relative to the workflow directory, or an absolute
 pattern\strut
@@ -8623,7 +8609,7 @@ pattern\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{directory}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-One source selector; beta only\strut
+One source selector; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Folder to scan; exactly one of \texttt{path}, \texttt{glob},
 \texttt{directory}\strut
@@ -8631,14 +8617,14 @@ Folder to scan; exactly one of \texttt{path}, \texttt{glob},
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{pattern}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{"*.csv"}; directory only; beta\strut
+\texttt{"*.csv"}; directory only; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Pattern inside the selected directory\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{recursive}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{false}; batch sources; beta\strut
+\texttt{false}; batch sources; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Search directory descendants or enable explicit \texttt{**} in a
 glob\strut
@@ -8646,35 +8632,35 @@ glob\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{exclude}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{{[}{]}}; batch sources; beta\strut
+\texttt{{[}{]}}; batch sources; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Exclusion pattern list\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{sort}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{natural}; batch sources; beta\strut
+\texttt{natural}; batch sources; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{natural}, \texttt{lexical}, or \texttt{none}\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{allow\_empty}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{false}; batch sources; beta\strut
+\texttt{false}; batch sources; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Accept a valid scan with no matching files\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{alias\_template}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Absent; beta\strut
+Absent; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Generate human-readable names for imported curves\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{curve\_id\_template}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Absent; beta\strut
+Absent; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Generate stable workflow identities for links/selectors\strut
 \end{minipage}\tabularnewline
@@ -8733,7 +8719,7 @@ text or component display names. Identity entries take precedence over
 aliases with the same spelling; avoid accidental collisions.
 
 For one file, both lists follow the order returned by the importer. In
-beta batch imports the lists apply once to the flattened curves from all
+batch imports the lists apply once to the flattened curves from all
 selected files, not repeatedly to each file. Choose \texttt{aliases} or
 \texttt{alias\_template}, never both; likewise choose
 \texttt{curve\_ids} or \texttt{curve\_id\_template}. Shorter explicit
@@ -8742,9 +8728,9 @@ unused. For repeatable linked workflows, provide a \texttt{curve\_ids}
 entry for every referenced curve and explicit component \texttt{id}
 values. Aliases remain optional human-readable labels.
 
-\hypertarget{w6.1-folder-and-pattern-selection-1.2.0-beta}{%
-\subsection{W6.1 Folder and pattern selection (1.2.0
-beta)}\label{w6.1-folder-and-pattern-selection-1.2.0-beta}}
+\hypertarget{w6.1-folder-and-pattern-selection-1.2.0}{%
+\subsection{W6.1 Folder and pattern selection
+(1.2.0)}\label{w6.1-folder-and-pattern-selection-1.2.0}}
 
 Use exactly one source selector per import item.
 \texttt{path:\ data/scan.csv} remains a literal file;
@@ -8812,9 +8798,9 @@ removing a file may change them. For enduring scientific identities, use
 meaningful explicit \texttt{curve\_ids} or a suitable filename-derived
 template. Duplicate identities fail.
 
-\hypertarget{w6.2-complete-folder-fit-recipe-1.2.0-beta}{%
-\subsection{W6.2 Complete folder-fit recipe (1.2.0
-beta)}\label{w6.2-complete-folder-fit-recipe-1.2.0-beta}}
+\hypertarget{w6.2-complete-folder-fit-recipe-1.2.0}{%
+\subsection{W6.2 Complete folder-fit recipe
+(1.2.0)}\label{w6.2-complete-folder-fit-recipe-1.2.0}}
 
 Place \texttt{scan2.csv} and \texttt{scan10.csv} in \texttt{data/}
 beside the workflow. Each has the same \texttt{x,y,sigma\_y} layout as
@@ -9080,7 +9066,7 @@ fitted observations, N and degrees of freedom when weights are the
 active Y-error representation. Imported X errors do not determine the
 fit mask. Check retained point counts in results.
 
-In 1.2.0 beta, \texttt{spectra} accepts a list of nested mappings, each
+In 1.2.0, \texttt{spectra} accepts a list of nested mappings, each
 describing its own X/Y and error columns. Use it instead of shared
 \texttt{x}/\texttt{y} or \texttt{pairs} when spectra in the same file
 have different error layouts. For example,
@@ -9403,9 +9389,9 @@ For example, this model evaluates
 \end{Highlighting}
 \end{Shaded}
 
-\hypertarget{w7.1-shared-selectors-and-preprocessing-1.2.0-beta}{%
-\subsection{W7.1 Shared selectors and preprocessing (1.2.0
-beta)}\label{w7.1-shared-selectors-and-preprocessing-1.2.0-beta}}
+\hypertarget{w7.1-shared-selectors-and-preprocessing-1.2.0}{%
+\subsection{W7.1 Shared selectors and preprocessing
+(1.2.0)}\label{w7.1-shared-selectors-and-preprocessing-1.2.0}}
 
 Models, preprocessing steps and the fit plan share curve selection. Use
 one of \texttt{curve:\ identity},
@@ -9736,14 +9722,14 @@ formulas have no X array. A nonfinite derived result is reported as
 unavailable. Invalid symbols or expressions can raise an expression
 error and fail an operation; use only parameters declared by the main
 formula and check each derived formula on representative parameter
-values. In the current testing edition, a formula may replace a
+values. In the current release edition, a formula may replace a
 non-builtin registration, but builtin identifier collisions are
 rejected. Choose a distinct identifier for each custom function. A
 workflow without an explicit Python registry uses an isolated registry;
 a supplied registry remains owned by its caller. Formula definitions are
 not arbitrary Python and need no executable-plugin approval.
 
-\textbf{Custom-function persistence:} 1.2.0 beta copies safe formula
+\textbf{Custom-function persistence:} 1.2.0 copies safe formula
 definitions into \texttt{Project.custom\_functions}, using the
 project-format \texttt{derived\_formulas} key, and
 \texttt{dump\_workflow} writes them back as YAML
@@ -9811,13 +9797,13 @@ Meaning\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 All imported curves\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Nonempty selector list; beta also accepts \texttt{all}, \texttt{first},
-\texttt{last}\strut
+Nonempty selector list; 1.2.0+ also accepts \texttt{all},
+\texttt{first}, \texttt{last}\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{curve}, \texttt{match}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Absent; beta\strut
+Absent; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Alternative single-curve or wildcard selection; use only one
 selector\strut
@@ -10223,7 +10209,7 @@ becomes \texttt{.fitproj}\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{project\_overwrite}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{true}; beta\strut
+\texttt{true}; 1.2.0+\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Allow replacing \texttt{export.project}; false refuses an existing
 project\strut
@@ -10254,8 +10240,8 @@ checks\strut
 \bottomrule
 \end{longtable}
 
-These are the only YAML export keys. \texttt{project\_overwrite} is a
-beta addition; the stable baseline always uses its existing direct
+These are the only YAML export keys. \texttt{project\_overwrite} is an
+addition in 1.2.0; the stable baseline always uses its existing direct
 project-save behaviour. Controls such as delimiter, selected bundle
 items, portable project copies, saved uncertainty samples, and
 current-view plot exports are Python/desktop features, not accepted YAML
@@ -10263,7 +10249,7 @@ options.
 
 \textbf{Project and bundle replacement differ.} \texttt{export.project}
 saves directly with \texttt{save\_project}; it can replace an existing
-project without consulting \texttt{export.overwrite}. In beta, set
+project without consulting \texttt{export.overwrite}. In 1.2.0, set
 \texttt{project\_overwrite:\ false} to refuse replacement, or choose a
 distinct project path when a previous file must be kept.
 \texttt{versioned} applies only to the bundle, not to the project
@@ -10287,8 +10273,8 @@ that run. \texttt{run\ -\/-json} is a summary; use the saved
 \texttt{.fitproj} or exported result tables/JSON for detailed
 parameters, per-curve arrays, covariance, diagnostics and warnings.
 Retain the recipe with the saved results. Safe custom formulas are
-persisted by beta workflows as described in W9; executable plugin source
-still needs its own archived manifest, module and dependencies.
+persisted by current workflows as described in W9; executable plugin
+source still needs its own archived manifest, module and dependencies.
 
 \hypertarget{w13.-trusted-executable-plugins}{%
 \section{W13. Trusted executable
@@ -10346,7 +10332,7 @@ The workflow module also exposes:
 \BuiltInTok{print}\NormalTok{(outcome.project.name)}
 \BuiltInTok{print}\NormalTok{(outcome.result.success }\ControlFlowTok{if}\NormalTok{ outcome.result }\ControlFlowTok{else} \VariableTok{None}\NormalTok{)}
 \BuiltInTok{print}\NormalTok{(outcome.outputs)                      }\CommentTok{\# list[pathlib.Path]}
-\CommentTok{\# In 1.2.0 beta: outcome.imported\_files and outcome.warnings are also available.}
+\CommentTok{\# In 1.2.0: outcome.imported\_files and outcome.warnings are also available.}
 \end{Highlighting}
 \end{Shaded}
 
@@ -10354,8 +10340,8 @@ Exact runner signature:
 \texttt{run\_workflow(path,\ *,\ trust\_plugins:\ set{[}str{]}\ \textbar{}\ None\ =\ None,\ registry:\ FunctionRegistry\ \textbar{}\ None\ =\ None)\ -\textgreater{}\ WorkflowOutcome}.
 Passing a registry permits caller-provided functions.
 \texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ pathlib.Path}
-writes YAML containing imports and model/component specifications. Beta
-dumping emits schema 3; the stable 1.1.0 dumper emits schema 2.
+writes YAML containing imports and model/component specifications.
+Current dumping emits schema 3; the stable 1.1.0 dumper emits schema 2.
 \texttt{WorkflowOutcome} has \texttt{project}, \texttt{result}
 (\texttt{FitResult\ \textbar{}\ None}), and \texttt{outputs}
 (\texttt{list{[}Path{]}}). Beta adds \texttt{imported\_files}
@@ -10400,12 +10386,12 @@ Example prompt:
 
 \begin{quote}
 Use the attached CurveMole YAML audit as the API contract. I am running
-CurveMole 1.2.0 beta. Create one schema-3 workflow for the attached
-column layout. Use only documented fields and function names. Ask for
-missing scientific assumptions. Return the complete YAML, the
-validate/run commands, the expected outputs, and any limitations. If the
-task needs capabilities missing from YAML, explain why and request the
-Python audit rather than inventing keys.
+CurveMole 1.2.0. Create one schema-3 workflow for the attached column
+layout. Use only documented fields and function names. Ask for missing
+scientific assumptions. Return the complete YAML, the validate/run
+commands, the expected outputs, and any limitations. If the task needs
+capabilities missing from YAML, explain why and request the Python audit
+rather than inventing keys.
 \end{quote}
 
 For scripts, supply \texttt{ai-python-audit.md} instead. Supply both
@@ -10427,12 +10413,12 @@ for}\label{h.1-what-the-two-audits-are-for}}
 The two downloadable Markdown documents are self-contained context packs
 for creating CurveMole automations with an AI assistant. Each records
 the interfaces verified against the stable 1.1.0 API and the marked
-1.2.0 beta workflow additions, including exact names, configuration
-fields, defaults, examples, return values and practical limits. Here,
-``audit'' means an inspection of the implemented automation interface.
-It does not mean a security certification, an executable script, or an
-assessment of your scientific model. Neither document requires an AI
-service or uploads data from CurveMole.
+1.2.0 workflow additions, including exact names, configuration fields,
+defaults, examples, return values and practical limits. Here, ``audit''
+means an inspection of the implemented automation interface. It does not
+mean a security certification, an executable script, or an assessment of
+your scientific model. Neither document requires an AI service or
+uploads data from CurveMole.
 
 \begin{longtable}[]{@{}lll@{}}
 \toprule
@@ -10472,10 +10458,10 @@ Appendices F and G\strut
 
 Python is appropriate for loops, conditional processing,
 existing-project editing, unsupported transformations, explicit
-uncertainty analyses or selective exports. In 1.2.0 beta, YAML also
-supports folder/pattern imports, shared curve selectors, masking, fit
-ranges and the documented scalar/formula preprocessing. Use schema 3 for
-those additions. YAML follows a declarative sequence of imports,
+uncertainty analyses or selective exports. In 1.2.0, YAML also supports
+folder/pattern imports, shared curve selectors, masking, fit ranges and
+the documented scalar/formula preprocessing. Use schema 3 for those
+additions. YAML follows a declarative sequence of imports,
 preprocessing, model construction, one fit and exports. YAML has no
 general task graph, loop, conditional, Python execution or uncertainty
 stage. Loading a plugin does not add arbitrary new YAML stages. The
@@ -10486,16 +10472,16 @@ imported data; it does not edit the open GUI project.
 \section{H.2 Download and version
 matching}\label{h.2-download-and-version-matching}}
 
-For 1.2.0 beta, use the versioned audits attached to the exact beta
-release. The latest testing-source editions are also available here:
+For 1.2.0, use the versioned audits attached to the exact release. The
+exact stable-source editions are also available here:
 
 \begin{itemize}
 \tightlist
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-python-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-python-audit.md}{Download
   Python audit}
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/ai-yaml-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-yaml-audit.md}{Download
   YAML audit}
 \end{itemize}
 
@@ -10506,11 +10492,9 @@ with the bundled documentation. The read links above also work from the
 offline manual.
 
 Check \texttt{curvemole\ -\/-version} and the CurveMole version declared
-inside the audit. These convenience URLs follow \texttt{testing}, so
-retain the documents attached to your exact beta build for
-reproducibility. The stable 1.1.0 editions remain available from the
-repository's \texttt{main} branch. Keep the audit's declared
-compatibility record with your analysis. If versions differ, ask the AI
+inside the audit. These URLs are pinned to this stable tag. Keep the
+matching documents with your analysis; historical editions remain
+available at their original release tags. If versions differ, ask the AI
 to flag the mismatch and verify the relevant contracts before producing
 an automation; do not assume a document for another release is current.
 These files supplement the current-version manual; they do not alter
@@ -10555,7 +10539,7 @@ cannot describe every user-installed extension.
 A YAML request can be written as:
 
 \begin{verbatim}
-Use the attached audit for CurveMole 1.2.0 beta. Generate a complete schema-3
+Use the attached audit for CurveMole 1.2.0. Generate a complete schema-3
 workflow and the CLI commands to validate and run it. Import *.csv from data/
 in natural filename order. Files have a comma separator, a header and x, y, sigma_y
 columns; sigma_y means one standard deviation. Apply a constant background and
@@ -10632,9 +10616,9 @@ files together. Correct execution and fit convergence are necessary
 checks; the scientific interpretation still requires the checks in
 Section 1.4.
 
-\hypertarget{appendix-i.-testing-edition-integrity-and-resource-limits}{%
-\chapter{Appendix I. Testing edition: integrity and resource
-limits}\label{appendix-i.-testing-edition-integrity-and-resource-limits}}
+\hypertarget{appendix-i.-release-integrity-and-resource-limits}{%
+\chapter{Appendix I. Release integrity and resource
+limits}\label{appendix-i.-release-integrity-and-resource-limits}}
 
 Inverse-variance weights follow reversible Y transformations:
 multiplying Y by \texttt{a} divides its inverse variance by
@@ -10693,7 +10677,7 @@ page.
 \chapter{Appendix J. Scientific audit
 corrections}\label{appendix-j.-scientific-audit-corrections}}
 
-The seven findings checked on 2026-11-02 are corrected in this testing
+The seven findings checked on 2026-11-02 are corrected in this release
 edition. Earlier release files retain their previous behavior.
 Independent regression tests compare calculations with analytic
 references and checked archive replay.

@@ -32,4 +32,5 @@ def test_cff_structured_identifiers_distinguish_the_project_and_rrid():
     identifiers = {entry["value"]: entry["type"] for entry in citation["identifiers"]}
     assert identifiers[CONCEPT_DOI] == "doi"
     assert identifiers[f"RRID:{RRID}"] == "other"
-    assert citation["doi"] != CONCEPT_DOI
+    # A version DOI is assigned only after publication; the project DOI remains.
+    assert citation.get("doi") != CONCEPT_DOI

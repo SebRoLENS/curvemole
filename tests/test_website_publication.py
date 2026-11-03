@@ -92,7 +92,8 @@ def test_manual_promotion_is_a_validated_website_source_only_after_success(
         assert metadata is None and 'promotion' in reason
 
 
-def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypatch, tmp_path):
+@pytest.mark.parametrize("existing_doi", [False, True])
+def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypatch, tmp_path, existing_doi):
     # Emulate the Windows legacy locale even when this regression runs on Linux.
     original_open = Path.open
 
@@ -105,8 +106,12 @@ def test_snapshot_bundles_matching_citation_and_pins_downloads(website, monkeypa
     monkeypatch.setattr(website, 'ROOT', tmp_path)
     (tmp_path / 'website/dist').mkdir(parents=True)
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    citation = re.sub(r'^doi:.*\n', '', citation, flags=re.M)
+    if existing_doi:
+        citation += '\ndoi: "10.5281/zenodo.456"\n'
     citation = re.sub(r'^version:.*$', 'version: "1.2.3"', citation, flags=re.M)
-    citation = re.sub(r'^doi:.*$', 'doi: "10.5281/zenodo.123"', citation, flags=re.M)
+    citation = re.sub(r'^doi:.*\n', '', citation, flags=re.M)
+    citation += '\ndoi: "10.5281/zenodo.123"\n'
     (tmp_path / 'CITATION.cff').write_text(citation, encoding="utf-8")
     for source_page in (ROOT / 'website/dist').glob('*.html'):
         (tmp_path / 'website/dist' / source_page.name).write_text(source_page.read_text(encoding='utf-8'), encoding='utf-8')
