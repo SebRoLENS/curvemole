@@ -3606,10 +3606,8 @@ trust only reviewed plugin code.
 Cite the exact software version used in your bibliography. This manual describes
 **CurveMole 1.2.0**, whose reference is:
 
-Zenodo archival is pending; use this version's GitHub release until its DOI is available.
-
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.0
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.2.0) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.23910620
 
 If you used another release, including a beta, use that release's own version DOI
 from its GitHub release notes or Zenodo record. Never substitute the current
