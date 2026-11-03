@@ -29,7 +29,7 @@ def capture(style: str, output: Path, profile: Path) -> None:
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QApplication, QStyleFactory
 
-    from curvemole.gui.app import create_main_window
+    from curvemole.gui.app import _configure_gui_defaults, create_main_window
     from curvemole.version import __version__
 
     QSettings.setDefaultFormat(QSettings.Format.IniFormat)
@@ -39,6 +39,7 @@ def capture(style: str, output: Path, profile: Path) -> None:
     app = QApplication(["curvemole-style-comparison"])
     QCoreApplication.setOrganizationName("CurveMole style comparison")
     QCoreApplication.setApplicationName("CurveMole style comparison")
+    _configure_gui_defaults()
     default_style = app.style().objectName()
     if style == "fusion" and (app.setStyle("Fusion") is None or app.style().objectName().lower() != "fusion"):
         raise RuntimeError("Fusion could not be selected")

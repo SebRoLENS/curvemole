@@ -11,7 +11,7 @@ from typing import Any
 import pyqtgraph as pg
 from PySide6.QtCore import QLocale, QTimer
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.models import Component
@@ -32,7 +32,12 @@ from curvemole.single_instance import NativeFileOpenFilter  # noqa: F401
 
 
 def _configure_gui_defaults() -> None:
-    """Use scientific numeric formatting and single-button plot navigation by default."""
+    """Use consistent desktop controls, scientific numbers and plot navigation."""
+    app = QApplication.instance()
+    if app is not None:
+        # Native Windows/macOS controls do not consistently honour our dark
+        # palette. Fusion keeps the existing themes coherent across platforms.
+        app.setStyle("Fusion")
     # CurveMole's numerical parameters are scientific data, not localized prose.
     # Keep decimal input/output stable and portable regardless of the OS locale.
     QLocale.setDefault(QLocale.c())
