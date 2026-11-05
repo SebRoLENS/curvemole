@@ -2,6 +2,52 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.2.3-beta.103](https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.3-beta.103) — published 2026-11-05
+
+Changes since `v1.2.0-beta.88` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.2.0-beta.88...v1.2.3-beta.103)).
+
+### Added
+
+- Support all Git installation layouts in Windows workflow tests. ([`99779f9a`](https://github.com/SebRoLENS/curvemole/commit/99779f9ab3a9fc0dfc576a3af58fd50ab54cfec8))
+
+### Changed
+
+- Run stable release jobs after optional promotion is skipped [release 1.2.0]. ([`e3d23ed8`](https://github.com/SebRoLENS/curvemole/commit/e3d23ed88175ae573e245f470e4f0c458183f5b6))
+- Activate validated release and CI workflows. ([`6e54afec`](https://github.com/SebRoLENS/curvemole/commit/6e54afeccdde93e828f89b6bc68c2c59f915d3ab))
+- Allow runner variation in Windows GUI validation. ([`e2b79fbc`](https://github.com/SebRoLENS/curvemole/commit/e2b79fbc63b73c1f550ccd48e235cb0f789af074))
+- Activate Windows CI timeout headroom. ([`02b1a7a9`](https://github.com/SebRoLENS/curvemole/commit/02b1a7a90286de10edf84101ed46be2350e4db24))
+- End completed Windows CI test workers reliably. ([`ec2e13df`](https://github.com/SebRoLENS/curvemole/commit/ec2e13df323a906eebaf851a3d1f5ee9f90a6027))
+- Activate reliable Windows CI worker shutdown. ([`5510b896`](https://github.com/SebRoLENS/curvemole/commit/5510b896d00210f4fa6bfef4f2630880a53ae232))
+- Compare current and Fusion desktop styles across platforms. ([`a07c2279`](https://github.com/SebRoLENS/curvemole/commit/a07c2279a5f709f005e3adef3710cc9c10325195))
+- Install native X11 dependencies for desktop style screenshots. ([`a1c166f7`](https://github.com/SebRoLENS/curvemole/commit/a1c166f7d29611dc6b1ece9341810dc719bebcaf))
+- Use English for the Quick start construction notice. ([`b7aaf494`](https://github.com/SebRoLENS/curvemole/commit/b7aaf49452a5f1e1eb95f16e90f6c6c75066f3ea))
+- Publish the Quick start notice in English. ([`9366b08a`](https://github.com/SebRoLENS/curvemole/commit/9366b08aceb00f0e9e9e419e83dbc8cd6d97e5e3))
+
+### Fixed
+
+- Fix beta withdrawal verification through immutable release ID. ([`591d0543`](https://github.com/SebRoLENS/curvemole/commit/591d054398893b058181e5c7149de02621bad594))
+- Fix opening valid projects beyond automatic size thresholds. ([`bb3c2842`](https://github.com/SebRoLENS/curvemole/commit/bb3c2842db97799c3f23375760be7d83361ee3dc))
+- Fix workflow coordination and consistent release packaging. ([`490e57b5`](https://github.com/SebRoLENS/curvemole/commit/490e57b5128f91d3998a1fd6a27ada8f1f66197d))
+- Fix Git Bash selection in Windows workflow tests. ([`3381db2f`](https://github.com/SebRoLENS/curvemole/commit/3381db2f48a915bddea69d51d594bbb5967ebd8e))
+- Fix inconsistent desktop themes with Fusion controls by default. ([`c82291dc`](https://github.com/SebRoLENS/curvemole/commit/c82291dcf9b7e476fb7124db2e34bd5e2be9146c))
+- Fix Calculator formula reuse, data folders and model background controls. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Fix Linux coverage timeout while preserving the full test matrix. ([`61bf6c49`](https://github.com/SebRoLENS/curvemole/commit/61bf6c49a36093da0216f16a7214834ce4455526))
+
+### Documentation
+
+- docs: publish CurveMole RRID in public citation, manuals and website. ([`9a34f697`](https://github.com/SebRoLENS/curvemole/commit/9a34f697071f26e1dff93a2a258c1d002a87be7e))
+- docs: publish all-versions Concept DOI beside release citations. ([`df8bdbbb`](https://github.com/SebRoLENS/curvemole/commit/df8bdbbba4a678268ee01c7cad3372e547859599))
+- Publish consistent citation guidance for the current stable release. ([`180ad6ea`](https://github.com/SebRoLENS/curvemole/commit/180ad6ea291086624ea698123be6e7e71adde1a7))
+- Publish citation validation correction from testing. ([`6f36f22e`](https://github.com/SebRoLENS/curvemole/commit/6f36f22e1e533ac402335ab74a54e30420c6aa2d))
+- Publish consent-gated Google Analytics for CurveMole website. ([`fce83d59`](https://github.com/SebRoLENS/curvemole/commit/fce83d59893de022576c11147294731715f4dfae))
+- Publish reviewed website pages and sitemap from testing. ([`c81c5661`](https://github.com/SebRoLENS/curvemole/commit/c81c5661f196888b7060b59eac40a3cd676cce03))
+- Publish tested website lint corrections from testing. ([`8f4ab605`](https://github.com/SebRoLENS/curvemole/commit/8f4ab605aa994d6aff53c958c7893fdf7e6007cd))
+- Switch CurveMole website to cookie-free Cloudflare analytics. ([`f526eeca`](https://github.com/SebRoLENS/curvemole/commit/f526eeca201ff9fa8f7981fbdf73a933b37faca0))
+- Fix stable release staging of website citations. ([`ad1f16f2`](https://github.com/SebRoLENS/curvemole/commit/ad1f16f262b3ef91ee1a42b3cf9d9da7742ef8f8))
+- Fix website publication after stable documentation preparation. ([`60af148e`](https://github.com/SebRoLENS/curvemole/commit/60af148e6ba46e596b5b9b1e660d0ee076e59ddd))
+- Recognize named stable promotions in website publication. ([`9bc14fc9`](https://github.com/SebRoLENS/curvemole/commit/9bc14fc968c61457dac8a2163bd3e13ab2c3a0f8))
+- Activate stable promotion website event guard. ([`db691767`](https://github.com/SebRoLENS/curvemole/commit/db691767b4bd4d3ad218496b16ca4a1de218a079))
+
 ## [1.2.0-beta.88](https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.0-beta.88) — published 2026-11-02
 
 Changes since `v1.1.1-beta.50` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.1.1-beta.50...v1.2.0-beta.88)).
