@@ -50,7 +50,7 @@ jobs:
       cancel-in-progress: true
       queue: single
     runs-on: ${{ matrix.os }}
-    timeout-minutes: ${{ matrix.os != 'ubuntu-22.04' && 15 || 10 }}
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
         with:
@@ -64,9 +64,9 @@ jobs:
           enable-cache: true
       - run: uv sync --locked --no-default-groups --group test
       - name: Tests
-        # Valid desktop runs can approach/exceed eight minutes (Windows: 7m47s).
-        # Allow runner variation and Qt shutdown while retaining a bounded timeout.
-        timeout-minutes: ${{ matrix.os != 'ubuntu-22.04' && 12 || 8 }}
+        # Linux coverage with the Python tracer and native desktop tests can exceed
+        # eight minutes. Keep the full checks and allow bounded runner headroom.
+        timeout-minutes: 12
         shell: bash
         env:
           QT_QPA_PLATFORM: offscreen
