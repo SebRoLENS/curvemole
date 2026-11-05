@@ -193,6 +193,7 @@ def test_sitemap_is_generated_from_the_complete_snapshot_including_archives(scri
     root = ElementTree.parse(tmp_path / 'sitemap.xml')
     urls = [item.text for item in root.findall('.//{*}loc')]
     assert urls == [base, base + 'news-archive-beta-1-2.html', base + 'news-archive.html', base + 'news.html']
+    assert (tmp_path / 'sitemap.txt').read_text(encoding='utf-8').splitlines() == urls
     assert f'Sitemap: {base}sitemap.xml' in (tmp_path / 'robots.txt').read_text(encoding='utf-8')
     (tmp_path / 'news.html').write_text('<link rel="canonical" href="https://sebrolens.github.io/news.html">', encoding='utf-8')
     with pytest.raises(ValueError, match='Incorrect canonical'):

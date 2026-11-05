@@ -154,7 +154,12 @@ stable manual in the exact published source snapshot.
 ## Sitemap
 
 Submit https://sebrolens.github.io/curvemole/sitemap.xml to Google Search Console.
-It includes the six main pages and the privacy notice. Keep it synchronized when adding or renaming public pages.
+It includes all canonical public pages, including generated release archives.
+Publication also generates an equivalent UTF-8 `sitemap.txt`, one absolute URL
+per line, a format officially supported by Google. A separate submission of that
+file can help diagnose XML-URL fetch failures without removing the existing
+submission or its history. An accepted submission is not evidence of successful
+processing: verify the report's status and discovered-page count separately.
 
 ## Release-news publication
 

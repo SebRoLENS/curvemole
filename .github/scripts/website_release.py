@@ -223,6 +223,7 @@ def write_sitemap(dist):
     namespace = 'http://www.sitemaps.org/schemas/sitemap/0.9'
     ElementTree.register_namespace('', namespace)
     root = ElementTree.Element(f'{{{namespace}}}urlset')
+    urls = []
     for path in sorted(dist.glob('*.html')):
         parser = Canonical()
         parser.feed(path.read_text(encoding='utf-8'))
@@ -236,8 +237,13 @@ def write_sitemap(dist):
             raise ValueError(f'Incorrect canonical URL: {path.name}')
         node = ElementTree.SubElement(root, f'{{{namespace}}}url')
         ElementTree.SubElement(node, f'{{{namespace}}}loc').text = expected
+        urls.append(expected)
     ElementTree.indent(root)
     ElementTree.ElementTree(root).write(dist / 'sitemap.xml', encoding='utf-8', xml_declaration=True)
+    # Google also accepts a UTF-8 file with one canonical URL per line. Keep the
+    # two formats identical so a separate submission can diagnose fetch failures
+    # without renaming the existing XML sitemap or losing its Console history.
+    (dist / 'sitemap.txt').write_text('\n'.join(urls) + '\n', encoding='utf-8')
     (dist / 'robots.txt').write_text(f'User-agent: *\nAllow: /\n\nSitemap: {base}sitemap.xml\n', encoding='utf-8')
 
 
