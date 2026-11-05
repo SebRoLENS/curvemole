@@ -6,15 +6,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 <!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
-### Changed
-
-- Use English for the Quick start construction notice. ([`b7aaf494`](https://github.com/SebRoLENS/curvemole/commit/b7aaf49452a5f1e1eb95f16e90f6c6c75066f3ea))
-- Publish the Quick start notice in English. ([`9366b08a`](https://github.com/SebRoLENS/curvemole/commit/9366b08aceb00f0e9e9e419e83dbc8cd6d97e5e3))
-
 ### Fixed
 
-- Fix Calculator formula reuse, data folders and model background controls. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
-- Fix Linux coverage timeout while preserving the full test matrix. ([`61bf6c49`](https://github.com/SebRoLENS/curvemole/commit/61bf6c49a36093da0216f16a7214834ce4455526))
+- Unify Calculator operations under Custom formulas, including expressions across table columns. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Make Calculator formulas reusable with adjacent Load formula and Save formula controls. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Show each result column once as c1, c2 and so on, with current X/Y assignments, and make column insertion searchable. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Group default formula, function and plugin folders under curvemole_data. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Make the Background control visible for the selected model functions, including mixed selections. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Display effectively zero positive parameter bounds as 0 while preserving safe numerical limits. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.2.2] - 2026-11-03

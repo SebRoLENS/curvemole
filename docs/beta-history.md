@@ -20,8 +20,6 @@ Changes since `v1.2.0-beta.88` ([compare](https://github.com/SebRoLENS/curvemole
 - Activate reliable Windows CI worker shutdown. ([`5510b896`](https://github.com/SebRoLENS/curvemole/commit/5510b896d00210f4fa6bfef4f2630880a53ae232))
 - Compare current and Fusion desktop styles across platforms. ([`a07c2279`](https://github.com/SebRoLENS/curvemole/commit/a07c2279a5f709f005e3adef3710cc9c10325195))
 - Install native X11 dependencies for desktop style screenshots. ([`a1c166f7`](https://github.com/SebRoLENS/curvemole/commit/a1c166f7d29611dc6b1ece9341810dc719bebcaf))
-- Use English for the Quick start construction notice. ([`b7aaf494`](https://github.com/SebRoLENS/curvemole/commit/b7aaf49452a5f1e1eb95f16e90f6c6c75066f3ea))
-- Publish the Quick start notice in English. ([`9366b08a`](https://github.com/SebRoLENS/curvemole/commit/9366b08aceb00f0e9e9e419e83dbc8cd6d97e5e3))
 
 ### Fixed
 
@@ -30,8 +28,12 @@ Changes since `v1.2.0-beta.88` ([compare](https://github.com/SebRoLENS/curvemole
 - Fix workflow coordination and consistent release packaging. ([`490e57b5`](https://github.com/SebRoLENS/curvemole/commit/490e57b5128f91d3998a1fd6a27ada8f1f66197d))
 - Fix Git Bash selection in Windows workflow tests. ([`3381db2f`](https://github.com/SebRoLENS/curvemole/commit/3381db2f48a915bddea69d51d594bbb5967ebd8e))
 - Fix inconsistent desktop themes with Fusion controls by default. ([`c82291dc`](https://github.com/SebRoLENS/curvemole/commit/c82291dcf9b7e476fb7124db2e34bd5e2be9146c))
-- Fix Calculator formula reuse, data folders and model background controls. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
-- Fix Linux coverage timeout while preserving the full test matrix. ([`61bf6c49`](https://github.com/SebRoLENS/curvemole/commit/61bf6c49a36093da0216f16a7214834ce4455526))
+- Unify Calculator operations under Custom formulas, including expressions across table columns. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Make Calculator formulas reusable with adjacent Load formula and Save formula controls. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Show each result column once as c1, c2 and so on, with current X/Y assignments, and make column insertion searchable. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Group default formula, function and plugin folders under curvemole_data. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Make the Background control visible for the selected model functions, including mixed selections. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Display effectively zero positive parameter bounds as 0 while preserving safe numerical limits. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
 
 ### Documentation
 
