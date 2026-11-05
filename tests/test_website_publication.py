@@ -291,7 +291,7 @@ def test_sitemap_lists_the_public_pages_and_robots_advertises_it():
     urls = [node.text for node in ElementTree.parse(dist / 'sitemap.xml').findall('s:url/s:loc', namespace)]
     base = 'https://sebrolens.github.io/curvemole/'
     assert set(urls) == {base + name for name in (
-        '', 'download.html', 'documentation.html', 'quick-start.html', 'news.html', 'contact.html', 'privacy.html')}
+        '', 'download.html', 'documentation.html', 'quick-start.html', 'news.html', 'news-archive.html', 'contact.html', 'privacy.html')}
     assert len(urls) == len(set(urls))
     assert f'Sitemap: {base}sitemap.xml' in (dist / 'robots.txt').read_text(encoding='utf-8')
     for url in urls:

@@ -132,7 +132,7 @@ jobs:
           pattern: release-*
           path: beta-assets
           merge-multiple: true
-      - name: Publish verified beta without changing stable or the website
+      - name: Publish verified beta without changing stable
         env:
           GH_TOKEN: ${{ github.token }}
           BETA_VERSION: ${{ needs.plan.outputs.version }}
@@ -142,6 +142,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BETA_VERSION: ${{ needs.plan.outputs.version }}
         run: python .github/scripts/withdraw_beta.py --replacement "$BETA_VERSION"
+
+  website-news:
+    needs: [validate, publish]
+    if: >-
+      always() && !cancelled() && needs.validate.result == 'success' &&
+      (needs.publish.result == 'success' ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[website only]')))
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/website.yml
+    with:
+      source_ref: ${{ github.sha }}
+      news_only: true
 
   doi:
     needs: [plan, validate, publish]

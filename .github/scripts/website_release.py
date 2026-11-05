@@ -8,10 +8,13 @@ import re
 import shutil
 import subprocess
 from datetime import date
+from html.parser import HTMLParser
 from pathlib import Path
 from runpy import run_path
+from xml.etree import ElementTree
 
 from release_assets import expected_assets
+from release_news import published_betas, render_pages
 
 citations = run_path(str(Path(__file__).with_name("citation_metadata.py")))
 ROOT = Path(__file__).resolve().parents[2]
@@ -86,10 +89,11 @@ def ready(*, require_ci=True):
     version = re.search(r'^__version__ = "([\d.]+)"',
                         (ROOT / 'src/curvemole/version.py').read_text(encoding="utf-8"), re.M)[1]
     # Listing also handles an absent or draft release without treating DOI delay as an error.
-    release, page = {}, 1
-    while not release:
+    release, page, catalog = {}, 1, []
+    while True:
         releases = api(f'releases?per_page=100&page={page}')
-        release = next((r for r in releases if r['tag_name'] == f'v{version}'), {})
+        catalog.extend(releases)
+        release = release or next((r for r in releases if r['tag_name'] == f'v{version}'), {})
         if len(releases) < 100:
             break
         page += 1
@@ -101,6 +105,7 @@ def ready(*, require_ci=True):
         return None, 'Release tag is not part of the current source history.'
     return {'version': version, 'doi': field(citation, 'doi'), 'tag': f'v{version}',
             'source_sha': git('rev-parse', 'HEAD'), 'tag_sha': tag, 'ci_run_id': ci_run_id,
+            'beta_releases': published_betas(catalog),
             'mode': 'integrated' if require_ci else 'standalone'}, ''
 
 
@@ -114,6 +119,11 @@ def stable_changelog(version):
     if not body:
         return ('<p>No detailed changelog entries were recorded for this stable release. '
                 'The official release notes and downloads are available on GitHub.</p>')
+    return changelog_html(body)
+
+
+def changelog_html(body):
+    """Render our limited changelog Markdown without accepting arbitrary HTML."""
     blocks, paragraph, items = [], [], []
 
     def inline(value):
@@ -196,8 +206,46 @@ def historical_stable_releases(current_version):
     return '\n'.join(blocks)
 
 
+def write_sitemap(dist):
+    """Generate the sitemap from canonical pages in the actual Pages artifact."""
+    base = 'https://sebrolens.github.io/curvemole/'
+
+    class Canonical(HTMLParser):
+        def __init__(self):
+            super().__init__()
+            self.links = []
+
+        def handle_starttag(self, tag, attrs):
+            attrs = dict(attrs)
+            if tag == 'link' and 'canonical' in attrs.get('rel', '').split():
+                self.links.append(attrs.get('href'))
+
+    namespace = 'http://www.sitemaps.org/schemas/sitemap/0.9'
+    ElementTree.register_namespace('', namespace)
+    root = ElementTree.Element(f'{{{namespace}}}urlset')
+    for path in sorted(dist.glob('*.html')):
+        parser = Canonical()
+        parser.feed(path.read_text(encoding='utf-8'))
+        if not parser.links:
+            # Search Console's verification file is not an indexable page.
+            if re.fullmatch(r'google[0-9a-f]+\.html', path.name):
+                continue
+            raise ValueError(f'Missing canonical URL: {path.name}')
+        expected = base + ('' if path.name == 'index.html' else path.name)
+        if parser.links != [expected]:
+            raise ValueError(f'Incorrect canonical URL: {path.name}')
+        node = ElementTree.SubElement(root, f'{{{namespace}}}url')
+        ElementTree.SubElement(node, f'{{{namespace}}}loc').text = expected
+    ElementTree.indent(root)
+    ElementTree.ElementTree(root).write(dist / 'sitemap.xml', encoding='utf-8', xml_declaration=True)
+    (dist / 'robots.txt').write_text(f'User-agent: *\nAllow: /\n\nSitemap: {base}sitemap.xml\n', encoding='utf-8')
+
+
 def assemble(metadata):
     dist = ROOT / 'website/dist'
+    for path in dist.glob('news-archive-*.html'):
+        if re.fullmatch(r'news-archive-(?:stable|beta)-\d+-\d+\.html', path.name):
+            path.unlink()
     citation = (ROOT / 'CITATION.cff').read_text(encoding="utf-8")
     shutil.copyfile(ROOT / 'CITATION.cff', dist / 'CITATION.cff')
     data = citations["metadata"](citation)
@@ -217,7 +265,7 @@ def assemble(metadata):
         counts['manualPdf'] += count
         page = page.replace('/releases/latest', '/releases/tag/' + metadata['tag'])
         page = re.sub(r'(?<=href=")style\.css(?:\?[^\"]*)?(?=")',
-                      'style.css?v=' + metadata['source_sha'], page)
+                      'style.css?v=' + metadata.get('news_source_sha', metadata['source_sha']), page)
         page = page.replace(f'https://github.com/{repository}/blob/main/CITATION.cff', 'CITATION.cff')
         page = page.replace(f'https://github.com/{repository}/blob/main/',
                             f'https://github.com/{repository}/blob/{metadata["source_sha"]}/')
@@ -227,21 +275,22 @@ def assemble(metadata):
             page = re.sub(r'(<[^>]+id="' + element_id + r'"[^>]*>).*?(</(?:span|div)>)',
                           lambda m, replacement=value: m[1] + replacement + m[2], page, flags=re.S)
         if path.name == 'news.html':
-            begin, end = '<!-- BEGIN HISTORICAL STABLE RELEASES -->', '<!-- END HISTORICAL STABLE RELEASES -->'
-            if page.count(begin) != 1 or page.count(end) != 1:
-                raise ValueError('Missing stable history markers in What’s New page')
-            replacement = begin + '\n' + historical_stable_releases(metadata['version']) + '\n' + end
-            page = re.sub(
-                re.escape(begin) + r'.*?' + re.escape(end),
-                lambda _m, value=replacement: value,
-                page, count=1, flags=re.S,
-            )
+            news = render_pages(page, {**metadata, 'date': field(citation, 'date-released')},
+                                (ROOT / 'CHANGELOG.md').read_text(encoding='utf-8'),
+                                stable_changelog, changelog_html)
+            pages.update({dist / name: content for name, content in news.items()})
+            continue
         pages[path] = page
     for element_id, count in counts.items():
         if count != 1:
             raise ValueError(f'Missing or ambiguous {element_id}')
     for path, page in pages.items():
+        # Generated archive pages supersede a source placeholder, regardless of
+        # alphabetical iteration order above.
+        if path.name.startswith('news-archive'):
+            page = news[path.name]
         path.write_text(page, encoding="utf-8")
+    write_sitemap(dist)
     (dist / 'publication.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding="utf-8")
 
 

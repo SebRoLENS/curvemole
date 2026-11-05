@@ -4,7 +4,10 @@ Public website: https://sebrolens.github.io/curvemole/
 
 The website is buildless HTML, CSS and JavaScript in `website/dist/`.
 Develop changes on `testing` with `[skip release]`. Publish the reviewed website
-and documentation changes on `main` when explicitly requested. Automatic publication through
+and documentation changes on `main` when explicitly requested. Release news has a narrow
+exception: `[website only] [skip release]` publishes tested news directly from
+`testing` over the stable `main` website snapshot, without writing `main` or
+creating a desktop release. Each successful beta publication refreshes that news too. Automatic publication through
 `.github/workflows/website.yml` waits for successful CI (including the manual),
 a published release matching the application version, all expected release assets,
 and a matching Zenodo DOI in release notes, CITATION.cff and README.
@@ -31,14 +34,18 @@ Keep asset URLs relative so the site works under the `/curvemole/` project path.
 - `download.html`: desktop packages, installation guidance, Stable/Beta and Python.
 - `documentation.html`: manual and PDF, quick start, references and a link to the Quick start page.
 - `quick-start.html`: under-construction page with the CurveMole mascot; content will be defined later.
-- `news.html`: complete dated stable history from 1.0.0, newest first. The latest
-  release and archive entries are reconstructed from the stable `CHANGELOG.md`
-  during publication; beta and Unreleased notes are excluded. The previously empty
-  1.1.0 changelog was backfilled from reviewed commits between stable tags.
-  Individual versions link to their GitHub release and compare view.
+- `news.html`: full changelogs for the current stable minor series (for example
+  1.2.0, 1.2.1 and 1.2.2), plus a separate cumulative preview of the latest
+  published beta since its stable baseline. New minor or major versions move the
+  earlier series to linked archives automatically. Stable and Beta advance independently.
+- `news-archive.html`: archive index, linking generated pages per minor and channel.
+  Stable pages retain each patch changelog; beta pages offer expandable cumulative
+  notes for every published beta. Draft/withdrawn betas and Unreleased changes are
+  excluded. The catalog comes from GitHub and the notes from immutable Git tags,
+  with reviewed historical annotations in `changelog_tools.py` where necessary.
 - `contact.html`: developer contact, issue reporting, version DOI and copyable citation.
 
-All six pages share navigation with the current page marked, including on small
+All pages share navigation with the current page marked, including on small
 screens. The snapshot assembler updates metadata across every page. Quick start
 content remains to be designed separately.
 
@@ -148,3 +155,24 @@ stable manual in the exact published source snapshot.
 
 Submit https://sebrolens.github.io/curvemole/sitemap.xml to Google Search Console.
 It includes the six main pages and the privacy notice. Keep it synchronized when adding or renaming public pages.
+
+## Release-news publication
+
+The reusable website workflow is called only after testing validation succeeds and
+a beta publishes, or for an explicit `[website only]` push. It overlays only
+`news.html`, the archive index template and `style.css` on a fresh `origin/main`
+snapshot. The stable release must still have complete published packages/manual
+and matching DOI metadata. Citations, downloads, manual links and existing screenshots
+remain pinned to stable source. `publication.json` records both the stable
+`source_sha` and tested `news_source_sha`. No software release is created.
+
+Both publication paths share the Pages lock. A changed stable source or any newer
+unvalidated testing work blocks deployment; later bot-only changelog ledger writes
+are allowed. Full stable publication retains its CI and screenshot gates.
+
+The sitemap is regenerated from the canonical URLs of the complete artifact,
+including every archive page; invalid project paths fail publication. Submit
+`https://sebrolens.github.io/curvemole/sitemap.xml` to the URL-prefix property
+`https://sebrolens.github.io/curvemole/` in Search Console. The project-level
+`robots.txt` also advertises this URL. Google reads robots rules at the host
+root, so a project-level robots file alone is not a substitute for submission.

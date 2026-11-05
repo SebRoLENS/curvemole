@@ -5,7 +5,7 @@
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <link href="https://sebrolens.github.io/curvemole/news.html" rel="canonical"/>
-<meta content="Explore every stable CurveMole release from the first public stable version, with dated changelogs and official GitHub release links." name="description"/>
+<meta content="Features and bug fixes in the current Stable and Beta series, with links to earlier release archives." name="description"/>
 <title>
    What’s new — CurveMole
   </title>
@@ -54,16 +54,19 @@
 <main id="main-content">
 <section class="page-intro">
 <span class="eyebrow">
-     STABLE RELEASE CHANGELOG
+     RELEASE NEWS
     </span>
 <h1>
      What’s new
     </h1>
 <p>
-     Stable release history from the first public version to the latest release. Changes are documented separately for every version; beta-only features are excluded.
+     Features, improvements and bug fixes, with Stable and Beta kept separate. Browse the current minor series here and follow the archive links for earlier versions.
     </p>
+<div class="resource-links"><a href="#stable-news">Stable releases ↓</a><a href="#beta-news">Beta preview ↓</a><a href="news-archive.html">Release archive ↗</a></div>
 </section>
-<section class="page-section">
+<section class="page-section" id="stable-news" aria-labelledby="stable-series-title">
+<div class="section-heading"><div><span class="eyebrow">STABLE</span><h2 id="stable-series-title">Stable <!-- CURRENT STABLE SERIES --></h2></div></div>
+<p class="channel-intro">The current minor release and its patches. Earlier minor series are available in the archive.</p>
 <article class="release-entry">
 <div class="release-meta">
 <span class="release-pill">
@@ -91,13 +94,12 @@
       </a>
 </div>
 </article>
-<div class="release-history" aria-label="Earlier stable releases">
-<h2>Earlier stable releases</h2>
+<div class="release-history" aria-label="Earlier patches in this stable series">
+<h2>Earlier releases in this series</h2>
 <!-- BEGIN HISTORICAL STABLE RELEASES -->
-<article class="release-entry release-entry--archive" id="release-1-0-1"><div class="release-meta"><span class="release-pill">STABLE</span><time datetime="2026-10-25">25 October 2026</time></div><h2>CurveMole <span>1.0.1</span></h2><div class="release-changes"><h3>Fixed</h3><ul><li>Reduce startup work on all platforms by loading pandas only when needed for data import or export. Windows installations now keep their dependencies unpacked, avoiding extraction on every launch while retaining the installation path, shortcuts, settings and existing projects. Portable Windows downloads retain their single-executable format for compatibility with existing updaters.</li></ul><h3>Known limitations</h3><ul><li>A Windows portable executable named exactly <code>CurveMole.exe</code> may not reopen automatically after an in-app update. If it stays closed, double-click the executable to start the updated application; settings and projects are preserved. The installer and versioned portable filename passed the tested upgrade paths.</li></ul></div><div class="resource-links"><a href="https://github.com/SebRoLENS/curvemole/releases/tag/v1.0.1">Official release ↗</a><a href="https://github.com/SebRoLENS/curvemole/compare/v1.0.0...v1.0.1">Compare with previous stable ↗</a></div></article>
-<article class="release-entry release-entry--archive" id="release-1-0-0"><div class="release-meta"><span class="release-pill">FIRST STABLE</span><time datetime="2026-10-23">23 October 2026</time></div><h2>CurveMole <span>1.0.0</span></h2><div class="release-changes"><h3>Changed</h3><ul><li>Publish CurveMole 1.0.0 as the stable release. Align the manual, Quick Start, README and website with the current application and its stable status. Update notifications identify the available version and classify its first changed number as a bugfix, feature release or major update.</li><li>Export a complete analysis bundle by default, including the spectra, function parameters and current-view figures also available as Quick export commands. Add a named destination subfolder and a detailed README while retaining export ownership checks. Give every curve its own styled Matplotlib PNG/SVG/PDF and a separate summary-PDF page. Replace the repetitive Python tidy table with keyed observation/component tables, curve metadata and a ready-to-run replot script.</li><li>Group related bundle choices together and keep all figure exports adjacent. Separate PNG, SVG and PDF figures into format subfolders, including current-view figures. Start the export README with a readable file-and-folder contents table and retain the exact machine-readable inventory in <code>manifest.json</code>.</li></ul></div><div class="resource-links"><a href="https://github.com/SebRoLENS/curvemole/releases/tag/v1.0.0">Official release ↗</a></div></article>
 <!-- END HISTORICAL STABLE RELEASES -->
 </div>
+<div class="release-archive-links"><h3>Earlier stable series</h3><!-- BEGIN STABLE ARCHIVE LINKS --><!-- END STABLE ARCHIVE LINKS --><a href="news-archive.html#stable">All stable series ↗</a></div>
 <div class="page-bottom-links">
 <a href="https://github.com/SebRoLENS/curvemole/blob/main/CHANGELOG.md">
       Full changelog ↗
@@ -106,6 +108,12 @@
       All releases ↗
      </a>
 </div>
+</section>
+<section class="page-section beta-news" id="beta-news" aria-labelledby="beta-series-title">
+<!-- BEGIN BETA RELEASE NEWS -->
+<h2 id="beta-series-title">Beta preview</h2><p>Published beta features and bug fixes are added when this site is assembled.</p>
+<!-- END BETA RELEASE NEWS -->
+<div class="page-bottom-links"><a href="news-archive.html#beta">Beta archive ↗</a><a href="download.html">Choose Stable or Beta ↗</a></div>
 </section>
 </main>
 <footer>

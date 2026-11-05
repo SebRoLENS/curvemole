@@ -45,6 +45,19 @@ ORDER = ("Added", "Changed", "Fixed", "Documentation")
 # One historical commit may contain changes in more than one user-facing category.
 # Preserve its immutable identity while making each change explicit in the notes.
 COMMIT_NOTES = {
+    # Website text is already live independently of application betas.
+    "b7aaf49452a5f1e1eb95f16e90f6c6c75066f3ea": (),
+    "9366b08aceb00f0e9e9e419e83dbc8cd6d97e5e3": (),
+    "32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac": (
+        ("Fixed", "Unify Calculator operations under Custom formulas, including expressions across table columns"),
+        ("Fixed", "Make Calculator formulas reusable with adjacent Load formula and Save formula controls"),
+        ("Fixed", "Show each result column once as c1, c2 and so on, with current X/Y assignments, and make column insertion searchable"),
+        ("Fixed", "Group default formula, function and plugin folders under curvemole_data"),
+        ("Fixed", "Make the Background control visible for the selected model functions, including mixed selections"),
+        ("Fixed", "Display effectively zero positive parameter bounds as 0 while preserving safe numerical limits"),
+    ),
+    # CI timeout headroom changes no application behavior.
+    "61bf6c49a36093da0216f16a7214834ce4455526": (),
     "67a30d6165da14304d245a598a1578a6dbc46c09": (
         ("Added", "Add a Shortcuts menu with separate mouse and keyboard references"),
         ("Changed", "Swap double-click view scopes: left for unmasked points, right for all points"),
@@ -117,7 +130,7 @@ def change_groups(base: str, head: str) -> dict[str, list[str]]:
         subject = MARKER_RE.sub("", original).strip().rstrip(".")
         # Build plumbing, CI tests, and generated changelog commits are not
         # user-facing fixes/features. Preserve the underlying Git history.
-        if (not subject or SKIP_RE.match(subject)
+        if (not subject or '[website only]' in original.lower() or SKIP_RE.match(subject)
                 or subject.lower().startswith(("test ", "tests "))
                 or any(label in subject.lower() for label in (
                     "changelog", "beta history", "release notes",

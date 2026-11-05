@@ -1,6 +1,14 @@
 name: Publish CurveMole website
 
 on:
+  workflow_call:
+    inputs:
+      source_ref:
+        type: string
+        required: true
+      news_only:
+        type: boolean
+        default: false
   workflow_run:
     workflows: [CI, Automatic release]
     types: [completed]
@@ -22,6 +30,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  release-news:
+    # The caller validates this exact testing SHA first. Only release-news HTML
+    # and its scoped styles overlay the stable main snapshot; no app promotion.
+    if: inputs.news_only && github.ref == 'refs/heads/testing' && inputs.source_ref == github.sha
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 0
+      - name: Assemble published news over the stable website
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/website_news.py --output "$RUNNER_TEMP/curvemole-website-news"
+      - name: Reject a superseded source
+        run: |
+          git fetch origin main testing
+          python .github/scripts/website_news.py --check-current --output "$RUNNER_TEMP/curvemole-website-news"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: ${{ runner.temp }}/curvemole-website-news
+      - uses: actions/deploy-pages@v4
+        id: deployment
+
   deploy:
     if: >-
       github.ref == 'refs/heads/main' &&

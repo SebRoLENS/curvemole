@@ -373,7 +373,11 @@ so frequent betas cannot hide stable releases.
 
 The website accepts automatic notifications from successful main push CI and
 manual Automatic release runs only. PR completion cannot request a deployment.
-The existing release/DOI/readiness gates still apply.
+The existing release/DOI/readiness gates still apply. A separate release-news
+path runs after validated beta publication, or a validated `[website only]` push
+on testing. It overlays only release-news templates/styles on the stable main
+website snapshot; it neither promotes software nor writes main. See
+[website publication](../website/README.md#release-news-publication).
 
 See the [detailed workflow audit of 3 November 2026](github-workflows-audit-2026-11-03.md)
 for findings, tradeoffs, verification and remaining operational checks.
