@@ -449,7 +449,8 @@ def _install_model_panel() -> None:
         return ref[0] if ref else None
 
     def update_summary(panel: ModelPanel) -> None:
-        count = len(panel.selected_component_refs())
+        refs = panel.selected_component_refs()
+        count = len(refs)
         if count == 0:
             text = ""
         elif count == 1:
@@ -457,6 +458,9 @@ def _install_model_panel() -> None:
         else:
             text = f"{count} " + panel.tr("functions selected")
         panel.function_selection_summary.setText(text)
+        states = ([panel.project.model_for(curve_id).component(component_id).is_background
+                   for curve_id, component_id in refs] if panel.project is not None else [])
+        panel._sync_background_role(states)
 
     def multi_selection_changed(panel: ModelPanel) -> None:
         if panel._updating:
@@ -470,9 +474,6 @@ def _install_model_panel() -> None:
         update_composition_summary(panel)
         refs = panel.selected_component_refs()
         if len(refs) <= 1:
-            panel.background_toggle.blockSignals(True)
-            panel.background_toggle.setTristate(False)
-            panel.background_toggle.blockSignals(False)
             if refs:
                 original_curve_id = panel.curve_id
                 panel.curve_id = refs[0][0]
@@ -482,6 +483,7 @@ def _install_model_panel() -> None:
                     panel.curve_id = original_curve_id
             else:
                 original_refresh_parameters(panel)
+                panel._sync_background_role([])
             return
 
         if panel.edit_points_action is not None:
@@ -503,17 +505,7 @@ def _install_model_panel() -> None:
                     states.append(
                         panel.project.model_for(curve_id).component(component_id).is_background
                     )
-            panel.background_toggle.blockSignals(True)
-            panel.background_toggle.setEnabled(bool(states))
-            panel.background_toggle.setTristate(True)
-            if states and all(states):
-                state = Qt.CheckState.Checked
-            elif states and not any(states):
-                state = Qt.CheckState.Unchecked
-            else:
-                state = Qt.CheckState.PartiallyChecked
-            panel.background_toggle.setCheckState(state)
-            panel.background_toggle.blockSignals(False)
+            panel._sync_background_role(states)
         finally:
             panel._updating = False
 

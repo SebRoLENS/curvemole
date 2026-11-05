@@ -165,7 +165,8 @@ def test_calculator_fields_and_expanded_saved_formulas_do_not_overlap(calculator
     window.calculator_action.trigger()
     panel = window.calculator
     panel.operation.setCurrentIndex(panel.operation.findData('y_multiply'))
-    assert panel.formula.isHidden() and panel.saved_formulas_toggle.isHidden()
+    assert not panel.operation_form.isRowVisible(panel.formula_row)
+    assert not panel.operation_form.isRowVisible(panel.formula_actions)
     assert not panel.value.isHidden()
     panel.operation.setCurrentIndex(panel.operation.findData('normalize_max'))
     assert panel.value.isHidden()
@@ -175,7 +176,7 @@ def test_calculator_fields_and_expanded_saved_formulas_do_not_overlap(calculator
     panel.saved_formulas_toggle.setChecked(True)
     app.processEvents()
     assert panel.operation_form.isRowVisible(panel.saved_formulas_body)
-    assert panel.saved_formulas_body.geometry().top() >= panel.saved_formulas_toggle.geometry().bottom()
+    assert panel.saved_formulas_body.geometry().top() >= panel.formula_actions.geometry().bottom()
     assert panel.formula.geometry().bottom() < panel.saved_formulas_body.geometry().top()
     assert panel.result_group.title() == '3. Result'
 

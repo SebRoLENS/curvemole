@@ -35,6 +35,11 @@ from curvemole.core.plugin_updates import (
     plugin_installation_root,
     stage_update,
 )
+from curvemole.gui.data_directories import (
+    default_library_directory,
+    library_directory,
+    prepare_library_directory,
+)
 from curvemole.gui.updates import CHECK_INTERVAL_MS, UpdateController, semantic_version, update_kind
 from curvemole.gui.windowing import secondary_window_parent
 from curvemole.version import __version__
@@ -292,8 +297,7 @@ class PluginUpdateController(QObject):
             layout.addWidget(help_text)
             folder_row = QHBoxLayout()
             self.catalog_folder = QLineEdit(
-                self.settings.value("community_plugins/folder", "", type=str)
-                or self.settings.value("plugin_directory", "", type=str)
+                str(library_directory(self.settings, "plugins", community=True))
             )
             choose = QPushButton("Choose storage folder…")
             self.catalog_choose = choose
@@ -423,6 +427,11 @@ class PluginUpdateController(QObject):
         if self.catalog_busy:
             return
         try:
+            from pathlib import Path
+            selected_directory = Path(self.catalog_folder.text()).expanduser()
+            if (self.catalog_folder.text().strip()
+                    and selected_directory.resolve() == default_library_directory(self.settings, "plugins").resolve()):
+                prepare_library_directory(self.settings, "plugins", selected_directory)
             folder = plugin_installation_root(self.plugins, self.catalog_folder.text())
         except Exception as exc:
             QMessageBox.warning(

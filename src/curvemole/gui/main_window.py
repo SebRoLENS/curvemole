@@ -791,6 +791,8 @@ class MainWindow(QMainWindow):
         self._connect_signals()
         from curvemole.gui.action_shortcuts import install_action_shortcuts
         install_action_shortcuts(self)
+        from curvemole.gui.calculator_equation_library import CalculatorEquationLibrary
+        self.calculator_equations = CalculatorEquationLibrary(self)
 
         self.progress = QProgressBar()
         self.progress.setMaximumWidth(220)
@@ -1476,6 +1478,7 @@ class MainWindow(QMainWindow):
             selected,
             self.selected_component_id,
         )
+        self.calculator_equations.refresh()
         self.calculator.set_curves(self.project, self.active_curve_id, selected)
         if hasattr(self, "restore_original_controller"):
             self.restore_original_controller.sync()
@@ -3546,33 +3549,21 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Data Calculator"), exc)
 
     def save_custom_formula(self, formula: dict[str, Any]) -> None:
-        """Persist a named calculator formula in the current project."""
+        """Persist a named equation both in the library and in this project."""
         if not self._ensure_editable():
             return
-        name = str(formula.get("name", "")).strip()
-        axis = str(formula.get("axis", "")).lower()
-        source = str(formula.get("formula", "")).strip()
-        if not name or axis not in {"x", "y"} or not source:
-            return
         try:
-            from curvemole.core.expressions import SafeExpression
-            if formula.get("mode") == "column_formula":
-                from curvemole.core.columns import compile_column_formula
-                compile_column_formula(source, formula.get("target", "y"))
-                unknown = set()
-            else:
-                expression_source = source.split("=", 1)[1].strip() if "=" in source else source
-                expression = SafeExpression.compile(expression_source)
-                unknown = set(expression.variables) - {axis}
-            if unknown:
-                raise ValueError(f"Unknown symbol(s): {', '.join(sorted(unknown))}")
-            self.project.custom_formulas = [item for item in self.project.custom_formulas if item.get("name") != name]
-            self.project.custom_formulas.append({"name": name, "axis": axis, "formula": source,
-                                                 "mode": formula.get("mode", "custom_formula"),
-                                                 "target": formula.get("target", "y")})
+            from curvemole.core.calculator_equations import normalize_equation
+            equation = normalize_equation(formula)
+            # Write first, so a failed library save cannot appear successful.
+            destination = self.calculator_equations.save(equation)
+            self.project.custom_formulas = [item for item in self.project.custom_formulas
+                                            if item.get("name") != equation["name"]]
+            self.project.custom_formulas.append(equation)
             self.project.touch()
             self.refresh_all()
-            self._notify(self.tr("Custom formula saved."))
+            self._notify(self.tr("Custom formula saved in the project and formula library:")
+                         + f"\n{destination}")
         except Exception as exc:
             self._show_error(self.tr("Save custom formula"), exc)
 
@@ -3686,8 +3677,9 @@ class MainWindow(QMainWindow):
         if self._thread is not None:
             QMessageBox.information(self, "Plugin Manager", "Wait for the running task to finish.")
             return
+        from curvemole.gui.data_directories import library_directory
         with transient_widget(PluginManagerDialog(self.plugin_manager,
-                                     self.settings.value("plugin_directory", ""), self)) as dialog:
+                                     library_directory(self.settings, "plugins"), self)) as dialog:
             dialog.exec()
             self.settings.setValue("plugin_directory", dialog.directory.text().strip())
             if hasattr(self, "plugin_update_controller"):

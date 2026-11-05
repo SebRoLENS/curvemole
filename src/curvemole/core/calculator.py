@@ -154,6 +154,6 @@ def _description(operation: str, value: float | None) -> str:
 
 def apply_column_formula(curve: Curve, target: str, formula: str) -> Transformation:
     transformation = Transformation("column_formula", {"target": target, "formula": formula},
-                                    description=f"Advanced formula {target} = {formula}")
+                                    description=f"Custom formula {target} = {formula}")
     curve.apply_transformation(transformation)
     return transformation

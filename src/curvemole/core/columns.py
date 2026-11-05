@@ -9,6 +9,21 @@ from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression, formula_source
 
 
+def calculator_column_axes(columns, axes):
+    """Give legacy/generated axis-only curves stable cN references as well."""
+    result = dict(axes)
+    used = set(columns)
+    number = 1
+    for axis in ("x", "y"):
+        if axis in result:
+            continue
+        while f"c{number}" in used:
+            number += 1
+        result[axis] = f"c{number}"
+        used.add(result[axis])
+    return result
+
+
 def compile_column_formula(formula: str, target: str) -> SafeExpression:
     source = "".join(part if part.startswith("${") else part.replace("^", "**")
                      for part in re.split(r"(\$\{[^{}]+\})", str(formula).strip()))

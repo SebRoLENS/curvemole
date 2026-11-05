@@ -586,9 +586,13 @@ class Curve:
             weight_sigma = np.ones_like(weights)
         rows = np.arange(len(x))
         original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
-        from curvemole.core.columns import evaluate_columns
+        from curvemole.core.columns import calculator_column_axes, evaluate_columns
 
         columns = dict(self.original_columns)
+        column_axes = calculator_column_axes(columns, self.column_axes)
+        for axis, values in (("x", x), ("y", y)):
+            if column_axes[axis] not in columns:
+                columns[column_axes[axis]] = values
         for transformation in self.transformations:
             op, p = transformation.operation, transformation.parameters
             if op in {"move_points", "delete_points"}:
@@ -622,14 +626,14 @@ class Curve:
                         weight_sigma = weight_sigma[keep]
                     columns = {key: value[keep] for key, value in columns.items()}
                 for axis, values in (("x", x), ("y", y)):
-                    if axis in self.column_axes:
-                        columns[self.column_axes[axis]] = values.copy()
+                    if axis in column_axes:
+                        columns[column_axes[axis]] = values.copy()
                 continue
             derivative = None
             target = p.get("axis") if op == "custom_formula" else p.get("target")
             if op in {"custom_formula", "column_formula"}:
                 target = next((axis for axis in ("x", "y")
-                               if target == axis or target == self.column_axes.get(axis)), target)
+                               if target == axis or target == column_axes.get(axis)), target)
                 errors = sigma_x if target == "x" else (sigma if sigma is not None else
                                                         minus if minus is not None else weight_sigma)
                 if target in {"x", "y"} and errors is not None:
@@ -646,10 +650,10 @@ class Curve:
                             yy = shifted
                         if op == "column_formula":
                             shifted_columns = {key: val.copy() for key, val in columns.items()}
-                            if target in self.column_axes:
-                                shifted_columns[self.column_axes[target]] = xx if target == "x" else yy
+                            if target in column_axes:
+                                shifted_columns[column_axes[target]] = xx if target == "x" else yy
                             xx, yy = evaluate_columns(p["formula"], p["target"], xx, yy,
-                                                      shifted_columns, self.column_labels, self.column_axes)
+                                                      shifted_columns, self.column_labels, column_axes)
                         else:
                             xx, yy, _ = transformation.apply(xx, yy, None)
                         return xx if target == "x" else yy
@@ -670,7 +674,7 @@ class Curve:
             if transformation.operation == "column_formula":
                 p = transformation.parameters
                 x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
-                                        self.column_labels, self.column_axes)
+                                        self.column_labels, column_axes)
             else:
                 if minus is not None and derivative is None:
                     # Apply identical reversible scaling to both interval sides.
@@ -695,8 +699,8 @@ class Curve:
                     _, _, weight_sigma = transformation.apply(x, y, weight_sigma)
                 x, y, sigma = transformation.apply(x, y, sigma)
             for axis, values in (("x", x), ("y", y)):
-                if axis in self.column_axes:
-                    columns[self.column_axes[axis]] = values.copy()
+                if axis in column_axes:
+                    columns[column_axes[axis]] = values.copy()
         self._columns = columns
         self._x, self._y, self._sigma_y_current = x, y, sigma
         self._error_y_minus_current, self._error_y_plus_current = minus, plus

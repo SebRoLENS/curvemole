@@ -40,6 +40,7 @@ from curvemole.core.initialization import (
 from curvemole.core.models import Component, Model
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
+from curvemole.gui.data_directories import library_directory, prepare_library_directory
 from curvemole.gui.function_composition import (
     ensure_insertion_operator,
     insertion_signal,
@@ -59,18 +60,21 @@ _FUNCTION_SUFFIX = ".curvemole-function.json"
 
 
 def _library_directory(window: MainWindow) -> Path | None:
-    value = str(window.settings.value(_LIBRARY_SETTING, "") or "").strip()
-    if not value:
-        return None
-    path = Path(value).expanduser()
+    path = library_directory(window.settings, "functions")
     return path if path.is_dir() else None
 
 
-def _choose_library_directory(window: MainWindow) -> Path | None:
+def _choose_library_directory(window: MainWindow, *, force: bool = False) -> Path | None:
     """Ask once where the persistent user-function library should live."""
     existing = _library_directory(window)
-    if existing is not None:
+    if existing is not None and not force:
         return existing
+    if not force and not str(window.settings.value(_LIBRARY_SETTING, "") or "").strip():
+        try:
+            return prepare_library_directory(window.settings, "functions")
+        except OSError as exc:
+            QMessageBox.warning(window, window.tr("Function library"), str(exc))
+            return None
 
     with transient_widget(QMessageBox(window)) as box:
         box.setWindowTitle(window.tr("CurveMole function library"))
@@ -738,9 +742,16 @@ def _install() -> None:
 
     def connect_signals(window: MainWindow) -> None:
         original_connect_signals(window)
+        window.function_builder.library_button.clicked.connect(
+            lambda: change_function_library(window))
         window.function_builder.functionAdded.connect(
             lambda *_: _refresh_quick_function_selector(window)
         )
+
+    def change_function_library(window: MainWindow) -> None:
+        if _choose_library_directory(window, force=True) is not None:
+            _load_user_function_library(window)
+            window.refresh_all()
 
     def load_custom_functions(window: MainWindow) -> None:
         # Remove the old project layer before reloading persistent definitions.

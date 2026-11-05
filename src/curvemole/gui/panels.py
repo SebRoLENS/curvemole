@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QLayout,
     QLineEdit,
@@ -37,6 +38,8 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.background_status import background_component_status
+from curvemole.core.calculator_equations import normalize_equation
+from curvemole.core.columns import calculator_column_axes
 from curvemole.core.data import CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.expressions import SafeExpression, expression_parameters
@@ -45,6 +48,9 @@ from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.core.uncertainty import AdaptiveReplicateSettings
+from curvemole.gui.background_role import BackgroundSwitch
+from curvemole.gui.calculator_columns import ColumnSelector, choose_column
+from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_bound
 from curvemole.gui.worksheet import WorksheetModel
 
 
@@ -98,12 +104,6 @@ class ModelPanel(QWidget):
             lambda: self.compositionOrderRequested.emit(self._composition_curve_id)
             if getattr(self, "_composition_curve_id", None) else None)
         single_layout.addWidget(self.calculation_order_button)
-        self.background_toggle = QCheckBox(self.tr("Mark as background"))
-        self.background_toggle.setToolTip(
-            self.tr("Treat the selected model function as part of the background.")
-        )
-        self.background_toggle.toggled.connect(self._background_toggled)
-        single_layout.addWidget(self.background_toggle)
         self.edit_points_action = None
         buttons = QHBoxLayout()
         for text, tooltip, slot in (
@@ -139,6 +139,15 @@ class ModelPanel(QWidget):
         self.copy_fit_next_button.clicked.connect(self.copyFitNextRequested)
         buttons.addWidget(self.copy_fit_next_button)
         single_layout.addLayout(buttons)
+        self.background_group = QGroupBox(self.tr("No functions selected"))
+        background_layout = QVBoxLayout(self.background_group)
+        self.background_toggle = BackgroundSwitch(self.tr("Use as background"))
+        self.background_toggle.setAccessibleName(self.tr("Use selected functions as background"))
+        self.background_toggle.checkStateChanged.connect(
+            lambda state: self._background_toggled(state == Qt.CheckState.Checked))
+        background_layout.addWidget(self.background_toggle)
+        single_layout.addWidget(self.background_group)
+        self._sync_background_role([])
         from curvemole.gui.uncertainty_display import UncertaintyDisplayMenu
 
         self.display_method = UncertaintyDisplayMenu(self)
@@ -294,10 +303,7 @@ class ModelPanel(QWidget):
             self.parameters.setRowCount(0)
             component_id = self.selected_component_id()
             if not component_id or not self.project or not self.curve_id:
-                self.background_toggle.blockSignals(True)
-                self.background_toggle.setChecked(False)
-                self.background_toggle.setEnabled(False)
-                self.background_toggle.blockSignals(False)
+                self._sync_background_role([])
                 if self.edit_points_action is not None:
                     self.edit_points_action.setEnabled(False)
                 self.derived.clear()
@@ -308,10 +314,7 @@ class ModelPanel(QWidget):
             editable = not self.project.read_only and can_edit_points(component, self.registry)
             if self.edit_points_action is not None:
                 self.edit_points_action.setEnabled(editable)
-            self.background_toggle.blockSignals(True)
-            self.background_toggle.setEnabled(True)
-            self.background_toggle.setChecked(component.is_background)
-            self.background_toggle.blockSignals(False)
+            self._sync_background_role([component.is_background])
             self.parameters.setRowCount(len(component.parameters))
             from curvemole.core.analysis_errors import (
                 DISPLAY_METHODS,
@@ -379,8 +382,22 @@ class ModelPanel(QWidget):
                     ))
                 fixed.setData(Qt.ItemDataRole.UserRole, (component.id, name, "fixed"))
                 self.parameters.setItem(row, 4, fixed)
-                lower = QTableWidgetItem("" if math.isinf(parameter.minimum) else f"{parameter.minimum:.12g}")
+                positive_floor, show_zero = positive_width_bound(self.registry, component, parameter)
+                lower_text = ("0" if show_zero else "" if math.isinf(parameter.minimum)
+                              else f"{parameter.minimum:.12g}")
+                lower = QTableWidgetItem(lower_text)
                 lower.setData(Qt.ItemDataRole.UserRole, (component.id, name, "minimum"))
+                if positive_floor is not None:
+                    lower.setData(POSITIVE_BOUND_ROLE, positive_floor)
+                    help_text = self.tr(
+                        "{parameter} must be greater than zero. Enter 0, or leave this bound blank, "
+                        "to use its automatic positive numerical limit. "
+                        "This is a lower bound, not a fixed parameter value.").format(parameter=name)
+                    if show_zero:
+                        help_text += "\n" + self.tr(
+                            "0 represents strict positivity (> 0); the numerical lower limit "
+                            "used internally is {value}.").format(value=f"{parameter.minimum:.12g}")
+                    lower.setToolTip(help_text)
                 self.parameters.setItem(row, 5, lower)
                 upper = QTableWidgetItem("" if math.isinf(parameter.maximum) else f"{parameter.maximum:.12g}")
                 upper.setData(Qt.ItemDataRole.UserRole, (component.id, name, "maximum"))
@@ -409,6 +426,36 @@ class ModelPanel(QWidget):
             self.derived.setText(self.tr("Derived: ") + "; ".join(parts) if parts else "")
         finally:
             self._updating = False
+
+    def _sync_background_role(self, states) -> None:
+        """Bind the switch explicitly to the current function selection."""
+        count = len(states)
+        self.background_group.setTitle(
+            self.tr("Selected functions: {count}").format(count=count)
+            if count else self.tr("No functions selected"))
+        mixed = bool(states) and any(states) and not all(states)
+        toggle = self.background_toggle
+        was_blocked = toggle.blockSignals(True)
+        try:
+            toggle.setTristate(mixed)
+            toggle.setCheckState(Qt.CheckState.PartiallyChecked if mixed else
+                                 Qt.CheckState.Checked if states and all(states) else
+                                 Qt.CheckState.Unchecked)
+            toggle.setEnabled(bool(count) and self.project is not None and not self.project.read_only)
+        finally:
+            toggle.blockSignals(was_blocked)
+        help_text = self.tr(
+            "Applies to all currently selected functions. "
+            "Marks them as background without subtracting them or changing whether they are enabled.")
+        if mixed:
+            help_text += "\n" + self.tr(
+                "Mixed selection: click to mark all selected functions as background; "
+                "click again to remove the mark from all of them.")
+        elif not count:
+            help_text = self.tr("Select one or more functions to change their background role.")
+        toggle.setToolTip(help_text)
+        toggle.setAccessibleDescription(help_text)
+        toggle.update()
 
     def _link_button_text(self, link: str | None, relation: str = "equal",
                           tolerance: float = 0.0, tolerance_mode: str = "absolute") -> str:
@@ -485,6 +532,16 @@ class ModelPanel(QWidget):
                 value: Any = item.checkState() == Qt.CheckState.Checked
             elif field == "minimum":
                 value = float(item.text()) if item.text().strip() else -math.inf
+                positive_floor = item.data(POSITIVE_BOUND_ROLE)
+                if positive_floor is not None:
+                    if not item.text().strip() or value == 0:
+                        value = positive_floor
+                    elif value < 0:
+                        QMessageBox.warning(self, self.tr("Parameter"), self.tr(
+                            "{parameter} must remain greater than zero. "
+                            "Use 0 for its automatic positive lower limit.").format(parameter=name))
+                        self.refresh_parameters()
+                        return
             elif field == "maximum":
                 value = float(item.text()) if item.text().strip() else math.inf
             else:
@@ -522,9 +579,12 @@ class _CalculatorValue(QDoubleSpinBox):
 class CalculatorPanel(QWidget):
     applyRequested = Signal(dict)
     saveFormulaRequested = Signal(dict)
+    equationLibraryRequested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._library_equations = []
+        self._column_axes = {}
         self._active_name = ""
         self._has_active = False
         self._selected_count = 0
@@ -562,8 +622,7 @@ class CalculatorPanel(QWidget):
         form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.operation = QComboBox()
         for label, identifier in (
-            (self.tr("Advanced — column formula"), "column_formula"),
-            (self.tr("Custom formula"), "custom_formula"),
+            (self.tr("Custom formulas"), "column_formula"),
             (self.tr("Add to y"), "y_add"),
             (self.tr("Subtract from y"), "y_subtract"),
             (self.tr("Multiply y"), "y_multiply"),
@@ -584,23 +643,12 @@ class CalculatorPanel(QWidget):
         self.value.setDecimals(12)
         self.value.setRange(-1e100, 1e100)
         self.value.setValue(1.0)
-        self.formula_axis = QComboBox()
-        self.formula_axis.addItems([self.tr("X"), self.tr("Y")])
-        self.column_target = QComboBox()
-        self.column_input = QComboBox()
-        self.column_insert = QPushButton(self.tr("Insert"))
-        self.column_insert.setEnabled(False)
-        self.column_insert.clicked.connect(lambda: self._insert_column(self.column_input.currentIndex()))
-        self.column_input.currentIndexChanged.connect(
-            lambda: self.column_insert.setEnabled(self.column_input.currentData() is not None))
-        self.column_insert_row = QWidget()
-        insert_layout = QHBoxLayout(self.column_insert_row)
-        insert_layout.setContentsMargins(0, 0, 0, 0)
-        insert_layout.addWidget(self.column_input, 1)
-        insert_layout.addWidget(self.column_insert)
+        self.column_target = ColumnSelector()
+        self.column_insert = QPushButton(self.tr("Insert column…"))
+        self.column_insert.clicked.connect(self._insert_column)
         self.destination_help = QLabel(self.tr("The result replaces the chosen column."))
         self.destination_help.setWordWrap(True)
-        self.insert_help = QLabel(self.tr("Insert adds a reference at the cursor; it does not change the destination."))
+        self.insert_help = QLabel(self.tr("Insert column… lets you search by code or name and insert at the cursor."))
         self.insert_help.setWordWrap(True)
         self.formula_summary = QLabel()
         self.formula_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -612,26 +660,39 @@ class CalculatorPanel(QWidget):
         self.column_help.setTextFormat(Qt.TextFormat.PlainText)
         self.column_help.setWordWrap(True)
         self.formula = QLineEdit()
-        self.formula.setPlaceholderText(self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
+        self.formula.setPlaceholderText(self.tr("e.g. c2 / c3**2, x*y, sqrt(c5)"))
         self.formula_hint = QLabel(self.tr("For mathematical operators, use Python syntax."))
         self.formula_hint.setWordWrap(True)
-        self.formula_name = QLineEdit()
-        self.formula_name.setPlaceholderText(self.tr("Name for saved formula"))
+        self._formula_name = ""
         self.saved_formula = QComboBox()
-        self.saved_formula.addItem(self.tr("(not saved)"), None)
-        save_formula = QPushButton(self.tr("Save formula"))
+        self.saved_formula.addItem(self.tr("Choose a formula…"), None)
+        self.save_formula_button = QPushButton(self.tr("Save formula"))
+        self.save_formula_button.setToolTip(self.tr(
+            "Name and save this formula in the project and reusable formula library."))
+        self.library_button = QPushButton(self.tr("Library folder…"))
+        self.library_button.clicked.connect(self.equationLibraryRequested.emit)
+        self.library_help = QLabel()
+        self.library_help.setTextFormat(Qt.TextFormat.PlainText)
+        self.library_help.setWordWrap(True)
+        self.library_help.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         self.saved_formulas_toggle = QToolButton()
-        self.saved_formulas_toggle.setText(self.tr("Saved formulas"))
+        self.saved_formulas_toggle.setText(self.tr("Load formula"))
         self.saved_formulas_toggle.setCheckable(True)
         self.saved_formulas_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
         self.saved_formulas_toggle.setArrowType(Qt.ArrowType.RightArrow)
+        self.formula_actions = QWidget()
+        formula_actions_layout = QHBoxLayout(self.formula_actions)
+        formula_actions_layout.setContentsMargins(0, 0, 0, 0)
+        formula_actions_layout.addWidget(self.saved_formulas_toggle)
+        formula_actions_layout.addWidget(self.save_formula_button)
+        formula_actions_layout.addStretch(1)
         self.saved_formulas_body = QWidget()
         saved_layout = QFormLayout(self.saved_formulas_body)
         saved_layout.setContentsMargins(0, 0, 0, 0)
         saved_layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapAllRows)
-        saved_layout.addRow(self.tr("Load formula"), self.saved_formula)
-        saved_layout.addRow(self.tr("Formula name"), self.formula_name)
-        saved_layout.addRow(save_formula)
+        saved_layout.addRow(self.saved_formula)
+        saved_layout.addRow(self.library_button)
+        saved_layout.addRow(self.library_help)
         self.saved_formulas_body.hide()
         self.saved_formulas_toggle.toggled.connect(self._toggle_saved_formulas)
         self.operand = QComboBox()
@@ -645,15 +706,18 @@ class CalculatorPanel(QWidget):
             lambda: self.applyRequested.emit({"restore": True, "scope": self.scope.currentData()}))
         form.addRow(self.operation)
         form.addRow(self.tr("Value"), self.value)
-        form.addRow(self.tr("Formula axis"), self.formula_axis)
         form.addRow(self.tr("Write result to"), self.column_target)
         form.addRow(self.destination_help)
-        form.addRow(self.tr("Formula"), self.formula)
+        self.formula_row = QWidget()
+        formula_layout = QHBoxLayout(self.formula_row)
+        formula_layout.setContentsMargins(0, 0, 0, 0)
+        formula_layout.addWidget(self.formula, 1)
+        formula_layout.addWidget(self.column_insert)
+        form.addRow(self.tr("Formula"), self.formula_row)
         form.addRow(self.formula_hint)
-        form.addRow(self.tr("Insert into formula"), self.column_insert_row)
         form.addRow(self.insert_help)
         form.addRow(self.column_help)
-        form.addRow(self.saved_formulas_toggle)
+        form.addRow(self.formula_actions)
         form.addRow(self.saved_formulas_body)
         form.addRow(self.tr("Operand spectrum"), self.operand)
         form.addRow(self.tr("Interpolation"), self.interpolation)
@@ -677,19 +741,18 @@ class CalculatorPanel(QWidget):
         layout.addLayout(footer)
         self.formula.textChanged.connect(self._update_formula_summary)
         self.column_target.currentIndexChanged.connect(self._update_formula_summary)
-        self.formula_axis.currentIndexChanged.connect(self._update_formula_summary)
         self.value.valueChanged.connect(self._update_formula_summary)
         self.operand.currentIndexChanged.connect(self._update_formula_summary)
         self.scope.currentIndexChanged.connect(self._update_scope_summary)
         self.operation.currentIndexChanged.connect(self._update_enabled)
         self.saved_formula.currentIndexChanged.connect(self._load_saved_formula)
-        save_formula.clicked.connect(self._save_formula)
+        self.save_formula_button.clicked.connect(self._save_formula)
         self._update_enabled()
         self._update_scope_summary()
 
     def _toggle_saved_formulas(self, expanded: bool) -> None:
         self.operation_form.setRowVisible(
-            self.saved_formulas_body, expanded and self.operation.currentData() in {"custom_formula", "column_formula"})
+            self.saved_formulas_body, expanded and self.operation.currentData() == "column_formula")
         self.saved_formulas_toggle.setArrowType(Qt.ArrowType.DownArrow if expanded else Qt.ArrowType.RightArrow)
 
     def set_selection_context(self, project, active_id, selected_ids=()) -> None:
@@ -738,12 +801,12 @@ class CalculatorPanel(QWidget):
         colour = QColor("#66C7A8") if self.palette().window().color().lightness() < 128 else QColor("#087F6C")
         font = self.operation.font()
         font.setBold(True)
-        for identifier in ("column_formula", "custom_formula"):
+        for identifier in ("column_formula",):
             index = self.operation.findData(identifier)
             self.operation.setItemData(index, colour, Qt.ItemDataRole.ForegroundRole)
             self.operation.setItemData(index, font, Qt.ItemDataRole.FontRole)
         normal = self.palette().text().color().name()
-        selected = colour.name() if self.operation.currentData() in {"column_formula", "custom_formula"} else normal
+        selected = colour.name() if self.operation.currentData() == "column_formula" else normal
         self.operation.setStyleSheet(f"QComboBox {{ color: {selected}; }} QComboBox QAbstractItemView {{ color: {normal}; }}")
 
     def changeEvent(self, event) -> None:
@@ -752,31 +815,56 @@ class CalculatorPanel(QWidget):
             self._style_formula_entries()
 
     def set_curves(self, project: Project | None, active_id: str | None = None, selected_ids=()) -> None:
-        target = self.column_target.currentData() or "y"
+        target = self.column_target.currentData()
+        had_columns = bool(self.column_target.count())
+        self.column_target.blockSignals(True)
         self.column_target.clear()
-        self.column_target.addItem("X (plotted)", "x")
-        self.column_target.addItem("Y (plotted)", "y")
-        self.column_input.clear()
-        self.column_input.addItem(self.tr("Choose a column to insert…"), None)
-        self.column_input.addItem("X (current plotted axis)", "x")
-        self.column_input.addItem("Y (current plotted axis)", "y")
+        self._column_axes = {}
         if project and active_id:
             curve = project.dataset.curve(active_id)
-            self.column_target.setItemText(0, f"X — {curve.x_label}")
-            self.column_target.setItemText(1, f"Y — {curve.y_label}")
-            for key in curve.original_columns:
-                label = curve.column_labels.get(key, key)
-                self.column_target.addItem(f"{key} — {label}", key)
-                self.column_input.addItem(f"{key} — {label}", key)
-        self.column_target.setCurrentIndex(max(0, self.column_target.findData(target)))
-        self.column_help.setText(self.tr("Use c1, c2, … for imported columns; x and y for current axes. Example: c2 / c3**2."))
+            self._column_axes = calculator_column_axes(curve.original_columns, curve.column_axes)
+            keys = list(curve.original_columns)
+            keys.extend(key for key in self._column_axes.values() if key not in keys)
+            for key in keys:
+                roles = [axis.upper() for axis in ("x", "y")
+                         if self._column_axes.get(axis) == key]
+                display = key + (f" ({', '.join(roles)})" if roles else "")
+                label = curve.column_labels.get(key, "")
+                if not label and roles:
+                    label = curve.x_label if "X" in roles else curve.y_label
+                self.column_target.add_column(display, key, label)
+        if target is not None:
+            target = self._column_axes.get(target, target)
+        elif not had_columns:
+            target = self._column_axes.get("y")
+        self.column_target.setCurrentIndex(self.column_target.findData(target))
+        self.column_target.blockSignals(False)
+        self.column_insert.setEnabled(bool(self.column_target.count()))
+        self.column_target.setEnabled(bool(self.column_target.count()))
+        self.column_help.setText(self.tr(
+            "Use c1, c2, … for columns; (X) and (Y) identify the current axes. "
+            "The names x and y also refer to those axes. Example: c2 / c3**2."))
         current_formula = self.saved_formula.currentData()
         self.saved_formula.blockSignals(True)
         self.saved_formula.clear()
-        self.saved_formula.addItem(self.tr("(not saved)"), None)
+        self.saved_formula.addItem(self.tr("Choose a formula…"), None)
+        equations = {item["name"]: (item, "library") for item in self._library_equations}
         if project:
             for item in project.custom_formulas:
-                self.saved_formula.addItem(str(item.get("name", "Unnamed formula")), item)
+                try:
+                    item = normalize_equation(item)
+                except Exception:
+                    # Preserve malformed historical entries in the project so
+                    # the user can still recover them from its metadata.
+                    continue
+                equations[item["name"]] = (item, "project")
+        for name in sorted(equations, key=str.casefold):
+            item, origin = equations[name]
+            origin_text = self.tr("project") if origin == "project" else self.tr("library")
+            self.saved_formula.addItem(f"{name} ({origin_text})", item)
+            self.saved_formula.setItemData(self.saved_formula.count() - 1,
+                                          f"{item['target']} ← {item['formula']}",
+                                          Qt.ItemDataRole.ToolTipRole)
         index = next((i for i in range(self.saved_formula.count()) if self.saved_formula.itemData(i) == current_formula), 0)
         self.saved_formula.setCurrentIndex(index)
         self.saved_formula.blockSignals(False)
@@ -798,8 +886,6 @@ class CalculatorPanel(QWidget):
             destination = self.column_target.currentText()
             text = (f"{destination} ← {formula}" if formula and destination
                     else self.tr("Enter a formula to see where its result will be written."))
-        elif operation == "custom_formula":
-            text = f"{self.formula_axis.currentText()} ← {formula}" if formula else self.tr("Enter a formula.")
         elif operation in {"normalize_max", "normalize_area"}:
             text = self.operation.currentText()
         elif str(operation).startswith("curve_"):
@@ -811,72 +897,105 @@ class CalculatorPanel(QWidget):
             text = f"{axis} ← {axis} {symbol} {self.value.cleanText()}"
         self.formula_summary.setText(text)
 
-    def _insert_column(self, index: int) -> None:
-        key = self.column_input.itemData(index)
-        if key:
-            self.formula.insert(key)
+    def set_equation_library(self, equations, directory, failures=()) -> None:
+        self._library_equations = equations
+        message = self.tr("Formula library: {path}").format(path=directory)
+        if failures:
+            message += "\n" + self.tr("Some formulas could not be loaded:") + "\n" + "\n".join(failures)
+        self.library_help.setText(message)
+        self.library_button.setToolTip(str(directory))
+
+    def _insert_column(self) -> None:
+        cursor = self.formula.cursorPosition()
+        selection = self.formula.selectionStart()
+        selection_length = len(self.formula.selectedText())
+        index = choose_column(self.column_insert, self.column_target.model())
+        if index is not None:
+            key = self.column_target.itemData(index)
             self.formula.setFocus()
-        self.column_input.setCurrentIndex(0)
+            if selection >= 0:
+                self.formula.setSelection(selection, selection_length)
+            else:
+                self.formula.setCursorPosition(cursor)
+            self.formula.insert(key)
 
     def _load_saved_formula(self, index: int) -> None:
         item = self.saved_formula.itemData(index)
         if not isinstance(item, dict):
             return
-        self.formula_axis.setCurrentIndex(0 if str(item.get("axis", "x")) == "x" else 1)
-        self.formula.setText(str(item.get("formula", "")))
-        self.formula_name.setText(str(item.get("name", "")))
-        self.operation.setCurrentIndex(max(0, self.operation.findData(item.get("mode", "custom_formula"))))
-        self.column_target.setCurrentIndex(max(0, self.column_target.findData(item.get("target", "y"))))
+        try:
+            item = normalize_equation(item)
+        except Exception as exc:
+            QMessageBox.warning(self, self.tr("Load formula"), str(exc))
+            return
+        self.formula.setText(item["formula"])
+        self._formula_name = item["name"]
+        self.operation.setCurrentIndex(self.operation.findData("column_formula"))
+        target = self._column_axes.get(item["target"], item["target"])
+        self.column_target.setCurrentIndex(self.column_target.findData(target))
+        # An unavailable destination remains unselected. Never silently write a
+        # recalled equation into another column in a differently shaped table.
 
     def _save_formula(self) -> None:
         formula = self.formula.text().strip()
-        name = self.formula_name.text().strip()
-        if not name or not formula:
-            QMessageBox.warning(self, self.tr("Data Calculator"), self.tr("Enter a name and formula first."))
+        if not formula:
+            QMessageBox.warning(self, self.tr("Save formula"), self.tr("Enter a formula first."))
             return
-        self.saveFormulaRequested.emit({"name": name, "axis": "x" if self.formula_axis.currentIndex() == 0 else "y", "formula": formula, "mode": self.operation.currentData(), "target": self.column_target.currentData()})
+        target = self.column_target.currentData()
+        if target is None:
+            QMessageBox.warning(self, self.tr("Save formula"), self.tr("Choose a destination column."))
+            return
+        name, accepted = QInputDialog.getText(
+            self.window(), self.tr("Save formula"), self.tr("Formula name:"), text=self._formula_name)
+        if not accepted:
+            return
+        name = name.strip()
+        if not name:
+            QMessageBox.warning(self, self.tr("Save formula"), self.tr("Enter a formula name."))
+            return
+        self._formula_name = name
+        self.saveFormulaRequested.emit({"name": name, "formula": formula,
+                                        "mode": "column_formula", "target": target})
 
     def _update_enabled(self) -> None:
         self._style_formula_entries()
         operation = self.operation.currentData()
         curve_operation = str(operation).startswith("curve_")
         scalar = operation not in {"normalize_max", "normalize_area"} and not curve_operation
-        advanced = operation == "column_formula"
-        custom = operation in {"custom_formula", "column_formula"}
+        custom = operation == "column_formula"
         form = self.operation_form
         form.labelForField(self.value).setText({
             "y_multiply": self.tr("Multiply by"), "x_multiply": self.tr("Multiply by"),
             "y_divide": self.tr("Divide by"), "x_add": self.tr("Shift by"),
         }.get(operation, self.tr("Value")))
         for widget, visible in (
-            (self.formula_hint, custom), (self.formula, custom),
-            (self.column_help, advanced), (self.destination_help, advanced), (self.insert_help, advanced),
-            (self.column_insert_row, advanced), (self.column_target, advanced),
-            (self.formula_axis, custom and not advanced), (self.value, scalar and not custom),
-            (self.saved_formulas_toggle, custom),
+            (self.formula_hint, custom), (self.formula_row, custom),
+            (self.column_help, custom), (self.destination_help, custom), (self.insert_help, custom),
+            (self.column_target, custom), (self.value, scalar and not custom),
+            (self.formula_actions, custom),
             (self.saved_formulas_body, custom and self.saved_formulas_toggle.isChecked()),
             (self.operand, curve_operation), (self.interpolation, curve_operation),
             (self.extrapolate, curve_operation),
         ):
             form.setRowVisible(widget, visible)
-        self.column_target.setEnabled(advanced)
-        self.column_input.setEnabled(advanced)
-        self.formula_name.setEnabled(custom)
+        self.column_target.setEnabled(custom and bool(self.column_target.count()))
+        self.column_insert.setEnabled(custom and bool(self.column_target.count()))
+        self.save_formula_button.setEnabled(custom)
         self.formula.setEnabled(custom)
-        self.formula.setPlaceholderText(self.tr("e.g. y / c3**2, c2 - c4, sqrt(c5)") if advanced
-                                        else self.tr("e.g. 3*x, x**2, sqrt(x) or X = 3*x"))
+        self.formula.setPlaceholderText(self.tr("e.g. c2 / c3**2, x*y, sqrt(c5)"))
         self.value.setEnabled(scalar and not custom)
-        self.formula_axis.setEnabled(custom and not advanced)
         for widget in (self.operand, self.interpolation, self.extrapolate):
             widget.setEnabled(curve_operation)
         self._update_formula_summary()
 
     def _apply(self) -> None:
+        if self.operation.currentData() == "column_formula" and self.column_target.currentData() is None:
+            QMessageBox.warning(self, self.tr("Data Calculator"), self.tr("Choose a destination column."))
+            return
         self.applyRequested.emit(
             {
                 "operation": self.operation.currentData(),
                 "value": self.value.value(),
-                "formula_axis": "x" if self.formula_axis.currentIndex() == 0 else "y",
                 "column_target": self.column_target.currentData(),
                 "formula": self.formula.text(),
                 "scope": self.scope.currentData(),
@@ -908,6 +1027,7 @@ class FunctionBuilderPanel(QWidget):
         self.derived_fwhm = QLineEdit()
         validate = QPushButton(self.tr("Validate formula"))
         add = QPushButton(self.tr("Add to function library"))
+        self.library_button = QPushButton(self.tr("Library folder…"))
         validate.clicked.connect(self._validate)
         add.clicked.connect(self._add)
         layout.addRow(self.tr("Identifier"), self.identifier)
@@ -919,6 +1039,7 @@ class FunctionBuilderPanel(QWidget):
         layout.addRow(self.tr("Derived FWHM formula (optional)"), self.derived_fwhm)
         layout.addRow(validate)
         layout.addRow(add)
+        layout.addRow(self.library_button)
         self.formula.textChanged.connect(self._validate)
         self._validate()
 

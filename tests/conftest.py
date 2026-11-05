@@ -72,3 +72,31 @@ def gaussian_curve() -> Curve:
     y = 3.0 * np.exp(-0.5 * ((x - 0.7) / sigma) ** 2) / (sigma * np.sqrt(2 * np.pi)) + 0.15
     rng = np.random.default_rng(42)
     return Curve("Gaussian", x, y + rng.normal(0, 0.005, len(x)), sigma_y=np.full_like(x, 0.005))
+
+
+@pytest.fixture(autouse=True)
+def isolated_equation_library(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    settings = QSettings("CurveMole", "CurveMole")
+    previous = settings.value("custom_equation_directory")
+    settings.setValue("custom_equation_directory", str(tmp_path / "my_curvemole_equations"))
+    yield
+    if previous is None:
+        settings.remove("custom_equation_directory")
+    else:
+        settings.setValue("custom_equation_directory", previous)
+
+
+@pytest.fixture(autouse=True)
+def isolated_data_directory(tmp_path):
+    from PySide6.QtCore import QSettings
+
+    settings = QSettings("CurveMole", "CurveMole")
+    previous = settings.value("data_directory")
+    settings.setValue("data_directory", str(tmp_path / "curvemole_data"))
+    yield
+    if previous is None:
+        settings.remove("data_directory")
+    else:
+        settings.setValue("data_directory", previous)

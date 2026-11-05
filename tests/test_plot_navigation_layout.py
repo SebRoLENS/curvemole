@@ -130,6 +130,9 @@ def test_plot_controls_wrap_inside_resized_docks(window, style_name, constrain_d
     style = QStyleFactory.create(style_name)
     if style is None:
         pytest.skip(f"{style_name} style unavailable")
+    # QWidget.setStyle does not own the style. Keep it alive until the window
+    # and its menus are destroyed during fixture teardown.
+    style.setParent(main)
     main.setStyle(style)
     workspace = main.plot_workspace
     font = workspace.view_controls.font()
@@ -186,6 +189,7 @@ def test_plot_control_text_fits_native_content_rects(style_name, enlarged_font, 
     if style is None:
         pytest.skip(f"{style_name} style unavailable")
     workspace = PlotWorkspace(default_registry())
+    style.setParent(workspace)
     try:
         workspace.resize(width, 650)
         workspace.show()

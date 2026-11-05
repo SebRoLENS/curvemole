@@ -626,8 +626,14 @@ background selection. In Show all functions mode these actions span the project.
 Selection is separate from enabling: a checked function contributes to the model
 and fit; an unchecked function remains stored but is excluded. Hover directly over
 its checkbox for an explanation. Changing a checkbox on a selected function applies
-the enabled state to the whole selection. **Mark as background** classifies the
+the enabled state to the whole selection. **Use as background** classifies the
 selected functions; it does not subtract them from the data.
+The larger switch is grouped immediately above the parameter table under
+**Selected functions: N**, so its targets are explicit. It shows **ON**, **OFF** or
+**Mixed** for a selection containing both roles. From Mixed, clicking marks every
+selected function as background; clicking again clears all those marks. Without
+selected functions the switch is disabled. The existing Background and subtraction
+status labels remain visible in the function list.
 
 The controls below the list are:
 
@@ -960,7 +966,7 @@ points and X uncertainty are not incorporated into this Y-residual fit.
 Use **Error bars** above the main graph to show or hide the bars. Autoscaling
 includes their endpoints, and bars follow logarithmic, waterfall and background
 views. Scalar and curve scaling propagate widths and exchange upper/lower sides
-for negative factors. Custom and column formulas use local derivative propagation;
+for negative factors. Custom formulas use local derivative propagation;
 for strongly nonlinear transformations this is only a local approximation.
 
 ## 7. Curves, masks, and transformations
@@ -1036,32 +1042,34 @@ A batch is checked in full before any spectrum is modified; one Undo restores th
 whole batch. Normalization also scales `sigma_y` consistently. Dividing by zero and normalizing a zero or invalid
 signal are rejected.
 
-#### Advanced column formulas
+#### Custom formulas
 
-The note below Formula reminds you to use Python syntax for mathematical operators.
+The green **Custom formulas** entry combines calculations over plotted axes and
+all retained numerical columns in one mode. The note below Formula reminds you to
+use Python syntax for mathematical operators.
 
-The green **Advanced - column formula** entry is first in the operation list,
-followed by the green **Custom formula** for a single plotted axis.
 New imports retain every source column as numeric data in the project, including
 columns not plotted. Original column order and row alignment are preserved.
 `c1`, `c2`, `c3`, etc. refer to one-based source columns; `x` and `y` refer to the
-current plotted axes. **Insert into formula** lists the available codes with original
-column names; choose an entry, then press **Insert** to add its code at the cursor. **Write result to** chooses X, Y or any retained column for the result. The hint below it explains
-that Apply writes the formula result into this column. Merely selecting an input
-column does not edit the formula or change its destination. A live summary such as
-`Y - Counts <- c2 / c3**2` makes the direction explicit. **Spectra to modify**
-separately chooses which spectra receive the operation.
+current plotted axes. **Write result to** lists each column once, using codes such
+as `c1 (X)`, `c2 (Y)` and `c3`. Axis markers follow the current import mapping.
+Open this selector to search by code or original column name and choose where
+Apply will write the result.
 
-![Advanced calculator with column insertion and destination controls in dark mode.](screenshots/advanced-calculator-dark.png)
+**Insert column…**, beside Formula, opens a searchable, scrollable list of column
+codes, axis markers and original names. Click a result, or use the arrow keys and
+Enter, to insert its code at the formula cursor. Inserting a reference does not
+change the destination. A live summary such as `c2 (Y) <- c2 / c3**2` makes the
+direction explicit. **Spectra to modify** separately chooses the target spectra.
 
 For a file with Energy, Counts and Monitor columns, plotting c1 against c2:
 
-1. choose **Advanced - column formula**;
-2. choose **Y - Counts** as the destination;
-3. insert `c2` and `c3` from the dropdown to enter `c2 / c3**2`;
-4. choose Active curve or multiple spectra, then Apply non-destructively.
+1. choose **Custom formulas**;
+2. choose **c2 (Y)** as the destination;
+3. use **Insert column…** to insert `c2` and `c3`, forming `c2 / c3**2`;
+4. choose the target spectra, then Apply non-destructively.
 
-You can also enter `y / c3^2` (`^` and `**` both mean exponentiation in Advanced),
+You can also enter `y / c3^2` (`^` and `**` both mean exponentiation),
 `c2 - c4`, or `sqrt(c5)`. A header may be referenced as `${Monitor counts}`;
 codes remain unambiguous for unusual names. Only restricted mathematical expressions
 are accepted, never Python execution. Scalar results are broadcast to every row;
@@ -1084,11 +1092,38 @@ with `sigma_z=abs(3*y**2)*sigma_y`. Propagation remains a first-order local
 approximation; input correlations and uncertainties in other columns are not
 jointly propagated.
 
-Name and **Save formula** to retain the expression and destination in the project,
-then recall it through Saved formulas. Retained columns, formulas and their
-Undo/Redo history survive `.fitproj` saving without the original source file.
-Projects created before this feature contain only their previously stored axes:
-re-import the source to recover additional columns.
+**Load formula** and **Save formula** appear side by side below the expression.
+**Save formula** is always available in Custom formulas: click it and enter a name
+to save the expression and destination in the project and reusable library.
+You do not need to expand Load formula to save. **Load formula** expands the list
+of formulas from the project and library, with their origin marked. A project
+formula takes precedence when both contain the same name.
+
+By default, reusable files share a **curvemole_data** folder in Documents:
+
+```text
+curvemole_data/
+  my_curvemole_formulas/
+  my_curvemole_functions/
+  curvemole_plugins/
+```
+
+The folder hierarchy is created on first use. **my_curvemole_formulas** stores
+calculator formulas; **my_curvemole_functions** stores Function Builder definitions;
+**curvemole_plugins** stores downloaded plugins. Existing explicitly configured
+library and plugin locations remain in use. Choose **Library folder…** in the
+calculator or Function Builder to use a different library, or choose the storage
+folder in the plugin browser. Existing files are not moved automatically.
+Formula files retain the portable `.curvemole-equation.json` extension for compatibility.
+Plugin trust records, settings and session state remain in the application config directory.
+
+Equations saved by either of the previous calculator modes can still be recalled;
+use **Save formula** to copy an old project equation into the library. If its
+destination does not exist in the active spectrum, choose a destination explicitly.
+Retained columns, equations and Undo/Redo history survive `.fitproj` saving without
+the original source file. Projects created before column retention contain only
+their previously stored axes, exposed as `c1 (X)` and `c2 (Y)`; re-import the source
+to recover additional columns.
 
 ### 7.6 Curve-to-curve calculations
 
@@ -1153,7 +1188,7 @@ editing. Read-only projects cannot be edited.
 All entries in the function library are fitting functions. Constant, linear, polynomial,
 cubic-spline, peak-shaped, and custom formulas are not separated into a special
 background-function class. Background is instead a property of a model component.
-Select a component in **Model and parameters** and enable **Mark as background** when
+Select a component in **Model and parameters** and enable **Use as background** when
 that component represents the experimental baseline or background.
 
 **Data > Subtract background...** uses these component-level marks. If no component is
@@ -1339,7 +1374,7 @@ $$
 
 The library names are **Constant**, **Linear**, **Polynomial** and **Cubic spline**.
 They become background components only when **Add as background** in the Add dialog
-or **Mark as background** in the model panel is enabled.
+or **Use as background** in the model panel is enabled.
 
 #### Constant
 
@@ -1698,6 +1733,14 @@ The table columns are:
 | Lower | Lower bound; blank means negative infinity |
 | Upper | Upper bound; blank means positive infinity |
 | Link | Graphical **Set link…** control; the relation and its source are shown in readable form |
+
+For built-in peak widths (`sigma`, `gamma` and `fwhm`), an automatic positive lower
+limit is displayed as **0** instead of a machine-specific tiny number. Here 0 means
+**strictly greater than zero**: hover over the cell to see the actual numerical
+limit. Entering 0 or clearing that Lower cell preserves the positive numerical
+guard; a larger explicit lower bound remains displayed exactly as entered. This
+does not set the width value to zero or mark it Fixed. Parameter values, fitting
+calculations and bounds stored in existing projects are not rounded.
 
 Press **Set link…** for the target parameter. Its name appears beside the expression:
 for a centre link, the dialog shows `center =` followed by the expression field.

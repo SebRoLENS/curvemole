@@ -27,7 +27,7 @@ OPERATION_NAMES = {
     "y_divide": "Y division", "x_add": "X shift", "x_multiply": "X scaling",
     "normalize_max": "Maximum normalization", "normalize_area": "Area normalization",
     "background_subtract": "Background subtraction", "custom_formula": "Custom formula",
-    "column_formula": "Column formula", "replace_y": "Y replacement / correction",
+    "column_formula": "Custom formula", "replace_y": "Y replacement / correction",
     "curve_add": "Curve addition", "curve_subtract": "Curve subtraction",
     "curve_multiply": "Curve multiplication", "curve_divide": "Curve division",
     "move_points": "Move points", "delete_points": "Delete points",

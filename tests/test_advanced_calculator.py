@@ -109,7 +109,7 @@ def test_picker_and_saved_advanced_formula(tmp_path):
     panel.set_curves(project, curve.id)
     panel.saved_formula.setCurrentIndex(1)
     assert panel.operation.currentData() == "column_formula"
-    assert panel.column_target.currentData() == "y"
+    assert panel.column_target.currentData() == "c2"
     assert panel.operation.itemData(0, Qt.ItemDataRole.ForegroundRole).isValid()
     assert panel.column_target.findData("c3") >= 0
     picker.deleteLater()
@@ -147,12 +147,12 @@ def test_save_advanced_formula_and_insert_dropdown(tmp_path, monkeypatch):
     assert panel.column_target.currentData() == "c3"
     panel.formula.setText("y / ")
     panel.formula.setCursorPosition(4)
-    panel.column_input.setCurrentIndex(panel.column_input.findData("c3"))
-    panel.column_input.activated.emit(panel.column_input.currentIndex())
+    monkeypatch.setattr("curvemole.gui.panels.choose_column",
+                        lambda *args: panel.column_target.findData("c3"))
     assert panel.formula.text() == "y / "
     panel.column_insert.click()
     assert panel.formula.text() == "y / c3"
-    assert panel.formula_summary.text() == "c3 — Monitor counts ← y / c3"
+    assert panel.formula_summary.text() == "c3 ← y / c3"
     saved = load_project(save_project(window.project, tmp_path / "saved.fitproj"))
     assert saved.custom_formulas[0]["target"] == "c3"
     assert saved.custom_formulas[0]["mode"] == "column_formula"
