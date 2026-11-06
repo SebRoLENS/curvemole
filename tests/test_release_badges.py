@@ -60,6 +60,32 @@ def test_release_preparation_writes_stable_readme_from_legacy_or_stable_status(
     assert "Preview" not in updated
 
 
+def test_release_preparation_updates_compact_readme_without_legacy_version_lines(
+    tmp_path, monkeypatch,
+):
+    prepare = _load_script("prepare_release_compact_readme", ".github/scripts/prepare_release.py")
+    readme = tmp_path / "README.md"
+    readme.write_text(
+        "# CurveMole\n\n**Interactive curve fitting. Extensible scientific analysis.**\n\n"
+        + "[![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)]"
+        "(https://github.com/SebRoLENS/curvemole/releases/latest)\n\n"
+        + "## How to cite\n\nOld citation.\n\n## License\n\nGPL-3.0-or-later.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(prepare, "README", readme)
+
+    prepare.update_readme("9.8.7")
+
+    updated = readme.read_text(encoding="utf-8")
+    assert "**Interactive curve fitting. Extensible scientific analysis.**" in updated
+    assert "> **Status:**" not in updated
+    assert "Current public version:" not in updated
+    assert "[Version 9.8.7](https://github.com/SebRoLENS/curvemole/releases/tag/v9.8.7)" in updated
+    assert "RRID:SCR_029214" in updated
+    assert "DOI-pending-lightgrey" in updated
+    assert updated.endswith("## License\n\nGPL-3.0-or-later.\n")
+
+
 @pytest.mark.parametrize("title", [
     "# CurveMole User Manual - Preview 1.0.0",
     "# CurveMole User Manual – 1.0.0",
