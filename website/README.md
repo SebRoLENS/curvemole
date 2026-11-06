@@ -30,7 +30,8 @@ Keep asset URLs relative so the site works under the `/curvemole/` project path.
 - `index.html`: introduction, workspace captures, methods and worked examples.
 - `download.html`: desktop packages, installation guidance, Stable/Beta and Python.
 - `documentation.html`: manual and PDF, quick start, references and a link to the Quick start page.
-- `quick-start.html`: under-construction page with the CurveMole mascot; content will be defined later.
+- `quick-start.html`: illustrated Raman tutorial with downloadable practice data,
+  project checkpoints, uncertainty analysis, exports and a cosmic-ray removal plugin exercise.
 - `news.html`: complete dated stable history from 1.0.0, newest first. The latest
   release and archive entries are reconstructed from the stable `CHANGELOG.md`
   during publication; beta and Unreleased notes are excluded. The previously empty
@@ -39,8 +40,8 @@ Keep asset URLs relative so the site works under the `/curvemole/` project path.
 - `contact.html`: developer contact, issue reporting, version DOI and copyable citation.
 
 All six pages share navigation with the current page marked, including on small
-screens. The snapshot assembler updates metadata across every page. Quick start
-content remains to be designed separately.
+screens. The snapshot assembler updates metadata across every page. The homepage
+Quick start buttons and documentation card open the illustrated tutorial directly.
 
 ## Assets and scientific examples
 
@@ -101,6 +102,59 @@ rendering is rejected. Screenshot generation no longer writes a competing commit
 or starts a deploy independently.
 The decorative signal background can be paused; the curve-reveal hero animation
 remains removed.
+
+## Illustrated Raman quick start
+
+`quick-start.html` follows one reproducible analysis of synthetic Raman data:
+an isolated band, two partly overlapping bands and a nonlinear background. It
+shows import, masking an injected cosmic-ray spike, a polynomial background
+initialised from selected points and then subtracted, three Gaussian components,
+the first Quick Fit, uncertainty and band correlations, numeric and parameter
+exports, and loading the specific cosmic-ray removal plugin.
+
+Generate the screenshots and practice files with the stable app dependencies
+installed from its lockfile:
+
+```sh
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_quick_start_screenshots.py
+```
+
+Every screenshot is captured in dark mode from a real CurveMole Qt widget. The generator
+isolates settings and caches, disables update checks, and replays the GUI commands;
+it does not draw substitute interfaces or retouch the captured results.
+Generated tutorial screenshots and downloads are excluded from Git; publication
+creates them together from the verified stable app before assembling the Pages artifact.
+
+For an unpublished preview whose tutorial code lives on `testing`, select a
+read-only checkout of the current stable release explicitly:
+
+```sh
+QT_QPA_PLATFORM=offscreen PYTHONPATH=src python website/scripts/render_quick_start_screenshots.py \
+  --app-source /path/to/stable-checkout --output /path/to/preview/website/dist
+```
+
+`--app-source` selects the actual app source used for capture without changing
+that checkout. The output directory receives `assets/quick-start/` and
+`quick-start-data/`. The latter contains the input spectrum, simulation truth and
+reference metadata, `.fitproj` checkpoints, the completed analysis, exported curve
+and parameter tables, the plugin bundle, a standalone replotting script and a
+`practice-pack.zip` for offline use. The synthetic truth documents the exercise;
+it is not experimental validation of the software.
+
+`assets/quick-start/manifest.json` records the stable CurveMole version and source
+SHA, input-data hash, screenshot list, fitting and correlation results, plugin
+details and numerical/GUI dependency versions. The page reads the generated capture
+manifest so its displayed results describe the same run as the downloads and images.
+
+Both full website publication and news-only publication regenerate this tutorial
+before uploading the Pages artifact. `.github/scripts/quick_start_publication.py`
+checks the app version and verified stable source SHA, removes stale generated
+assets, runs the stable renderer and checks the new manifest, PNGs and downloads.
+The news path uses a detached checkout and dependencies from the verified stable
+source, never the beta app used to prepare release news. Stable websites predating
+the illustrated guide can skip this step; once the guide marker is present, a
+missing stable renderer or incomplete capture fails publication rather than
+silently reusing old screenshots. A superseded source also prevents deployment.
 
 ## Search engine verification
 
