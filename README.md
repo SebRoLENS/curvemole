@@ -49,6 +49,8 @@ Use the graphical interface without writing code. Add custom tools and repeatabl
 
 The graphical interface, Python API, command line, and YAML workflows share the same scientific engine.
 
+**AI-assisted automation.** Give an AI assistant the [Python API audit](docs/ai-python-audit.md) or [YAML workflow audit](docs/ai-yaml-audit.md) to help write scripts and workflows. These self-contained interface references avoid loading the entire codebase into the AI’s context, saving tokens. Use the audit matching your installed version, and review the scientific assumptions.
+
 Find and install community plugins from **File > Plugin Manager > Browse validated plugins…**.
 
 [**Community plugins**](custom_plugins/README.md#find-and-install-validated-plugins) · [Plugin guide](docs/plugins.md) · [Python API](docs/python-api.md) · [YAML workflows](docs/workflows.md)
