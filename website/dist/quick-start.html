@@ -1,21 +1,18 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="width=device-width,initial-scale=1" name="viewport"/>
-<link href="https://sebrolens.github.io/curvemole/quick-start.html" rel="canonical"/>
-<meta content="CurveMole Quick start. Under construction." name="description"/>
-<title>
-   Quick start — CurveMole
-  </title>
-<link href="assets/logo.png" rel="icon"/>
-<link href="style.css" rel="stylesheet"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="curvemole-quick-start" content="raman"/>
+<meta name="description" content="A reproducible CurveMole Raman quick start: import data, mask an artefact, subtract a polynomial background, fit overlapping bands, assess uncertainty, export results and load a cosmic-ray removal plugin."/>
+<link rel="canonical" href="https://sebrolens.github.io/curvemole/quick-start.html"/>
+<title>Quick start — Fit a Raman spectrum with CurveMole</title>
+<link rel="icon" href="assets/logo.png"/>
+<link rel="stylesheet" href="style.css"/>
+<link rel="stylesheet" href="quick-start.css"/>
 </head>
-<body class="inner-page">
-<a class="skip-link" href="#main-content">
-   Skip to content
-  </a>
+<body class="inner-page quick-start-page">
+<a class="skip-link" href="#main-content">Skip to content</a>
 <header>
 <a class="brand" href="index.html">
 <img alt="" src="assets/logo.png"/>
@@ -52,16 +49,230 @@
 </nav>
 </header>
 <main id="main-content">
-<section aria-labelledby="quick-start-title" class="construction-page">
-<h1 id="quick-start-title">
-     Quick start
-    </h1>
-<img alt="The CurveMole mole holding a hammer" class="construction-mole" height="400" src="assets/mole-under-construction.png" width="400"/>
-<p class="construction-status">
-     Under construction
-    </p>
-</section>
+  <section class="qs-hero" aria-labelledby="quick-start-title">
+    <div class="qs-hero-copy">
+      <span class="eyebrow">QUICK START · A REPEATABLE RAMAN EXAMPLE</span>
+      <h1 id="quick-start-title">Fit a Raman spectrum,<br/> step by step.</h1>
+      <p class="qs-lead">Load data, mask an artefact, subtract a curved background, fit three bands, assess uncertainty and export the analysis.</p>
+      <div class="qs-hero-actions">
+        <a class="button primary" href="quick-start-data/practice-pack.zip" download>Download the practice pack ↓</a>
+        <a class="button secondary" href="quick-start-data/raman-spectrum.csv" download>Spectrum CSV ↓</a>
+      </div>
+      <p class="qs-capture-line"><span class="qs-status-dot" aria-hidden="true"></span><span data-capture-version>Stable-release screenshots</span> · Actual CurveMole interface</p>
+      <p class="qs-small"><a href="assets/quick-start/manifest.json">Capture record ↗</a> · <a href="download.html">Get CurveMole ↗</a> · <a href="documentation.html">User manual ↗</a></p>
+    </div>
+    <figure class="qs-hero-figure">
+      <a href="assets/quick-start/10-first-fit.png" data-qs-screenshot-link target="_blank" rel="noopener" aria-label="Open the completed three-band fit at full size"><img src="assets/quick-start/10-first-fit.png" data-qs-screenshot alt="The actual CurveMole workspace after fitting three Gaussian bands to the background-subtracted simulated Raman spectrum" fetchpriority="high"/></a>
+      <figcaption>The destination: data, individual bands, total fit and residuals in one workspace.</figcaption>
+    </figure>
+  </section>
+
+  <div class="qs-shell">
+    <aside class="qs-sidebar">
+      <nav class="qs-toc" aria-label="Quick-start steps">
+        <span class="eyebrow">FOLLOW THE ANALYSIS</span>
+        <a href="#load" aria-current="step"><span>01</span> Load the spectrum</a>
+        <a href="#mask"><span>02</span> Mask the artefact</a>
+        <a href="#background"><span>03</span> Draw the background</a>
+        <a href="#subtract"><span>04</span> Subtract it</a>
+        <a href="#model"><span>05</span> Add the three bands</a>
+        <a href="#fit"><span>06</span> Run the first fit</a>
+        <a href="#correlation"><span>07</span> Inspect local intervals</a>
+        <a href="#monte-carlo"><span>08</span> Monte Carlo &amp; correlation</a>
+        <a href="#export-curves"><span>09</span> Export numerical curves</a>
+        <a href="#export-parameters"><span>10</span> Export all parameters</a>
+        <a href="#save"><span>11</span> Save the full analysis</a>
+        <a href="#plugin"><span>12</span> Try a cosmic-ray plugin</a>
+      </nav>
+      <div class="qs-sidebar-download">
+        <p>Continue from the reference result.</p>
+        <a href="quick-start-data/completed-analysis.fitproj" download>Completed project ↓</a>
+        <a href="quick-start-data/reference.json">Data and model reference ↗</a>
+      </div>
+    </aside>
+
+    <article class="qs-content" aria-label="Raman fitting tutorial">
+      <div class="qs-dataset">
+        <span class="eyebrow">BEFORE YOU BEGIN</span>
+        <h2>One isolated band. Two overlapping bands.</h2>
+        <p>The input contains 801 samples from 200 to 1800 cm<sup>−1</sup>, three Gaussian bands, a quadratic background and independent Gaussian noise with known standard deviation <strong>σ<sub>y</sub> = 2</strong>. A narrow positive artefact at 900 cm<sup>−1</sup> lets you practise masking.</p>
+        <p>Unzip the practice pack into a working folder. Keep the original CSV files and use a separate folder for your exports. All data are simulated; Gaussian profiles are chosen for this exercise.</p>
+        <div class="qs-file-links"><a href="quick-start-data/raman-spectrum.csv" download>Primary spectrum ↓</a><a href="quick-start-data/raman-clean.csv" download>Clean reference ↓</a><a href="quick-start-data/reference.json">Generation parameters ↗</a></div>
+        <p class="qs-small">Click any screenshot to inspect the full-size image. The screenshot set and its version record are regenerated from the selected stable CurveMole build when the website is published.</p>
+      </div>
+
+      <section class="qs-step" id="load" aria-labelledby="load-title">
+        <div class="qs-step-heading"><span class="qs-step-number">01</span><div><span class="eyebrow">DATA IMPORT</span><h2 id="load-title">Load the spectrum and its Y errors.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Open CurveMole and choose <strong>File → Import data…</strong> (Ctrl+I). Select <code>raman-spectrum.csv</code>.</li>
+          <li>In the import mapping, choose <strong>raman_shift_cm-1</strong> for X and <strong>intensity</strong> for Y.</li>
+          <li>Map the third column, <strong>sigma_y</strong>, as a symmetric standard deviation: choose <strong>sigma_y</strong> under <strong>Uncertainty/weight</strong> and select the <strong>sigma_y</strong> column. It is a one-standard-deviation error, not a 95% interval.</li>
+          <li>Check the preview, confirm the import and activate the curve in <strong>Series and curves</strong>.</li>
+        </ol>
+        <figure class="qs-shot"><a href="assets/quick-start/01-import-dialog.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/01-import-dialog.png" data-qs-screenshot loading="lazy" alt="Real CurveMole import dialog mapping Raman shift to X, intensity to Y and the known sigma_y column to Y uncertainty"/></a><figcaption><span>IMPORT MAPPING</span> X, Y and the absolute σ<sub>y</sub> column are assigned before loading.</figcaption></figure>
+        <figure class="qs-shot"><a href="assets/quick-start/02-imported-spectrum.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/02-imported-spectrum.png" data-qs-screenshot loading="lazy" alt="The imported simulated Raman spectrum in the actual CurveMole interface, including three bands, a curved background and a narrow spike at 900 inverse centimetres"/></a><figcaption><span>CHECK THE INPUT</span> The broad bands sit on a curved background; the very narrow feature near 900 cm<sup>−1</sup> is the injected artefact.</figcaption></figure>
+      </section>
+
+      <section class="qs-step" id="mask" aria-labelledby="mask-title">
+        <div class="qs-step-heading"><span class="qs-step-number">02</span><div><span class="eyebrow">DATA SELECTION</span><h2 id="mask-title">Exclude the artefact from the fit.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Click the graphical <strong>Mask</strong> button.</li>
+          <li><strong>Right-drag</strong> over approximately 894–906 cm<sup>−1</sup>, covering the spike. The reference analysis excludes seven sampled points in this interval.</li>
+          <li>Check the shaded interval and faded points. Click <strong>Mask</strong> again to return to normal graph navigation. Left-drag in mask mode removes a mask; Undo also reverses it.</li>
+        </ol>
+        <p class="qs-note"><strong>Masking changes which observations enter the fit.</strong> It leaves their measured values intact. In this simulated example the artefact is known; a narrow feature in real data needs a scientific reason for exclusion.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/03-mask-spectrum.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/03-mask-spectrum.png" data-qs-screenshot loading="lazy" alt="The actual CurveMole graph with the 894 to 906 inverse centimetre interval masked around the simulated cosmic spike"/></a><figcaption><span>MASKED, NOT DELETED</span> The spike remains in the stored spectrum but is excluded from optimisation.</figcaption></figure>
+      </section>
+
+      <section class="qs-step" id="background" aria-labelledby="background-title">
+        <div class="qs-step-heading"><span class="qs-step-number">03</span><div><span class="eyebrow">BACKGROUND ESTIMATION</span><h2 id="background-title">Create a quadratic background from three points.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>Polynomial</strong> in the function selector. Enable <strong>Initialize with points</strong> and <strong>Background</strong>, then press <strong>Add</strong>.</li>
+          <li>Place three points in the peak-free regions listed below. Use the observed intensity near each coordinate; the green preview shows the polynomial being constructed.</li>
+          <li>Use <strong>Move points</strong>, <strong>Delete points</strong> or <strong>Undo point</strong> if needed. Press <strong>Finish</strong> after the third point.</li>
+          <li>Check <strong>Polynomial</strong> in <strong>Model and parameters</strong>: it has <strong>c0, c1 and c2</strong>, is marked as background and its point-initialised parameters are fixed.</li>
+        </ol>
+        <div class="qs-table-wrap"><table><caption>Reference control points taken from the observed CSV</caption><thead><tr><th scope="col">Raman shift / cm<sup>−1</sup></th><th scope="col">Observed intensity / a.u.</th></tr></thead><tbody><tr><td>260</td><td>82.924</td></tr><tr><td>850</td><td>81.293</td></tr><tr><td>1720</td><td>112.654</td></tr></tbody></table></div>
+        <p class="qs-note"><strong>Three points means degree 2.</strong> Polynomial degree follows the number of distinct control points minus one. A fourth point creates a cubic polynomial; it does not add another observation to a quadratic fit. These points initialise the background function rather than fitting it to every measured point.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/04-background-points.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/04-background-points.png" data-qs-screenshot loading="lazy" alt="Real CurveMole manual-point placement with three background control points and a live polynomial preview"/></a><figcaption><span>PLACE THE POINTS</span> Three peak-free coordinates determine the quadratic estimate.</figcaption></figure>
+        <figure class="qs-shot"><a href="assets/quick-start/05-background-model.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/05-background-model.png" data-qs-screenshot loading="lazy" alt="The committed polynomial background and fixed c0, c1 and c2 coefficients in CurveMole's model panel"/></a><figcaption><span>CHECK THE FUNCTION</span> The background is a model component with three fixed coefficients.</figcaption></figure>
+      </section>
+
+      <section class="qs-step" id="subtract" aria-labelledby="subtract-title">
+        <div class="qs-step-heading"><span class="qs-step-number">04</span><div><span class="eyebrow">REVERSIBLE PROCESSING</span><h2 id="subtract-title">Subtract the polynomial from the data.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>Data → Subtract background…</strong>.</li>
+          <li>Keep the polynomial selected in the background list and confirm with <strong>OK</strong>.</li>
+          <li>Inspect the corrected spectrum. CurveMole records the subtraction and disables the polynomial component so it will not be counted again in the next fit.</li>
+        </ol>
+        <p>This operation changes the data supplied to subsequent fits while preserving the imported originals. The display-only command <strong>Remove fitted background in this view</strong> is a different operation and is not used here.</p>
+        <div class="qs-shot-grid"><figure class="qs-shot"><a href="assets/quick-start/06-subtract-dialog.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/06-subtract-dialog.png" data-qs-screenshot loading="lazy" alt="The actual Subtract background dialog with the polynomial background selected"/></a><figcaption><span>SUBTRACT THE SELECTED BACKGROUND</span> Confirm the function in the processing dialog.</figcaption></figure><figure class="qs-shot"><a href="assets/quick-start/07-background-subtracted.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/07-background-subtracted.png" data-qs-screenshot loading="lazy" alt="Background-subtracted Raman data with the polynomial disabled in the model list and the artefact mask retained"/></a><figcaption><span>VERIFY THE RESULT</span> The bands remain; the subtracted polynomial is disabled.</figcaption></figure></div>
+        <p class="qs-small">Your clicked points may differ slightly from the reference coordinates. Small differences in the fitted parameters are therefore expected. The exact chosen polynomial is included in <a href="quick-start-data/background-reference.csv" download>background-reference.csv</a>.</p>
+      </section>
+
+      <section class="qs-step" id="model" aria-labelledby="model-title">
+        <div class="qs-step-heading"><span class="qs-step-number">05</span><div><span class="eyebrow">MODEL BUILDING</span><h2 id="model-title">Place three Gaussian bands.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>Gaussian</strong>, clear <strong>Background</strong> and keep <strong>Initialize with points</strong> enabled.</li>
+          <li>Press <strong>Add</strong>. Click a band centre and drag horizontally to a half-height edge to set its initial width. Place one isolated band and the two overlapping contributions, then press <strong>Finish</strong>.</li>
+          <li>Use the approximate positions and widths below as starting estimates. The overlap makes individual heights difficult to read; the fit will refine the parameters.</li>
+          <li>To match the reference labels, right-click each function and choose <strong>Rename function…</strong>: use <strong>Isolated band</strong>, <strong>Overlap A</strong> and <strong>Overlap B</strong>.</li>
+          <li>Select each Gaussian in turn. In its parameter table set the <strong>Lower</strong> bound for <strong>area</strong> to <strong>0</strong>, appropriate for these simulated positive bands. Leave the band parameters free; keep their <strong>Fixed</strong> boxes clear.</li>
+        </ol>
+        <div class="qs-table-wrap"><table><caption>Guides for initial placement, not fixed fit parameters</caption><thead><tr><th scope="col">Function</th><th scope="col">Centre / cm<sup>−1</sup></th><th scope="col">Initial FWHM / cm<sup>−1</sup></th><th scope="col">Gaussian σ / cm<sup>−1</sup></th></tr></thead><tbody><tr><td>Isolated band</td><td>500</td><td>≈42</td><td>≈18</td></tr><tr><td>Overlap A</td><td>1190</td><td>≈71</td><td>≈30</td></tr><tr><td>Overlap B</td><td>1260</td><td>≈71</td><td>≈30</td></tr></tbody></table></div>
+        <p>Gaussian parameters are <strong>area, center and sigma</strong>; area is integrated intensity, not peak height. Keep the band parameters free and the polynomial disabled. Widths must remain positive.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/08-peak-model.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/08-peak-model.png" data-qs-screenshot loading="lazy" alt="Three graphically initialised Gaussian bands named Isolated band, Overlap A and Overlap B in the real CurveMole workspace"/></a><figcaption><span>THE INITIAL MODEL</span> The three band components are enabled; the previously subtracted background stays disabled.</figcaption></figure>
+      </section>
+
+      <section class="qs-step" id="fit" aria-labelledby="fit-title">
+        <div class="qs-step-heading"><span class="qs-step-number">06</span><div><span class="eyebrow">WEIGHTED LEAST SQUARES</span><h2 id="fit-title">Run and inspect the first fit.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Keep the tutorial spectrum active, with no other curves selected.</li>
+          <li>Click <strong>Quick Fit</strong>. On first use it runs an independent local least-squares fit with the default linear loss and the imported σ<sub>y</sub> values enabled as data errors.</li>
+          <li>Wait for the spectrum to be marked <strong>Fitted</strong>, then inspect the total fit, each band and the residual panel.</li>
+        </ol>
+        <p>The reference fit uses 794 unmasked observations and nine free Gaussian parameters. Supplied σ<sub>y</sub> values are treated as absolute noise scales. Check convergence and residual structure before interpreting the parameter errors.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/10-first-fit.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/10-first-fit.png" data-qs-screenshot loading="lazy" alt="The successful three-Gaussian Quick Fit in CurveMole, with model components, fitted parameters and residuals"/></a><figcaption><span>THE FIRST FIT</span> A good description of the total curve can still leave individual bands correlated.</figcaption></figure>
+      </section>
+
+      <section class="qs-step" id="correlation" aria-labelledby="correlation-title">
+        <div class="qs-step-heading"><span class="qs-step-number">07</span><div><span class="eyebrow">LOCAL PARAMETER UNCERTAINTY</span><h2 id="correlation-title">Inspect the covariance intervals.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>Fit → Uncertainty Analysis</strong>.</li>
+          <li>Select <strong>Fit covariance</strong> and <strong>Active spectrum</strong>, then press <strong>Run explicit uncertainty analysis</strong>. This displays the local covariance estimate already available from the fit.</li>
+          <li>Read the fitted value and lower/upper confidence limits for each free parameter. Keep the original <strong>±1σ</strong> fit errors distinct from later explicit-analysis intervals.</li>
+        </ol>
+        <p>These confidence intervals use a local covariance approximation around the fitted solution. The next step uses Monte Carlo samples to examine uncertainty and the coupling between overlapping-band areas.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/11-uncertainty-covariance.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/11-uncertainty-covariance.png" data-qs-screenshot loading="lazy" alt="Actual Fit covariance results showing fitted values and local confidence intervals in the CurveMole uncertainty panel"/></a><figcaption><span>LOCAL INTERVALS</span> An OK assessment means that these displayed checks flagged no issue; it does not establish model validity or rule out parameter coupling.</figcaption></figure>
+        <p class="qs-note">The polynomial background was estimated from three observed points, held fixed and subtracted. Its estimation uncertainty is not propagated into these band intervals. The reported errors are conditional on that chosen background.</p>
+      </section>
+
+      <section class="qs-step" id="monte-carlo" aria-labelledby="monte-carlo-title">
+        <div class="qs-step-heading"><span class="qs-step-number">08</span><div><span class="eyebrow">EXPLICIT ERROR ANALYSIS AND CORRELATION</span><h2 id="monte-carlo-title">Resample and inspect the overlapping bands.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>In the same panel, select <strong>Parametric Monte Carlo</strong> and <strong>Active spectrum</strong>.</li>
+          <li>For this short exercise choose <strong>Fixed count</strong>, <strong>200</strong> replicates and <strong>95%</strong> confidence. Set <strong>CPU processes</strong> to <strong>1</strong> to match this reference run, and leave the per-replica timeout at its default.</li>
+          <li>Press <strong>Run explicit uncertainty analysis</strong>. CurveMole generates data from the fitted model and the imported noise scale, then refits each replica.</li>
+          <li>Inspect the completed/failed counts, interval bounds and assessment reasons. Select the displayed uncertainty method in the model panel if you want the Monte Carlo minus/plus errors shown beside each fitted value.</li>
+          <li>With <strong>Parametric Monte Carlo</strong> still selected, find the <strong>area</strong> row for <strong>Overlap A</strong>. Click its <strong>Attention</strong> assessment to read the correlation with <strong>Overlap B area</strong>.</li>
+        </ol>
+        <div class="qs-shot-grid"><figure class="qs-shot"><a href="assets/quick-start/13-monte-carlo-setup.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/13-monte-carlo-setup.png" data-qs-screenshot loading="lazy" alt="Real Monte Carlo settings with 200 fixed replicates and the software's interval-stability notice visible"/></a><figcaption><span>QUICK EXERCISE</span> The fixed-count notice is part of the real interface.</figcaption></figure><figure class="qs-shot"><a href="assets/quick-start/14-monte-carlo-results.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/14-monte-carlo-results.png" data-qs-screenshot loading="lazy" alt="Actual completed Monte Carlo confidence intervals, replicate counts and parameter assessments"/></a><figcaption><span>INSPECT THE RESULT</span> Retain the replicate counts and any warnings with the intervals.</figcaption></figure></div>
+        <p>The reference Monte Carlo samples show a strong negative area correlation: <strong data-mc-overlap-correlation>r ≈ −0.97</strong>. One overlapping area can increase while the other decreases, with relatively little change in their sum. This is an empirical correlation across the refitted replicas; the local covariance of the original fit gives a separate estimate, <strong data-overlap-correlation>r ≈ −0.97</strong>.</p>
+        <figure class="qs-shot"><a href="assets/quick-start/12-overlap-correlation.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/12-overlap-correlation.png" data-qs-screenshot loading="lazy" alt="The real Monte Carlo Assessment details dialog identifying strong negative empirical correlation between the areas of Overlap A and Overlap B"/></a><figcaption><span>READ THE CORRELATION REASON</span> This assessment belongs to the selected Monte Carlo analysis and identifies which parameters compensate each other.</figcaption></figure>
+        <p>This is a correlation between <strong>parameter estimates</strong> in the chosen model. It does not by itself establish a physical relationship between the Raman bands.</p>
+        <p class="qs-note"><strong>200 fixed replicates illustrate the procedure; they do not establish interval stability.</strong> For intervals you intend to report, prefer <strong>Adaptive - stop when intervals stabilize</strong> and inspect its stopping reason and failed fits. In both covariance and Monte Carlo here, the estimated, subtracted background is held fixed: its uncertainty is not propagated into the band parameters.</p>
+      </section>
+
+      <section class="qs-step" id="export-curves" aria-labelledby="export-curves-title">
+        <div class="qs-step-heading"><span class="qs-step-number">09</span><div><span class="eyebrow">NUMERICAL RESULTS FOR REPLOTTING</span><h2 id="export-curves-title">Export the observations and fitted traces.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>File → Quick export: spectra and fit curves…</strong> (Ctrl+T), select this spectrum and choose an output folder.</li>
+          <li>Include <strong>Individual fit functions/components</strong>, <strong>Total fit</strong> and <strong>Residuals (data - total fit)</strong>.</li>
+          <li>Leave <strong>Export spectrum with fitted background subtracted</strong> unchecked: the processing step already subtracted our polynomial.</li>
+          <li>For the complete 801-row record, leave <strong>Export only non-masked points</strong> unchecked. For a separate table containing only the 794 fitted observations, export again with that option checked.</li>
+          <li>Confirm. CurveMole writes one multi-column file named from the source spectrum, with descriptive headers for the observations and selected traces.</li>
+        </ol>
+        <figure class="qs-shot"><a href="assets/quick-start/15-export-curves.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/15-export-curves.png" data-qs-screenshot loading="lazy" alt="Actual numeric spectrum export dialog selecting observations, individual functions, total fit and residuals while leaving repeat background subtraction off"/></a><figcaption><span>EXPORT NUMERICAL CURVES</span> The mask controls fitting; you choose whether the excluded rows remain in the exported table.</figcaption></figure>
+        <p>If you include <strong>Combined fitted background</strong>, its column is zero in this model because the subtracted polynomial is disabled. It does not recover the original baseline; the reference exports leave this option unchecked. Keep the raw CSV and the supplied <a href="quick-start-data/background-reference.csv" download>chosen-background table</a> when reconstructing the whole processing sequence.</p>
+        <div class="qs-file-links"><a href="quick-start-data/fit-curves.csv" download>Reference curves · all rows ↓</a><a href="quick-start-data/fit-curves-unmasked.csv" download>Reference curves · fitted rows ↓</a><a href="quick-start-data/replot.py" download>Replot script ↓</a></div>
+        <p class="qs-small">The reference downloads use the shorter names <code>fit-curves.csv</code> and <code>fit-curves-unmasked.csv</code>. To reproduce the plot outside CurveMole, keep <code>replot.py</code>, <code>fit-curves.csv</code> and <code>background-reference.csv</code> in one folder. With pandas and Matplotlib installed, run <code>python replot.py</code> there. It writes <code>replotted-fit.png</code> with the data, components, total fit and residuals; excluded points remain identified.</p>
+      </section>
+
+      <section class="qs-step" id="export-parameters" aria-labelledby="export-parameters-title">
+        <div class="qs-step-heading"><span class="qs-step-number">10</span><div><span class="eyebrow">PARAMETER VALUES, ERRORS AND MATRICES</span><h2 id="export-parameters-title">Export every function parameter.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>File → Quick export: function parameters…</strong> and save the CSV in your results folder.</li>
+          <li>Check <strong>Also export covariance matrices</strong> if you want the labelled fit covariance and, when available, a separate covariance from the selected Monte Carlo samples.</li>
+          <li>Open the table in a spreadsheet or analysis program. The first two header rows identify the functions and their parameters; each spectrum occupies one data row.</li>
+        </ol>
+        <figure class="qs-shot"><a href="assets/quick-start/16-export-parameters.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/16-export-parameters.png" data-qs-screenshot loading="lazy" alt="Real function-parameter export dialog with Also export covariance matrices enabled"/></a><figcaption><span>EXPORT PARAMETERS</span> Values, fit errors and selected-analysis minus/plus errors remain distinguishable.</figcaption></figure>
+        <p>The table contains Gaussian <strong>area, center and sigma</strong> values and their errors, plus the polynomial coefficients retained in the project. Fixed background coefficients have no fitted uncertainty. The original fit-error columns and the selected explicit-analysis error columns describe different estimates.</p>
+        <div class="qs-file-links"><a href="quick-start-data/fit-parameters.csv" download>Reference parameter table ↓</a><a href="quick-start-data/reference.json">Ground-truth parameters ↗</a></div>
+      </section>
+
+      <section class="qs-step" id="save" aria-labelledby="save-title">
+        <div class="qs-step-heading"><span class="qs-step-number">11</span><div><span class="eyebrow">SAVE AND ARCHIVE</span><h2 id="save-title">Keep the project and the full analysis bundle.</h2></div></div>
+        <ol class="qs-instructions">
+          <li>Choose <strong>File → Save project</strong> and save a <strong>.fitproj</strong> file. It retains original data, the mask, the subtraction, models and recorded analyses.</li>
+          <li>Choose <strong>File → Export analysis bundle…</strong> (Ctrl+E). Select the numeric spectra, function parameters, uncertainty intervals/matrices, figures and a portable project copy.</li>
+          <li>Export into a named results folder. Start with its <strong>README.txt</strong> to find the data tables, figures, reports and saved project.</li>
+        </ol>
+        <figure class="qs-shot"><a href="assets/quick-start/17-export-bundle.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/17-export-bundle.png" data-qs-screenshot loading="lazy" alt="The actual CurveMole analysis-bundle dialog grouping numerical data, parameters, uncertainty, figures and project export options"/></a><figcaption><span>THE COMPLETE RECORD</span> A project plus an analysis bundle keeps the processing and numerical outputs together.</figcaption></figure>
+        <p>Keep the software version, model, weighting and uncertainty method with the results. The practice pack includes the <a href="quick-start-data/completed-analysis.fitproj" download>completed reference project</a> so you can inspect the recorded state or compare it with your own.</p>
+      </section>
+
+      <section class="qs-step" id="plugin" aria-labelledby="plugin-title">
+        <div class="qs-step-heading"><span class="qs-step-number">12</span><div><span class="eyebrow">OPTIONAL · A COMMUNITY EXTENSION</span><h2 id="plugin-title">Load and use the cosmic-ray removal plugin.</h2></div></div>
+        <p>Do this on a fresh copy of the raw spectrum after saving your fitted project. The optional exercise demonstrates an alternative treatment of the same injected artefact.</p>
+        <ol class="qs-instructions">
+          <li>Download the <a href="quick-start-data/cosmic_ray_removal.zip" download><strong>cosmic-ray removal plugin</strong></a> and extract it. Keep the manifest and Python module together in the <code>cosmic_ray_removal</code> folder.</li>
+          <li>Choose <strong>File → New project</strong> and import <code>raman-with-cosmic.csv</code>, using the same X/Y/σ<sub>y</sub> mapping as step 1. Leave this copy unmasked and without background subtraction.</li>
+          <li>Open <strong>File → Plugin Manager</strong>, choose <strong>Choose plugin folder…</strong>, select the extracted folder and press <strong>Scan</strong>.</li>
+          <li>Select the plugin and click <strong>Review and trust selected plugin…</strong>. Inspect its source and metadata; approve the <strong>Trust Python plugin</strong> dialog only after deciding to trust this code. Close the manager.</li>
+        </ol>
+        <div class="qs-shot-grid"><figure class="qs-shot"><a href="assets/quick-start/plugin-manager.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/plugin-manager.png" data-qs-screenshot loading="lazy" alt="The actual Plugin Manager after discovering the official community cosmic-ray removal plugin from its extracted local folder"/></a><figcaption><span>DISCOVER THE PLUGIN</span> The manifest identifies the extension and its capabilities.</figcaption></figure><figure class="qs-shot"><a href="assets/quick-start/plugin-trust.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/plugin-trust.png" data-qs-screenshot loading="lazy" alt="The real Trust Python plugin confirmation dialog for the cosmic-ray removal extension"/></a><figcaption><span>REVIEW BEFORE LOADING</span> Python plugins execute code with your account’s permissions.</figcaption></figure></div>
+        <ol class="qs-instructions" start="5">
+          <li>The plugin panel opens after loading. To reopen it, use <strong>View → Plugins: Panels → Cosmic-ray removal: review and clean</strong> (the entry also carries its plugin symbol).</li>
+          <li>Keep <strong>Single spectrum — modified Z-score</strong> with the default threshold <strong>10</strong>, median window <strong>11 points</strong>, maximum spike width <strong>5 points</strong> and candidate growth <strong>1 point</strong>. Click <strong>Detect automatically</strong>.</li>
+          <li>Inspect the candidate table and preview. In this example one candidate at approximately <strong>898–902 cm<sup>−1</sup></strong> is marked <strong>Safe</strong> and selected for application. Detection and preview have not changed the stored data.</li>
+          <li>Check that the selected event is the injected spike, then click <strong>Accept modifications</strong>. The selected three points are replaced by PCHIP interpolation; the original observations remain available and <strong>Undo</strong> reverses the correction.</li>
+        </ol>
+        <div class="qs-shot-grid"><figure class="qs-shot"><a href="assets/quick-start/plugin-review.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/plugin-review.png" data-qs-screenshot loading="lazy" alt="Actual cosmic-ray removal panel showing a Safe detected candidate near 900 inverse centimetres, its checked Apply state and the correction preview"/></a><figcaption><span>DETECT AND REVIEW</span> The table and preview identify the points proposed for replacement.</figcaption></figure><figure class="qs-shot"><a href="assets/quick-start/plugin-corrected.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/plugin-corrected.png" data-qs-screenshot loading="lazy" alt="The real CurveMole workspace after accepting the plugin's correction of the simulated cosmic spike"/></a><figcaption><span>ACCEPT THE CORRECTION</span> Only the reviewed candidate is replaced, as an undoable operation.</figcaption></figure></div>
+        <p class="qs-note"><strong>Masking and correction are different choices.</strong> The main tutorial keeps measured values and excludes an interval from fitting. The plugin exercise replaces selected values by an estimate. If you analyse the corrected copy, repeat background estimation, fitting and uncertainty analysis on that copy.</p>
+        <div class="qs-file-links"><a href="quick-start-data/raman-with-cosmic.csv" download>Plugin exercise spectrum ↓</a><a href="https://github.com/SebRoLENS/curvemole/blob/main/custom_plugins/README.md#find-and-install-validated-plugins">Community plugin catalog ↗</a><a href="https://github.com/SebRoLENS/curvemole/blob/main/docs/plugins.md">Plugin guide ↗</a></div>
+      </section>
+
+      <section class="qs-finish" aria-labelledby="finish-title">
+        <span class="eyebrow">REPEAT, COMPARE, EXTEND</span>
+        <h2 id="finish-title">Now repeat the analysis with your own data.</h2>
+        <p>You have imported uncertainties, excluded an artefact, constructed and subtracted a background, fitted overlapping bands, examined parameter correlation and saved both numerical results and a complete project.</p>
+        <div class="qs-file-links"><a href="quick-start-data/practice-pack.zip" download>All practice files ↓</a><a href="documentation.html">Continue with the manual ↗</a><a href="contact.html#citation">Cite the version you use ↗</a></div>
+        <details class="qs-method-details"><summary>About the simulation, uncertainty and screenshot versions</summary><p>The generator uses NumPy seed 1729, area-normalised Gaussian bands and independent Gaussian noise with σ<sub>y</sub> = 2. The polynomial is estimated from three noisy, peak-free observations and then held fixed. Its estimation uncertainty is not included in the subsequent band intervals. The masked artefact is an added one-sample spike; it is not experimental evidence.</p><p>The screenshots are captures of the actual CurveMole GUI, generated while executing this workflow. Their <a href="assets/quick-start/manifest.json">capture record</a> identifies the stable software source and numerical results. The website build refreshes the images with the selected stable application version rather than reusing illustrations from an older release.</p><p id="qs-manifest-status" class="qs-small" role="status">The capture manifest records the version used for this screenshot set.</p></details>
+      </section>
+    </article>
+  </div>
 </main>
+
 <footer>
 <div>
 <a class="brand" href="index.html">
@@ -92,5 +303,7 @@
     </small>
 <a href="privacy.html">Privacy &amp; analytics ↗</a></div>
 </footer>
-<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"4df5daad98934fc184b2f3f580d98832"}'></script></body>
+<script src="quick-start.js" defer></script>
+<script type="module" src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token":"4df5daad98934fc184b2f3f580d98832"}'></script>
+</body>
 </html>

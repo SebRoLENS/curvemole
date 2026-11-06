@@ -35,7 +35,7 @@ jobs:
     # and its scoped styles overlay the stable main snapshot; no app promotion.
     if: inputs.news_only && github.ref == 'refs/heads/testing' && inputs.source_ref == github.sha
     runs-on: ubuntu-22.04
-    timeout-minutes: 10
+    timeout-minutes: 20
     permissions:
       contents: read
       actions: read
@@ -53,6 +53,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: python .github/scripts/website_news.py --output "$RUNNER_TEMP/curvemole-website-news"
+      - name: Prepare the stable quick-start app and renderer
+        id: quickstart
+        run: >-
+          python .github/scripts/quick_start_publication.py prepare
+          --snapshot "$RUNNER_TEMP/curvemole-website-news"
+          --checkout "$RUNNER_TEMP/curvemole-stable-tutorial"
+      - name: Install stable tutorial GUI libraries
+        if: steps.quickstart.outputs.required == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        if: steps.quickstart.outputs.required == 'true'
+        with:
+          enable-cache: false
+          python-version: '3.12'
+      - name: Refresh the tutorial from the verified stable app
+        if: steps.quickstart.outputs.required == 'true'
+        env:
+          STABLE_TUTORIAL: ${{ steps.quickstart.outputs.checkout }}
+        run: |
+          uv sync --project "$STABLE_TUTORIAL" --locked --no-default-groups --group screenshots
+          uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL"
       - name: Reject a superseded source
         run: |
           git fetch origin main testing
@@ -115,6 +138,7 @@ jobs:
           uv run --no-sync python website/scripts/render_demo_screenshots.py
           uv run --no-sync python website/scripts/render_project_screenshots.py
           uv run --no-sync python website/scripts/render_customization_screenshots.py
+          uv run --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot website/dist --checkout .
       - name: Reject a superseded snapshot
         if: steps.readiness.outputs.ready == 'true'
         run: |
