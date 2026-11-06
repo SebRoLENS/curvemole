@@ -154,14 +154,14 @@ def pending_badges(text: str) -> str:
 def update_readme(version: str) -> None:
     text = README.read_text(encoding="utf-8")
     text = pending_badges(text)
-    text, status_count = STATUS_RE.subn(
+    # Older READMEs included explicit status and version lines. Refresh them when
+    # present; the compact README identifies the release in its generated citation.
+    text = STATUS_RE.sub(
         f"> **Status:** Version **{version} Stable**.", text, count=1
     )
-    text, public_count = PUBLIC_VERSION_RE.subn(
+    text = PUBLIC_VERSION_RE.sub(
         f"Current public version: **{version}**", text, count=1
     )
-    if status_count != 1 or public_count != 1:
-        raise SystemExit("Could not update README version fields")
     data = citations["metadata"](CITATION.read_text(encoding="utf-8"), version)
     citation = citations["readme_section"](data)
     text = replace_section(text, "## How to cite", "## License", citation)

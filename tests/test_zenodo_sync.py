@@ -85,7 +85,7 @@ def test_release_and_doi_sync_preserve_official_links_and_citation_details(tmp_p
     assert archived["doi"] == "10.5281/zenodo.99999999"
     for field in ("url", "abstract", "keywords", "title", "authors", "license", "repository-code"):
         assert archived[field] == original[field]
-    assert "(Version 1.0.1)" in readme.read_text(encoding="utf-8")
+    assert "[Version 1.0.1](https://doi.org/10.5281/zenodo.99999999)" in readme.read_text(encoding="utf-8")
     assert "https://doi.org/10.5281/zenodo.99999999" in readme.read_text(encoding="utf-8")
     first_sync = citation.read_text(encoding="utf-8")
     zenodo.apply_metadata("1.0.1", "10.5281/zenodo.99999999")

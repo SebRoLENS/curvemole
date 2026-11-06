@@ -93,18 +93,9 @@ def pending(data: dict) -> str:
 def readme_section(data: dict) -> str:
     return f'''## How to cite
 
-**Research using CurveMole:** cite the exact version used. The reference below is
-for **{data["version"]}**; for another version, use its own release DOI.
+Using CurveMole in your research? [Cite the exact version used](docs/citing.md) and include [**{data["rrid"]}**]({data["rrid_url"]}) in your methods.
 
-{pending(data)}{version_reference(data)}
-**In the methods:** {data["methods"]}
-
-**The project in general:** use the [Concept DOI]({data["concept_url"]})
-({data["concept_doi"]}). It represents all versions and can resolve to a beta.
-
-[Citation guide](docs/citing.md) · [Version BibTeX](docs/citation.bib) ·
-[RRID record]({data["rrid_url"]}) · [Citation metadata](CITATION.cff).
-GitHub's **Cite this repository** also uses `CITATION.cff`.
+[Version {data["version"]}]({data["url"]}) · [Project DOI (all versions)]({data["concept_url"]}) · [Citation guide](docs/citing.md)
 '''
 
 

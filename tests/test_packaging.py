@@ -27,8 +27,10 @@ def test_linux_release_includes_a_detached_sigstore_signature() -> None:
     assert "actions/attest@v4" in workflow
     assert "steps.attest.outputs.bundle-path" in workflow
     assert ".sigstore.json" in workflow
-    assert "gh attestation verify" in readme
-    assert readme.index("## Download") < readme.index("## Why CurveMole?")
+    assert "[**Download CurveMole**](https://github.com/SebRoLENS/curvemole/releases/latest)" in readme
+    assert "[installation instructions](docs/manual.md#3-installation-and-first-launch)" in readme
+    manual = (ROOT / "docs/manual.md").read_text(encoding="utf-8")
+    assert "### 3.4 Verifying SHA-256 checksums" in manual
 
 
 def test_all_desktop_builds_explicitly_collect_dynamic_svg_renderer() -> None:
