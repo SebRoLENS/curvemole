@@ -167,6 +167,9 @@ header{gap:28px;height:auto;min-height:88px}header nav{gap:24px;flex-wrap:wrap;j
 
 
 /* Homepage: workflow, scientific control and extensible analysis. */
+.home-page .home-ai-automation{font-size:13px;line-height:1.85;margin:25px 0 0;color:var(--muted)}
+.home-page .home-ai-automation strong{color:var(--text);font-weight:500}
+.home-page .home-ai-automation a{color:var(--mint)}
 .home-page .home-hero{padding:64px 0 28px;text-align:left;overflow:visible}
 .home-page .home-hero .signal-field{opacity:.5;overflow:hidden;inset:-30px -35px 0;pointer-events:none}
 .home-page .home-hero-layout{position:relative;display:grid;grid-template-columns:.84fr 1.16fr;align-items:center;gap:48px}
