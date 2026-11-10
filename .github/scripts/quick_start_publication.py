@@ -41,7 +41,7 @@ def guide_enabled(snapshot):
     content = page.read_text(encoding="utf-8")
     marker = GuideMarker()
     marker.feed(content)
-    if not marker.enabled and any(str(path) + "/" in content for path in GENERATED):
+    if not marker.enabled and any(path.as_posix() + "/" in content for path in GENERATED):
         raise ValueError("Quick-start assets require the curvemole-quick-start page marker")
     return marker.enabled
 
