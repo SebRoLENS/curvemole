@@ -303,7 +303,7 @@ class PlotWorkspace(QWidget):
         autoscale_controls.setContentsMargins(0, 0, 0, 0)
         self.autoscale_toggle = QCheckBox(self.tr("Autoscale"))
         self.autoscale_toggle.setToolTip(
-            self.tr("Automatically fit the experimental data whenever the active spectrum changes.")
+            self.tr("Automatically fit experimental data when you select a spectrum or click a series.")
         )
         autoscale_controls.addWidget(self.autoscale_toggle)
         self.autoscale_mode = QComboBox()
@@ -608,8 +608,13 @@ class PlotWorkspace(QWidget):
         if enabled:
             self._apply_autoscale()
 
-    def _apply_autoscale(self) -> None:
-        if self.autoscale_mode.currentIndex() == 1:
+    def _apply_autoscale(self, *, series_id: str | None = None) -> None:
+        if series_id is not None:
+            self._fit_experimental_data(
+                active_only=self.autoscale_mode.currentIndex() == 1,
+                series_id=series_id,
+            )
+        elif self.autoscale_mode.currentIndex() == 1:
             self.view_active()
         else:
             self.auto_range()
@@ -1471,7 +1476,7 @@ class PlotWorkspace(QWidget):
     def view_active(self) -> None:
         self._fit_experimental_data(active_only=True)
 
-    def _fit_experimental_data(self, *, active_only: bool) -> None:
+    def _fit_experimental_data(self, *, active_only: bool, series_id: str | None = None) -> None:
         # Never use scene/item bounds: adaptive rendering clips those to the
         # current viewport, while model extrapolation can dwarf the actual data.
         from curvemole.gui.background_navigation import (
@@ -1481,9 +1486,15 @@ class PlotWorkspace(QWidget):
         )
 
         curves, x_step, y_step = _displayed_curves(self)
+        series_curves = None
+        if series_id is not None and self._project is not None:
+            series = next((group for group in self._project.dataset.series if group.id == series_id), None)
+            series_curves = {curve.id for curve in series.curves} if series is not None else set()
         log_x, log_y = self.plot.ctrl.logXCheck.isChecked(), self.plot.ctrl.logYCheck.isChecked()
         bounds = []
         for index, curve in enumerate(curves):
+            if series_curves is not None and curve.id not in series_curves:
+                continue
             x = np.asarray(curve.x, dtype=float) + index * x_step
             y = np.asarray(curve.y, dtype=float)
             if background_removed(self, curve.id):

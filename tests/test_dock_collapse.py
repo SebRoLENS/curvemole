@@ -10,6 +10,7 @@ from curvemole.gui.main_window import MainWindow
 def test_wide_tool_contents_do_not_set_other_tabs_minimum_width():
     app = QApplication.instance() or QApplication([])
     window = MainWindow(Project())
+    window.reset_layout()
     window.show()
     app.processEvents()
     window.resizeDocks([window.model_dock], [250], Qt.Orientation.Horizontal)
@@ -41,6 +42,7 @@ def test_wide_tool_contents_do_not_set_other_tabs_minimum_width():
 def test_dock_controls_hide_entire_areas_and_restore_tabs_and_active_tool():
     app = QApplication.instance() or QApplication([])
     window = MainWindow(Project())
+    window.reset_layout()
     window.show()
     window.activate_tool_dock(window.function_dock)
     bottom = QDockWidget("Bottom test", window)
@@ -82,6 +84,7 @@ def test_collapsed_area_can_be_reopened_after_restoring_window_layout():
     app = QApplication.instance() or QApplication([])
     area = Qt.DockWidgetArea.RightDockWidgetArea
     first = MainWindow(Project())
+    first.reset_layout()
     first.show()
     first.activate_tool_dock(first.function_dock)
     app.processEvents()

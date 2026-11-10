@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QStyleOptionComboBox,
 )
 
-from curvemole import Curve, Project
+from curvemole import Curve, Project, Series
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.scientific_axis import ScientificAxisItem
@@ -312,3 +312,50 @@ def test_small_ticks_keep_distinct_scientific_values(window):
     assert len(set(labels)) == len(values)
     np.testing.assert_allclose([float(label) for label in labels], values, rtol=1e-12, atol=0)
     assert axis.tickStrings([0], 1, 1e-11) == ["0"]
+
+
+@pytest.mark.parametrize("scope", ["project", "series"])
+@pytest.mark.parametrize("unmasked", [False, True])
+def test_clicking_series_autoscales_overlay_to_its_visible_spectra(scope, unmasked):
+    app = QApplication.instance() or QApplication([])
+    project = Project("Series navigation")
+    first = Series("Near", [Curve("Near A", [0, 1], [1, 2]), Curve("Near B", [6, 8], [6, 8])])
+    second = Series("Far", [
+        Curve("Far A", [100, 104], [100, 104]),
+        Curve("Far B", [120, 125, 250], [120, 125, 250]),
+        Curve("Hidden", [400, 450], [400, 450], visible=False),
+    ])
+    second.curves[1].add_mask("Outlier").excluded[-1] = True
+    project.add_series(first)
+    project.add_series(second)
+    project.ui_state["display_scope"] = scope
+    main = CurveMoleMainWindow(project)
+    try:
+        main.show()
+        workspace = main.plot_workspace
+        workspace.display_mode.setCurrentIndex(1)  # Overlay
+        workspace.autoscale_mode.setCurrentIndex(int(unmasked))
+        workspace.autoscale_toggle.setChecked(True)
+        app.processEvents()
+        tree = main.curve_tree
+
+        def select(index):
+            item = tree.topLevelItem(index)
+            QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=tree.visualItemRect(item).center())
+            app.processEvents()
+            return workspace.view_box.viewRange()
+
+        near_x, near_y = select(0)
+        assert near_x[0] <= 0 and 8 <= near_x[1] < 30
+        assert near_y[0] <= 1 and 8 <= near_y[1] < 30
+        far_x, far_y = select(1)
+        maximum = 125 if unmasked else 250
+        assert 80 < far_x[0] <= 100 and maximum <= far_x[1] < maximum + 25
+        assert 80 < far_y[0] <= 100 and maximum <= far_y[1] < maximum + 25
+        assert project.ui_state["display_scope"] == scope
+
+        workspace.autoscale_toggle.setChecked(False)
+        assert np.allclose(select(0), (far_x, far_y))
+    finally:
+        project.dirty = False
+        main.close()

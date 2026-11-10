@@ -54,7 +54,6 @@ from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_b
 from curvemole.gui.row_drag import RowDragMixin, RowDrop
 from curvemole.gui.worksheet import WorksheetModel
 
-
 COMPONENT_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 
 
