@@ -44,6 +44,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QColorDialog,
     QDialog,
     QDockWidget,
@@ -1701,7 +1702,9 @@ class MainWindow(QMainWindow):
                 if batch is not None:
                     batch.index = index
                 curves = None
+                file_mapping = shared_mapping
                 missing_column = None
+                remember_choice = False
                 if apply_all:
                     preview = ImportPreview(path, shared_config)
                     try:
@@ -1714,16 +1717,17 @@ class MainWindow(QMainWindow):
                             except ImportColumnError:
                                 pass
                             else:
-                                decision = self._ask_import_column_positions(Path(path).name, missing_column)
+                                decision, remember_choice = self._ask_import_column_positions(
+                                    Path(path).name, missing_column,
+                                )
                                 if decision == "cancel":
                                     return
                                 if decision == "position":
-                                    use_positions = True
+                                    use_positions = remember_choice
                                     curves = preview.curves(position_mapping)
                 if curves is None:
                     with transient_widget(ImportMappingDialog(path, batch_size=len(paths), parent=self)) as dialog:
                         if missing_column is not None:
-                            dialog.match_column_positions.setChecked(use_positions)
                             dialog.setWindowTitle(self.tr("Import data — check column mapping"))
                             warning = QLabel(self.tr("Check the X and Y columns for this file.") + "\n" + missing_column)
                             warning.setTextFormat(Qt.TextFormat.PlainText)
@@ -1756,16 +1760,20 @@ class MainWindow(QMainWindow):
                         if index == 0:
                             destination_id = dialog.destination_series.currentData()
                             series.name = dialog.series_name.text().strip()
-                        shared_mapping = dialog.mapping()
-                        shared_config = dialog.config()
-                        apply_all = dialog.apply_all.isChecked()
-                        use_positions = dialog.match_column_positions.isChecked()
-                        if apply_all:
-                            position_mapping = shared_mapping.by_position(dialog.inspection.columns)
-                    curves = import_file(path, shared_mapping, shared_config)
+                        file_mapping = dialog.mapping()
+                        file_config = dialog.config()
+                        share_mapping = dialog.apply_all.isChecked()
+                        if missing_column is None or remember_choice or share_mapping:
+                            shared_mapping = file_mapping
+                            shared_config = file_config
+                            apply_all = share_mapping
+                            use_positions = dialog.match_column_positions.isChecked()
+                            if apply_all:
+                                position_mapping = shared_mapping.by_position(dialog.inspection.columns)
+                    curves = import_file(path, file_mapping, file_config)
                 for curve in curves:
                     curve.colour = PALETTE[(len(self.project.curves) + len(series.curves)) % len(PALETTE)]
-                    if len(paths) > 1 and not (shared_mapping.as_separated_files or shared_mapping.spectra):
+                    if len(paths) > 1 and not (file_mapping.as_separated_files or file_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
                     series.add(curve)
             if batch is not None:
@@ -1786,7 +1794,7 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._show_error(self.tr("Import data"), exc)
 
-    def _ask_import_column_positions(self, file_name: str, reason: str) -> str:
+    def _ask_import_column_positions(self, file_name: str, reason: str) -> tuple[str, bool]:
         with transient_widget(QMessageBox(self)) as prompt:
             prompt.setIcon(QMessageBox.Icon.Question)
             prompt.setWindowTitle(self.tr("Import data — different column headers"))
@@ -1795,9 +1803,10 @@ class MainWindow(QMainWindow):
                 file=file_name,
             ))
             prompt.setInformativeText(self.tr(
-                "Use the same column positions for this file and the rest of the batch, "
-                "or choose columns manually?"
+                "Use the same column positions for this file, or choose columns manually?"
             ))
+            remember = QCheckBox(self.tr("Apply this choice to the remaining files in this batch"), prompt)
+            prompt.setCheckBox(remember)
             prompt.setDetailedText(reason)
             position = prompt.addButton(self.tr("Match columns by position"), QMessageBox.ButtonRole.AcceptRole)
             manual = prompt.addButton(self.tr("Choose columns manually"), QMessageBox.ButtonRole.ActionRole)
@@ -1805,10 +1814,10 @@ class MainWindow(QMainWindow):
             prompt.setDefaultButton(manual)
             prompt.exec()
             if prompt.clickedButton() is position:
-                return "position"
+                return "position", remember.isChecked()
             if prompt.clickedButton() is manual:
-                return "manual"
-            return "cancel"
+                return "manual", remember.isChecked()
+            return "cancel", False
 
     def save_project(self, *, save_as: bool = False) -> bool:
         if self._manual_save_controller.busy and not self._manual_save_controller.wait():

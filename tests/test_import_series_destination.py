@@ -127,7 +127,7 @@ def test_batch_import_by_position_preserves_file_headers(importing_window, monke
     def confirm(file_name, reason):
         prompts.append(file_name)
         assert "Column 'x'" in reason
-        return "position"
+        return "position", True
 
     monkeypatch.setattr(ImportMappingDialog, "exec", choose)
     monkeypatch.setattr(window, "_ask_import_column_positions", confirm)
@@ -163,8 +163,40 @@ def test_batch_import_can_disable_mapping_when_headers_change(importing_window, 
         return dialog.DialogCode.Accepted
 
     monkeypatch.setattr(ImportMappingDialog, "exec", choose)
-    monkeypatch.setattr(window, "_ask_import_column_positions", lambda *args: "manual")
+    monkeypatch.setattr(window, "_ask_import_column_positions", lambda *args: ("manual", True))
     window.import_data(paths)
 
     assert seen == [Path(path) for path in paths]
     assert [curve.y_label for curve in project.dataset.series[-1].curves] == ["y", "other_y", "last_y"]
+
+
+@pytest.mark.parametrize("decision", ["position", "manual"])
+def test_header_mismatch_choice_is_per_file_without_opt_in(importing_window, monkeypatch, decision):
+    _, window, project, paths = importing_window
+    Path(paths[1]).write_text("x,renamed_y\n0,20\n1,30\n")
+    third = Path(paths[1]).with_name("scan2.csv")
+    third.write_text("y,x\n22,0\n32,1\n")
+    fourth = Path(paths[1]).with_name("scan3.csv")
+    fourth.write_text("x,another_y\n0,24\n1,34\n")
+    paths.extend((str(third), str(fourth)))
+    mappings = []
+    prompts = []
+
+    def choose(dialog):
+        mappings.append(dialog.path.name)
+        return dialog.DialogCode.Accepted
+
+    def confirm(file_name, reason):
+        prompts.append(file_name)
+        return decision, False
+
+    monkeypatch.setattr(ImportMappingDialog, "exec", choose)
+    monkeypatch.setattr(window, "_ask_import_column_positions", confirm)
+    window.import_data(paths)
+
+    assert prompts == ["scan1.csv", "scan3.csv"]
+    assert mappings == (["scan0.csv", "scan1.csv", "scan3.csv"] if decision == "manual" else ["scan0.csv"])
+    assert [curve.y_label for curve in project.dataset.series[-1].curves] == [
+        "y", "renamed_y", "y", "another_y",
+    ]
+    assert list(project.dataset.series[-1].curves[2].original_y) == [22, 32]
