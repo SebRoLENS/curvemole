@@ -2,11 +2,6 @@
 set -euo pipefail
 ICON=$1
 APPIMAGE=$2
-LOCAL_COMMIT=${CURVEMOLE_LOCAL_COMMIT:-}
-if [[ -n "$LOCAL_COMMIT" && ! "$LOCAL_COMMIT" =~ ^[0-9a-f]{40}$ ]]; then
-  echo "CURVEMOLE_LOCAL_COMMIT must be a full Git commit SHA." >&2
-  exit 2
-fi
 mkdir -p CurveMole.AppDir/usr/lib/curvemole
 cp -a dist/CurveMole/. CurveMole.AppDir/usr/lib/curvemole/
 cp packaging/linux/curvemole.desktop CurveMole.AppDir/curvemole.desktop
@@ -17,11 +12,6 @@ cp "$ICON" CurveMole.AppDir/.DirIcon
 cat > CurveMole.AppDir/AppRun <<'EOF'
 #!/bin/sh
 APPDIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-EOF
-if [[ -n "$LOCAL_COMMIT" ]]; then
-  printf 'export CURVEMOLE_LOCAL_COMMIT=%s\n' "$LOCAL_COMMIT" >> CurveMole.AppDir/AppRun
-fi
-cat >> CurveMole.AppDir/AppRun <<'EOF'
 exec "$APPDIR/usr/lib/curvemole/CurveMole" "$@"
 EOF
 chmod +x CurveMole.AppDir/AppRun
