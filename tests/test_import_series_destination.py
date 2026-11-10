@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from PySide6.QtWidgets import QApplication
 
@@ -83,7 +85,6 @@ def test_parse_failure_does_not_append_partial_import(importing_window, monkeypa
         return dialog.DialogCode.Accepted
     monkeypatch.setattr(ImportMappingDialog, 'exec', choose)
     monkeypatch.setattr(window, '_show_error', lambda title, error: errors.append(str(error)))
-    from pathlib import Path
     Path(paths[1]).write_text('invalid table')
     window.import_data(paths)
     assert errors
@@ -104,3 +105,66 @@ def test_new_series_option_is_retained(importing_window, monkeypatch):
     assert len(project.dataset.series) == 3
     assert project.dataset.series[-1].name == 'New acquisition'
     assert len(project.dataset.series[-1].curves) == 2
+
+
+@pytest.mark.parametrize("start_by_position", [False, True])
+def test_batch_import_by_position_preserves_file_headers(importing_window, monkeypatch, start_by_position):
+    _, window, project, paths = importing_window
+    Path(paths[1]).write_text("raman_shift,intensita_nuova\n10,20\n11,21\n")
+    third = Path(paths[1]).with_name("scan2.csv")
+    third.write_text("y,x\n12,22\n13,23\n")
+    paths.append(str(third))
+    seen = []
+    prompts = []
+
+    def choose(dialog):
+        seen.append(dialog.path)
+        assert dialog.match_column_positions.isEnabled()
+        assert not dialog.match_column_positions.isChecked()
+        dialog.match_column_positions.setChecked(start_by_position)
+        return dialog.DialogCode.Accepted
+
+    def confirm(file_name, reason):
+        prompts.append(file_name)
+        assert "Column 'x'" in reason
+        return "position"
+
+    monkeypatch.setattr(ImportMappingDialog, "exec", choose)
+    monkeypatch.setattr(window, "_ask_import_column_positions", confirm)
+    window.import_data(paths)
+
+    assert seen == [Path(paths[0])]
+    assert prompts == ([] if start_by_position else [Path(paths[1]).name])
+    first, second, last = project.dataset.series[-1].curves
+    assert (first.x_label, first.y_label) == ("x", "y")
+    assert (second.x_label, second.y_label) == ("raman_shift", "intensita_nuova")
+    assert (last.x_label, last.y_label) == ("y", "x")
+    assert list(last.original_x) == [12, 13]
+    assert list(last.original_y) == [22, 23]
+    assert list(second.original_x) == [10, 11]
+    assert list(second.original_y) == [20, 21]
+
+
+def test_batch_import_can_disable_mapping_when_headers_change(importing_window, monkeypatch):
+    _, window, project, paths = importing_window
+    Path(paths[1]).write_text("x,other_y,metadata\n0,20,99\n1,30,99\n")
+    third = Path(paths[1]).with_name("scan2.csv")
+    third.write_text("x,last_y\n0,22\n1,32\n")
+    paths.append(str(third))
+    seen = []
+
+    def choose(dialog):
+        seen.append(dialog.path)
+        if len(seen) == 2:
+            assert "check column mapping" in dialog.windowTitle()
+        if len(seen) > 1:
+            assert not dialog.apply_all.isChecked()
+            assert not dialog.match_column_positions.isChecked()
+        return dialog.DialogCode.Accepted
+
+    monkeypatch.setattr(ImportMappingDialog, "exec", choose)
+    monkeypatch.setattr(window, "_ask_import_column_positions", lambda *args: "manual")
+    window.import_data(paths)
+
+    assert seen == [Path(path) for path in paths]
+    assert [curve.y_label for curve in project.dataset.series[-1].curves] == ["y", "other_y", "last_y"]

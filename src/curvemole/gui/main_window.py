@@ -50,6 +50,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
+    QLabel,
     QLineEdit,
     QMainWindow,
     QMenu,
@@ -85,7 +86,7 @@ from curvemole.core.fitting import (
     FitSettings,
     Fitter,
 )
-from curvemole.core.importers import import_file
+from curvemole.core.importers import ImportColumnError, ImportPreview, import_file
 from curvemole.core.initialization import (
     PeakSuggestion,
     component_from_suggestion,
@@ -1676,6 +1677,8 @@ class MainWindow(QMainWindow):
         destination_id = None
         shared_mapping = None
         shared_config = None
+        position_mapping = None
+        use_positions = False
         apply_all = False
         batch = getattr(self, "_external_import_batch", None)
         if batch is not None and paths is not batch.paths:
@@ -1684,8 +1687,35 @@ class MainWindow(QMainWindow):
             for index, path in enumerate(paths):
                 if batch is not None:
                     batch.index = index
-                if index == 0 or not apply_all:
+                curves = None
+                missing_column = None
+                if apply_all:
+                    preview = ImportPreview(path, shared_config)
+                    try:
+                        curves = preview.curves(position_mapping if use_positions else shared_mapping)
+                    except ImportColumnError as exc:
+                        missing_column = str(exc)
+                        if not use_positions:
+                            try:
+                                preview.check_columns(position_mapping)
+                            except ImportColumnError:
+                                pass
+                            else:
+                                decision = self._ask_import_column_positions(Path(path).name, missing_column)
+                                if decision == "cancel":
+                                    return
+                                if decision == "position":
+                                    use_positions = True
+                                    curves = preview.curves(position_mapping)
+                if curves is None:
                     with transient_widget(ImportMappingDialog(path, batch_size=len(paths), parent=self)) as dialog:
+                        if missing_column is not None:
+                            dialog.match_column_positions.setChecked(use_positions)
+                            dialog.setWindowTitle(self.tr("Import data — check column mapping"))
+                            warning = QLabel(self.tr("Check the X and Y columns for this file.") + "\n" + missing_column)
+                            warning.setTextFormat(Qt.TextFormat.PlainText)
+                            warning.setWordWrap(True)
+                            dialog.layout().insertWidget(1, warning)
                         choice = (preview_columns or {}).get(str(Path(path).resolve()))
                         if choice:
                             xi, yi = choice
@@ -1697,6 +1727,7 @@ class MainWindow(QMainWindow):
                         dialog.series_name.setText(series.name)
                         dialog.set_series_destinations(self.project.dataset.series, destination_id)
                         if index > 0:
+                            dialog.apply_all.setChecked(apply_all and missing_column is None)
                             dialog.destination_series.setEnabled(False)
                             dialog.series_name.setEnabled(False)
                         dialog.existing_series_names = {item.name for item in self.project.dataset.series}
@@ -1715,7 +1746,10 @@ class MainWindow(QMainWindow):
                         shared_mapping = dialog.mapping()
                         shared_config = dialog.config()
                         apply_all = dialog.apply_all.isChecked()
-                curves = import_file(path, shared_mapping, shared_config)
+                        use_positions = dialog.match_column_positions.isChecked()
+                        if apply_all:
+                            position_mapping = shared_mapping.by_position(dialog.inspection.columns)
+                    curves = import_file(path, shared_mapping, shared_config)
                 for curve in curves:
                     curve.colour = PALETTE[(len(self.project.curves) + len(series.curves)) % len(PALETTE)]
                     if len(paths) > 1 and not (shared_mapping.as_separated_files or shared_mapping.spectra):
@@ -1738,6 +1772,30 @@ class MainWindow(QMainWindow):
             self._notify(self.tr("Imported ") + f"{len(series.curves)} " + self.tr("curve(s)."))
         except Exception as exc:
             self._show_error(self.tr("Import data"), exc)
+
+    def _ask_import_column_positions(self, file_name: str, reason: str) -> str:
+        with transient_widget(QMessageBox(self)) as prompt:
+            prompt.setIcon(QMessageBox.Icon.Question)
+            prompt.setWindowTitle(self.tr("Import data — different column headers"))
+            prompt.setTextFormat(Qt.TextFormat.PlainText)
+            prompt.setText(self.tr("The column headers in {file} do not match the batch mapping.").format(
+                file=file_name,
+            ))
+            prompt.setInformativeText(self.tr(
+                "Use the same column positions for this file and the rest of the batch, "
+                "or choose columns manually?"
+            ))
+            prompt.setDetailedText(reason)
+            position = prompt.addButton(self.tr("Match columns by position"), QMessageBox.ButtonRole.AcceptRole)
+            manual = prompt.addButton(self.tr("Choose columns manually"), QMessageBox.ButtonRole.ActionRole)
+            prompt.addButton(QMessageBox.StandardButton.Cancel)
+            prompt.setDefaultButton(manual)
+            prompt.exec()
+            if prompt.clickedButton() is position:
+                return "position"
+            if prompt.clickedButton() is manual:
+                return "manual"
+            return "cancel"
 
     def save_project(self, *, save_as: bool = False) -> bool:
         if self._manual_save_controller.busy and not self._manual_save_controller.wait():

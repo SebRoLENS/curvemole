@@ -210,6 +210,12 @@ class ImportMappingDialog(QDialog):
         self.apply_all.setChecked(batch_size > 1)
         self.apply_all.setVisible(batch_size > 1)
         layout.addWidget(self.apply_all)
+        self.match_column_positions = QCheckBox(self.tr("Match columns by position (ignore headers)"))
+        self.match_column_positions.setToolTip(self.tr(
+            "Use the selected column numbers for X, Y and any uncertainty columns, "
+            "even when another file uses different headers."
+        ))
+        layout.addWidget(self.match_column_positions)
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )

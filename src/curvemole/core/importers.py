@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import re
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -21,6 +21,10 @@ from curvemole.core.errors import DataValidationError
 # Common extensions are kept for documentation/UI hints only. Import validity is
 # determined from file contents rather than the filename suffix.
 SUPPORTED_EXTENSIONS = {".txt", ".dat", ".csv", ".tsv", ".xy", ".spe"}
+
+
+class ImportColumnError(DataValidationError):
+    """A column selected in the mapping is absent from the parsed file."""
 
 
 @dataclass(slots=True)
@@ -48,6 +52,24 @@ class ColumnMapping:
     error_confidence_level: float = 0.95
     as_separated_files: bool = False
     spectra: list[ColumnMapping] = field(default_factory=list)
+
+    def _map_columns(self, resolve: Callable[[str | int], str | int]) -> ColumnMapping:
+        optional = {
+            name: resolve(column)
+            for name in ("x", "sigma_x", "sigma_y", "weights", "variance",
+                         "inverse_variance", "error_y_plus", "error_y_minus")
+            if (column := getattr(self, name)) is not None
+        }
+        return replace(
+            self, **optional,
+            y=[resolve(column) for column in self.y],
+            pairs=[(resolve(x), resolve(y)) for x, y in self.pairs],
+            spectra=[spectrum._map_columns(resolve) for spectrum in self.spectra],
+        )
+
+    def by_position(self, columns: list[str]) -> ColumnMapping:
+        """Keep the selected column positions for files with different headers."""
+        return self._map_columns(lambda column: columns.index(column) if isinstance(column, str) else column)
 
     def validate(self) -> None:
         if self.spectra:
@@ -239,6 +261,9 @@ class ImportPreview:
         self.config = config
         self.frame, self.warnings = _read_frame(self.source, config)
 
+    def check_columns(self, mapping: ColumnMapping) -> None:
+        mapping._map_columns(lambda column: _column_name(self.frame, column))
+
     def curves(self, mapping: ColumnMapping) -> list[Curve]:
         mapping.validate()
         return _curves_from_frame(self.source, mapping, self.config, self.frame, self.warnings)
@@ -419,10 +444,10 @@ def _column_name(frame: pd.DataFrame, column: str | int | None) -> str:
         raise DataValidationError("A required column was not selected.")
     if isinstance(column, int):
         if not 0 <= column < frame.shape[1]:
-            raise DataValidationError(f"Column index {column} is outside the table.")
+            raise ImportColumnError(f"Column index {column} is outside the table.")
         return str(frame.columns[column])
     if column not in frame.columns:
-        raise DataValidationError(f"Column '{column}' does not exist.")
+        raise ImportColumnError(f"Column '{column}' does not exist.")
     return column
 
 
