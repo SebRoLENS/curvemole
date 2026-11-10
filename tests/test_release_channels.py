@@ -131,6 +131,30 @@ def test_beta_sequence_updates_and_notifications_are_separate_per_channel(contro
     assert controller.settings.value("updates/stable/notified_version") is None
 
 
+@pytest.mark.parametrize("includes_local", [False, True])
+def test_local_build_waits_for_release_that_contains_its_commit(controller, monkeypatch, includes_local):
+    from types import SimpleNamespace
+
+    controller.local_commit = "a" * 40
+    shown = []
+    callbacks = []
+    monkeypatch.setattr(controller, "_show_update_available", lambda payload, version, kind: shown.append(version))
+    comparison = Reply({"merge_base_commit": {"sha": ("a" if includes_local else "b") * 40}})
+    comparison.finished = SimpleNamespace(connect=callbacks.append)
+
+    def compare(request):
+        assert "/compare/" + controller.local_commit + "...v1.0.2-beta.10" in request.url().toString()
+        return comparison
+
+    monkeypatch.setattr(controller, "manager", SimpleNamespace(get=compare))
+    controller._release_finished(Reply([release("v1.0.2-beta.10", prerelease=True)]), False)
+    assert shown == [] and controller._latest_payload is None
+    callbacks[0]()
+    assert comparison.deleted and controller._release_reply is None
+    assert shown == (["1.0.2-beta.10"] if includes_local else [])
+    assert "Beta 2 · Local aaaaaaa" in controller.badge.text()
+
+
 def test_late_reply_from_previous_channel_cannot_offer_wrong_release(controller, monkeypatch):
     controller.set_channel("stable")
     shown = []

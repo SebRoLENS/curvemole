@@ -26,6 +26,7 @@ from curvemole.gui.windowing import secondary_window_parent, transient_widget
 from curvemole.version import __version__
 
 RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases/latest"
+COMPARE_API = "https://api.github.com/repos/SebRoLENS/curvemole/compare"
 BETA_RELEASE_API = "https://api.github.com/repos/SebRoLENS/curvemole/releases?per_page=100"
 RELEASE_PAGE = "https://github.com/SebRoLENS/curvemole/releases"
 CHECK_INTERVAL_MS = 60 * 60 * 1000
@@ -129,6 +130,8 @@ class UpdateController(QObject):
             from curvemole.gui.windows_update_fix import _cleanup_stale_update_files
             _cleanup_stale_update_files(_running_desktop_binary())
         self.window = window
+        commit = os.environ.get("CURVEMOLE_LOCAL_COMMIT", "").strip().lower()
+        self.local_commit = commit if re.fullmatch(r"[0-9a-f]{40}", commit) else ""
         self.settings = QSettings("CurveMole", "CurveMole")
         channel = str(self.settings.value("updates/channel", default_channel(__version__)))
         self.channel = channel if channel in {"stable", "beta"} else default_channel(__version__)
@@ -197,6 +200,9 @@ class UpdateController(QObject):
             return
 
         self.settings.setValue("updates/last_check", time.time())
+        if self.local_commit:
+            self._latest_payload = None
+            self._latest_version = None
         request = QNetworkRequest(QUrl(BETA_RELEASE_API if self.channel == "beta" else RELEASE_API))
         request.setRawHeader(b"Accept", b"application/vnd.github+json")
         request.setRawHeader(b"User-Agent", f"CurveMole/{__version__}".encode("ascii"))
@@ -236,41 +242,10 @@ class UpdateController(QObject):
             if current is None or latest is None:
                 raise ValueError(self.window.tr("GitHub returned an unrecognised release version."))
 
-            self._latest_payload = payload
-            self._latest_version = latest
-            latest_text = latest.text
-            if latest <= current:
-                message = self.window.tr("CurveMole is up to date. Installed version: ") + current.label
-                if self.channel == "stable" and not current.final:
-                    message = self.window.tr(
-                        "Stable channel selected. This beta stays installed until an equal or "
-                        "newer stable release is available. No downgrade will be performed."
-                    )
-                self._set_badge(
-                    "current",
-                    message,
-                )
-                if force:
-                    QMessageBox.information(
-                        self.window,
-                        self.window.tr("Check for updates"),
-                        message,
-                    )
-                if latest == current:
-                    self._offer_windows_installer(payload, latest_text)
+            if self.local_commit and latest > current:
+                self._check_release_ancestry(payload, current, latest, force)
                 return
-
-            kind = update_kind(current.numbers, latest.numbers)
-            self._set_badge(kind, self._badge_tooltip(latest_text, kind))
-
-            notified = str(
-                self.settings.value(f"updates/{self.channel}/notified_version", "")
-                or ""
-            )
-            if force or should_notify(latest_text, notified):
-                self._show_update_available(payload, latest_text, kind)
-                # Being shown the dialog counts as the one notification for this release.
-                self.settings.setValue(f"updates/{self.channel}/notified_version", latest_text)
+            self._offer_release(payload, current, latest, force)
         except Exception as exc:
             self.window._log(f"Update check failed: {exc}")
             if self._latest_version is None:
@@ -282,6 +257,83 @@ class UpdateController(QObject):
             if self._release_reply is reply:
                 self._release_reply = None
             reply.deleteLater()
+
+    def _check_release_ancestry(
+        self, payload: dict[str, Any], current: ReleaseVersion, latest: ReleaseVersion, force: bool
+    ) -> None:
+        tag = str(payload["tag_name"]).strip()
+        request = QNetworkRequest(QUrl(f"{COMPARE_API}/{self.local_commit}...{tag}?per_page=1"))
+        request.setRawHeader(b"Accept", b"application/vnd.github+json")
+        request.setRawHeader(b"User-Agent", f"CurveMole/{__version__}".encode("ascii"))
+        request.setTransferTimeout(10_000)
+        reply = self.manager.get(request)
+        self._release_reply = reply
+        channel = self.channel
+
+        def finished() -> None:
+            try:
+                if self._release_reply is not reply or channel != self.channel:
+                    return
+                comparison = {}
+                if reply.error() == QNetworkReply.NetworkError.NoError:
+                    with suppress(ValueError, UnicodeError):
+                        comparison = json.loads(bytes(reply.readAll()).decode("utf-8"))
+                merge_base = comparison.get("merge_base_commit") if isinstance(comparison, dict) else None
+                if isinstance(merge_base, dict) and merge_base.get("sha") == self.local_commit:
+                    self._offer_release(payload, current, latest, force)
+                    return
+                message = self.window.tr(
+                    "Keeping local build {commit} until the selected release is verified "
+                    "to include its changes."
+                ).format(commit=self.local_commit[:7])
+                self._set_badge("current", message)
+                if force:
+                    QMessageBox.information(self.window, self.window.tr("Check for updates"), message)
+            finally:
+                if self._release_reply is reply:
+                    self._release_reply = None
+                reply.deleteLater()
+
+        reply.finished.connect(finished)
+
+    def _offer_release(
+        self, payload: dict[str, Any], current: ReleaseVersion, latest: ReleaseVersion, force: bool
+    ) -> None:
+        self._latest_payload = payload
+        self._latest_version = latest
+        latest_text = latest.text
+        if latest <= current:
+            message = self.window.tr("CurveMole is up to date. Installed version: ") + current.label
+            if self.channel == "stable" and not current.final:
+                message = self.window.tr(
+                    "Stable channel selected. This beta stays installed until an equal or "
+                    "newer stable release is available. No downgrade will be performed."
+                )
+            self._set_badge(
+                "current",
+                message,
+            )
+            if force:
+                QMessageBox.information(
+                    self.window,
+                    self.window.tr("Check for updates"),
+                    message,
+                )
+            if latest == current:
+                self._offer_windows_installer(payload, latest_text)
+            return
+
+        kind = update_kind(current.numbers, latest.numbers)
+        self._set_badge(kind, self._badge_tooltip(latest_text, kind))
+
+        notified = str(
+            self.settings.value(f"updates/{self.channel}/notified_version", "")
+            or ""
+        )
+        if force or should_notify(latest_text, notified):
+            self._show_update_available(payload, latest_text, kind)
+            # Being shown the dialog counts as the one notification for this release.
+            self.settings.setValue(f"updates/{self.channel}/notified_version", latest_text)
 
     def choose_channel(self) -> None:
         from PySide6.QtWidgets import QDialog
@@ -314,10 +366,12 @@ class UpdateController(QObject):
         self._set_badge("checking", self.window.tr("Checking the selected update channel…"))
         self.check()
 
-    @staticmethod
-    def _version_label() -> str:
+    def _version_label(self) -> str:
         version = ReleaseVersion.parse(__version__)
-        return f"v{version.label if version is not None else __version__}"
+        label = f"v{version.label if version is not None else __version__}"
+        if self.local_commit:
+            return f"{label} · {self.window.tr('Local')} {self.local_commit[:7]}"
+        return label
 
     def _set_badge(self, state: str, tooltip: str) -> None:
         self.badge.setText(self._version_label())
