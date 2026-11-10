@@ -19,6 +19,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Use a supported macOS runner for beta validation. ([`388f048d`](https://github.com/SebRoLENS/curvemole/commit/388f048d4a40e65891dc90a88b26962d8b6951cb))
 - Autoscale the plot when clicking a data series. ([`b5a38ebe`](https://github.com/SebRoLENS/curvemole/commit/b5a38ebef2a38c1b98093a0f05e880cce9f206fb))
 - Recognize Quick Start asset URLs on Windows. ([`32088cbb`](https://github.com/SebRoLENS/curvemole/commit/32088cbb2b16d8e20bb273850220de49e8c96bb4))
+- Keep personal AppImage update handling out of public builds. ([`baa4033b`](https://github.com/SebRoLENS/curvemole/commit/baa4033b0e30c69fad66feee0c1ab6bb2c1d61d7))
 
 ### Fixed
 

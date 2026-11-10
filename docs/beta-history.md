@@ -2,6 +2,31 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.0-beta.117](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.117) — published 2026-11-10
+
+Changes since `v1.2.3-beta.103` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.2.3-beta.103...v1.3.0-beta.117)).
+
+### Added
+
+- Support matching columns by position in batch imports. ([`f80f7b6a`](https://github.com/SebRoLENS/curvemole/commit/f80f7b6adb3fd80488adc10252be91eb537ee930))
+
+### Changed
+
+- Drag series, spectra, and functions into a new order. ([`8f1d42b3`](https://github.com/SebRoLENS/curvemole/commit/8f1d42b315dc74609eff4810d24a8275be81b947))
+- Identify local AppImages and preserve unpublished changes during updates. ([`e061faa4`](https://github.com/SebRoLENS/curvemole/commit/e061faa40f9a4d1abc8b4c50a1a8da5a70635112))
+- Collapse dock panels and keep tab widths independent. ([`6deab0fe`](https://github.com/SebRoLENS/curvemole/commit/6deab0fe0593ac996a6d6eb11d23d437599f0953))
+- Ask before reusing an import header choice and target CurveMole 1.3.0. ([`3d31e8e1`](https://github.com/SebRoLENS/curvemole/commit/3d31e8e1f03713a93045d06275786262fcda7c0a))
+- Use a supported macOS runner for beta validation. ([`388f048d`](https://github.com/SebRoLENS/curvemole/commit/388f048d4a40e65891dc90a88b26962d8b6951cb))
+- Autoscale the plot when clicking a data series. ([`b5a38ebe`](https://github.com/SebRoLENS/curvemole/commit/b5a38ebef2a38c1b98093a0f05e880cce9f206fb))
+- Recognize Quick Start asset URLs on Windows. ([`32088cbb`](https://github.com/SebRoLENS/curvemole/commit/32088cbb2b16d8e20bb273850220de49e8c96bb4))
+
+### Documentation
+
+- docs: streamline README and highlight community plugins. ([`b00701d7`](https://github.com/SebRoLENS/curvemole/commit/b00701d7a9829443c92ee8447fae690bbfb634c1))
+- docs: clarify homepage and highlight scientific workflows and plugins. ([`49509c39`](https://github.com/SebRoLENS/curvemole/commit/49509c391f3534ed8a9531c7813e76818ce3555f))
+- docs: explain token-saving AI automation audits in README and homepage. ([`c65ba295`](https://github.com/SebRoLENS/curvemole/commit/c65ba295a698a27f39160853b4305f7559da6b91))
+- docs: add illustrated Raman quick start with dark stable GUI captures. ([`b6c4af74`](https://github.com/SebRoLENS/curvemole/commit/b6c4af74db4452410c1539f1a0388eba1f9c2da2))
+
 ## [1.2.3-beta.103](https://github.com/SebRoLENS/curvemole/releases/tag/v1.2.3-beta.103) — published 2026-11-05
 
 Changes since `v1.2.0-beta.88` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.2.0-beta.88...v1.2.3-beta.103)).
