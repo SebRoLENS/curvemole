@@ -5,6 +5,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
+from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication, QInputDialog
 
 from curvemole import Curve, Project
@@ -110,6 +111,49 @@ def test_series_rename_from_tree_is_persisted() -> None:
     window = MainWindow(project)
     window._rename_series(first.id, "Renamed")
     assert first.name == "Renamed"
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_drag_series_and_spectra_uses_visible_insertions_and_supports_undo() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, first, second, curves = _project()
+    window = MainWindow(project)
+    tree = window.curve_tree
+    tree.resize(400, 360)
+    first_item, second_item = tree.topLevelItem(0), tree.topLevelItem(1)
+    source = tree.indexFromItem(first_item, 1)
+    last_row = tree.visualItemRect(second_item.child(0))
+    drop = tree._row_drop_at(source, last_row.center())
+    assert drop is not None and drop.y == last_row.bottom() + 1
+    tree._request_row_move(source, drop)
+    assert project.dataset.series == [second, first]
+    window.undo_stack.undo()
+    assert project.dataset.series == [first, second]
+
+    first_item, second_item = tree.topLevelItem(0), tree.topLevelItem(1)
+    source = tree.indexFromItem(first_item.child(0), 1)
+    target_row = tree.visualItemRect(first_item.child(2))
+    drop = tree._row_drop_at(source, QPoint(target_row.center().x(), target_row.bottom()))
+    assert drop is not None and drop.y == target_row.bottom() + 1
+    tree._request_row_move(source, drop)
+    assert first.curves == [curves[1], curves[2], curves[0]]
+
+    first_item, second_item = tree.topLevelItem(0), tree.topLevelItem(1)
+    second_item.setExpanded(False)
+    source = tree.indexFromItem(first_item.child(2), 1)
+    heading = tree.visualItemRect(second_item)
+    drop = tree._row_drop_at(source, heading.center())
+    assert drop is not None and drop.y == heading.bottom() + 1
+    tree._request_row_move(source, drop)
+    assert second.curves == [curves[0], curves[3]]
+    assert tree.topLevelItem(1).isExpanded()
+    assert curves[0].state == CurveState.FITTED
+    window.undo_stack.undo()
+    assert first.curves == [curves[1], curves[2], curves[0]]
+    window.undo_stack.redo()
+    assert second.curves == [curves[0], curves[3]]
     project.dirty = False
     window.close()
     app.processEvents()

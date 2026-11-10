@@ -51,7 +51,42 @@ from curvemole.core.uncertainty import AdaptiveReplicateSettings
 from curvemole.gui.background_role import BackgroundSwitch
 from curvemole.gui.calculator_columns import ColumnSelector, choose_column
 from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_bound
+from curvemole.gui.row_drag import RowDragMixin, RowDrop
 from curvemole.gui.worksheet import WorksheetModel
+
+
+COMPONENT_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
+
+
+class FunctionList(RowDragMixin, QListWidget):
+    rowMoveRequested = Signal(str, str, str, bool)
+
+    def __init__(self):
+        super().__init__()
+        self.setup_row_drag()
+
+    def _row_drop_at(self, source, position):
+        target = self.indexAt(position)
+        if not target.isValid() and self.spacing():
+            target = self.indexAt(position + QPoint(0, self.spacing()))
+        if not target.isValid() and self.count():
+            last = self.item(self.count() - 1)
+            if position.y() > self.visualItemRect(last).bottom():
+                target = self.indexFromItem(last)
+        curve_id = source.data(COMPONENT_CURVE_ROLE)
+        if not self.dragEnabled() or not curve_id or target.data(COMPONENT_CURVE_ROLE) != curve_id:
+            return None
+        rect = self.visualRect(target)
+        after = position.y() >= rect.center().y()
+        return RowDrop(target, after, 3, rect.bottom() + 1 if after else rect.top())
+
+    def _request_row_move(self, source, drop):
+        self.rowMoveRequested.emit(
+            source.data(COMPONENT_CURVE_ROLE),
+            source.data(Qt.ItemDataRole.UserRole),
+            drop.target.data(Qt.ItemDataRole.UserRole),
+            drop.after,
+        )
 
 
 class ModelPanel(QWidget):
@@ -90,7 +125,7 @@ class ModelPanel(QWidget):
         single_layout = QVBoxLayout(single)
         self.title = QLabel(self.tr("No active curve"))
         single_layout.addWidget(self.title)
-        self.components = QListWidget()
+        self.components = FunctionList()
         self.components.currentItemChanged.connect(self._component_selected)
         self.components.itemChanged.connect(self._component_enabled)
         single_layout.addWidget(self.components, 1)
@@ -214,6 +249,7 @@ class ModelPanel(QWidget):
     ) -> None:
         self.project = project
         self.curve_id = curve_id
+        self.components.setDragEnabled(not project.read_only)
         self.display_method.set_context(project, curve_id)
         self.stack.setCurrentIndex(1 if selected_count > 1 else 0)
         self.refresh(component_id)
@@ -268,6 +304,7 @@ class ModelPanel(QWidget):
                 if tooltip:
                     item.setToolTip(tooltip)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
+                item.setData(COMPONENT_CURVE_ROLE, curve.id)
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
                 item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)
                 if component.is_background:

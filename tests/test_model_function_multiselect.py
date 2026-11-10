@@ -275,3 +275,33 @@ def test_local_bulk_selection_navigation_preserves_selected_non_background_posit
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_drag_functions_in_grouped_view_updates_only_display_order() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, first, second = _project_with_functions()
+    model = project.model_for(first.id)
+    first_id, second_id = [component.id for component in model.components]
+    model.display_order = [second_id, first_id]
+    window = MainWindow(project)
+    original_state = model.to_dict()
+    other_state = project.model_for(second.id).to_dict()
+    panel = window.model_panel
+    panel.show_all_functions.setChecked(True)
+    view = panel.components
+    view.resize(400, 360)
+    source = view.indexFromItem(view.item(2))
+    assert view._row_drop_at(source, view.visualItemRect(view.item(5)).center()) is None
+    target_row = view.visualItemRect(view.item(3))
+    drop = view._row_drop_at(source, target_row.bottomLeft())
+    assert drop is not None and drop.y == target_row.bottom() + 1
+    view._request_row_move(source, drop)
+    assert model.to_dict() == {**original_state, "display_order": [first_id, second_id]}
+    assert project.model_for(second.id).to_dict() == other_state
+    window.undo_stack.undo()
+    assert model.to_dict() == original_state
+    window.undo_stack.redo()
+    assert model.display_order == [first_id, second_id]
+    project.dirty = False
+    window.close()
+    app.processEvents()

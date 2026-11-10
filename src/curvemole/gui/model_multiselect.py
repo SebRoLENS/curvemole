@@ -24,10 +24,9 @@ from curvemole.core.expressions import SafeExpression
 from curvemole.core.models import Model
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
-from curvemole.gui.panels import ModelPanel
+from curvemole.gui.panels import COMPONENT_CURVE_ROLE, ModelPanel
 from curvemole.gui.windowing import transient_widget
 
-_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 _BATCH = "__curvemole_batch_components__"
 
 
@@ -35,7 +34,7 @@ def _item_ref(item: QListWidgetItem | None) -> tuple[str, str] | None:
     if item is None:
         return None
     component_id = item.data(Qt.ItemDataRole.UserRole)
-    curve_id = item.data(_CURVE_ROLE)
+    curve_id = item.data(COMPONENT_CURVE_ROLE)
     if component_id is None or curve_id is None:
         return None
     return str(curve_id), str(component_id)
@@ -252,6 +251,7 @@ def _install_model_panel() -> None:
     ) -> None:
         panel.project = project
         panel.curve_id = curve_id
+        panel.components.setDragEnabled(project is not None and not project.read_only)
         panel.display_method.set_context(project, curve_id)
         can_copy_next = False
         if curve_id and project is not None and not project.read_only:
@@ -355,7 +355,7 @@ def _install_model_panel() -> None:
 
                 attach_note(item, project, "function", component.id, curve.id)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
-                item.setData(_CURVE_ROLE, curve.id)
+                item.setData(COMPONENT_CURVE_ROLE, curve.id)
                 from curvemole.gui.component_composition import COMPOSITION_ROLE
 
                 item.setData(COMPOSITION_ROLE, component.operator)

@@ -138,6 +138,7 @@ from curvemole.gui.panels import (
 )
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog
+from curvemole.gui.row_drag import RowDragMixin, RowDrop
 from curvemole.gui.task_thread import TaskThread
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 from curvemole.gui.updates import semantic_version as _semantic_version  # noqa: F401
@@ -354,7 +355,7 @@ def _curve_state_presentation(
     return f"{curve.state.value}  ·  {analysis_state}", tooltip
 
 
-class CurveTree(QTreeWidget):
+class CurveTree(RowDragMixin, QTreeWidget):
     noteRequested = Signal(object)
     activeCurveChanged = Signal(object)
     curveVisibilityChanged = Signal(str, bool)
@@ -370,12 +371,14 @@ class CurveTree(QTreeWidget):
     curvesMoveRequested = Signal(object, str)
     curvesReorderRequested = Signal(object, int)
     seriesMergeRequested = Signal(str, str)
+    rowMoveRequested = Signal(object, object, bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setColumnCount(3)
         self.setHeaderLabels([self.tr("Visible"), self.tr("Series / Curve"), self.tr("State")])
         self.setSelectionMode(self.SelectionMode.ExtendedSelection)
+        self.setup_row_drag()
         self.setAlternatingRowColors(True)
         self._updating = False
         self._project: Project | None = None
@@ -388,6 +391,49 @@ class CurveTree(QTreeWidget):
         from curvemole.gui.note_indicators import NoteIndicatorDelegate
 
         self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
+
+    def _row_drop_at(self, source, position):
+        if self._project is None or self._project.read_only:
+            return None
+        source_item = self.itemFromIndex(source)
+        target = self.itemAt(position)
+        if target is None:
+            target = self.topLevelItem(self.topLevelItemCount() - 1)
+            if target is None:
+                return None
+            target = self._last_visible_series_row(target)
+            if position.y() <= self.visualItemRect(target).bottom():
+                return None
+        rect = self.visualItemRect(target)
+        if source_item.parent() is None:
+            series = target.parent() or target
+            first = self.visualItemRect(series).top()
+            last = self.visualItemRect(self._last_visible_series_row(series)).bottom() + 1
+            after = position.y() - first >= last - position.y()
+            y = last if after else first
+            if not 0 <= y <= self.viewport().height():
+                return None
+            return RowDrop(self.indexFromItem(series, 1), after, 3, y)
+        after = position.y() >= rect.center().y() or target.parent() is None
+        y = rect.bottom() + 1 if after else rect.top()
+        return RowDrop(self.indexFromItem(target, 1), after, 2 * self.indentation(), y)
+
+    @staticmethod
+    def _last_visible_series_row(series):
+        if series.isExpanded() and series.childCount():
+            return series.child(series.childCount() - 1)
+        return series
+
+    def _request_row_move(self, source, drop):
+        source_item = self.itemFromIndex(source)
+        target_item = self.itemFromIndex(drop.target)
+        if source_item.parent() is not None and target_item.parent() is None:
+            target_item.setExpanded(True)
+        self.rowMoveRequested.emit(
+            source_item.data(1, Qt.ItemDataRole.UserRole),
+            drop.target.data(Qt.ItemDataRole.UserRole),
+            drop.after,
+        )
 
     def populate(self, project: Project, active_curve_id: str | None) -> None:
         # Rebuild atomically: selection signals during clear() otherwise redraw
@@ -408,6 +454,7 @@ class CurveTree(QTreeWidget):
         scroll_x = self.horizontalScrollBar().value()
         scroll_y = self.verticalScrollBar().value()
         self._project = project
+        self.setDragEnabled(not project.read_only)
         self._populated_active_curve_id = active_curve_id
         self._updating = True
         try:
@@ -1385,11 +1432,13 @@ class MainWindow(QMainWindow):
         self.curve_tree.curvesMoveRequested.connect(self.move_curves_to_series)
         self.curve_tree.curvesReorderRequested.connect(self.reorder_curves)
         self.curve_tree.seriesMergeRequested.connect(self.merge_series)
+        self.curve_tree.rowMoveRequested.connect(self.move_data_row)
         self.model_panel.componentSelected.connect(self._set_component)
         self.model_panel.addRequested.connect(self.add_component)
         self.model_panel.duplicateRequested.connect(self.duplicate_component)
         self.model_panel.deleteRequested.connect(self.delete_component)
         self.model_panel.moveRequested.connect(self.move_component)
+        self.model_panel.components.rowMoveRequested.connect(self.move_function_row)
         self.model_panel.enabledRequested.connect(self.enable_component)
         self.model_panel.backgroundRequested.connect(self.set_component_background)
         self.model_panel.compositionRequested.connect(self.set_component_operator)
@@ -2138,6 +2187,28 @@ class MainWindow(QMainWindow):
         model = self.project.model_for(self.active_curve_id)
         index = next((i for i, item in enumerate(model.components) if item.id == component_id), 0)
         self._model_mutation(self.tr("Reorder component"), lambda value: value.move(component_id, index + delta))
+
+    def move_function_row(self, curve_id: str, source_id: str, target_id: str, after: bool) -> None:
+        if self._thread is not None or source_id == target_id:
+            return
+        model = self.project.model_for(curve_id)
+        before = list(model.display_order)
+        current = [component.id for component in model.display_components]
+        order = list(current)
+        order.remove(source_id)
+        order.insert(order.index(target_id) + int(after), source_id)
+        if order == current:
+            return
+
+        def restore(display_order: list[str]) -> None:
+            self.project.model_for(curve_id).display_order = list(display_order)
+
+        self._push_change(
+            self.tr("Reorder functions"),
+            lambda: restore(order),
+            lambda: restore(before),
+            modified_curve_ids=set(),
+        )
 
     def enable_component(self, component_id: str, enabled: bool) -> None:
         if not self.active_curve_id:
@@ -3948,6 +4019,43 @@ class MainWindow(QMainWindow):
                 lambda: self._restore_series_layout(before),
             )
         )
+
+    def move_data_row(self, source: tuple[str, str], target: tuple[str, str], after: bool) -> None:
+        if source == target or self._thread is not None:
+            return
+        dataset = self.project.dataset
+        source_kind, source_id = source
+        target_kind, target_id = target
+        if source_kind == "series":
+            series = dataset.series
+            old_index = next(i for i, item in enumerate(series) if item.id == source_id)
+            gap = next(i for i, item in enumerate(series) if item.id == target_id) + int(after)
+            index = gap - int(old_index < gap)
+            if index != old_index:
+                self._push_series_layout_change(
+                    self.tr("Reorder series"), lambda: series.insert(index, series.pop(old_index))
+                )
+            return
+
+        source_series = dataset.series_for(source_id)
+        if target_kind == "curve":
+            target_series = dataset.series_for(target_id)
+            gap = next(i for i, curve in enumerate(target_series.curves) if curve.id == target_id) + int(after)
+        else:
+            target_series = next(item for item in dataset.series if item.id == target_id)
+            gap = 0
+        if source_series is target_series:
+            old_index = next(i for i, curve in enumerate(source_series.curves) if curve.id == source_id)
+            index = gap - int(old_index < gap)
+            if index != old_index:
+                self._push_series_layout_change(
+                    self.tr("Reorder spectra"), lambda: source_series.move(source_id, index)
+                )
+        else:
+            self._push_series_layout_change(
+                self.tr("Move spectrum to series"),
+                lambda: dataset.transfer_curve(source_id, target_series.id, gap),
+            )
 
     def _next_series_name(self) -> str:
         number = len(self.project.dataset.series) + 1

@@ -90,9 +90,15 @@ Data edits support Undo/Redo.
 |---|---|
 | Ctrl-click items | Select individual spectra or functions. |
 | Shift-click items | Select a contiguous range. |
+| Left-drag a series, spectrum, or function row | Move it to the position marked by the horizontal line. |
 | Double-click an editable name | Rename the series or spectrum. |
 | Right-click a list item | Open the context menu for that item. |
 | Left-click a plugin marker | Select the marker or invoke its plugin action. |
+
+Drag a series to move it together with its spectra. Drop a spectrum on a series
+heading to put it first in that series. Dragging a function changes its display
+order within its own spectrum and preserves its calculation order. Use Undo or
+Redo to reverse or reapply a move.
 
 When a plugin starts its own point-picking mode, left-click picks a point;
 right-drag pans and the wheel zooms. Follow the plugin's displayed instructions
