@@ -83,7 +83,7 @@ def test_real_context_menus_edit_series_spectrum_and_clicked_function():
     assert not window.notebook_action.icon().isNull()
     window.notebook_action.trigger()
     app.processEvents()
-    dialog = window.notebook_dock.widget()
+    dialog = window.notebook_dock.widget().widget()
     assert isinstance(dialog, LaboratoryNotebookDialog)
     assert not dialog.isWindow()
     dialog.notes.setPlainText("General notes")

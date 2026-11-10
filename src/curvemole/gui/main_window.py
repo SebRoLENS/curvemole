@@ -127,6 +127,7 @@ from curvemole.gui.dialogs import (
     ParameterLinkDialog,
     PluginManagerDialog,
 )
+from curvemole.gui.dock_collapse import DockCollapseControls, DockViewport
 from curvemole.gui.external import open_with_host_application
 from curvemole.gui.legacy_updates import _update_notification_due  # noqa: F401
 from curvemole.gui.panels import (
@@ -833,6 +834,8 @@ class MainWindow(QMainWindow):
         self.plot_workspace = PlotWorkspace(self.registry)
         self.setCentralWidget(self.plot_workspace)
         self._build_docks()
+        self.dock_collapse = DockCollapseControls(self)
+        self.statusBar().addPermanentWidget(self.dock_collapse)
         self._build_actions()
         self._build_menus()
         self._build_toolbar()
@@ -961,7 +964,9 @@ class MainWindow(QMainWindow):
         self.calculator_dock.hide()
 
         self.function_builder = FunctionBuilderPanel(self.registry)
-        self.function_dock = self._dock(self.tr("Function Builder"), self.function_builder, Qt.DockWidgetArea.RightDockWidgetArea)
+        self.function_dock = self._dock(
+            self.tr("Function Builder"), self.function_builder, Qt.DockWidgetArea.RightDockWidgetArea,
+        )
         self.function_dock.hide()
 
         self.uncertainty_panel = UncertaintyPanel()
@@ -1000,11 +1005,18 @@ class MainWindow(QMainWindow):
         dock = QDockWidget(title, self)
         dock.setObjectName(title.replace(" ", "_"))
         dock.setWidget(widget)
+        self._ensure_dock_viewport(dock)
         dock.setAllowedAreas(Qt.DockWidgetArea.AllDockWidgetAreas)
         if area == Qt.DockWidgetArea.RightDockWidgetArea:
             self._prepare_tool_dock(dock)
         self.addDockWidget(area, dock)
         return dock
+
+    @staticmethod
+    def _ensure_dock_viewport(dock: QDockWidget) -> None:
+        content = dock.widget()
+        if content is not None and not isinstance(content, DockViewport):
+            dock.setWidget(DockViewport(content, dock))
 
     def _prepare_tool_dock(self, dock: QDockWidget) -> None:
         if dock.property("curvemole_full_tab_title") is not None:
@@ -1035,6 +1047,8 @@ class MainWindow(QMainWindow):
 
     def register_tool_dock(self, dock: QDockWidget) -> None:
         """Add a native or plugin tool to the shared tabbed workspace."""
+        self.dock_collapse.watch(dock)
+        self._ensure_dock_viewport(dock)
         if dock not in self._tool_docks:
             self._tool_docks.append(dock)
         self._prepare_tool_dock(dock)
@@ -1506,8 +1520,7 @@ class MainWindow(QMainWindow):
                 and self.notebook_dock.isHidden()):
             self._notebook_widget = None
             self._notebook_placeholder = QWidget(self)
-            self.notebook_dock.setWidget(self._notebook_placeholder)
-            notebook.deleteLater()
+            self.notebook_dock.widget().setWidget(self._notebook_placeholder)
         # Restoring Qt's dock state can expose the lazy placeholder without the
         # toolbar action running. Also rebind an open notebook on project changes.
         if not self.notebook_dock.isHidden():
@@ -1850,15 +1863,11 @@ class MainWindow(QMainWindow):
             panel = LaboratoryNotebookDialog(
                 self.project, self.notebook_dock, editable=editable, embedded=True
             )
-            old = self.notebook_dock.widget()
-            # setWidget() can emit visibilityChanged; make that reentrant call
-            # see the new panel rather than creating a second one.
+            # The viewport owns its content and deletes the previous widget.
+            # Publish the new panel first in case replacing it triggers a refresh.
             self._notebook_widget = panel
-            self.notebook_dock.setWidget(panel)
-            if old is self._notebook_placeholder:
-                self._notebook_placeholder = None
-            if old is not None:
-                old.deleteLater()
+            self._notebook_placeholder = None
+            self.notebook_dock.widget().setWidget(panel)
         elif refresh:
             self.project.notebook.sync(self.project)
             current._populate()
@@ -3733,6 +3742,7 @@ class MainWindow(QMainWindow):
             self.model_panel.refresh()
 
     def reset_layout(self) -> None:
+        self.dock_collapse.restore({})
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
         self.series_dock.show()
         self.resize(1440, 900)
@@ -4770,6 +4780,8 @@ class MainWindow(QMainWindow):
             self._apply_tabbed_tool_layout()
             self.settings.setValue("layout/schema_version", self._LAYOUT_SCHEMA_VERSION)
             self.settings.remove("layout/tabbed_tools_v1")
+        collapsed = self.settings.value("layout/collapsed_docks", {})
+        self.dock_collapse.restore(collapsed if isinstance(collapsed, dict) else {})
         self.apply_theme(str(self.settings.value("theme", "system")))
         self._queue_tool_tab_refresh()
 
@@ -4788,6 +4800,7 @@ class MainWindow(QMainWindow):
         if not self._startup_pending:
             self.settings.setValue("geometry", self.saveGeometry())
             self.settings.setValue("window_state", self.saveState())
+            self.settings.setValue("layout/collapsed_docks", self.dock_collapse.save())
         self._finish_session()
         event.accept()
 

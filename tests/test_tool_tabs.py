@@ -52,7 +52,7 @@ def test_notebook_placeholder_keeps_a_python_owner():
     window = MainWindow(Project())
 
     assert window._notebook_placeholder is not None
-    assert window.notebook_dock.widget() is window._notebook_placeholder
+    assert window.notebook_dock.widget().widget() is window._notebook_placeholder
 
     window.project.dirty = False
     window.close()
@@ -95,13 +95,13 @@ def test_native_tools_are_tabs_and_actions_activate_them():
     window.calculator_action.trigger()
     app.processEvents()
     assert not window.calculator_dock.isHidden()
-    assert window.calculator_dock.widget() is window.calculator
+    assert window.calculator_dock.widget().widget() is window.calculator
     assert window.calculator_dock in window.tabifiedDockWidgets(window.model_dock)
 
     window.function_action.trigger()
     app.processEvents()
     assert not window.function_dock.isHidden()
-    assert window.function_dock.widget() is window.function_builder
+    assert window.function_dock.widget().widget() is window.function_builder
     tabbed = window.tabifiedDockWidgets(window.model_dock)
     assert window.calculator_dock in tabbed
     assert window.function_dock in tabbed
@@ -122,7 +122,7 @@ def test_runtime_tool_joins_tabs_and_keeps_widget_when_hidden():
     app.processEvents()
     assert dock in window.tabifiedDockWidgets(window.model_dock)
     dock.hide()
-    assert dock.widget() is panel
+    assert dock.widget().widget() is panel
     window.activate_tool_dock(dock)
     assert not dock.isHidden()
 

@@ -58,13 +58,13 @@ def test_saved_notebook_tab_restores_contents_without_toggling(
         assert other.notebook_dock.isHidden() == (dock_state == "hidden")
         if dock_state == "hidden":
             assert other._notebook_widget is None
-            assert other.notebook_dock.widget() is other._notebook_placeholder
+            assert other.notebook_dock.widget().widget() is other._notebook_placeholder
             # Also exercise the dock's own toggle action, without open_notebook().
             other.notebook_dock.toggleViewAction().trigger()
             app.processEvents()
         panel = other._notebook_widget
         assert panel is not None
-        assert other.notebook_dock.widget() is panel
+        assert other.notebook_dock.widget().widget() is panel
         assert panel.notes.toPlainText() == restored.notebook.notes
         assert panel.notes.isReadOnly() == read_only
         assert panel.tree.topLevelItemCount() == 1

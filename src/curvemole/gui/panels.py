@@ -1051,11 +1051,13 @@ class FunctionBuilderPanel(QWidget):
         self.registry = registry
         self.project: Project | None = None
         layout = QFormLayout(self)
+        layout.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.identifier = QLineEdit()
         self.display_name = QLineEdit()
         self.kind = QComboBox()
-        self.kind.addItem(self.tr("Peak-shaped function (graphical peak placement)"), "peak")
+        self.kind.addItem(self.tr("Peak-shaped function"), "peak")
         self.kind.addItem(self.tr("General function"), "generic")
+        self.kind.setToolTip(self.tr("Peak-shaped functions support graphical peak placement."))
         self.formula = QPlainTextEdit("area * exp(-0.5*((x-center)/sigma)**2) / (sigma*sqrt(2*pi))")
         self.formula.setMaximumHeight(95)
         self.parameters = QLabel()

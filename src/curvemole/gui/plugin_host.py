@@ -14,13 +14,13 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QMessageBox,
     QPlainTextEdit,
-    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
 from curvemole.core.extensions import extensions
 from curvemole.core.plugin_identity import contribution_tooltip
+from curvemole.gui.dock_collapse import DockViewport
 from curvemole.gui.documentation import plugin_manuals, show_markdown_document
 from curvemole.gui.plugin_snapshots import ProjectSnapshot, ProjectSnapshotStore
 from curvemole.gui.windowing import transient_widget
@@ -244,10 +244,7 @@ class PluginHost:
                     raise TypeError("A panel callback must return a QWidget.")
                 dialog = QDockWidget(entry.label, window)
                 dialog.setObjectName("plugin_panel_" + entry.identifier)
-                scroll = QScrollArea(dialog)
-                scroll.setWidgetResizable(True)
-                scroll.setWidget(result)
-                dialog.setWidget(scroll)
+                dialog.setWidget(DockViewport(result, dialog))
                 dialog.setToolTip(contribution_tooltip(entry))
                 # Runtime-enabled panels may be created after restoreState(); startup
                 # panels already exist and are restored by MainWindow itself.
