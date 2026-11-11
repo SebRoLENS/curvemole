@@ -2,7 +2,7 @@
 
 import pytest
 from PySide6.QtCore import QSettings, QSignalBlocker, Qt
-from PySide6.QtWidgets import QApplication, QDockWidget, QTabBar, QToolButton, QWidget
+from PySide6.QtWidgets import QApplication, QDockWidget, QTabBar, QToolBar, QToolButton, QWidget
 
 from curvemole import Project
 from curvemole.gui.main_window import MainWindow
@@ -153,19 +153,37 @@ def test_native_tools_are_tabs_and_actions_activate_them():
     window.reset_layout()
     app.processEvents()
 
-    window.calculator_action.trigger()
-    app.processEvents()
-    assert not window.calculator_dock.isHidden()
-    assert window.calculator_dock.widget().widget() is window.calculator
-    assert window.calculator_dock in window.tabifiedDockWidgets(window.model_dock)
+    toolbar = window.findChild(QToolBar, "Main_toolbar")
+    for action, dock in (
+        (window.notebook_action, window.notebook_dock),
+        (window.calculator_action, window.calculator_dock),
+        (window.function_action, window.function_dock),
+        (window.uncertainty_action, window.uncertainty_dock),
+    ):
+        button = toolbar.widgetForAction(action)
+        assert dock.isHidden()
+        button.click()
+        app.processEvents()
+        assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
+        assert dock in window.tabifiedDockWidgets(window.model_dock)
 
-    window.function_action.trigger()
-    app.processEvents()
-    assert not window.function_dock.isHidden()
-    assert window.function_dock.widget().widget() is window.function_builder
-    tabbed = window.tabifiedDockWidgets(window.model_dock)
-    assert window.calculator_dock in tabbed
-    assert window.function_dock in tabbed
+        window.model_dock.raise_()
+        app.processEvents()
+        assert not dock.isHidden() and dock.visibleRegion().isEmpty()
+        button.click()
+        app.processEvents()
+        assert not dock.visibleRegion().isEmpty()
+
+        button.click()
+        app.processEvents()
+        assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
+
+        dock.close()
+        app.processEvents()
+        assert dock.isHidden()
+        button.click()
+        app.processEvents()
+        assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
 
     window.project.dirty = False
     window.close()

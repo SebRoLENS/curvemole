@@ -58,8 +58,21 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     assert ordered[ordered.index(window.revert_background_action) + 1].isSeparator()
     assert ordered[ordered.index(window.plot_workspace.mask_action) + 1].isSeparator()
     assert ordered.index(quick_group_action) < ordered.index(window.fit_action)
-    assert ordered.index(window.cancel_action) < ordered.index(window.calculator_action)
-    assert ordered.index(window.calculator_action) + 1 == ordered.index(window.notebook_action)
+    tools = [window.notebook_action, window.calculator_action,
+             window.function_action, window.uncertainty_action]
+    assert ordered[-4:] == tools
+    assert ordered[-5].isSeparator()
+    spacer = toolbar.widgetForAction(ordered[-6])
+    assert spacer.sizePolicy().horizontalPolicy().name == "Expanding"
+    assert ordered.index(window.cancel_action) < ordered.index(window.notebook_action)
+    window.resize(1800, 700)
+    window.show()
+    app.processEvents()
+    first_tool = toolbar.widgetForAction(tools[0])
+    last_tool = toolbar.widgetForAction(tools[-1])
+    assert first_tool.isVisible() and last_tool.isVisible()
+    assert first_tool.x() > toolbar.widgetForAction(window.cancel_action).geometry().right()
+    assert toolbar.width() - last_tool.geometry().right() < 20
     assert window.view_options_action.isCheckable()
     original_palette = app.palette()
     light_palette = QPalette(original_palette)

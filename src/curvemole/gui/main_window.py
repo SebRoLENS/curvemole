@@ -59,6 +59,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QStyle,
     QStyleOptionTab,
     QTabBar,
@@ -1215,6 +1216,27 @@ class MainWindow(QMainWindow):
         )
         return action
 
+    def _open_tool_action(self, dock: QDockWidget, text: str) -> QAction:
+        action = QAction(text, self)
+        action.triggered.connect(lambda: self._show_tool_dock(dock))
+        return action
+
+    def _show_tool_dock(self, dock: QDockWidget) -> None:
+        """Open or select a tool in its current dock area."""
+        if dock.isHidden():
+            if (not dock.isFloating()
+                    and self.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
+                    and not self.tabifiedDockWidgets(dock)):
+                self.activate_tool_dock(dock)
+                return
+            dock.show()
+        if dock.isFloating():
+            if not dock.isActiveWindow():
+                dock.raise_()
+                dock.activateWindow()
+        elif dock.visibleRegion().isEmpty():
+            dock.raise_()
+
     def _build_actions(self) -> None:
         self.new_action = QAction(_resource_icon("new-project.svg"), self.tr("New project"), self)
         self.new_action.setShortcut(QKeySequence.StandardKey.New)
@@ -1243,11 +1265,7 @@ class MainWindow(QMainWindow):
         self.export_view_action.setToolTip(self.tr("Save the visible curves, offsets, background display, log scales and zoom as PNG, SVG or PDF."))
         self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
-        self.notebook_action.setCheckable(True)
-        self.notebook_action.triggered.connect(
-            lambda visible: self.open_notebook() if visible else self.notebook_dock.hide()
-        )
-        self.notebook_dock.visibilityChanged.connect(self.notebook_action.setChecked)
+        self.notebook_action.triggered.connect(self.open_notebook)
         self.notebook_dock.visibilityChanged.connect(self._notebook_visibility_changed)
         self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
         self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
@@ -1264,7 +1282,7 @@ class MainWindow(QMainWindow):
         self.redo_action.setIcon(_resource_icon("redo.svg"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
 
-        self.calculator_action = self._tool_action(self.calculator_dock, self.tr("Data Calculator"))
+        self.calculator_action = self._open_tool_action(self.calculator_dock, self.tr("Data Calculator"))
         self.calculator_action.setIcon(_resource_icon("calculator.svg"))
         self.calculator_action.setToolTip(self.tr("Data Calculator"))
         self.edit_data_points_action = QAction(self.tr("Edit data points…"), self, checkable=True)
@@ -1276,10 +1294,14 @@ class MainWindow(QMainWindow):
         editor.moveRequested.connect(self._move_data_point)
         editor.deleteRequested.connect(self._delete_data_point)
         self.worksheet_action = self._tool_action(self.worksheet_dock, self.tr("Worksheet"))
-        self.function_action = self._tool_action(self.function_dock, self.tr("Function Builder"))
-        self.uncertainty_action = self._tool_action(
+        self.function_action = self._open_tool_action(self.function_dock, self.tr("Function Builder"))
+        self.uncertainty_action = self._open_tool_action(
             self.uncertainty_dock, self.tr("Uncertainty Analysis")
         )
+        self.function_action.setIconText("f(x)")
+        self.function_action.setToolTip(self.tr("Function Builder"))
+        self.uncertainty_action.setIconText("±σ")
+        self.uncertainty_action.setToolTip(self.tr("Uncertainty Analysis"))
         self.diagnostics_action = self._tool_action(self.diagnostics_dock, self.tr("Diagnostics"))
         self.log_action = self._tool_action(self.log_dock, self.tr("Log"))
         self.plugins_action = QAction(self.tr("Plugin Manager…"), self)
@@ -1524,8 +1546,13 @@ class MainWindow(QMainWindow):
         toolbar.addActions([
             self.fit_action, self.quick_fit_action, self.cancel_action,
         ])
+        spacer = QWidget(toolbar)
+        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        toolbar.addWidget(spacer)
         toolbar.addSeparator()
-        toolbar.addActions([self.calculator_action, self.notebook_action])
+        toolbar.addActions([
+            self.notebook_action, self.calculator_action, self.function_action, self.uncertainty_action,
+        ])
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
@@ -1945,8 +1972,9 @@ class MainWindow(QMainWindow):
         self._manual_save_controller.save(selected, save_project, portable=True)
 
     def open_notebook(self) -> None:
-        self._ensure_notebook_widget(refresh=True)
-        self.activate_tool_dock(self.notebook_dock)
+        if self.notebook_dock.isHidden():
+            self._ensure_notebook_widget(refresh=True)
+        self._show_tool_dock(self.notebook_dock)
 
     def _notebook_visibility_changed(self, _visible: bool) -> None:
         # Qt reports False for an open dock behind another tab as well. Such a
