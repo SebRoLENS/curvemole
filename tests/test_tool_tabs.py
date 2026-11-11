@@ -86,13 +86,18 @@ def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
         assert button.accessibleName() and button.toolTip()
     assert left.isEnabled()
     offset = bar.tabRect(0).x()
+    current = bar.currentIndex()
     left.click()
     app.processEvents()
-    assert bar.tabRect(0).x() > offset
+    offset_after_left = bar.tabRect(0).x()
+    assert offset_after_left > offset
+    assert bar.currentIndex() == current
     assert right.isEnabled()
     right.click()
     app.processEvents()
-    assert bar.tabRect(0).x() == offset
+    # Qt's native scroll step can depend on tab widths and the platform style.
+    assert bar.tabRect(0).x() < offset_after_left
+    assert bar.currentIndex() == current
     window.project.dirty = False
     window.close()
     app.processEvents()
