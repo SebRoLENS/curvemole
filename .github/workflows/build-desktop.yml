@@ -199,8 +199,7 @@ jobs:
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          bash .github/scripts/install_ubuntu_packages.sh libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
           uv sync --locked --no-default-groups --group packaging
 
       - name: Read version
