@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 
-from curvemole.core.data import Curve, Transformation, aligned_operand
+from curvemole.core.data import Curve, Transformation, align_operand_with_errors
 from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression, formula_source
 
@@ -63,16 +63,6 @@ def apply_custom_formula(curve: Curve, axis: str, formula: str) -> Transformatio
         parameters,
         description=f"Custom formula {target.upper()} = {source}",
     )
-    # Evaluate once before adding the transformation so invalid output is
-    # reported immediately, while the transformation remains replayable.
-    values = expression.evaluate({target: curve.x if target == "x" else curve.y})
-    result = np.asarray(values, dtype=np.float64)
-    if result.ndim == 0:
-        result = np.full(len(curve), float(result), dtype=np.float64)
-    if result.shape != (len(curve),):
-        raise DataValidationError("Custom formula must return one value per data point.")
-    if not np.all(np.isfinite(result)):
-        raise DataValidationError("Custom formula returned non-finite values.")
     curve.apply_transformation(transformation)
     return transformation
 
@@ -116,12 +106,25 @@ def apply_curve_operation(
 ) -> Transformation:
     if operation not in {"curve_add", "curve_subtract", "curve_multiply", "curve_divide"}:
         raise DataValidationError(f"Unknown curve-to-curve operation: {operation}")
-    aligned = aligned_operand(
-        target.x,
-        operand.x,
-        operand.y,
-        method=interpolation,
-        extrapolate=extrapolate,
+    usable = ~operand.effective_mask
+    scales = operand.y_error_scales(include_inverse_variance=True)
+    if scales is not None:
+        errors = np.asarray(scales)
+        usable &= np.all(np.isfinite(errors) & (errors > 0), axis=0)
+        errors = errors[:, usable]
+    else:
+        errors = None
+    source_x = operand.x[usable]
+    aligned, aligned_errors = align_operand_with_errors(
+        target.x, source_x, operand.y[usable], method=interpolation,
+        extrapolate=extrapolate, errors=errors,
+    )
+    same_measurement = (target is operand
+                        and len(np.unique(source_x)) == len(source_x))
+    correlated = aligned_errors is not None and (
+        operand.has_correlated_y_errors
+        or not np.all(np.isin(target.x[np.isfinite(aligned)], source_x))
+        or len(np.unique(target.x[np.isfinite(aligned)])) != np.count_nonzero(np.isfinite(aligned))
     )
     transformation = Transformation(
         operation,
@@ -130,9 +133,13 @@ def apply_curve_operation(
             "operand_curve_name": operand.name,
             "interpolation": interpolation,
             "extrapolate": extrapolate,
+            "asymmetric_operand": operand.current_error_y_minus is not None,
+            "correlated_operand": correlated and not same_measurement,
+            "same_measurement": same_measurement,
         },
         description=f"{operation} with {operand.name} ({interpolation} interpolation)",
         operand=aligned,
+        operand_errors=None if same_measurement else aligned_errors,
     )
     target.apply_transformation(transformation)
     return transformation

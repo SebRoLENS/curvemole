@@ -151,12 +151,10 @@ def calibrated_curve(curve, profile):
             "custom_formula", {"axis": "x", "formula": formula, TAG: profile["id"]},
             description="X calibration: " + profile["name"]))
         candidate.x_unit = profile["unit"]
-        if candidate.sigma_x is not None:
-            slope = Polynomial(profile["coefficients"]).deriv()((base_x-origin)/scale)/scale
-            candidate.sigma_x = candidate.sigma_x * np.abs(slope)
         candidate.metadata[TAG] = {"profile": copy.deepcopy(profile),
                                    "original_unit": original_unit, "original_label": original_label,
-                                   "original_sigma_x": original_sigma}
+                                   "original_sigma_x": original_sigma,
+                                   "raw_sigma_preserved": True}
     candidate.redo_transformations.clear()
     candidate.state = CurveState.MODIFIED if curve.state == CurveState.FITTED else curve.state
     return candidate

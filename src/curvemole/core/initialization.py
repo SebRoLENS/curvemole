@@ -82,7 +82,7 @@ def find_peak_suggestions(
                     PeakSuggestion(
                         x=float(x[index]),
                         height=float(centred[index]),
-                        fwhm=max(float(widths[local]), np.finfo(float).eps),
+                        fwhm=max(float(widths[local]), np.finfo(float).tiny),
                         prominence=float(properties["prominences"][local]),
                         sign=selected_sign,
                     )

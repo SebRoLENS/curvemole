@@ -59,6 +59,37 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
     )
 
 
+def fit_model_matches(result: FitResult, curve_id: str, model, values) -> bool:
+    """Check the current scientific model against fitted values and saved structure."""
+    if any(values.get(path) != estimate.value for path, estimate in result.parameters.items()
+           if path.startswith(curve_id + ".")):
+        return False
+    initial = next(
+        (item["initial_models"][curve_id] for item in result.provenance.get("executions", [])
+         if curve_id in item.get("initial_models", {})),
+        result.provenance.get("initial_models", {}).get(curve_id),
+    )
+    if initial is None:
+        return True
+
+    def structure(snapshot):
+        components = {}
+        for component in snapshot["components"]:
+            parameters = {
+                name: {field: float(value) if field in {"minimum", "maximum"} else value
+                       for field, value in parameter.items()
+                       if field not in {"value", "standard_error", "ci_low", "ci_high", "unit"}}
+                for name, parameter in component["parameters"].items()
+            }
+            components[component["id"]] = (
+                component["function_id"], component["enabled"], component["operator"],
+                parameters, {k: v for k, v in component.get("metadata", {}).items() if k != "custom_name"},
+            )
+        return components, snapshot.get("operation_order", [])
+
+    return structure(initial) == structure(model.to_dict())
+
+
 def individual_plan(plan: FitPlan, curve_id: str) -> FitPlan:
     if plan.mode == FitMode.GLOBAL:
         return copy.deepcopy(plan)

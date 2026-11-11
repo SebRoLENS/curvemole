@@ -99,7 +99,10 @@ def summarize(project, baseline, analysis, method):
             flag(2, "The baseline fit did not converge.")
         if not fixed and method == "covariance":
             if any("rank-deficient" in w or "underdetermined" in w for w in baseline.get("warnings", [])):
-                flag(2, "Rank-deficient/underdetermined covariance cannot establish identifiability.")
+                if finite and baseline.get("provenance", {}).get("schema_version", 1) >= 2:
+                    flag(1, "The interval is identifiable locally even though the full covariance is rank-deficient.")
+                else:
+                    flag(2, "Rank-deficient/underdetermined covariance cannot establish identifiability.")
             if baseline.get("settings", {}).get("loss", "linear") != "linear":
                 flag(1, "Robust-loss covariance is approximate; compare with resampling.")
         if method not in {"covariance", "profile_likelihood"}:
@@ -124,21 +127,21 @@ def summarize(project, baseline, analysis, method):
                 flag(2, "Interval covers >=80% of the allowed range; parameter is poorly constrained within these bounds.")
             if not low <= value <= high:
                 flag(1, "The original fit lies outside the interval; inspect bias or alternative minima.")
-            if method == "profile_likelihood":
-                if len(analysis.get("confidence_regions", [])) > 1:
-                    flag(2, "Disconnected confidence set: inspect all confidence regions; a single interval is insufficient.")
-                for warning in analysis.get("warnings", []):
-                    flag(1, warning)
-                if baseline.get("settings", {}).get("loss", "linear") != "linear":
-                    flag(1, "Chi-square profile thresholds are not calibrated for a robust-loss optimum.")
-                if curve is not None and (not curve.has_y_errors or
-                        not baseline.get("settings", {}).get("use_data_errors", True)):
-                    flag(1, "Profile confidence assumes calibrated noise; no absolute sigma_y was supplied.")
-                grid = analysis.get("values", [])
-                if grid and (low <= min(grid) + tol or high >= max(grid) - tol):
-                    flag(1, "Profile interval reaches the scanned range; extend the scan before interpreting its endpoints.")
-                if analysis.get("failed_points", 0):
-                    flag(1, "Some profile grid fits failed; the profile is incomplete.")
+        if not fixed and method == "profile_likelihood":
+            if len(analysis.get("confidence_regions", [])) > 1:
+                flag(2, "Disconnected confidence set: inspect all confidence regions; a single interval is insufficient.")
+            for warning in analysis.get("warnings", []):
+                flag(1, warning)
+            if baseline.get("settings", {}).get("loss", "linear") != "linear":
+                flag(1, "Chi-square profile thresholds are not calibrated for a robust-loss optimum.")
+            if curve is not None and (not curve.has_y_errors or
+                    not baseline.get("settings", {}).get("use_data_errors", True)):
+                flag(1, "Profile confidence assumes calibrated noise; no absolute sigma_y was supplied.")
+            grid = analysis.get("values", [])
+            if finite and grid and (low <= min(grid) + tol or high >= max(grid) - tol):
+                flag(1, "Profile interval reaches the scanned range; extend the scan before interpreting its endpoints.")
+            if analysis.get("failed_points", 0):
+                flag(1, "Some profile grid fits failed; the profile is incomplete.")
         if not fixed and correlation is not None and path in paths:
             matrix = np.asarray(correlation, dtype=float)
             i = paths.index(path)

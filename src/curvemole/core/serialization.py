@@ -261,6 +261,8 @@ def _project_arrays(project: Project | ProjectSaveSnapshot) -> Iterator[tuple[st
             for index, transformation in enumerate(transformations):
                 if transformation.operand is not None:
                     yield f"{prefix}/{stack_name}/{index}_operand.npy", transformation.operand
+                if transformation.operand_errors is not None:
+                    yield f"{prefix}/{stack_name}/{index}_operand_errors.npy", transformation.operand_errors
 
 
 def capture_project_snapshot(project: Project) -> ProjectSaveSnapshot:
@@ -459,6 +461,14 @@ def load_project(path: str | Path, *, partial_recovery: bool = False,
                 redo = _load_transformations(
                     archive, prefix, "redo_transformations", curve_meta.get("redo_transformations", [])
                 )
+                # Early X-calibration plugin builds saved a scaled sigma as
+                # raw input even though replay already applies the derivative.
+                calibration = curve_meta.get("metadata", {}).get("curvemole_x_calibration")
+                if (isinstance(calibration, dict) and not calibration.get("raw_sigma_preserved")
+                        and "original_sigma_x" in calibration):
+                    raw_sigma = calibration["original_sigma_x"]
+                    if raw_sigma is None or (isinstance(raw_sigma, list) and len(raw_sigma) == len(original_x)):
+                        optional["sigma_x"] = None if raw_sigma is None else np.asarray(raw_sigma, dtype=float)
                 curve = Curve(
                     id=str(curve_meta.get("id", curve_id)),
                     name=str(curve_meta["name"]),
@@ -860,6 +870,8 @@ def _load_transformations(
                 description=str(value.get("description", "")),
                 created_at=str(value.get("created_at", datetime.now(UTC).isoformat())),
                 operand=operand,
+                operand_errors=(_read_array(archive, f"{prefix}/{stack_name}/{index}_operand_errors.npy")
+                                if value.get("has_operand_errors") else None),
             )
         )
     return result

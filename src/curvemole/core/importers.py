@@ -298,27 +298,26 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
     numeric_columns = ImmutableColumns(numeric_columns)
     labels = {f"c{i}": str(name) for i, name in enumerate(frame.columns, 1)}
     column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
+    def numeric(column):
+        return numeric_columns[column_keys[_column_name(frame, column)]] if column is not None else None
+
     curves: list[Curve] = []
     for spectrum in spectra:
         x_column, y_column = spectrum.x, spectrum.y[0]
         x_name = _column_name(frame, x_column)
         y_name = _column_name(frame, y_column)
-        x = _numeric(frame[x_name], selected.decimal)
-        y = _numeric(frame[y_name], selected.decimal)
-        sigma_x = _optional_numeric(frame, spectrum.sigma_x, selected.decimal)
-        sigma_y = _optional_numeric(frame, spectrum.sigma_y, selected.decimal)
-        weights = _optional_numeric(frame, spectrum.weights, selected.decimal)
+        x = numeric_columns[column_keys[x_name]]
+        y = numeric_columns[column_keys[y_name]]
+        sigma_x = numeric(spectrum.sigma_x)
+        sigma_y = numeric(spectrum.sigma_y)
+        weights = numeric(spectrum.weights)
         if spectrum.variance is not None:
-            variance = _optional_numeric(frame, spectrum.variance, selected.decimal)
+            variance = numeric(spectrum.variance)
             assert variance is not None
             with np.errstate(invalid="ignore"):
                 sigma_y = np.sqrt(variance)
         if spectrum.inverse_variance is not None:
-            weights = _optional_numeric(
-                frame,
-                spectrum.inverse_variance,
-                selected.decimal,
-            )
+            weights = numeric(spectrum.inverse_variance)
         curve = Curve(
             name=(str(y_name) if selected.header else f"Y — column {frame.columns.get_loc(y_name) + 1}")
             if mapping.as_separated_files or mapping.spectra else source.stem,
@@ -329,8 +328,8 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             column_axes={"x": column_keys[x_name], "y": column_keys[y_name]},
             sigma_x=sigma_x,
             sigma_y=sigma_y,
-            error_y_plus=_optional_numeric(frame, spectrum.error_y_plus, selected.decimal),
-            error_y_minus=_optional_numeric(frame, spectrum.error_y_minus, selected.decimal),
+            error_y_plus=numeric(spectrum.error_y_plus),
+            error_y_minus=numeric(spectrum.error_y_minus),
             error_confidence_level=spectrum.error_confidence_level,
             weights=weights,
             weights_are_inverse_variance=spectrum.weights is None,
@@ -413,11 +412,25 @@ def _read_frame(
             raise DataValidationError(f"'{path}' contains no readable table rows.")
         filtered.seek(0)
         try:
+            rows = (csv.reader(filtered, delimiter=separator) if len(separator) == 1 else
+                    (re.split(separator, line.strip()) for line in filtered))
+            expected = len(next(rows))
+            for number, fields in enumerate(rows, 2):
+                if len(fields) > expected:
+                    raise DataValidationError(
+                        f"Table row {number} has more fields ({len(fields)}) than declared columns ({expected})."
+                    )
+            filtered.seek(0)
             frame = pd.read_csv(filtered, sep=separator, engine="python",
                                 header=0 if config.header else None, dtype=str,
                                 keep_default_na=False, na_filter=False, nrows=nrows)
         except Exception as exc:
             raise DataValidationError(f"Cannot parse '{path.name}': {exc}") from exc
+    if not isinstance(frame.index, pd.RangeIndex):
+        raise DataValidationError(
+            f"'{path.name}' has more fields in its data rows than declared columns. "
+            "Check the header, delimiter and decimal settings."
+        )
     if frame.shape[1] < 2:
         raise DataValidationError(
             f"'{path.name}' produced only one column. Check delimiter and decimal settings."
@@ -449,16 +462,6 @@ def _column_name(frame: pd.DataFrame, column: str | int | None) -> str:
     if column not in frame.columns:
         raise ImportColumnError(f"Column '{column}' does not exist.")
     return column
-
-
-def _optional_numeric(
-    frame: pd.DataFrame,
-    column: str | int | None,
-    decimal: str,
-) -> np.ndarray | None:
-    if column is None:
-        return None
-    return _numeric(frame[_column_name(frame, column)], decimal)
 
 
 def _numeric(series: pd.Series, decimal: str) -> np.ndarray:

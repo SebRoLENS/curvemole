@@ -625,7 +625,9 @@ then assigning fit ranges. Intervals therefore refer to the transformed X axis.
 Scalar transformation `operation` values are `y_add`, `y_subtract`, `y_multiply`,
 `y_divide`, `x_add`, `x_multiply`, `normalize_max`, `normalize_area`. The first six
 require a finite numeric `value`; normalizations need no value. Division by zero
-and invalid normalization inputs fail. `custom_formula` requires `axis: x` or
+and invalid normalization inputs fail. Normalization propagates marginal errors
+from the denominator and introduces correlations across points. Independent-noise
+covariance and Gaussian information criteria are unavailable on the normalized data. `custom_formula` requires `axis: x` or
 `axis: y` plus `formula`; `column_formula` requires `target` and `formula` and
 can use retained `c1`, `c2`, ... columns. Both use the restricted expression
 vocabulary in W9, never arbitrary Python. For example:
@@ -871,7 +873,9 @@ float64 normal minimum (about `2.225e-308`), rather than machine epsilon. Explic
 bounds remain preferable for difficult searches. Extreme overflow, underflow,
 nonidentifiability and poor starting values still require scientific judgment.
 Optimizer coordinate tolerances, including explicit `x_scale`, apply after this
-normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
+normalization. Built-in optimizers also scale unweighted residuals for stopping
+criteria. Exported residuals keep their original units. Supplied Nelder-Mead
+simplex vertices remain physical parameters.
 
 | Setting | Default | Meaning/accepted values |
 | --- | --- | --- |

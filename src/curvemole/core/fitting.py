@@ -28,7 +28,12 @@ from curvemole.core.matrices import (
     matrix_payload,
 )
 from curvemole.core.models import Model
-from curvemole.core.numerics import derivative_steps, parameter_scales, scale_jacobian
+from curvemole.core.numerics import (
+    characteristic_scale,
+    derivative_steps,
+    parameter_scales,
+    scale_jacobian,
+)
 from curvemole.core.parameters import EqualityParameterResolver, Parameter
 from curvemole.core.process_pool import bounded_results, managed_process_pool
 from curvemole.core.registry import FunctionRegistry, default_registry
@@ -383,6 +388,12 @@ def _failed_fit_result(curve: Curve, plan: FitPlan, error: Exception) -> FitResu
                      copy.deepcopy(plan.settings), [])
 
 
+def weighted_residual(residual, point_scale, spectrum_weight):
+    if point_scale is not None:
+        residual = residual * point_scale
+    return residual * math.sqrt(spectrum_weight)
+
+
 class _Problem:
     def __init__(
         self,
@@ -439,7 +450,9 @@ class _Problem:
             raise FitError("The selected models contain no free parameters.")
         self.coordinates = (
             DynamicParameterCoordinates(self.parameters, self.free_paths)
-            if any(parameter.link and parameter.link_relation != "equal"
+            if any(parameter.link and (parameter.link_relation != "equal"
+                                       or math.isfinite(parameter.minimum)
+                                       or math.isfinite(parameter.maximum))
                    for parameter in self.parameters.values()) else None
         )
         if self.coordinates is None:
@@ -517,25 +530,14 @@ class _Problem:
         values = self.values(vector)
         residuals: list[np.ndarray] = []
         for curve in self.curves:
-            x, observed, point_scale, indices = self._data[curve.id]
-            fitted = np.asarray(
-                self.models[curve.id].evaluate_for_curve(
-                    curve, indices, values=values, registry=self.registry
-                )
+            _, observed, point_scale, indices = self._data[curve.id]
+            fitted = self.models[curve.id].evaluate_for_curve(
+                curve, indices, values=values, registry=self.registry
             )
             if not np.all(np.isfinite(fitted)):
                 raise FitError(f"Model for curve '{curve.name}' returned non-finite values.")
-            residual = fitted - observed
-            if curve.current_error_y_minus is not None:
-                point_scale = curve.residual_scale(
-                    fitted, indices, use_data_errors=self.plan.settings.use_data_errors)
-            if point_scale is not None:
-                residual = residual * point_scale
-            spectrum_weight = self.plan.spectrum_weights.get(curve.id, 1.0)
-            residual = residual * math.sqrt(spectrum_weight)
-            if self.plan.equal_contribution:
-                residual = residual / math.sqrt(len(residual))
-            residuals.append(residual)
+            point_scale = self._point_scale(curve, fitted, indices, point_scale)
+            residuals.append(weighted_residual(fitted - observed, point_scale, self.objective_weight(curve)))
         from curvemole.core.live_fit_progress import LIVE_REFRESH_EVERY
         if report and self.progress and (self.evaluations % LIVE_REFRESH_EVERY == 0
                                          or self.evaluations == self.plan.settings.max_nfev):
@@ -563,6 +565,16 @@ class _Problem:
         finally:
             self.values(vector)
 
+    def _point_scale(self, curve, fitted, indices, point_scale):
+        if curve.current_error_y_minus is not None:
+            return curve.residual_scale(
+                fitted, indices, use_data_errors=self.plan.settings.use_data_errors)
+        return point_scale
+
+    def objective_weight(self, curve):
+        weight = self.plan.spectrum_weights.get(curve.id, 1.0)
+        return weight / len(self._data[curve.id][0]) if self.plan.equal_contribution else weight
+
     def outputs(self, values: Mapping[str, float]) -> dict[str, CurveFitOutput]:
         result: dict[str, CurveFitOutput] = {}
         for curve in self.curves:
@@ -573,15 +585,8 @@ class _Problem:
                 )
             )
             residual = observed - fitted
-            weighted = residual.copy()
-            if curve.current_error_y_minus is not None:
-                point_scale = curve.residual_scale(
-                    fitted, indices, use_data_errors=self.plan.settings.use_data_errors)
-            if point_scale is not None:
-                weighted *= point_scale
-            weighted *= math.sqrt(self.plan.spectrum_weights.get(curve.id, 1.0))
-            if self.plan.equal_contribution:
-                weighted /= math.sqrt(len(weighted))
+            point_scale = self._point_scale(curve, fitted, indices, point_scale)
+            weighted = weighted_residual(residual, point_scale, self.objective_weight(curve))
             rss = float(np.dot(residual, residual))
             tss = float(np.dot(observed - np.mean(observed), observed - np.mean(observed)))
             result[curve.id] = CurveFitOutput(
@@ -595,7 +600,8 @@ class _Problem:
                 statistics={
                     "N": len(observed),
                     "likelihood_supported": int(
-                        (not self.plan.settings.use_data_errors or curve.current_error_y_minus is None)
+                        not curve.has_correlated_y_errors
+                        and (not self.plan.settings.use_data_errors or curve.current_error_y_minus is None)
                         and not self.plan.equal_contribution
                         and self.plan.spectrum_weights.get(curve.id, 1.0) == 1.0),
                     "noise_scale_known": int(absolute_noise_scale(self.plan.settings, self.curves)),
@@ -665,9 +671,17 @@ class Fitter:
         if record.get('kind') != 'fit' or not record.get('initial_models'):
             raise FitError('This result has no replayable initial-state provenance.')
         available = {c.id: c for c in curves} if not isinstance(curves, Mapping) else curves
-        for cid, digest in record['input_hashes'].items():
-            if cid not in available or available[cid].content_hash != digest:
-                raise FitError(f'Cannot replay: input data changed or missing for {cid}.')
+        schema = record.get("schema_version", 1)
+        use_data_errors = record["plan"]["settings"].get("use_data_errors", True)
+        for cid, digest in record["input_hashes"].items():
+            curve = available.get(cid)
+            if curve is None or curve.fit_input_hash(schema) != digest:
+                raise FitError(f"Cannot replay: input data changed or missing for {cid}.")
+            if schema == 1 and not use_data_errors:
+                output = result.curve_outputs.get(cid)
+                if output is None or not np.array_equal(
+                        curve.fit_arrays(use_data_errors=False)[3], output.indices):
+                    raise FitError(f"Cannot replay: input data changed or legacy fitted rows are missing for {cid}.")
         models = {cid: Model.from_dict(copy.deepcopy(value))
                   for cid, value in record['initial_models'].items()}
         if {key: value['sha256'] for key, value in function_records(self.registry, models).items()} != {key: value['sha256'] for key, value in record['functions'].items()}:
@@ -860,18 +874,28 @@ class Fitter:
                 execution['initial_models'] = {curve.id: copy.deepcopy(models[curve.id].to_dict())
                                                for curve in curves}
 
+            # Solver stopping tolerances operate on dimensionless residuals for
+            # unweighted data. A common factor preserves the objective minimum.
+            unweighted = not settings.use_data_errors or all(
+                not curve.has_y_errors and curve.current_weights is None for curve in curves)
+            residual_unit = max(characteristic_scale(data[1]) for data in problem._data.values()) if unweighted else 1.0
+            execution['residual_unit'] = residual_unit
+            solver_settings = copy.copy(settings)
+            solver_settings.f_scale /= residual_unit
+
             def scaled_residual(vector, *, report=True):
-                return problem.residual(vector * scales, report=report)
+                return problem.residual(vector * scales, report=report) / residual_unit
 
             def scaled_jacobian(vector, *, dense=False):
-                return scale_jacobian(problem.jacobian(vector * scales, dense=dense), scales)
+                return scale_jacobian(problem.jacobian(vector * scales, dense=dense),
+                                      scales / residual_unit)
 
             if settings.solver == "differential_evolution":
                 lower, upper = _automatic_de_bounds(problem, settings)
                 if progress:
                     progress(0.0, "Differential Evolution initial search")
                 differential = optimize.differential_evolution(
-                    lambda vector: _objective(scaled_residual(vector, report=False), settings),
+                    lambda vector: _objective(scaled_residual(vector, report=False), solver_settings),
                     list(zip(lower / scales, upper / scales, strict=True)),
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
@@ -922,7 +946,7 @@ class Fitter:
                     if np.any(simplex < lower) or np.any(simplex > upper):
                         raise FitError("Initial simplex vertices must satisfy parameter bounds.")
                 minimised = optimize.minimize(
-                    lambda vector: _objective(scaled_residual(vector), settings),
+                    lambda vector: _objective(scaled_residual(vector), solver_settings),
                     initial / scales, method=method,
                     bounds=list(zip(lower / scales, upper / scales, strict=True)),
                     options=options,
@@ -953,7 +977,7 @@ class Fitter:
                     bounds=(lower / scales, upper / scales),
                     method=method,
                     loss=settings.loss,
-                    f_scale=settings.f_scale,
+                    f_scale=solver_settings.f_scale,
                     x_scale=settings.x_scale,
                     max_nfev=settings.max_nfev,
                     ftol=settings.ftol,
@@ -961,7 +985,8 @@ class Fitter:
                     gtol=settings.gtol,
                 )
                 least_squares.x = least_squares.x * scales
-                least_squares.jac = scale_jacobian(least_squares.jac, 1 / scales)
+                least_squares.jac = scale_jacobian(least_squares.jac, residual_unit / scales)
+                least_squares.fun = least_squares.fun * residual_unit
             execution['resolved_method'] = (settings.solver if custom is not None else method)
             if progress:
                 progress(
@@ -997,12 +1022,18 @@ class Fitter:
         values = problem.values(least_squares.x, commit=True)
         outputs = problem.outputs(values)
         warnings: list[str] = []
+        weights = [problem.objective_weight(curve) for curve in curves]
+        objective_weights = (None if all(weight == 1.0 for weight in weights) else
+                             np.repeat(weights, [len(problem._data[c.id][0]) for c in curves]))
+        nullspace = []
         covariance, correlation, errors = _covariance(
             scale_jacobian(covariance_jacobian, scales),
             np.asarray(least_squares.fun),
             settings,
             curves,
             warnings,
+            objective_weights=objective_weights,
+            nullspace=nullspace,
         )
         if covariance is not None:
             covariance = covariance * np.outer(scales, scales)
@@ -1015,7 +1046,11 @@ class Fitter:
             errors,
             settings,
             warnings,
+            nullspace[0] if nullspace else None,
         )
+        if nullspace:
+            # The pseudo-inverse is only meaningful on the identifiable subspace.
+            covariance = correlation = None
         if covariance is not None and problem.coordinates is not None:
             # Saved/exported covariance is labelled with physical parameter
             # paths, so it must not contain latent gaps or fractions.
@@ -1028,8 +1063,11 @@ class Fitter:
             finite_correlations = upper_triangle[np.isfinite(upper_triangle)]
             if finite_correlations.size and np.max(finite_correlations) >= 0.95:
                 warnings.append("At least one free-parameter correlation has |r| >= 0.95.")
-        if least_squares.jac.shape[0] <= least_squares.jac.shape[1]:
-            warnings.append("The fit is underdetermined or has no positive degrees of freedom.")
+        rows, columns = least_squares.jac.shape
+        if rows < columns:
+            warnings.append("The fit is underdetermined.")
+        elif rows == columns:
+            warnings.append("The fit has no positive residual degrees of freedom.")
         if not least_squares.success:
             warnings.append(f"Solver did not converge: {least_squares.message}")
         result = FitResult(
@@ -1165,17 +1203,31 @@ def _covariance(
     settings: FitSettings,
     curves: Sequence[Curve],
     warnings: list[str],
+    *,
+    objective_weights: np.ndarray | None = None,
+    nullspace: list[np.ndarray] | None = None,
 ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     rows, columns = jacobian.shape
-    if rows <= columns or columns == 0:
+    if any(curve.has_correlated_y_errors for curve in curves):
+        warnings.append("Covariance is unavailable for correlated data errors after preprocessing.")
+        return None, None, None
+    absolute = absolute_noise_scale(settings, curves)
+    if rows < columns or columns == 0 or (rows == columns and (not absolute or settings.loss != "linear")):
         warnings.append("Covariance is unavailable because degrees of freedom are not positive.")
         return None, None, None
     try:
         singular_values, vh = jacobian_svd(jacobian)
-        threshold = np.finfo(float).eps * max(jacobian.shape) * singular_values[0]
+        # Three-point numerical derivatives have rounding and truncation
+        # noise beyond machine epsilon; don't invert those null directions.
+        precision = np.finfo(float).eps
+        threshold = max(precision * max(jacobian.shape), 8 * precision**(2/3)) * singular_values[0]
         keep = singular_values > threshold
         if np.count_nonzero(keep) < columns:
-            warnings.append("Covariance is rank-deficient; pseudo-inverse uncertainties are reported.")
+            warnings.append("Covariance is rank-deficient; only identifiable parameter combinations have errors.")
+            if nullspace is not None:
+                nullspace.append(vh[~keep])
+            if rows == columns:
+                return None, None, None
         bread = (vh[keep].T / singular_values[keep] ** 2) @ vh[keep]
         if settings.loss != "linear":
             # J must differentiate the original weighted residual, not SciPy's
@@ -1203,8 +1255,16 @@ def _covariance(
                 "Robust-loss uncertainty uses a sandwich covariance; resampling is recommended."
             )
         else:
-            absolute = absolute_noise_scale(settings, curves)
             covariance = bread
+            if objective_weights is not None:
+                if absolute:
+                    covariance = bread @ weighted_gram(jacobian, objective_weights) @ bread.T
+                elif np.all(objective_weights == objective_weights[0]):
+                    # A uniform multiplier cancels in RSS-scaled covariance.
+                    pass
+                else:
+                    warnings.append("Covariance is unavailable with arbitrary spectrum weights and unknown noise scale.")
+                    return None, None, None
             if not absolute:
                 covariance = covariance * float(np.dot(weighted_residual, weighted_residual)) / (
                     rows - columns
@@ -1224,6 +1284,7 @@ def _parameter_estimates(
     free_errors: np.ndarray | None,
     settings: FitSettings,
     warnings: list[str],
+    nullspace: np.ndarray | None = None,
 ) -> dict[str, ParameterEstimate]:
     free_index = {path: index for index, path in enumerate(problem.free_paths)}
     from scipy.special import ndtri
@@ -1254,12 +1315,17 @@ def _parameter_estimates(
         error: float | None = None
         if (path in free_index and free_errors is not None
                 and not (problem.coordinates is not None and path in problem.coordinates.dynamic)):
-            error = float(free_errors[free_index[path]])
+            index = free_index[path]
+            if nullspace is None or np.linalg.norm(nullspace[:, index]) <= 1e-8:
+                error = float(free_errors[index])
         elif (parameter.link and covariance is not None
               and not (parameter.fixed and parameter.link_relation != "equal")):
             gradient = linked_gradients[path]
-            variance = float(gradient @ covariance @ gradient)
-            error = math.sqrt(max(variance, 0))
+            scaled_gradient = gradient * problem.scales
+            if (nullspace is None or np.linalg.norm(nullspace @ scaled_gradient)
+                    <= 1e-8 * np.linalg.norm(scaled_gradient)):
+                variance = float(gradient @ covariance @ gradient)
+                error = math.sqrt(max(variance, 0))
         value = float(values[path])
         minimum, maximum = problem.physical_bounds(path, values)
         physical_scale = (problem.scales[free_index[path]] if path in free_index

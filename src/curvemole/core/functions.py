@@ -85,6 +85,7 @@ class FunctionDefinition:
     configuration_specs: tuple[FunctionOptionSpec, ...] = ()
     point_initializer: Callable[[np.ndarray, np.ndarray, Mapping[str, Any]], Mapping[str, float]] | None = None
     minimum_points: int | None = None
+    intrinsic_bounds: bool = False
 
     @property
     def has_point_configuration(self) -> bool:
@@ -119,12 +120,22 @@ class FunctionDefinition:
         values = initial or {}
         return {spec.name: spec.make(values.get(spec.name)) for spec in self.specs(metadata)}
 
+    def _validate_intrinsic_domain(self, parameters: Mapping[str, float]) -> None:
+        if self.intrinsic_bounds:
+            for spec in self.parameter_specs:
+                value = parameters[spec.name]
+                if not math.isfinite(value) or not spec.minimum <= value <= spec.maximum:
+                    raise DataValidationError(
+                        f"'{self.display_name}.{spec.name}' is outside its intrinsic domain."
+                    )
+
     def evaluate(
         self,
         x: np.ndarray,
         parameters: Mapping[str, float],
         metadata: Mapping[str, Any] | None = None,
     ) -> np.ndarray:
+        self._validate_intrinsic_domain(parameters)
         result = np.asarray(self.evaluator(x, parameters, metadata or {}), dtype=np.float64)
         if result.ndim == 0:
             result = np.full_like(x, float(result))
@@ -140,6 +151,7 @@ class FunctionDefinition:
     def derived_values(
         self, parameters: Mapping[str, float], metadata: Mapping[str, Any] | None = None
     ) -> dict[str, float | None]:
+        self._validate_intrinsic_domain(parameters)
         result: dict[str, float | None] = {}
         for name, evaluator in self.derived.items():
             try:
@@ -160,9 +172,13 @@ def _gaussian(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np
     return p["area"] * np.exp(-0.5 * z * z) / (sigma * _SQRT_2PI)
 
 
+def _scaled_lorentzian(displacement, area, gamma):
+    radius = np.hypot(displacement, gamma)
+    return (area / radius) * (gamma / radius) / math.pi
+
+
 def _lorentzian(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np.ndarray:
-    gamma = p["gamma"]
-    return p["area"] * gamma / (math.pi * ((x - p["center"]) ** 2 + gamma**2))
+    return _scaled_lorentzian(x - p["center"], p["area"], p["gamma"])
 
 
 def _voigt(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np.ndarray:
@@ -175,9 +191,11 @@ def _pseudo_voigt(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -
     eta = p["eta"]
     sigma = fwhm / (2 * math.sqrt(2 * math.log(2)))
     gamma = fwhm / 2
-    gaussian = np.exp(-0.5 * ((x - p["center"]) / sigma) ** 2) / (sigma * _SQRT_2PI)
-    lorentzian = gamma / (math.pi * ((x - p["center"]) ** 2 + gamma**2))
-    return p["area"] * ((1 - eta) * gaussian + eta * lorentzian)
+    displacement = x - p["center"]
+    gaussian = (p["area"] * np.exp(-0.5 * (displacement / sigma) ** 2)
+                / (sigma * _SQRT_2PI))
+    lorentzian = _scaled_lorentzian(displacement, p["area"], gamma)
+    return (1 - eta) * gaussian + eta * lorentzian
 
 
 def _constant(x: np.ndarray, p: Mapping[str, float], _: Mapping[str, Any]) -> np.ndarray:
@@ -261,6 +279,7 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
             (area, center, sigma),
             derived={"area": lambda p, m: p["area"], "FWHM": lambda p, m: 2.354820045 * p["sigma"]},
             description="Area-normalised Gaussian peak; sigma is the standard deviation.",
+            intrinsic_bounds=True,
         ),
         FunctionDefinition(
             "lorentzian",
@@ -270,6 +289,7 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
             (area, center, gamma),
             derived={"area": lambda p, m: p["area"], "FWHM": lambda p, m: 2 * p["gamma"]},
             description="Area-normalised Lorentzian peak; gamma is HWHM.",
+            intrinsic_bounds=True,
         ),
         FunctionDefinition(
             "voigt",
@@ -283,6 +303,7 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
                 + math.sqrt(0.2166 * (2 * p["gamma"]) ** 2 + (2.354820045 * p["sigma"]) ** 2),
             },
             description="Area-normalised convolution of Gaussian and Lorentzian profiles.",
+            intrinsic_bounds=True,
         ),
         FunctionDefinition(
             "pseudo_voigt",
@@ -292,6 +313,7 @@ def builtin_definitions() -> tuple[FunctionDefinition, ...]:
             (area, center, fwhm, ParameterSpec("eta", 0.5, 0.0, 1.0)),
             derived={"area": lambda p, m: p["area"], "FWHM": lambda p, m: p["fwhm"]},
             description="Area-normalised linear mixture with common FWHM and eta in [0, 1].",
+            intrinsic_bounds=True,
         ),
         FunctionDefinition(
             "constant",

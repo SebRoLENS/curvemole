@@ -53,7 +53,7 @@ def test_profile_is_invariant_to_measurement_units_when_noise_scale_is_unknown()
     for factor in (1, 100):
         c, m, result = constant_fit(np.arange(5.0) * factor)
         profile = UncertaintyAnalyzer().profile_parameter(
-            result, c, m, next(iter(result.parameters)), lower=factor, upper=3 * factor, points=41
+            result, c, m, next(iter(result.parameters)), lower=0, upper=4 * factor, points=41
         )
         profiles.append(profile)
     assert profiles[0].delta_chi_square == pytest.approx(profiles[1].delta_chi_square)

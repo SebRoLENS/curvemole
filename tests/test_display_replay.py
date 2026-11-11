@@ -16,7 +16,8 @@ def test_replay_keeps_order_and_does_not_mutate_data_errors_or_history():
     before = copy.deepcopy(curve)
     preview = display_curve(curve, DisplayOptions(excluded=frozenset(operation_keys(curve)[:1])))
     np.testing.assert_allclose(preview.y, np.array([7, 8, 9]) / 9)
-    np.testing.assert_allclose(preview.current_sigma_y, np.ones(3) / 9)
+    np.testing.assert_allclose(preview.current_sigma_y, [np.hypot(1 / 9, 7 / 81),
+                                                        np.hypot(1 / 9, 8 / 81), 0])
     np.testing.assert_array_equal(curve.y, before.y)
     np.testing.assert_array_equal(curve.current_sigma_y, before.current_sigma_y)
     assert curve.to_metadata() == before.to_metadata()

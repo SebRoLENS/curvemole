@@ -154,6 +154,42 @@ class SafeExpression:
         }
         return tuple(sorted(names))
 
+    def affine_reference(self) -> tuple[str, float, float] | None:
+        """Recognize a * source + b exactly, without probing nonlinear expressions."""
+        paths = set(self.references)
+        if len(paths) != 1:
+            return None
+
+        def coefficients(node):
+            if isinstance(node, ast.Constant):
+                return 0., float(node.value)
+            if isinstance(node, ast.Name):
+                if node.id in _CONSTANTS:
+                    return 0., _CONSTANTS[node.id]
+                if node.id.startswith("__ref_"):
+                    return 1., 0.
+            if isinstance(node, ast.UnaryOp) and type(node.op) in (ast.UAdd, ast.USub):
+                a, b = coefficients(node.operand)
+                return (-a, -b) if isinstance(node.op, ast.USub) else (a, b)
+            if isinstance(node, ast.BinOp):
+                a, b = coefficients(node.left)
+                c, d = coefficients(node.right)
+                if isinstance(node.op, ast.Add):
+                    return a + c, b + d
+                if isinstance(node.op, ast.Sub):
+                    return a - c, b - d
+                if isinstance(node.op, ast.Mult) and (a == 0 or c == 0):
+                    return a * d + b * c, b * d
+                if isinstance(node.op, ast.Div) and c == 0:
+                    return a / d, b / d
+            raise ValueError
+
+        try:
+            slope, intercept = coefficients(self._tree.body)
+        except (TypeError, ValueError, ArithmeticError):
+            return None
+        return (paths.pop(), slope, intercept) if all(map(math.isfinite, (slope, intercept))) else None
+
     def evaluate(
         self,
         variables: Mapping[str, Any] | None = None,

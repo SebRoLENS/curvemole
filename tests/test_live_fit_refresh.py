@@ -135,11 +135,20 @@ def test_live_evaluation_budget_matches_solver_without_jacobian_probes(monkeypat
     x = np.linspace(-5, 5, 101)
     curve = Curve("budget", x, np.exp(-x * x))
     peak = Component.create("gaussian", initial={"area": 3, "center": 1, "sigma": 2})
+    registry = default_registry()
     if method == "lm":
-        for parameter in peak.parameters.values():
-            parameter.minimum, parameter.maximum = -np.inf, np.inf
+        from curvemole.core.functions import formula_definition
+
+        registry = registry.copy()
+        definition = formula_definition(
+            "unbounded_gaussian", "Unbounded Gaussian",
+            "area * exp(-0.5 * ((x-center)/sigma)**2) / (sigma * sqrt(2*pi))",
+            defaults={"area": 3., "center": 1., "sigma": 2.},
+        )
+        registry.register(definition)
+        peak = Component.create(definition.identifier, registry=registry)
     events = []
-    result = Fitter().fit_single(
+    result = Fitter(registry).fit_single(
         curve, Model(components=[peak]), FitSettings(max_nfev=7, local_method=method),
         progress=lambda value, text: events.append((value, text)),
     )

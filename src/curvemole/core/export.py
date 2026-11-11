@@ -23,7 +23,7 @@ from curvemole.core.data import Curve, CurveState
 from curvemole.core.diagnostics import residual_diagnostics
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.export_columns import ExportColumns
-from curvemole.core.fitting import FitResult
+from curvemole.core.fitting import FitMode, FitResult
 from curvemole.core.matrices import BlockDiagonalMatrix, matrix_from_value
 from curvemole.core.models import Model
 from curvemole.core.notebook import export_notebook
@@ -331,6 +331,26 @@ def parameter_dataframe(
     rows: list[dict[str, Any]] = []
     estimates: Mapping[str, Any] = result.parameters if isinstance(result, FitResult) else {}
     parameter_values = project.resolved_parameter_values()
+    incompatible = set()
+    if isinstance(result, FitResult):
+        from curvemole.core.fit_records import fit_model_matches
+
+        recorded_hashes = result.provenance.get("input_hashes", {})
+        schema = result.provenance.get("schema_version", 1)
+        current_curves = {curve.id: curve for curve in project.curves}
+        for curve_id, output in result.curve_outputs.items():
+            curve = current_curves.get(curve_id)
+            model = project.models.get(curve_id)
+            if (curve is None or model is None
+                    or (not result.success and (result.mode == FitMode.GLOBAL or curve.state != CurveState.FITTED))
+                    or (curve_id in recorded_hashes and curve.fit_input_hash(schema) != recorded_hashes[curve_id])
+                    or np.any(output.indices < 0) or np.any(output.indices >= len(curve))
+                    or not np.array_equal(curve.x[output.indices], output.x)
+                    or not np.array_equal(curve.y[output.indices], output.observed)
+                    or not fit_model_matches(result, curve_id, model, parameter_values)):
+                incompatible.add(curve_id)
+        if incompatible and result.mode == FitMode.GLOBAL:
+            incompatible.update(result.curve_outputs)
     for series in project.dataset.series:
         for curve in series.curves:
             model = project.models.get(curve.id)
@@ -339,6 +359,7 @@ def parameter_dataframe(
             derived = model.derived_quantities(
                 curve_id=curve.id, values=parameter_values, registry=registry
             )
+            compatible_data = curve.id not in incompatible
             for component in model.display_components:
                 definition = registry.get(component.function_id)
                 component_derived = derived.get(component.id, {})
@@ -346,9 +367,12 @@ def parameter_dataframe(
                     path = model.parameter_path(curve.id, component.id, name)
                     estimate = estimates.get(path)
                     value = float(parameter_values.get(path, parameter.value))
-                    error = getattr(estimate, "standard_error", parameter.standard_error)
-                    ci_low = getattr(estimate, "ci_low", parameter.ci_low)
-                    ci_high = getattr(estimate, "ci_high", parameter.ci_high)
+                    compatible = compatible_data and (estimate is None or value == estimate.value)
+                    if not compatible:
+                        estimate = None
+                    error = getattr(estimate, "standard_error", parameter.standard_error) if compatible else None
+                    ci_low = getattr(estimate, "ci_low", parameter.ci_low) if compatible else None
+                    ci_high = getattr(estimate, "ci_high", parameter.ci_high) if compatible else None
                     effective_minimum, effective_maximum = parameter.minimum, parameter.maximum
                     if parameter.link and parameter.link_relation != "equal":
                         from curvemole.core.expressions import SafeExpression
@@ -425,48 +449,65 @@ def export_function_parameters(
     from curvemole.core.analysis_errors import DISPLAY_METHODS, analysis_error, selected_method
 
     include_analysis = any(selected_method(project, curve.id) for curve in project.curves)
-    columns: list[tuple[str, str]] = []
-    values: list[dict[tuple[str, str], str]] = []
+    # Logical column identities are independent of text labels. A literal
+    # "Peak (2)" and the second "Peak" are different functions.
+    columns = {}
+    values = []
     resolved = project.resolved_parameter_values()
+    reserved = {component.name for model in project.models.values() for component in model.components}
+    component_labels = {}
+    used_fields = {}
     for curve in project.curves:
-        cells: dict[tuple[str, str], str] = {}
+        cells = {}
         model = project.models.get(curve.id)
         occurrences: dict[str, int] = {}
         if model is not None:
             for component in model.display_components:
-                occurrences[component.name] = occurrences.get(component.name, 0) + 1
-                # Keep separately named instances aligned across spectra, even
-                # when a model contains more than one with the same name.
-                label = (component.name if occurrences[component.name] == 1 else
-                         f"{component.name} ({occurrences[component.name]})")
+                count = occurrences[component.name] = occurrences.get(component.name, 0) + 1
+                identity = component.name, count
+                if identity not in component_labels:
+                    label = component.name
+                    if count > 1:
+                        suffix = count
+                        label = f"{component.name} ({suffix})"
+                        while label in reserved:
+                            suffix += 1
+                            label = f"{component.name} ({suffix})"
+                        reserved.add(label)
+                    component_labels[identity] = label
+                    used_fields[identity] = set()
+                label = component_labels[identity]
+                fields = ("value", "err", "analysis_err_minus", "analysis_err_plus") if include_analysis else ("value", "err")
                 for name, parameter in component.parameters.items():
-                    key = (label, name)
-                    if key not in columns:
-                        columns.extend((key, (label, f"{name}_err")))
-                        if include_analysis:
-                            columns.extend(((label, f"{name}_analysis_err_minus"),
-                                            (label, f"{name}_analysis_err_plus")))
+                    for field in fields:
+                        key = identity, name, field
+                        if key not in columns:
+                            header = name if field == "value" else f"{name}_{field}"
+                            while header in used_fields[identity]:
+                                header += "_"
+                            used_fields[identity].add(header)
+                            columns[key] = label, header
                     if curve.state == CurveState.FITTED:
                         parameter_path = model.parameter_path(curve.id, component.id, name)
                         value = resolved.get(parameter_path, parameter.value)
                         error = parameter.standard_error
-                        cells[key] = f"{value:.12g}"
+                        cells[identity, name, "value"] = f"{value:.12g}"
                         if error is not None and math.isfinite(error) and error >= 0:
-                            cells[(label, f"{name}_err")] = f"{error:.12g}"
+                            cells[identity, name, "err"] = f"{error:.12g}"
                         if include_analysis:
                             offsets = analysis_error(project, curve.id, parameter_path)
                             if offsets:
-                                cells[(label, f"{name}_analysis_err_minus")] = f"{offsets[0]:.12g}"
-                                cells[(label, f"{name}_analysis_err_plus")] = f"{offsets[1]:.12g}"
+                                cells[identity, name, "analysis_err_minus"] = f"{offsets[0]:.12g}"
+                                cells[identity, name, "analysis_err_plus"] = f"{offsets[1]:.12g}"
         values.append(cells)
 
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["Spectrum", *(function for function, _ in columns),
+        writer.writerow(["Spectrum", *(function for function, _ in columns.values()),
                          *(["Analysis"] if include_analysis else [])])
-        writer.writerow(["", *(parameter for _, parameter in columns),
+        writer.writerow(["", *(parameter for _, parameter in columns.values()),
                          *(["method"] if include_analysis else [])])
         for curve, cells in zip(project.curves, values, strict=True):
             method = selected_method(project, curve.id) if include_analysis else None

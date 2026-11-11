@@ -952,16 +952,17 @@ plotted bars keep the supplied half-widths, rather than these converted scales.
 **Fit > Advanced algorithm options > Use data errors / weights in the fit** is on
 by default. Turn it off to fit without imported Y errors or point weights. Masks,
 fit ranges and spectrum-level weights remain in effect. Rows invalid only because
-of their error or point weight can then participate. The display of bars and the
-noise model of Monte Carlo remain independent of this choice.
+of their error or point weight can then participate. Monte Carlo still uses
+imported Y errors when data-error weighting is off.
 
-This is an approximation: two interval half-widths and a confidence level do not
-specify the full measurement distribution. The scales describe a Gaussian side
-on each side of the reported value; Monte Carlo assigns equal probability to
-the two sides, reproducing the supplied central interval. Covariance is a local
-Jacobian approximation, and asymmetrical parameter intervals should be assessed
-using resampling or a suitably calibrated profile. Correlation between measured
-points and X uncertainty are not incorporated into this Y-residual fit.
+Two interval half-widths and a confidence level only partially specify a noise
+distribution. CurveMole uses a two-piece Gaussian approximation for parametric
+Monte Carlo. The sides of the synthetic observation residual are reflected
+relative to the fitted prediction residual. Their probabilities are proportional
+to their scales. This makes the generator and the weighted refit use the same
+location model. When the refit ignores data errors, synthetic noise is centered
+at zero mean. Covariance remains a local Jacobian approximation. The standard
+Y-residual fit assumes independent observations and treats X coordinates as fixed.
 
 Use **Error bars** above the main graph to show or hide the bars. Autoscaling
 includes their endpoints, and bars follow logarithmic, waterfall and background
@@ -1039,8 +1040,15 @@ Every calculator operation (including restoring data) offers **Active curve** or
 **All series** shows every spectrum grouped under colored series headings. Use
 checkboxes or Select all shown. Hidden spectra are excluded. Cancel changes nothing.
 A batch is checked in full before any spectrum is modified; one Undo restores the
-whole batch. Normalization also scales `sigma_y` consistently. Dividing by zero and normalizing a zero or invalid
-signal are rejected.
+whole batch. Normalization propagates the first-order marginal Y errors through
+the denominator computed from the data. It uses all finite observations, including
+masked rows. For a unique maximum the normalized maximum has zero marginal error
+and is excluded when weighting by errors. At tied maxima the local derivative uses
+the first maximum. Normalization introduces shared uncertainty. The fit still
+reports point estimates from its residual objective, while covariance, Gaussian
+information criteria and uncertainty analyses requiring the data noise model are
+unavailable on the normalized data. Dividing by zero and normalizing a zero or
+invalid signal are rejected.
 
 #### Custom formulas
 
@@ -1134,13 +1142,18 @@ is aligned to the target x grid by:
 - nearest-neighbor interpolation;
 - cubic spline interpolation.
 
-Extrapolation is disabled by default. Outside the operand range, aligned values become
-missing and will therefore be excluded from later fitting. Enabling extrapolation is
-an explicit advanced choice. Cubic interpolation requires at least four unique finite
-operand x values.
+The operand uses its unmasked valid points. Without extrapolation, out-of-range
+values become missing and are excluded from later fits. With extrapolation,
+linear interpolation extends the first or last segment. Nearest neighbor uses
+the closest endpoint. Cubic interpolation requires four distinct usable X values.
 
-The aligned operand array is stored with the transformation so that reopening the
-project does not depend on a later change to the source curve.
+Available Y uncertainties from both spectra propagate at first order. This
+assumes independent errors between the two spectra and between the input points.
+An operand with no declared Y uncertainty is treated as exact. Reusing noisy
+input points in interpolation can correlate the output rows. CurveMole retains
+the marginal widths and suppresses inferential results that assume independence
+in this case. The aligned operand values and propagated input errors are stored
+with the transformation for replay.
 
 ### 7.7 Restoring original data
 
@@ -1895,7 +1908,10 @@ Nonlinear link gradients use scale-aware three-point differences and Richardson
 extrapolation before propagating covariance. The small cubic-link reference now
 agrees with its analytic derivative; these remain local uncertainties (Appendix J.3).
 Targets with **At least**, **At most**, or **Similar** relations remain independent
-optimizer variables constrained by their current allowed intervals.
+optimizer variables constrained by their current allowed intervals. Bounds on
+a single-source affine equality link restrict the source's solver domain.
+When an advanced equality cannot be mapped to solver bounds, CurveMole reports
+the incompatible limits before fitting.
 
 ### 9.5 Safe expression language
 
@@ -2215,10 +2231,19 @@ enabled, the uncertainty is treated as absolute by default and the
 covariance is not rescaled by residual variance. Otherwise residual variance scales
 the covariance.
 
-CurveMole uses a pseudo-inverse when the Jacobian is rank deficient and reports a
-warning. Covariance is unavailable when degrees of freedom are not positive. A
-warning is also generated when at least one free-parameter correlation has absolute
-value 0.95 or greater.
+With arbitrary spectrum weights and known measurement errors, covariance
+propagates measurement variance through the weighted estimator. Multiplying all
+objective weights by the same factor leaves the parameter covariance unchanged.
+With unknown noise, nonuniform spectrum weights prevent calibrated ordinary
+covariance. Correlated data errors introduced by processing also prevent the
+independent-noise covariance calculation.
+
+A rank-deficient Jacobian produces a warning. Standard errors are available only
+for locally identifiable quantities, and the full parameter matrix is omitted.
+Estimating an unknown noise scale requires positive residual degrees of freedom.
+Known noise can give covariance at zero residual degrees of freedom when the
+Jacobian has full rank. A warning is generated when the magnitude of any
+free-parameter correlation is at least 0.95.
 
 Symmetric normal intervals respect static bounds and any global limits implied by
 the relations. For **At least**, **At most**, or **Similar** with a free source,
@@ -2434,14 +2459,12 @@ has been scientifically validated.
 
 ### 12.1 Parametric Monte Carlo
 
-This method generates synthetic y values from the fitted model plus independent
-normal noise using imported absolute `sigma_y`, or a two-sided Gaussian approximation
-using the lower/upper Y error half-widths and their declared confidence. The latter
-transforms negative/positive standard-normal draws with the respective scale; it
-preserves the declared central interval and has its median at the fitted prediction.
-Every selected curve must provide valid Y errors on the fitted rows. Noise is still
-generated from these errors when weighting is turned off in the Fit dialog.
-The chosen approximation and input confidence are recorded in the analysis settings.
+Synthetic Y values use the fitted predictions and independent Gaussian noise
+for absolute `sigma_y`, or the two-piece approximation described in §6.6 for
+interval errors. Valid Y errors are required on every fitted row. Each replica
+uses the same rows as the baseline. Refitting requires the same scientific model,
+data, weighting and loss as the recorded fit. The noise model and input
+confidence are recorded in the analysis settings.
 
 Each synthetic data set is refitted using the local solver. The result records the
 requested, completed, and failed replicates, seed, free parameter paths, samples,
@@ -2495,8 +2518,10 @@ blank limits select the automatic range, and explicit limits must respect parame
 bounds. Failed grid points are counted. The desktop profile currently requires a
 single-spectrum baseline; it does not profile a global multi-spectrum fit.
 Profile threshold crossings are refined by bracketed refits. `confidence_regions`
-contains every connected region detected by the scan; `interval` selects the region
-containing the fitted estimate and never bridges rejected gaps. Disconnected sets
+contains every connected region detected by the scan. The calibrated `interval`
+uses the region containing the fitted estimate. An endpoint remains unavailable
+when its threshold crossing lies beyond the scan or next to a failed refit.
+A known physical bound can close a region. Disconnected sets
 are marked **Critical**. `warnings` reports incomplete scans or unrefined endpoints;
 inspect every region and extend the scan where needed. A finite grid can still miss
 a narrow remote mode. The default Gaussian-location example now agrees with the
@@ -4014,7 +4039,8 @@ properties are read-only views: do not assign to `curve.x` or `curve.y`.
 | `invalid` | Boolean invalid-data/error flags |
 | `effective_mask` | `True` means excluded; union of invalid rows, **all** masks, and points outside every fit range |
 | `fit_arrays(*, use_data_errors=True)` | `(x, y, residual_scale_or_None, current_indices)`; raises with fewer than two usable rows |
-| `content_hash` | SHA-256 of current scientific data/masks/errors |
+| `content_hash` | SHA-256 of current scientific data, row selection and errors |
+| `has_correlated_y_errors` | Processing introduced shared Y uncertainty across rows |
 | `add_mask(name)` | Create/select empty named `Mask`; return it |
 | `mask_point(x_value, *, name=None)` | Exclude nearest finite X; return current row index |
 | `mask_interval(lower, upper, *, name=None)` | Inclusive range; return selected row count |
@@ -4034,7 +4060,7 @@ properties are read-only views: do not assign to `curve.x` or `curve.y`.
 `row_indices` retains original identities after point deletion.
 
 `Transformation(operation, parameters={}, description="", created_at=generated,
-operand=None)` is replayable. Prefer checked helpers from
+operand=None, operand_errors=None)` is replayable. Prefer checked helpers from
 `curvemole.core.calculator`; each modifies the curve and returns `Transformation`:
 
 | Helper | Supported options |
@@ -4042,20 +4068,22 @@ operand=None)` is replayable. Prefer checked helpers from
 | `apply_scalar(curve, operation, value=None)` | `y_add`, `y_subtract`, `y_multiply`, `y_divide`, `x_add`, `x_multiply` require a finite value; `normalize_max`, `normalize_area` need no value |
 | `apply_custom_formula(curve, axis, formula)` | Axis `x` or `y`; only that coordinate variable is exposed; optional matching assignment such as `Y = 2*y` |
 | `apply_column_formula(curve, target, formula)` | Target `x`, `y` or retained column key such as `c3`; access `x`, `y`, one-based `c1`, `c2`, ... and `${original column label}` |
-| `apply_curve_operation(target, operand, operation, *, interpolation="linear", extrapolate=False)` | `curve_add`, `curve_subtract`, `curve_multiply`, `curve_divide`; interpolation `linear` or `nearest` |
+| `apply_curve_operation(target, operand, operation, *, interpolation="linear", extrapolate=False)` | `curve_add`, `curve_subtract`, `curve_multiply`, `curve_divide`; interpolation `linear`, `nearest` or `cubic` |
 | `apply_background_subtraction(curve, background, *, method, description, parameters=None)` | Subtract supplied array from all rows, including masked rows |
 
-Curve arithmetic stores the interpolated operand as a snapshot. Without
-extrapolation, out-of-range points become invalid; enabled linear interpolation
-extends endpoint values. Formula output must be finite and match the row count;
-scalars broadcast. Coordinate/column formulas propagate existing uncertainty
-using a numerical first-order local derivative with respect to the target axis.
-Affine scaling is exact; nonlinear propagation is a local approximation.
-Asymmetric Y sides swap for a negative derivative. Uncertainty in other input
-columns, correlations, and operand-curve errors are not jointly propagated.
-Inverse-variance weights follow the same local Y-uncertainty propagation;
-direct arbitrary residual multipliers retain their declared multiplier semantics. Normalization uses current data,
-including masked rows.
+Curve arithmetic aligns unmasked valid source rows and stores the aligned
+operand and its error scales for replay. Linear extrapolation extends the
+boundary segments. Marginal uncertainties propagate with the interpolation and
+arithmetic derivatives under the independent-input assumption. Normalization
+uses all finite current data, including masked rows, and propagates the
+denominator uncertainty into the marginal errors. Shared errors from
+normalization or noisy interpolation suppress independent-noise inference.
+
+Formula output must be finite and match the row count. Scalars broadcast.
+Coordinate and column formulas use a numerical first-order derivative with
+respect to the target axis. Asymmetric Y sides swap for a negative derivative.
+Inverse-variance weights follow the same uncertainty propagation. Direct
+residual multipliers carry no measurement variance.
 
 Nonlinear formula derivatives use local, scale-aware perturbations and
 Richardson extrapolation. For `z=y**3`, the audited tiny-value example now agrees
@@ -4622,8 +4650,10 @@ unknown noise scale adds one likelihood parameter; independent fits retain their
 separate fitted noise scales. The result records `negative_twice_log_likelihood`
 and `likelihood_parameters`. AIC/AICc/BIC are unavailable for robust losses,
 active interval-error arrays (including equal lower/upper half-widths) and
-arbitrary spectrum balancing. Insufficient degrees
-or rank may leave covariance unavailable. Matrix rows follow
+arbitrary spectrum balancing or correlated errors from preprocessing. Known
+measurement variances propagate through spectrum weighting when calculating
+covariance. A rank-deficient fit reports local errors only for identifiable
+quantities and omits the full matrix. Matrix rows follow
 `free_parameter_paths`. Independent-batch matrices may be `BlockDiagonalMatrix`;
 `np.asarray(matrix)` densifies and can require substantial memory.
 
@@ -4671,6 +4701,13 @@ workers=1, cancellation=None, progress=None)`:
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
   block length for each curve.
+
+All replicas preserve the baseline's fitted rows. Changed models, fitted rows
+or fit weighting require a new baseline. For asymmetric Monte Carlo, observations
+follow a two-piece Gaussian with side probabilities proportional to the scales
+and side orientation consistent with the weighted objective. When the refit
+ignores data errors, the noise has zero mean. Resampling requires independent
+input errors from preprocessing, or an explicitly modeled dependence.
 
 Both bootstrap methods standardize sigma and inverse-variance noise equivalently;
 automatic block lengths use the same standardized residuals. Supplied noise
@@ -4725,8 +4762,9 @@ scale: provide known sigma. Convolution preserves the full regular grid before
 selecting fitted rows.
 
 Profile threshold crossings are refined by bracketed refits. `confidence_regions`
-contains every connected region detected by the scan; `interval` selects the region
-containing the fitted estimate and never bridges rejected gaps. Disconnected sets
+contains the connected regions detected within the scan. The calibrated
+`interval` contains the fitted estimate when the scan resolves it. An unresolved
+endpoint is returned as `None`. Disconnected sets
 are marked **Critical**. `warnings` reports incomplete scans or unrefined endpoints;
 inspect every region and extend the scan where needed. A finite grid can still miss
 a narrow remote mode. The default Gaussian-location example now agrees with the

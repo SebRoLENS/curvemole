@@ -100,11 +100,48 @@ class DynamicParameterCoordinates:
 
     def _propagate_domains(self) -> None:
         for path in reversed(self.order):
+            parameter = self.parameters[path]
+            lo, hi = self.domains[path]
+            if parameter.link and parameter.link_relation == "equal":
+                if lo == -math.inf and hi == math.inf:
+                    continue
+                expression = self.expressions[path]
+                affine = expression.affine_reference()
+                if affine is None:
+                    if any(self.domains[ref][0] < self.domains[ref][1] for ref in expression.references):
+                        raise ConstraintError(
+                            f"Bounds on advanced equality expression '{path}' cannot be "
+                            "converted to solver bounds. Use a single-source affine link or "
+                            "remove the limits on the linked parameter."
+                        )
+                    continue
+                source, slope, intercept = affine
+                source_lo, source_hi = self.domains[source]
+                if slope == 0 or source_lo == source_hi:
+                    continue
+                required_lo, required_hi = sorted(((lo - intercept) / slope, (hi - intercept) / slope))
+                source_lo, source_hi = max(source_lo, required_lo), min(source_hi, required_hi)
+                # Floating arithmetic in the expression can place an inverse
+                # endpoint just beyond the requested physical interval.
+                for endpoint, direction in ((source_lo, math.inf), (source_hi, -math.inf)):
+                    adjusted = endpoint
+                    for _ in range(8):
+                        if not math.isfinite(adjusted) or lo <= expression.evaluate(references={source: adjusted}) <= hi:
+                            break
+                        adjusted = math.nextafter(adjusted, direction)
+                    else:
+                        raise ConstraintError(f"Cannot represent the affine bound for '{path}' accurately.")
+                    if direction > 0:
+                        source_lo = adjusted
+                    else:
+                        source_hi = adjusted
+                if source_lo > source_hi:
+                    raise ConstraintError(f"The affine bounds for '{path}' and '{source}' do not intersect.")
+                self.domains[source] = source_lo, source_hi
+                continue
             if path not in self.dynamic:
                 continue
-            parameter = self.parameters[path]
             source = self.sources[path]
-            lo, hi = self.domains[path]
             source_lo, source_hi = self.domains[source]
             if parameter.link_relation == "lower":
                 source_hi = min(source_hi, hi)

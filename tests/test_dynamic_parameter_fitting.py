@@ -247,7 +247,8 @@ def test_equal_expression_source_is_resolved_before_the_bound_target():
     assert coordinates.decode(np.asarray([4., 1.])) == {"c.f.a": 4., "c.f.b": 8., "c.f.c": 9.}
     parameters["c.f.c"].maximum = 5.
     coordinates = DynamicParameterCoordinates(parameters, ["c.f.a", "c.f.c"])
-    with pytest.raises(ConstraintError, match="advanced equality expression"):
+    assert coordinates.bounds[1][0] == pytest.approx(2.5)
+    with pytest.raises(ConstraintError, match="violates its bounds"):
         coordinates.decode(np.asarray([4., .5]))
 
 

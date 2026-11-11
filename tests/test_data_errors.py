@@ -136,7 +136,7 @@ def test_save_load_keeps_errors_confidence_transformations_and_fit_choice(tmp_pa
 
 
 @pytest.mark.parametrize("confidence", [.68, .95])
-def test_monte_carlo_noise_has_the_declared_asymmetric_central_interval(confidence):
+def test_monte_carlo_noise_matches_two_piece_fit_likelihood(confidence):
     curve = Curve("many observations", np.arange(100_000), np.ones(100_000),
                   error_y_minus=np.full(100_000, 2.), error_y_plus=np.full(100_000, 5.),
                   error_confidence_level=confidence)
@@ -156,10 +156,12 @@ def test_monte_carlo_noise_has_the_declared_asymmetric_central_interval(confiden
 
     _resample_trial(123, "parametric_monte_carlo", baseline, plan,
                         {curve.id: curve}, {curve.id: model}, {}, CapturingFitter(), CancellationToken())
-    lower, upper = np.quantile(captured["noise"], [(1-confidence)/2, (1+confidence)/2])
-    assert lower == pytest.approx(-2, rel=.035)
-    assert upper == pytest.approx(5, rel=.035)
-    assert np.median(captured["noise"]) == pytest.approx(0, abs=.04)
+    noise = captured["noise"]
+    assert np.mean(noise >= 0) == pytest.approx(2 / 7, abs=.005)
+    assert np.mean((noise >= -5) & (noise <= 2)) == pytest.approx(confidence, abs=.005)
+    minus, plus = curve.y_error_scales()
+    score = -noise / np.where(noise > 0, minus, plus)**2
+    assert np.mean(score) == pytest.approx(0, abs=.01)
     assert captured["curve"].error_confidence_level == confidence
 
 

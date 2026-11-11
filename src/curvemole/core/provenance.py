@@ -87,7 +87,7 @@ def fit_record(plan, curves, models, registry):
     solver = next((entry for entry in extensions.values('fit_solvers')
                    if entry.identifier == plan.settings.solver), None)
     selected = {cid: models[cid] for cid in plan.curve_ids if cid in models}
-    return {'schema_version': 1, 'kind': 'fit',
+    return {'schema_version': 2, 'kind': 'fit',
             'plan': {'curve_ids': list(plan.curve_ids), 'mode': plan.mode.value,
                      'settings': asdict(plan.settings),
                      'spectrum_weights': dict(plan.spectrum_weights),

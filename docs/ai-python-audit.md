@@ -241,7 +241,7 @@ properties are read-only views: do not assign to `curve.x` or `curve.y`.
 `row_indices` retains original identities after point deletion.
 
 `Transformation(operation, parameters={}, description="", created_at=generated,
-operand=None)` is replayable. Prefer checked helpers from
+operand=None, operand_errors=None)` is replayable. Prefer checked helpers from
 `curvemole.core.calculator`; each modifies the curve and returns `Transformation`:
 
 | Helper | Supported options |
@@ -249,20 +249,22 @@ operand=None)` is replayable. Prefer checked helpers from
 | `apply_scalar(curve, operation, value=None)` | `y_add`, `y_subtract`, `y_multiply`, `y_divide`, `x_add`, `x_multiply` require a finite value; `normalize_max`, `normalize_area` need no value |
 | `apply_custom_formula(curve, axis, formula)` | Axis `x` or `y`; only that coordinate variable is exposed; optional matching assignment such as `Y = 2*y` |
 | `apply_column_formula(curve, target, formula)` | Target `x`, `y` or retained column key such as `c3`; access `x`, `y`, one-based `c1`, `c2`, ... and `${original column label}` |
-| `apply_curve_operation(target, operand, operation, *, interpolation="linear", extrapolate=False)` | `curve_add`, `curve_subtract`, `curve_multiply`, `curve_divide`; interpolation `linear` or `nearest` |
+| `apply_curve_operation(target, operand, operation, *, interpolation="linear", extrapolate=False)` | `curve_add`, `curve_subtract`, `curve_multiply`, `curve_divide`; interpolation `linear`, `nearest` or `cubic` |
 | `apply_background_subtraction(curve, background, *, method, description, parameters=None)` | Subtract supplied array from all rows, including masked rows |
 
-Curve arithmetic stores the interpolated operand as a snapshot. Without
-extrapolation, out-of-range points become invalid; enabled linear interpolation
-extends endpoint values. Formula output must be finite and match the row count;
-scalars broadcast. Coordinate/column formulas propagate existing uncertainty
-using a numerical first-order local derivative with respect to the target axis.
-Affine scaling is exact; nonlinear propagation is a local approximation.
-Asymmetric Y sides swap for a negative derivative. Uncertainty in other input
-columns, correlations, and operand-curve errors are not jointly propagated.
-Inverse-variance weights follow the same local Y-uncertainty propagation;
-direct arbitrary residual multipliers retain their declared multiplier semantics. Normalization uses current data,
-including masked rows.
+Curve arithmetic aligns unmasked valid source rows and stores the aligned
+operand and its error scales for replay. Linear extrapolation extends the
+boundary segments. Marginal uncertainties propagate with the interpolation and
+arithmetic derivatives under the independent-input assumption. Normalization
+uses all finite current data, including masked rows, and propagates the
+denominator uncertainty into the marginal errors. Shared errors from
+normalization or noisy interpolation suppress independent-noise inference.
+
+Formula output must be finite and match the row count. Scalars broadcast.
+Coordinate and column formulas use a numerical first-order derivative with
+respect to the target axis. Asymmetric Y sides swap for a negative derivative.
+Inverse-variance weights follow the same uncertainty propagation. Direct
+residual multipliers carry no measurement variance.
 
 Nonlinear formula derivatives use local, scale-aware perturbations and
 Richardson extrapolation. For `z=y**3`, the audited tiny-value example now agrees
@@ -829,8 +831,10 @@ unknown noise scale adds one likelihood parameter; independent fits retain their
 separate fitted noise scales. The result records `negative_twice_log_likelihood`
 and `likelihood_parameters`. AIC/AICc/BIC are unavailable for robust losses,
 active interval-error arrays (including equal lower/upper half-widths) and
-arbitrary spectrum balancing. Insufficient degrees
-or rank may leave covariance unavailable. Matrix rows follow
+arbitrary spectrum balancing or correlated errors from preprocessing. Known
+measurement variances propagate through spectrum weighting when calculating
+covariance. A rank-deficient fit reports local errors only for identifiable
+quantities and omits the full matrix. Matrix rows follow
 `free_parameter_paths`. Independent-batch matrices may be `BlockDiagonalMatrix`;
 `np.asarray(matrix)` densifies and can require substantial memory.
 
@@ -878,6 +882,13 @@ workers=1, cancellation=None, progress=None)`:
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
   block length for each curve.
+
+All replicas preserve the baseline's fitted rows. Changed models, fitted rows
+or fit weighting require a new baseline. For asymmetric Monte Carlo, observations
+follow a two-piece Gaussian with side probabilities proportional to the scales
+and side orientation consistent with the weighted objective. When the refit
+ignores data errors, the noise has zero mean. Resampling requires independent
+input errors from preprocessing, or an explicitly modeled dependence.
 
 Both bootstrap methods standardize sigma and inverse-variance noise equivalently;
 automatic block lengths use the same standardized residuals. Supplied noise
@@ -932,8 +943,9 @@ scale: provide known sigma. Convolution preserves the full regular grid before
 selecting fitted rows.
 
 Profile threshold crossings are refined by bracketed refits. `confidence_regions`
-contains every connected region detected by the scan; `interval` selects the region
-containing the fitted estimate and never bridges rejected gaps. Disconnected sets
+contains the connected regions detected within the scan. The calibrated
+`interval` contains the fitted estimate when the scan resolves it. An unresolved
+endpoint is returned as `None`. Disconnected sets
 are marked **Critical**. `warnings` reports incomplete scans or unrefined endpoints;
 inspect every region and extend the scan where needed. A finite grid can still miss
 a narrow remote mode. The default Gaussian-location example now agrees with the

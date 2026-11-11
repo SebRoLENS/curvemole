@@ -72,6 +72,45 @@ class Mask:
         return {"id": self.id, "name": self.name, "ranges": [list(item) for item in self.ranges]}
 
 
+def _scale_interval(minus, plus, factor):
+    magnitude = np.abs(factor)
+    return (np.where(factor < 0, plus, minus) * magnitude,
+            np.where(factor < 0, minus, plus) * magnitude)
+
+
+def _normalization(x, y, operation):
+    coefficients = np.zeros_like(y)
+    if operation == "normalize_max":
+        peak = int(np.nanargmax(np.abs(y))) if not np.all(np.isnan(y)) else 0
+        scale = abs(y[peak])
+        coefficients[peak] = np.sign(y[peak])
+    else:
+        finite = np.isfinite(x) & np.isfinite(y)
+        steps = np.diff(x[finite]) / 2
+        coefficients[finite] = np.r_[steps, 0.] + np.r_[0., steps] if np.any(finite) else []
+        scale = float(np.dot(coefficients[finite], y[finite]))
+    if not np.isfinite(scale) or scale == 0:
+        raise DataValidationError("Cannot normalise a curve with a zero or invalid denominator.")
+    return scale, coefficients
+
+
+def _normalized_errors(minus, plus, normalized, scale, coefficients):
+    # J = I / scale - outer(normalized, coefficients) / scale.
+    # Sum the off-diagonal contribution without subtracting nearly equal variances.
+    diagonal = (1 - normalized * coefficients) / scale
+    own_minus, own_plus = _scale_interval(minus, plus, diagonal)
+    low, high = _scale_interval(minus, plus, coefficients)
+    low[coefficients == 0] = high[coefficients == 0] = 0.
+
+    def other_norm(values):
+        prefix = np.hypot.accumulate(np.r_[0., values])[:-1]
+        suffix = np.hypot.accumulate(np.r_[0., values[::-1]])[:-1][::-1]
+        return np.hypot(prefix, suffix)
+
+    other_minus, other_plus = _scale_interval(other_norm(low), other_norm(high), -normalized / scale)
+    return np.hypot(own_minus, other_minus), np.hypot(own_plus, other_plus)
+
+
 @dataclass(slots=True)
 class Transformation:
     operation: str
@@ -79,6 +118,23 @@ class Transformation:
     description: str = ""
     created_at: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
     operand: np.ndarray | None = field(default=None, repr=False)
+    operand_errors: np.ndarray | None = field(default=None, repr=False)
+
+    def target_y_derivative(self):
+        op = self.operation
+        if op == "y_multiply":
+            return float(self.parameters["value"])
+        if op == "y_divide":
+            divisor = float(self.parameters["value"])
+            if divisor == 0:
+                raise DataValidationError("Cannot divide y by zero.")
+            return 1 / divisor
+        if op == "curve_multiply":
+            return self.operand
+        if op == "curve_divide":
+            with np.errstate(divide="ignore", invalid="ignore"):
+                return 1 / self.operand
+        return 1.
 
     def apply(
         self, x: np.ndarray, y: np.ndarray, sigma_y: np.ndarray | None
@@ -126,22 +182,11 @@ class Transformation:
                 x_new = result
             else:
                 y_new = result
-        elif op == "normalize_max":
-            scale = np.nanmax(np.abs(y_new))
-            if not np.isfinite(scale) or scale == 0:
-                raise DataValidationError("Cannot normalise a curve with zero or invalid maximum.")
+        elif op in {"normalize_max", "normalize_area"}:
+            scale, coefficients = _normalization(x_new, y_new, op)
             y_new /= scale
             if sigma_new is not None:
-                sigma_new /= scale
-        elif op == "normalize_area":
-            from scipy import integrate
-            finite = np.isfinite(x_new) & np.isfinite(y_new)
-            area = float(integrate.trapezoid(y_new[finite], x_new[finite]))
-            if not np.isfinite(area) or area == 0:
-                raise DataValidationError("Cannot normalise a curve with zero or invalid area.")
-            y_new /= area
-            if sigma_new is not None:
-                sigma_new /= abs(area)
+                sigma_new, _ = _normalized_errors(sigma_new, sigma_new, y_new, scale, coefficients)
         elif op == "background_subtract":
             if self.operand is None or len(self.operand) != len(y_new):
                 raise DataValidationError("Background subtraction is missing its background array.")
@@ -180,6 +225,7 @@ class Transformation:
             "description": self.description,
             "created_at": self.created_at,
             "has_operand": self.operand is not None,
+            "has_operand_errors": self.operand_errors is not None,
         }
 
 
@@ -221,6 +267,7 @@ class Curve:
     _error_y_minus_current: np.ndarray | None = field(init=False, repr=False)
     _error_y_plus_current: np.ndarray | None = field(init=False, repr=False)
     _sigma_x_current: np.ndarray | None = field(init=False, repr=False)
+    _correlated_y_errors: bool = field(init=False, repr=False)
     _weights_current: np.ndarray | None = field(init=False, repr=False)
     _row_indices: np.ndarray = field(init=False, repr=False)
     _mask_original_excluded: dict[str, np.ndarray] = field(init=False, default_factory=dict, repr=False)
@@ -355,7 +402,7 @@ class Curve:
         view.setflags(write=False)
         return view
 
-    def y_error_scales(self) -> tuple[np.ndarray, np.ndarray] | None:
+    def y_error_scales(self, *, include_inverse_variance: bool = False) -> tuple[np.ndarray, np.ndarray] | None:
         """Gaussian tail scales; asymmetric intervals use their declared confidence."""
         if self._error_y_minus_current is not None:
             from scipy.special import ndtri
@@ -363,7 +410,16 @@ class Curve:
             return self._error_y_minus_current / z, self._error_y_plus_current / z
         if self._sigma_y_current is not None:
             return self._sigma_y_current, self._sigma_y_current
+        if include_inverse_variance and self.weights_are_inverse_variance and self._weights_current is not None:
+            weights = self._weights_current
+            sigma = np.full_like(weights, np.nan)
+            np.divide(1, np.sqrt(np.maximum(weights, 0)), out=sigma, where=weights > 0)
+            return sigma, sigma
         return None
+
+    @property
+    def has_correlated_y_errors(self) -> bool:
+        return self._correlated_y_errors
 
     def residual_scale(self, fitted: np.ndarray, indices: np.ndarray,
                        *, use_data_errors: bool = True) -> np.ndarray | None:
@@ -379,9 +435,8 @@ class Curve:
             return np.sqrt(values) if self.weights_are_inverse_variance else values
         return None
 
-    @property
-    def effective_mask(self) -> np.ndarray:
-        excluded = self.invalid.copy()
+    def _excluded_rows(self, *, use_data_errors: bool) -> np.ndarray:
+        excluded = self.invalid if use_data_errors else ~np.isfinite(self._x) | ~np.isfinite(self._y)
         for mask in self.masks.values():
             excluded |= mask.excluded
         if self.fit_ranges:
@@ -393,28 +448,33 @@ class Curve:
         return excluded
 
     @property
+    def effective_mask(self) -> np.ndarray:
+        return self._excluded_rows(use_data_errors=True)
+
+    @property
     def content_hash(self) -> str:
+        return self.fit_input_hash()
+
+    def fit_input_hash(self, schema_version: int = 2) -> str:
+        """Retain the historical fingerprint for verifying archived records."""
         digest = hashlib.sha256()
-        for array in (self._x, self._y, self.effective_mask, self._sigma_y_current,
+        mask = self.effective_mask if schema_version == 1 else self._excluded_rows(use_data_errors=False)
+        for array in (self._x, self._y, mask, self._sigma_y_current,
                       self._error_y_minus_current, self._error_y_plus_current, self._weights_current):
-            digest.update(b"none" if array is None else np.ascontiguousarray(array).tobytes())
-        digest.update(repr((self.error_confidence_level, self.weights_are_inverse_variance)).encode())
+            if array is None:
+                digest.update(b"none")
+            else:
+                if schema_version >= 2:
+                    digest.update(repr((array.dtype.str, array.shape)).encode())
+                digest.update(np.ascontiguousarray(array).tobytes())
+        flags = (self.error_confidence_level, self.weights_are_inverse_variance)
+        if schema_version >= 2:
+            flags += (self.has_correlated_y_errors,)
+        digest.update(repr(flags).encode())
         return digest.hexdigest()
 
     def fit_arrays(self, *, use_data_errors: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
-        if use_data_errors:
-            keep = ~self.effective_mask
-        else:
-            # Ignoring imported errors also keeps rows with invalid error/weight values.
-            excluded = ~np.isfinite(self._x) | ~np.isfinite(self._y)
-            for mask in self.masks.values():
-                excluded |= mask.excluded
-            if self.fit_ranges:
-                included = np.zeros(len(self), dtype=bool)
-                for lo, hi in self.fit_ranges:
-                    included |= (self._x >= min(lo, hi)) & (self._x <= max(lo, hi))
-                excluded |= ~included
-            keep = ~excluded
+        keep = ~self._excluded_rows(use_data_errors=use_data_errors)
         if use_data_errors and not self.has_y_errors and self._weights_current is not None:
             # Zero-weight rows contribute no information, including to N and dof.
             keep &= self._weights_current > 0
@@ -584,6 +644,7 @@ class Curve:
             # Propagate a unit sigma factor, preserving original weights exactly
             # when no Y scaling occurs (no inverse/sqrt round-trip noise).
             weight_sigma = np.ones_like(weights)
+        correlated = False
         rows = np.arange(len(x))
         original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
         from curvemole.core.columns import calculator_column_axes, evaluate_columns
@@ -675,33 +736,68 @@ class Curve:
                 p = transformation.parameters
                 x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
                                         self.column_labels, column_axes)
+            elif op in {"normalize_max", "normalize_area"}:
+                scale, coefficients = _normalization(x, y, op)
+                y = y / scale
+                correlated = True
+                if minus is not None:
+                    minus, plus = _normalized_errors(minus, plus, y, scale, coefficients)
+                if sigma is not None:
+                    sigma, _ = _normalized_errors(sigma, sigma, y, scale, coefficients)
+                if weight_sigma is not None:
+                    error = np.full_like(weights, np.nan)
+                    np.divide(weight_sigma, np.sqrt(np.maximum(weights, 0)), out=error, where=weights > 0)
+                    error, _ = _normalized_errors(error, error, y, scale, coefficients)
+                    weight_sigma = error * np.sqrt(np.maximum(weights, 0))
             else:
-                if minus is not None and derivative is None:
-                    # Apply identical reversible scaling to both interval sides.
-                    _, _, next_minus = transformation.apply(x, y, minus)
-                    _, _, next_plus = transformation.apply(x, y, plus)
-                    factor = np.ones(len(y))
-                    op, p = transformation.operation, transformation.parameters
-                    if op == "y_multiply":
-                        factor[:] = float(p["value"])
-                    elif op == "y_divide":
-                        factor[:] = 1 / float(p["value"])
-                    elif op == "normalize_area":
-                        from scipy import integrate
-                        finite = np.isfinite(x) & np.isfinite(y)
-                        factor[:] = float(integrate.trapezoid(y[finite], x[finite]))
-                    elif op in {"curve_multiply", "curve_divide"}:
-                        factor = transformation.operand
-                    negative = factor < 0
-                    minus = np.where(negative, next_plus, next_minus)
-                    plus = np.where(negative, next_minus, next_plus)
-                if weight_sigma is not None and derivative is None:
-                    _, _, weight_sigma = transformation.apply(x, y, weight_sigma)
-                x, y, sigma = transformation.apply(x, y, sigma)
+                x, next_y, next_sigma = transformation.apply(x, y, sigma)
+                if derivative is None:
+                    factor = transformation.target_y_derivative()
+                    if p.get("same_measurement"):
+                        # Differentiate both appearances of the same Y value.
+                        factor = 2 * y if op == "curve_multiply" else 2. if op == "curve_add" else 0.
+                        if sigma is not None:
+                            next_sigma = sigma * np.abs(factor)
+                    if minus is not None:
+                        minus, plus = _scale_interval(minus, plus, factor)
+                    if weight_sigma is not None:
+                        weight_sigma = weight_sigma * np.abs(factor)
+                if transformation.operand_errors is not None:
+                    if transformation.operand_errors.shape != (2, len(y)):
+                        raise DataValidationError("Aligned operand uncertainties do not match the curve.")
+                    if op == "curve_add":
+                        operand_factor = 1.
+                    elif op == "curve_subtract":
+                        operand_factor = -1.
+                    elif op == "curve_multiply":
+                        operand_factor = y
+                    else:
+                        with np.errstate(divide="ignore", invalid="ignore"):
+                            operand_factor = -next_y / transformation.operand
+                    other_minus, other_plus = _scale_interval(*transformation.operand_errors, operand_factor)
+                    correlated |= p.get("correlated_operand", False)
+                    if minus is not None or p.get("asymmetric_operand", False):
+                        from scipy.special import ndtri
+                        z = ndtri((1 + self.error_confidence_level) / 2)
+                        if minus is None:
+                            if weight_sigma is not None:
+                                next_sigma = np.full_like(weights, np.nan)
+                                np.divide(weight_sigma, np.sqrt(np.maximum(weights, 0)), out=next_sigma, where=weights > 0)
+                                weight_sigma = weights = None
+                            minus = plus = 0. if next_sigma is None else z * next_sigma
+                        minus = np.hypot(minus, z * other_minus)
+                        plus = np.hypot(plus, z * other_plus)
+                        next_sigma = None
+                    elif weight_sigma is not None:
+                        weight_sigma = np.hypot(weight_sigma, other_minus * np.sqrt(np.maximum(weights, 0)))
+                    else:
+                        next_sigma = np.hypot(0. if next_sigma is None else next_sigma, other_minus)
+                y, sigma = next_y, next_sigma
             for axis, values in (("x", x), ("y", y)):
                 if axis in column_axes:
                     columns[column_axes[axis]] = values.copy()
         self._columns = columns
+        self._correlated_y_errors = correlated
         self._x, self._y, self._sigma_y_current = x, y, sigma
         self._error_y_minus_current, self._error_y_plus_current = minus, plus
         self._sigma_x_current = sigma_x
@@ -825,32 +921,65 @@ def aligned_operand(
     extrapolate: bool = False,
 ) -> np.ndarray:
     """Interpolate source values onto target x without silent extrapolation."""
+    return align_operand_with_errors(target_x, source_x, source_y, method=method,
+                                     extrapolate=extrapolate)[0]
 
-    finite = np.isfinite(source_x) & np.isfinite(source_y)
-    sx, sy = source_x[finite], source_y[finite]
+
+def align_operand_with_errors(
+    target_x: np.ndarray, source_x: np.ndarray, source_y: np.ndarray, *,
+    method: str, extrapolate: bool, errors: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray | None]:
+    """Apply interpolation and propagate independent source errors by its weights."""
+    indices = np.flatnonzero(np.isfinite(source_x) & np.isfinite(source_y))
+    indices = indices[np.argsort(source_x[indices], kind="stable")]
+    sx, positions = np.unique(source_x[indices], return_index=True)
+    indices = indices[positions]
+    sy = source_y[indices]
     if len(sx) < 2:
-        raise DataValidationError("The operand curve has fewer than two finite points.")
-    order = np.argsort(sx, kind="stable")
-    sx, sy = sx[order], sy[order]
-    unique, indices = np.unique(sx, return_index=True)
-    sx, sy = unique, sy[indices]
+        raise DataValidationError("The operand curve has fewer than two distinct usable X points.")
+    if errors is not None:
+        errors = errors[:, indices]
+    outside = ~np.isfinite(target_x)
+    if not extrapolate:
+        outside |= (target_x < sx[0]) | (target_x > sx[-1])
+    interpolated_errors = None
     if method == "linear":
-        left = sy[0] if extrapolate else np.nan
-        right = sy[-1] if extrapolate else np.nan
-        return np.interp(target_x, sx, sy, left=left, right=right)
-    if method == "nearest":
-        positions = np.searchsorted(sx, target_x, side="left")
-        positions = np.clip(positions, 0, len(sx) - 1)
-        previous = np.clip(positions - 1, 0, len(sx) - 1)
-        choose_previous = np.abs(target_x - sx[previous]) <= np.abs(target_x - sx[positions])
-        result = sy[np.where(choose_previous, previous, positions)].astype(float)
-        if not extrapolate:
-            result[(target_x < sx[0]) | (target_x > sx[-1])] = np.nan
-        return result
-    if method == "cubic":
+        right = np.clip(np.searchsorted(sx, target_x), 1, len(sx) - 1)
+        left = right - 1
+        fraction = (target_x - sx[left]) / (sx[right] - sx[left])
+        values = (1 - fraction) * sy[left] + fraction * sy[right]
+        if errors is not None:
+            left_errors = _scale_interval(*errors[:, left], 1 - fraction)
+            right_errors = _scale_interval(*errors[:, right], fraction)
+            interpolated_errors = np.hypot(left_errors, right_errors)
+    elif method == "nearest":
+        right = np.clip(np.searchsorted(sx, target_x), 1, len(sx) - 1)
+        left = right - 1
+        nearest = np.where(np.abs(target_x - sx[left]) <= np.abs(target_x - sx[right]), left, right)
+        values = sy[nearest]
+        if errors is not None:
+            interpolated_errors = errors[:, nearest]
+    elif method == "cubic":
         from scipy.interpolate import CubicSpline
 
         if len(sx) < 4:
             raise DataValidationError("Cubic interpolation requires at least four unique x values.")
-        return CubicSpline(sx, sy, extrapolate=extrapolate)(target_x)
-    raise DataValidationError(f"Unknown interpolation method: {method}")
+        values = CubicSpline(sx, sy, extrapolate=extrapolate)(target_x)
+        if errors is not None:
+            # Cubic splines are linear in the ordinates. Evaluate the response
+            # to unit basis vectors in batches to bound peak memory.
+            interpolated_errors = np.zeros((2, len(target_x)))
+            for start in range(0, len(sx), 32):
+                indices = np.arange(start, min(start + 32, len(sx)))
+                basis = np.zeros((len(sx), len(indices)))
+                basis[indices, np.arange(len(indices))] = 1
+                weights = CubicSpline(sx, basis, extrapolate=extrapolate)(target_x)
+                contributions = _scale_interval(*errors[:, None, indices], weights)
+                interpolated_errors = np.hypot(
+                    interpolated_errors, np.hypot.reduce(contributions, axis=-1))
+    else:
+        raise DataValidationError(f"Unknown interpolation method: {method}")
+    values[outside] = np.nan
+    if interpolated_errors is not None:
+        interpolated_errors[:, outside] = np.nan
+    return values, interpolated_errors

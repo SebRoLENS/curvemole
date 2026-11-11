@@ -402,13 +402,19 @@ class Model:
             raise DataValidationError(f"Model '{self.name}' contains duplicate component identifiers.")
         for component in self.components:
             definition = registry.get(component.function_id)
-            expected = {spec.name for spec in definition.specs(component.metadata)}
-            if set(component.parameters) != expected:
+            specs = {spec.name: spec for spec in definition.specs(component.metadata)}
+            if component.parameters.keys() != specs.keys():
                 raise DataValidationError(
                     f"Component '{component.name}' parameters do not match '{definition.display_name}'."
                 )
-            for parameter in component.parameters.values():
+            for name, parameter in component.parameters.items():
                 parameter.validate()
+                if definition.intrinsic_bounds:
+                    spec = specs[name]
+                    if parameter.minimum < spec.minimum or parameter.maximum > spec.maximum:
+                        raise DataValidationError(
+                            f"'{component.name}.{parameter.name}' limits exceed its intrinsic domain."
+                        )
 
     def clone(self) -> Model:
         return Model.from_dict(copy.deepcopy(self.to_dict()))

@@ -48,7 +48,8 @@ def test_reapply_replace_restore_mask_ranges_and_sigma():
     np.testing.assert_allclose(once.x, twice.x)
     np.testing.assert_array_equal(once.original_x, c.original_x)
     np.testing.assert_array_equal(once.y, c.y)
-    np.testing.assert_allclose(twice.sigma_x, .2)
+    np.testing.assert_allclose(twice.sigma_x, .1)
+    np.testing.assert_allclose(twice.current_sigma_x, .2)
     np.testing.assert_allclose(twice.fit_ranges, [(12., 14.)])
     np.testing.assert_allclose(twice.masks["Default"].ranges, [(12., 12.)])
     assert twice.masks["Default"].excluded[1]
@@ -190,3 +191,23 @@ def test_gui_manual_application_undo_redo_and_no_import_override(monkeypatch, co
         panel.deleteLater()
         window.close()
         app.processEvents()
+
+
+def test_calibration_propagates_once_after_deletion_recompute_and_reopen(tmp_path):
+    original = curve()
+    original.delete_points([1])
+    calibrated = plugin.calibrated_curve(original, profile())
+    np.testing.assert_allclose(calibrated.current_sigma_x, .2)
+    calibrated.apply_transformation(Transformation("y_add", {"value": 1}))
+    np.testing.assert_allclose(calibrated.current_sigma_x, .2)
+    project = Project()
+    project.add_curve(calibrated)
+    path = tmp_path / "legacy_sigma.fitproj"
+    # Simulate an archive saved by the old plugin, with scaled sigma stored
+    # among the raw inputs as well as a calibration transformation.
+    calibrated.sigma_x = calibrated.sigma_x * 2
+    calibrated.metadata[plugin.TAG].pop("raw_sigma_preserved")
+    save_project(project, path)
+    restored = load_project(path).curves[0]
+    np.testing.assert_allclose(restored.sigma_x, .1)
+    np.testing.assert_allclose(restored.current_sigma_x, .2)
