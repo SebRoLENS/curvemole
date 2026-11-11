@@ -21,6 +21,12 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Recognize Quick Start asset URLs on Windows. ([`32088cbb`](https://github.com/SebRoLENS/curvemole/commit/32088cbb2b16d8e20bb273850220de49e8c96bb4))
 - Keep personal AppImage update handling out of public builds. ([`baa4033b`](https://github.com/SebRoLENS/curvemole/commit/baa4033b0e30c69fad66feee0c1ab6bb2c1d61d7))
 - Keep mouse wheel zoom available in Mask mode. ([`3ff02ebb`](https://github.com/SebRoLENS/curvemole/commit/3ff02ebbdeaa67c2a4819d63b04617f3562e4ecd))
+- Highlight dock tab arrows and preserve panel titles. ([`3da3a6b5`](https://github.com/SebRoLENS/curvemole/commit/3da3a6b5e85bfdec8d0fe78c51ebc433068c7d97))
+- Verify dock tab scrolling across Qt platform styles. ([`7e5bf6b1`](https://github.com/SebRoLENS/curvemole/commit/7e5bf6b19d19bb71d76ae6a1268ee1fa9cf964b1))
+- Keep dock tabs scrollable in narrow panels. ([`78744053`](https://github.com/SebRoLENS/curvemole/commit/787440532ef068dd4b4c73a27a4c641ab3934712))
+- Verify full dock titles when captions elide. ([`d852fed0`](https://github.com/SebRoLENS/curvemole/commit/d852fed0b6ef54303cc45540ee92d672ccd2f110))
+- Use the official Ubuntu archive for Linux CI dependencies. ([`9e3a540e`](https://github.com/SebRoLENS/curvemole/commit/9e3a540efbab6d49623f315f9eb28f27f7377ceb))
+- Fall back to the Princeton Ubuntu mirror when Canonical is unreachable. ([`c8225622`](https://github.com/SebRoLENS/curvemole/commit/c822562259605b467c63fbdea2c5697195be0900))
 
 ### Fixed
 
@@ -30,6 +36,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Group default formula, function and plugin folders under curvemole_data. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
 - Make the Background control visible for the selected model functions, including mixed selections. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
 - Display effectively zero positive parameter bounds as 0 while preserving safe numerical limits. ([`32c94e66`](https://github.com/SebRoLENS/curvemole/commit/32c94e66e0f4b8a2e0e7a5af31bbae0bf6265eac))
+- Fix scientific fit, uncertainty, and spectrum data integrity. ([`6a86fca6`](https://github.com/SebRoLENS/curvemole/commit/6a86fca66a804234af9c37ccade369151f0c44d9))
 
 ### Documentation
 
