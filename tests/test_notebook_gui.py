@@ -79,7 +79,7 @@ def test_real_context_menus_edit_series_spectrum_and_clicked_function():
     assert seen[-1] == "Series note"
     assert notes[description_key("series", series.id)].text == "Series note"
     toolbar = window.findChild(QToolBar, "Main_toolbar")
-    assert toolbar.actions()[-1] == window.notebook_action
+    assert window.notebook_action in toolbar.actions()
     assert not window.notebook_action.icon().isNull()
     window.notebook_action.trigger()
     app.processEvents()

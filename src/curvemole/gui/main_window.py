@@ -1298,9 +1298,9 @@ class MainWindow(QMainWindow):
         self.uncertainty_action = self._open_tool_action(
             self.uncertainty_dock, self.tr("Uncertainty Analysis")
         )
-        self.function_action.setIconText("f(x)")
+        self.function_action.setIcon(_resource_icon("function-builder.svg"))
         self.function_action.setToolTip(self.tr("Function Builder"))
-        self.uncertainty_action.setIconText("±σ")
+        self.uncertainty_action.setIcon(_resource_icon("uncertainty-analysis.svg"))
         self.uncertainty_action.setToolTip(self.tr("Uncertainty Analysis"))
         self.diagnostics_action = self._tool_action(self.diagnostics_dock, self.tr("Diagnostics"))
         self.log_action = self._tool_action(self.log_dock, self.tr("Log"))

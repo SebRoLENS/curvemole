@@ -27,6 +27,7 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                window.plot_workspace.mask_action, window.import_action,
                window.open_action, window.save_action, window.undo_action,
                window.redo_action, window.calculator_action, window.notebook_action,
+               window.function_action, window.uncertainty_action,
                window.fit_action, window.quick_fit_action, window.cancel_action,
                window.subtract_background_action)
     for action in actions:
