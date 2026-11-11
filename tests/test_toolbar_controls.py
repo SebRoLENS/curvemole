@@ -66,7 +66,7 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     spacer = toolbar.widgetForAction(ordered[-7])
     assert spacer.sizePolicy().horizontalPolicy().name == "Expanding"
     assert ordered.index(window.cancel_action) < ordered.index(window.notebook_action)
-    window.resize(1440, 700)
+    window.resize(max(1800, toolbar.sizeHint().width() + 24), 700)
     window.show()
     app.processEvents()
     first_tool = toolbar.widgetForAction(tools[0])
