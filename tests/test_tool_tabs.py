@@ -154,6 +154,8 @@ def test_native_tools_are_tabs_and_actions_activate_them():
     app.processEvents()
 
     toolbar = window.findChild(QToolBar, "Main_toolbar")
+    model_button = toolbar.widgetForAction(window.model_action)
+    assert model_button.isChecked()
     for action, dock in (
         (window.notebook_action, window.notebook_dock),
         (window.calculator_action, window.calculator_dock),
@@ -161,15 +163,17 @@ def test_native_tools_are_tabs_and_actions_activate_them():
         (window.uncertainty_action, window.uncertainty_dock),
     ):
         button = toolbar.widgetForAction(action)
-        assert dock.isHidden()
+        assert dock.isHidden() and not button.isChecked()
         button.click()
         app.processEvents()
         assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
+        assert button.isChecked() and not model_button.isChecked()
         assert dock in window.tabifiedDockWidgets(window.model_dock)
 
         window.model_dock.raise_()
         app.processEvents()
         assert not dock.isHidden() and dock.visibleRegion().isEmpty()
+        assert model_button.isChecked() and not button.isChecked()
         button.click()
         app.processEvents()
         assert not dock.visibleRegion().isEmpty()
@@ -177,13 +181,28 @@ def test_native_tools_are_tabs_and_actions_activate_them():
         button.click()
         app.processEvents()
         assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
+        assert button.isChecked() and not model_button.isChecked()
 
         dock.close()
         app.processEvents()
-        assert dock.isHidden()
+        assert dock.isHidden() and not button.isChecked()
         button.click()
         app.processEvents()
         assert not dock.isHidden() and not dock.visibleRegion().isEmpty()
+        assert button.isChecked() and not model_button.isChecked()
+
+    model_button.click()
+    app.processEvents()
+    assert model_button.isChecked() and not window.uncertainty_action.isChecked()
+    model_button.click()
+    app.processEvents()
+    assert not window.model_dock.isHidden() and model_button.isChecked()
+    window.model_dock.close()
+    app.processEvents()
+    assert window.model_dock.isHidden() and not model_button.isChecked()
+    model_button.click()
+    app.processEvents()
+    assert not window.model_dock.isHidden() and model_button.isChecked()
 
     window.project.dirty = False
     window.close()

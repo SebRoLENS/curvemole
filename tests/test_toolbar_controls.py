@@ -27,7 +27,7 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
                window.plot_workspace.mask_action, window.import_action,
                window.open_action, window.save_action, window.undo_action,
                window.redo_action, window.calculator_action, window.notebook_action,
-               window.function_action, window.uncertainty_action,
+               window.model_action, window.function_action, window.uncertainty_action,
                window.fit_action, window.quick_fit_action, window.cancel_action,
                window.subtract_background_action)
     for action in actions:
@@ -59,14 +59,14 @@ def test_toolbar_actions_icons_and_explicit_mask_toggle():
     assert ordered[ordered.index(window.revert_background_action) + 1].isSeparator()
     assert ordered[ordered.index(window.plot_workspace.mask_action) + 1].isSeparator()
     assert ordered.index(quick_group_action) < ordered.index(window.fit_action)
-    tools = [window.notebook_action, window.calculator_action,
+    tools = [window.model_action, window.notebook_action, window.calculator_action,
              window.function_action, window.uncertainty_action]
-    assert ordered[-4:] == tools
-    assert ordered[-5].isSeparator()
-    spacer = toolbar.widgetForAction(ordered[-6])
+    assert ordered[-5:] == tools
+    assert ordered[-6].isSeparator()
+    spacer = toolbar.widgetForAction(ordered[-7])
     assert spacer.sizePolicy().horizontalPolicy().name == "Expanding"
     assert ordered.index(window.cancel_action) < ordered.index(window.notebook_action)
-    window.resize(1800, 700)
+    window.resize(1440, 700)
     window.show()
     app.processEvents()
     first_tool = toolbar.widgetForAction(tools[0])

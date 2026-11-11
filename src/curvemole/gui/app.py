@@ -343,6 +343,7 @@ def _missing_toolbar_icons(window: MainWindow) -> list[str]:
         "calculator.png": window.calculator_action,
         "subtract-background.png": window.subtract_background_action,
         "function-info.svg": window.function_info_action,
+        "model-parameters.svg": window.model_action,
         "function-builder.svg": window.function_action,
         "uncertainty-analysis.svg": window.uncertainty_action,
         "add-peak.svg": window.quick_peak_action,

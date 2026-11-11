@@ -1216,9 +1216,22 @@ class MainWindow(QMainWindow):
         )
         return action
 
-    def _open_tool_action(self, dock: QDockWidget, text: str) -> QAction:
-        action = QAction(text, self)
-        action.triggered.connect(lambda: self._show_tool_dock(dock))
+    def _open_tool_action(
+        self, dock: QDockWidget, text: str, open_tool: Callable[[], None] | None = None,
+    ) -> QAction:
+        action = QAction(text, self, checkable=True)
+        dock.visibilityChanged.connect(action.setChecked)
+
+        def show_and_sync() -> None:
+            if open_tool is None:
+                self._show_tool_dock(dock)
+            else:
+                open_tool()
+            # Clicking a checked QAction flips it before triggered(). Its
+            # check state follows the dock tab, including repeated clicks.
+            action.setChecked(dock.isVisible() and not dock.visibleRegion().isEmpty())
+
+        action.triggered.connect(show_and_sync)
         return action
 
     def _show_tool_dock(self, dock: QDockWidget) -> None:
@@ -1263,9 +1276,11 @@ class MainWindow(QMainWindow):
         self.export_view_action = QAction(self.tr("Quick export: current view with Matplotlib…"), self)
         self.export_view_action.triggered.connect(self.export_current_view)
         self.export_view_action.setToolTip(self.tr("Save the visible curves, offsets, background display, log scales and zoom as PNG, SVG or PDF."))
-        self.notebook_action = QAction(_resource_icon("laboratory-notebook.svg"), self.tr("Laboratory notebook"), self)
+        self.notebook_action = self._open_tool_action(
+            self.notebook_dock, self.tr("Laboratory notebook"), self.open_notebook,
+        )
+        self.notebook_action.setIcon(_resource_icon("laboratory-notebook.svg"))
         self.notebook_action.setToolTip(self.tr("Project notes and descriptions of series, spectra and fit functions"))
-        self.notebook_action.triggered.connect(self.open_notebook)
         self.notebook_dock.visibilityChanged.connect(self._notebook_visibility_changed)
         self.recovery_action = QAction(self.tr("Recoverable sessions…"), self)
         self.recovery_action.triggered.connect(lambda checked=False: self.show_recovery_sessions())
@@ -1282,6 +1297,8 @@ class MainWindow(QMainWindow):
         self.redo_action.setIcon(_resource_icon("redo.svg"))
         self.redo_action.setShortcut(QKeySequence.StandardKey.Redo)
 
+        self.model_action = self._open_tool_action(self.model_dock, self.tr("Model and parameters"))
+        self.model_action.setIcon(_resource_icon("model-parameters.svg"))
         self.calculator_action = self._open_tool_action(self.calculator_dock, self.tr("Data Calculator"))
         self.calculator_action.setIcon(_resource_icon("calculator.svg"))
         self.calculator_action.setToolTip(self.tr("Data Calculator"))
@@ -1550,9 +1567,16 @@ class MainWindow(QMainWindow):
         spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         toolbar.addWidget(spacer)
         toolbar.addSeparator()
-        toolbar.addActions([
-            self.notebook_action, self.calculator_action, self.function_action, self.uncertainty_action,
-        ])
+        tools = [
+            self.model_action, self.notebook_action, self.calculator_action,
+            self.function_action, self.uncertainty_action,
+        ]
+        toolbar.addActions(tools)
+        for action in tools:
+            toolbar.widgetForAction(action).setStyleSheet(
+                "QToolButton:checked { background: palette(button); "
+                "border: 2px solid palette(highlight); border-radius: 6px; }"
+            )
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
