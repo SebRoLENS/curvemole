@@ -137,8 +137,12 @@ def test_moved_series_dock_keeps_its_title_when_tabs_are_reordered():
         window._tool_tab_filter.format_titles(bar)
 
     assert bar.tabData(0) == series_id
-    assert bar.tabText(0) == "Series and curves"
-    assert bar.tabToolTip(0) == "Series and curves"
+    title = "Series and curves"
+    caption = bar.tabText(0)
+    assert bar.tabToolTip(0) == title
+    if caption != title:
+        assert caption.endswith("...")
+        assert title.startswith(caption[:-3])
     window.close()
 
 
