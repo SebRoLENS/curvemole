@@ -2,6 +2,15 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.0-beta.119](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.119) — published 2026-11-11
+
+Changes since `v1.3.0-beta.117` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.117...v1.3.0-beta.119)).
+
+### Changed
+
+- Keep personal AppImage update handling out of public builds. ([`baa4033b`](https://github.com/SebRoLENS/curvemole/commit/baa4033b0e30c69fad66feee0c1ab6bb2c1d61d7))
+- Keep mouse wheel zoom available in Mask mode. ([`3ff02ebb`](https://github.com/SebRoLENS/curvemole/commit/3ff02ebbdeaa67c2a4819d63b04617f3562e4ecd))
+
 ## [1.3.0-beta.117](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.117) — published 2026-11-10
 
 Changes since `v1.2.3-beta.103` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.2.3-beta.103...v1.3.0-beta.117)).

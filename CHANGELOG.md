@@ -20,6 +20,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Autoscale the plot when clicking a data series. ([`b5a38ebe`](https://github.com/SebRoLENS/curvemole/commit/b5a38ebef2a38c1b98093a0f05e880cce9f206fb))
 - Recognize Quick Start asset URLs on Windows. ([`32088cbb`](https://github.com/SebRoLENS/curvemole/commit/32088cbb2b16d8e20bb273850220de49e8c96bb4))
 - Keep personal AppImage update handling out of public builds. ([`baa4033b`](https://github.com/SebRoLENS/curvemole/commit/baa4033b0e30c69fad66feee0c1ab6bb2c1d61d7))
+- Keep mouse wheel zoom available in Mask mode. ([`3ff02ebb`](https://github.com/SebRoLENS/curvemole/commit/3ff02ebbdeaa67c2a4819d63b04617f3562e4ecd))
 
 ### Fixed
 
