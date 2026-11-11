@@ -2,6 +2,40 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.0-beta.130](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.130) — published 2026-11-11
+
+Changes since `v1.3.0-beta.127` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.127...v1.3.0-beta.130)).
+
+### Added
+
+- Add formula and error-bar icons to the tool toolbar. ([`9d202ea3`](https://github.com/SebRoLENS/curvemole/commit/9d202ea3c0a88d4d5b7a525dabf2033902702865))
+
+### Changed
+
+- Give Undo and Redo stopwatch icons. ([`59e4a080`](https://github.com/SebRoLENS/curvemole/commit/59e4a0804a9bf4e950ef74033278e9286b1df66b))
+- Use a plus badge for the Restore Background icon. ([`fffa586a`](https://github.com/SebRoLENS/curvemole/commit/fffa586a1f9c13197f5758eb9b53cf441ae1699e))
+- Open or focus tool tabs from a right-aligned toolbar group. ([`c95abbf0`](https://github.com/SebRoLENS/curvemole/commit/c95abbf054229b8bdc513e6c198480c1d423f2ac))
+- Open Model and parameters from the toolbar and highlight the active tool. ([`392dd5bd`](https://github.com/SebRoLENS/curvemole/commit/392dd5bdaf02b4b36822044e28f2b52e0c607d07))
+- Verify toolbar alignment at a platform-appropriate width. ([`f3d75044`](https://github.com/SebRoLENS/curvemole/commit/f3d75044571c08f06791d33b36b6f926ae82447c))
+
+## [1.3.0-beta.127](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.127) — published 2026-11-11
+
+Changes since `v1.3.0-beta.119` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.119...v1.3.0-beta.127)).
+
+### Changed
+
+- Highlight dock tab arrows and preserve panel titles. ([`3da3a6b5`](https://github.com/SebRoLENS/curvemole/commit/3da3a6b5e85bfdec8d0fe78c51ebc433068c7d97))
+- Verify dock tab scrolling across Qt platform styles. ([`7e5bf6b1`](https://github.com/SebRoLENS/curvemole/commit/7e5bf6b19d19bb71d76ae6a1268ee1fa9cf964b1))
+- Keep dock tabs scrollable in narrow panels. ([`78744053`](https://github.com/SebRoLENS/curvemole/commit/787440532ef068dd4b4c73a27a4c641ab3934712))
+- Verify full dock titles when captions elide. ([`d852fed0`](https://github.com/SebRoLENS/curvemole/commit/d852fed0b6ef54303cc45540ee92d672ccd2f110))
+- Use the official Ubuntu archive for Linux CI dependencies. ([`9e3a540e`](https://github.com/SebRoLENS/curvemole/commit/9e3a540efbab6d49623f315f9eb28f27f7377ceb))
+- Fall back to the Princeton Ubuntu mirror when Canonical is unreachable. ([`c8225622`](https://github.com/SebRoLENS/curvemole/commit/c822562259605b467c63fbdea2c5697195be0900))
+- Publish the validated CurveMole 1.3.0 beta. ([`32edb3da`](https://github.com/SebRoLENS/curvemole/commit/32edb3da40daea3bbda7da685007c39d62c58673))
+
+### Fixed
+
+- Fix scientific fit, uncertainty, and spectrum data integrity. ([`6a86fca6`](https://github.com/SebRoLENS/curvemole/commit/6a86fca66a804234af9c37ccade369151f0c44d9))
+
 ## [1.3.0-beta.119](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.119) — published 2026-11-11
 
 Changes since `v1.3.0-beta.117` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.117...v1.3.0-beta.119)).

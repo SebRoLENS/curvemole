@@ -9,6 +9,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Added
 
 - Support matching columns by position in batch imports. ([`f80f7b6a`](https://github.com/SebRoLENS/curvemole/commit/f80f7b6adb3fd80488adc10252be91eb537ee930))
+- Add formula and error-bar icons to the tool toolbar. ([`9d202ea3`](https://github.com/SebRoLENS/curvemole/commit/9d202ea3c0a88d4d5b7a525dabf2033902702865))
 
 ### Changed
 
@@ -27,6 +28,12 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Verify full dock titles when captions elide. ([`d852fed0`](https://github.com/SebRoLENS/curvemole/commit/d852fed0b6ef54303cc45540ee92d672ccd2f110))
 - Use the official Ubuntu archive for Linux CI dependencies. ([`9e3a540e`](https://github.com/SebRoLENS/curvemole/commit/9e3a540efbab6d49623f315f9eb28f27f7377ceb))
 - Fall back to the Princeton Ubuntu mirror when Canonical is unreachable. ([`c8225622`](https://github.com/SebRoLENS/curvemole/commit/c822562259605b467c63fbdea2c5697195be0900))
+- Publish the validated CurveMole 1.3.0 beta. ([`32edb3da`](https://github.com/SebRoLENS/curvemole/commit/32edb3da40daea3bbda7da685007c39d62c58673))
+- Give Undo and Redo stopwatch icons. ([`59e4a080`](https://github.com/SebRoLENS/curvemole/commit/59e4a0804a9bf4e950ef74033278e9286b1df66b))
+- Use a plus badge for the Restore Background icon. ([`fffa586a`](https://github.com/SebRoLENS/curvemole/commit/fffa586a1f9c13197f5758eb9b53cf441ae1699e))
+- Open or focus tool tabs from a right-aligned toolbar group. ([`c95abbf0`](https://github.com/SebRoLENS/curvemole/commit/c95abbf054229b8bdc513e6c198480c1d423f2ac))
+- Open Model and parameters from the toolbar and highlight the active tool. ([`392dd5bd`](https://github.com/SebRoLENS/curvemole/commit/392dd5bdaf02b4b36822044e28f2b52e0c607d07))
+- Verify toolbar alignment at a platform-appropriate width. ([`f3d75044`](https://github.com/SebRoLENS/curvemole/commit/f3d75044571c08f06791d33b36b6f926ae82447c))
 
 ### Fixed
 
