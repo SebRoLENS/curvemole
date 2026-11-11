@@ -60,6 +60,7 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QPushButton,
     QStyle,
+    QStyleOptionTab,
     QTabBar,
     QTabWidget,
     QToolBar,
@@ -746,6 +747,32 @@ class CurveTree(RowDragMixin, QTreeWidget):
 class DockTabTitleFilter(QObject):
     """Reapply labels when Qt refreshes its own dock tabs during layout."""
 
+    SCROLLER_WIDTH = 58
+
+    @staticmethod
+    def _text_width(bar: QTabBar) -> int:
+        style = bar.style()
+        option = QStyleOptionTab()
+        option.initFrom(bar)
+        option.shape = bar.shape()
+        option.documentMode = bar.documentMode()
+        horizontal = style.pixelMetric(QStyle.PixelMetric.PM_TabBarTabHSpace, option, bar)
+        vertical = style.pixelMetric(QStyle.PixelMetric.PM_TabBarTabVSpace, option, bar)
+        frame = style.sizeFromContents(
+            QStyle.ContentsType.CT_TabBarTab, option,
+            QSize(horizontal, bar.fontMetrics().height() + vertical), bar,
+        ).width()
+        edges = sum(
+            style.subElementRect(element, option, bar).width()
+            for element in (
+                QStyle.SubElement.SE_TabBarTearIndicatorLeft,
+                QStyle.SubElement.SE_TabBarTearIndicatorRight,
+            )
+        )
+        # Qt's right arrow can stall if a single tab is wider than the
+        # viewport between the indicators and the scroll buttons.
+        return bar.width() - DockTabTitleFilter.SCROLLER_WIDTH - frame - edges - 1
+
     def format_titles(self, bar: QTabBar) -> None:
         window = self.parent()
         # Qt stores the dock identity in tabData. Tab order can differ from
@@ -755,13 +782,25 @@ class DockTabTitleFilter(QObject):
                 QDockWidget, options=Qt.FindChildOption.FindDirectChildrenOnly,
             )
         }
+        available = self._text_width(bar)
+        metrics = bar.fontMetrics()
         for index in range(bar.count()):
             dock = docks.get(bar.tabData(index))
             full = (
                 dock.property("curvemole_full_tab_title") or dock.windowTitle()
-                if dock is not None else bar.tabText(index)
+                if dock is not None else bar.tabToolTip(index) or bar.tabText(index)
             )
             label = full if len(full) <= 25 else full[:22] + "..."
+            icon_width = 0 if bar.tabIcon(index).isNull() else bar.iconSize().width() + 4
+            if available > 0 and metrics.size(Qt.TextFlag.TextShowMnemonic, label).width() > available - icon_width:
+                prefix = full[:22]
+                while prefix and metrics.size(Qt.TextFlag.TextShowMnemonic, prefix + "...").width() > available - icon_width:
+                    prefix = prefix[:-1]
+                label = prefix + "..."
+            if dock is not None and not dock.isFloating() and dock.windowTitle() != label:
+                # QMainWindow restores the caption from the dock on relayout.
+                window._prepare_tool_dock(dock)
+                window._set_tool_dock_caption(dock, label)
             if bar.tabText(index) != label:
                 bar.setTabText(index, label)
             if bar.tabToolTip(index) != full:
@@ -769,7 +808,7 @@ class DockTabTitleFilter(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if (isinstance(watched, QTabBar)
-                and event.type() in (QEvent.Type.Paint, QEvent.Type.LayoutRequest)):
+                and event.type() in (QEvent.Type.Paint, QEvent.Type.LayoutRequest, QEvent.Type.Resize)):
             self.format_titles(watched)
         return False
 
@@ -1047,14 +1086,17 @@ class MainWindow(QMainWindow):
     def _display_tool_dock_title(self, dock: QDockWidget, floating: bool) -> None:
         full = dock.property("curvemole_full_tab_title")
         visible = full if floating or len(full) <= 25 else full[:22] + "..."
-        if dock.windowTitle() != visible:
-            self._setting_tool_dock_title = True
-            try:
-                dock.setWindowTitle(visible)
-            finally:
-                self._setting_tool_dock_title = False
+        self._set_tool_dock_caption(dock, visible)
         dock.setToolTip(full)
         self._queue_tool_tab_refresh()
+
+    def _set_tool_dock_caption(self, dock: QDockWidget, caption: str) -> None:
+        if dock.windowTitle() != caption:
+            self._setting_tool_dock_title = True
+            try:
+                dock.setWindowTitle(caption)
+            finally:
+                self._setting_tool_dock_title = False
 
     def register_tool_dock(self, dock: QDockWidget) -> None:
         """Add a native or plugin tool to the shared tabbed workspace."""
@@ -1099,7 +1141,7 @@ class MainWindow(QMainWindow):
                 left_arrow = Path(str(icons.joinpath("chevron-left.svg"))).as_posix()
                 right_arrow = Path(str(icons.joinpath("chevron-right.svg"))).as_posix()
                 bar.setStyleSheet(f"""
-                    QTabBar::scroller {{ width: 58px; }}
+                    QTabBar::scroller {{ width: {DockTabTitleFilter.SCROLLER_WIDTH}px; }}
                     QToolButton#ScrollLeftButton, QToolButton#ScrollRightButton {{
                         background: palette(button);
                         border: 1px solid palette(mid);

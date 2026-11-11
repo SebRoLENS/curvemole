@@ -1,5 +1,6 @@
 """Native and plugin tools share the same dock-tab workspace."""
 
+import pytest
 from PySide6.QtCore import QSettings, QSignalBlocker, Qt
 from PySide6.QtWidgets import QApplication, QDockWidget, QTabBar, QToolButton, QWidget
 
@@ -59,7 +60,8 @@ def test_notebook_placeholder_keeps_a_python_owner():
     app.processEvents()
 
 
-def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
+@pytest.mark.parametrize("large_font", [False, True])
+def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles(large_font):
     app = QApplication.instance() or QApplication([])
     window = MainWindow(Project())
     window.resize(960, 640)
@@ -73,6 +75,13 @@ def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
     for _ in range(3):
         app.processEvents()
     bar = next(bar for bar in window.findChildren(QTabBar) if bar.parent() is window)
+    if large_font:
+        font = bar.font()
+        font.setPointSize(24)
+        bar.setFont(font)
+        window.resizeDocks([window.model_dock], [260], Qt.Orientation.Horizontal)
+        for _ in range(3):
+            app.processEvents()
     assert bar.usesScrollButtons()
     assert bar.elideMode() == Qt.TextElideMode.ElideNone
     assert all(len(bar.tabText(i)) <= 25 for i in range(bar.count()))
@@ -84,6 +93,10 @@ def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
     for button in (left, right):
         assert button.isVisible() and button.width() >= 26
         assert button.accessibleName() and button.toolTip()
+    # Every tab must fit between the arrows. Qt cannot scroll past a tab
+    # that starts at the viewport edge and extends under the right button.
+    available = bar.width() - left.width() - right.width()
+    assert max(bar.tabRect(i).width() for i in range(bar.count())) <= available
     assert left.isEnabled()
     offset = bar.tabRect(0).x()
     current = bar.currentIndex()
