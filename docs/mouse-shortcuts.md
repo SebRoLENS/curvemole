@@ -33,6 +33,7 @@ active spectrum or all visible spectra when entering the mode.
 | Right-drag | Mask an X interval. |
 | Left-click | Unmask the nearest point. |
 | Left-drag | Unmask an X interval. |
+| Mouse wheel | Zoom the plot. |
 
 Clicks edit masks in this mode; they do not perform normal double-click resets.
 Click **Mask** again to leave the mode.

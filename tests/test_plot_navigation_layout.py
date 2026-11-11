@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from PySide6.QtCore import QPoint, QPointF, Qt
-from PySide6.QtGui import QTextLayout, QTextOption
+from PySide6.QtGui import QTextLayout, QTextOption, QWheelEvent
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
     QApplication,
@@ -359,3 +359,39 @@ def test_clicking_series_autoscales_overlay_to_its_visible_spectra(scope, unmask
     finally:
         project.dirty = False
         main.close()
+
+
+@pytest.mark.parametrize("locked", [False, True])
+def test_mouse_wheel_zooms_in_and_out_in_mask_mode(window, locked):
+    app, main = window
+    workspace = main.plot_workspace
+    workspace.mask_toggle.setChecked(True)
+    workspace.set_view_locked(locked)
+    workspace.view_box.setRange(xRange=(0, 4), yRange=(0, 8), padding=0)
+    app.processEvents()
+    viewport = workspace.graphics.viewport()
+    cursor = workspace.graphics.mapFromScene(workspace.view_box.sceneBoundingRect().center())
+    global_cursor = viewport.mapToGlobal(cursor)
+    curve = main.project.dataset.curve(main.active_curve_id)
+    original_mask = curve.effective_mask.copy()
+
+    def wheel(delta):
+        event = QWheelEvent(
+            QPointF(cursor), QPointF(global_cursor), QPoint(), QPoint(0, delta),
+            Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.ScrollUpdate, False,
+        )
+        QApplication.sendEvent(viewport, event)
+        app.processEvents()
+        return np.ptp(workspace.view_box.viewRange(), axis=1)
+
+    before = np.ptp(workspace.view_box.viewRange(), axis=1)
+    zoomed_in = wheel(120)
+    zoomed_out = wheel(-120)
+    if locked:
+        np.testing.assert_allclose(zoomed_in, before)
+    else:
+        assert np.all(zoomed_in < before)
+        assert np.all(zoomed_out > zoomed_in)
+    np.testing.assert_allclose(zoomed_out, before)
+    assert workspace.view_box.mask_mode
+    np.testing.assert_array_equal(curve.effective_mask, original_mask)

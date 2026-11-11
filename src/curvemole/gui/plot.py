@@ -199,6 +199,9 @@ class MaskViewBox(pg.ViewBox):
                     self.unmaskRangeRequested.emit(float(start.x()), float(end.x()))
             event.accept()
             return
+        if self.mask_mode and self.interaction_mode is None:
+            event.ignore()
+            return
         if self.interaction_mode in {None, "data_points", "plugin_points"} and event.button() == Qt.MouseButton.RightButton:
             self._context_menu_timer.stop()
             self._context_menu_event = None
@@ -352,7 +355,7 @@ class PlotWorkspace(QWidget):
         self.mask_toggle.setText(self.tr("Mask"))
         self.mask_toggle.setCheckable(True)
         self.mask_toggle.setToolTip(
-            self.tr("Mask mode: right-drag to mask, left-drag to unmask. Click again to leave mask mode.")
+            self.tr("Mask mode: right-drag to mask, left-drag to unmask. Use the mouse wheel to zoom. Click again to leave mask mode.")
         )
         self.mask_toggle.toggled.connect(self._set_mask_mode)
         self.mask_action = QAction(self.tr("Mask"), self, checkable=True)
@@ -1420,7 +1423,9 @@ class PlotWorkspace(QWidget):
     def _update_interaction_state(self) -> None:
         spline_navigation = self._placement_mode == "spline"
         interactive = self._placement_mode is not None
-        enabled = (spline_navigation or not interactive) and not self._view_locked and not self.view_box.mask_mode
+        # MaskViewBox handles mask clicks and drags. Keep its mouse axes
+        # enabled so pyqtgraph can still zoom with the wheel.
+        enabled = (spline_navigation or not interactive) and not self._view_locked
         self.plot.setMouseEnabled(x=enabled, y=enabled)
 
     def _set_mask_mode(self, enabled: bool) -> None:
