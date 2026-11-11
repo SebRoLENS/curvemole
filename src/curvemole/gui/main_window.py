@@ -63,11 +63,13 @@ from PySide6.QtWidgets import (
     QTabBar,
     QTabWidget,
     QToolBar,
+    QToolButton,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import getCppPointer
 
 from curvemole.core.calculator import (
     apply_background_subtraction,
@@ -746,11 +748,19 @@ class DockTabTitleFilter(QObject):
 
     def format_titles(self, bar: QTabBar) -> None:
         window = self.parent()
-        docks = [window.model_dock, *window.tabifiedDockWidgets(window.model_dock)]
+        # Qt stores the dock identity in tabData. Tab order can differ from
+        # tabifiedDockWidgets() after dragging or restoring the layout.
+        docks = {
+            getCppPointer(dock)[0]: dock for dock in window.findChildren(
+                QDockWidget, options=Qt.FindChildOption.FindDirectChildrenOnly,
+            )
+        }
         for index in range(bar.count()):
-            dock = docks[index] if len(docks) == bar.count() else None
-            full = (dock.property("curvemole_full_tab_title") if dock is not None else None)
-            full = full or bar.tabToolTip(index) or bar.tabText(index)
+            dock = docks.get(bar.tabData(index))
+            full = (
+                dock.property("curvemole_full_tab_title") or dock.windowTitle()
+                if dock is not None else bar.tabText(index)
+            )
             label = full if len(full) <= 25 else full[:22] + "..."
             if bar.tabText(index) != label:
                 bar.setTabText(index, label)
@@ -1085,6 +1095,50 @@ class MainWindow(QMainWindow):
             if not bar.property("curvemole_tool_tabs"):
                 bar.installEventFilter(self._tool_tab_filter)
                 bar.setProperty("curvemole_tool_tabs", True)
+                icons = resources.files("curvemole.resources")
+                left_arrow = Path(str(icons.joinpath("chevron-left.svg"))).as_posix()
+                right_arrow = Path(str(icons.joinpath("chevron-right.svg"))).as_posix()
+                bar.setStyleSheet(f"""
+                    QTabBar::scroller {{ width: 58px; }}
+                    QToolButton#ScrollLeftButton, QToolButton#ScrollRightButton {{
+                        background: palette(button);
+                        border: 1px solid palette(mid);
+                        border-radius: 4px;
+                        margin: 2px 1px;
+                    }}
+                    QToolButton#ScrollLeftButton:disabled,
+                    QToolButton#ScrollRightButton:disabled {{
+                        background: transparent;
+                        border-color: transparent;
+                    }}
+                    QToolButton#ScrollLeftButton:enabled:hover,
+                    QToolButton#ScrollRightButton:enabled:hover {{
+                        background: palette(midlight);
+                        border-color: palette(highlight);
+                    }}
+                    QToolButton#ScrollLeftButton:enabled:pressed,
+                    QToolButton#ScrollRightButton:enabled:pressed {{
+                        background: palette(mid);
+                    }}
+                    QToolButton#ScrollLeftButton::left-arrow {{
+                        image: url("{left_arrow}");
+                        width: 16px;
+                        height: 16px;
+                    }}
+                    QToolButton#ScrollRightButton::right-arrow {{
+                        image: url("{right_arrow}");
+                        width: 16px;
+                        height: 16px;
+                    }}
+                """)
+                for name, description in (
+                    ("ScrollLeftButton", self.tr("Scroll tabs left")),
+                    ("ScrollRightButton", self.tr("Scroll tabs right")),
+                ):
+                    button = bar.findChild(QToolButton, name)
+                    if button is not None:
+                        button.setAccessibleName(description)
+                        button.setToolTip(description)
             bar.setExpanding(False)
             bar.setUsesScrollButtons(True)
             bar.setElideMode(Qt.TextElideMode.ElideNone)

@@ -1,6 +1,6 @@
 """Native and plugin tools share the same dock-tab workspace."""
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, QSignalBlocker, Qt
 from PySide6.QtWidgets import QApplication, QDockWidget, QTabBar, QToolButton, QWidget
 
 from curvemole import Project
@@ -79,10 +79,49 @@ def test_tool_tabs_scroll_and_limit_labels_without_losing_full_titles():
     assert all(bar.tabText(i).endswith("...") for i in range(bar.count() - 5, bar.count()))
     assert [bar.tabToolTip(i) for i in range(bar.count() - 5, bar.count())] == titles
     assert bar.tabRect(0).x() < 0 or bar.tabRect(bar.count() - 1).right() > bar.width()
-    assert any(button.isVisible() for button in bar.findChildren(QToolButton))
+    left = bar.findChild(QToolButton, "ScrollLeftButton")
+    right = bar.findChild(QToolButton, "ScrollRightButton")
+    for button in (left, right):
+        assert button.isVisible() and button.width() >= 26
+        assert button.accessibleName() and button.toolTip()
+    assert left.isEnabled()
+    offset = bar.tabRect(0).x()
+    left.click()
+    app.processEvents()
+    assert bar.tabRect(0).x() > offset
+    assert right.isEnabled()
+    right.click()
+    app.processEvents()
+    assert bar.tabRect(0).x() == offset
     window.project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_moved_series_dock_keeps_its_title_when_tabs_are_reordered():
+    from shiboken6 import getCppPointer
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(Project())
+    window.reset_layout()
+    window.show()
+    window.activate_tool_dock(window.calculator_dock)
+    window.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, window.series_dock)
+    window.tabifyDockWidget(window.model_dock, window.series_dock)
+    window.series_dock.raise_()
+    app.processEvents()
+
+    bar = next(bar for bar in window.findChildren(QTabBar) if bar.parent() is window)
+    series_id = getCppPointer(window.series_dock)[0]
+    index = next(index for index in range(bar.count()) if bar.tabData(index) == series_id)
+    with QSignalBlocker(bar):
+        bar.moveTab(index, 0)
+        window._tool_tab_filter.format_titles(bar)
+
+    assert bar.tabData(0) == series_id
+    assert bar.tabText(0) == "Series and curves"
+    assert bar.tabToolTip(0) == "Series and curves"
+    window.close()
 
 
 def test_native_tools_are_tabs_and_actions_activate_them():
