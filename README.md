@@ -2,8 +2,8 @@
 
 **Interactive curve fitting. Extensible scientific analysis.**
 
-[![Version](https://img.shields.io/github/v/release/SebRoLENS/curvemole)](https://github.com/SebRoLENS/curvemole/releases/latest)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23924231.svg)](https://doi.org/10.5281/zenodo.23924231)
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/github/v/release/SebRoLENS/curvemole" alt="Version"></a>
+  <a href="https://github.com/SebRoLENS/curvemole/releases/latest"><img src="https://img.shields.io/badge/DOI-pending-lightgrey" alt="DOI"></a>
 
 CurveMole brings model building, fitting, diagnostics, and visualisation into one modular desktop application. Start with a single curve, analyse a full experimental series, and automate recurring tasks as your workflow grows.
 
@@ -75,7 +75,7 @@ Developed by **Sebastiano Romi**, LENS — University of Florence, with extensiv
 
 Using CurveMole in your research? [Cite the exact version used](docs/citing.md) and include [**RRID:SCR_029214**](https://scicrunch.org/resolver/RRID:SCR_029214) in your methods.
 
-[Version 1.2.2](https://doi.org/10.5281/zenodo.23924231) · [Project DOI (all versions)](https://doi.org/10.5281/zenodo.22113854) · [Citation guide](docs/citing.md)
+[Version 1.3.0](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0) · [Project DOI (all versions)](https://doi.org/10.5281/zenodo.22113854) · [Citation guide](docs/citing.md)
 
 ## License
 

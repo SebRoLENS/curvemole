@@ -1,6 +1,6 @@
 # AI YAML automation audit - 1.2.0 extensions
 
-**Stable baseline: CurveMole 1.2.2.**
+**Stable baseline: CurveMole 1.3.0.**
 **Checked on 2026-11-02. Beta workflow schema is 3; legacy schemas 1 and 2 remain accepted.** This file is a standalone, downloadable context document
 for an AI creating CurveMole workflows. All core YAML contracts, defaults and
 limitations needed for the supported workflow stages are included below. The
@@ -46,7 +46,7 @@ release. Executable plugins need their own API documentation and explicit trust.
 
 ## Complete implementation contract
 
-**Stable API baseline: CurveMole 1.2.2.**
+**Stable API baseline: CurveMole 1.3.0.**
 **Workflow schema: 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.**
 This reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output controls.
@@ -625,9 +625,7 @@ then assigning fit ranges. Intervals therefore refer to the transformed X axis.
 Scalar transformation `operation` values are `y_add`, `y_subtract`, `y_multiply`,
 `y_divide`, `x_add`, `x_multiply`, `normalize_max`, `normalize_area`. The first six
 require a finite numeric `value`; normalizations need no value. Division by zero
-and invalid normalization inputs fail. Normalization propagates marginal errors
-from the denominator and introduces correlations across points. Independent-noise
-covariance and Gaussian information criteria are unavailable on the normalized data. `custom_formula` requires `axis: x` or
+and invalid normalization inputs fail. `custom_formula` requires `axis: x` or
 `axis: y` plus `formula`; `column_formula` requires `target` and `formula` and
 can use retained `c1`, `c2`, ... columns. Both use the restricted expression
 vocabulary in W9, never arbitrary Python. For example:
@@ -873,9 +871,7 @@ float64 normal minimum (about `2.225e-308`), rather than machine epsilon. Explic
 bounds remain preferable for difficult searches. Extreme overflow, underflow,
 nonidentifiability and poor starting values still require scientific judgment.
 Optimizer coordinate tolerances, including explicit `x_scale`, apply after this
-normalization. Built-in optimizers also scale unweighted residuals for stopping
-criteria. Exported residuals keep their original units. Supplied Nelder-Mead
-simplex vertices remain physical parameters.
+normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 
 | Setting | Default | Meaning/accepted values |
 | --- | --- | --- |

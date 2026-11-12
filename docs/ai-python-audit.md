@@ -1,6 +1,6 @@
 # CurveMole Python API audit for AI-assisted scripting
 
-**Stable API baseline: CurveMole 1.2.2.**
+**Stable API baseline: CurveMole 1.3.0.**
 **Audit date: 2026-11-02.**
 
 Download this Markdown file and attach it directly to an AI conversation. It is
@@ -38,7 +38,7 @@ Suggested user prompt:
 
 ## Complete scripting contract
 
-**Stable API baseline: CurveMole 1.2.2.**
+**Stable API baseline: CurveMole 1.3.0.**
 **Current release behavior.** This edition includes the November 2026 scientific
 and data-integrity corrections. Use the documents matching your installed release;
 these corrections are not implied for older executables.
@@ -57,7 +57,7 @@ these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
 
-Install the 1.2.2 wheel in a Python environment, or run
+Install the 1.3.0 wheel in a Python environment, or run
 `python -m pip install -e .` from a source checkout. A desktop executable is not
 a general Python interpreter. Run scripts with `python analysis.py`; no Qt event
 loop or open CurveMole window is needed. A script creates its own objects and does
@@ -221,7 +221,8 @@ properties are read-only views: do not assign to `curve.x` or `curve.y`.
 | `invalid` | Boolean invalid-data/error flags |
 | `effective_mask` | `True` means excluded; union of invalid rows, **all** masks, and points outside every fit range |
 | `fit_arrays(*, use_data_errors=True)` | `(x, y, residual_scale_or_None, current_indices)`; raises with fewer than two usable rows |
-| `content_hash` | SHA-256 of current scientific data/masks/errors |
+| `content_hash` | SHA-256 of current scientific data, row selection and errors |
+| `has_correlated_y_errors` | Processing introduced shared Y uncertainty across rows |
 | `add_mask(name)` | Create/select empty named `Mask`; return it |
 | `mask_point(x_value, *, name=None)` | Exclude nearest finite X; return current row index |
 | `mask_interval(lower, upper, *, name=None)` | Inclusive range; return selected row count |

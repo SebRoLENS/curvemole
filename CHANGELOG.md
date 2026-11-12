@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.3.0] - 2026-11-12
+
 ### Added
 
 - Support matching columns by position in batch imports. ([`f80f7b6a`](https://github.com/SebRoLENS/curvemole/commit/f80f7b6adb3fd80488adc10252be91eb537ee930))
@@ -57,7 +58,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - docs: publish illustrated Raman quick start with dark-mode screenshots. ([`1e0ac036`](https://github.com/SebRoLENS/curvemole/commit/1e0ac036f5c5c6b039cb14e5b593f01858f0267a))
 - docs: point README quick start links to website tutorial. ([`87db730e`](https://github.com/SebRoLENS/curvemole/commit/87db730e13f4945b7d8383df65e2e8e54c80a7cb))
 - docs: keep Quick Start guide and add graphical workflow example link. ([`528d0f65`](https://github.com/SebRoLENS/curvemole/commit/528d0f6526628942282e816d4b151b91c1646c20))
-<!-- END AUTOMATED CHANGES -->
 
 ## [1.2.2] - 2026-11-03
 

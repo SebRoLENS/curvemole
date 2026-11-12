@@ -156,7 +156,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 1.2.2}
+\ohead{Version 1.3.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -175,7 +175,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Version 1.2.2\par}
+    {\sffamily\Large\color{CurveMoleGrey}Version 1.3.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -200,9 +200,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Version 1.2.2}
+\subtitle{Version 1.3.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 1.2.2}
+\date{Updated for CurveMole 1.3.0}
 
 \begin{document}
 \maketitle
@@ -215,12 +215,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. The stable API baseline is CurveMole
-1.2.2 Stable. This release edition documents the released scientific
+1.3.0 Stable. This release edition documents the released scientific
 engine and application. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
-\textbf{Stable edition for CurveMole 1.2.2.} This release includes the
+\textbf{Stable edition for CurveMole 1.3.0.} This release includes the
 workflow features documented in Appendices F/G and the scientific and
 data-integrity corrections summarized in Appendices I/J. Earlier
 executables can differ; keep the matching manual and automation
@@ -567,8 +567,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.2.2{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}1.2.2{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.3.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}1.3.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -576,7 +576,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.2.2{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.3.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -620,7 +620,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.2.2{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.3.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -628,7 +628,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{2}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{3}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -645,7 +645,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.2.2{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.3.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -656,7 +656,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{2}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{3}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -1200,9 +1200,16 @@ functions mode these actions span the project. Selection is separate
 from enabling: a checked function contributes to the model and fit; an
 unchecked function remains stored but is excluded. Hover directly over
 its checkbox for an explanation. Changing a checkbox on a selected
-function applies the enabled state to the whole selection. \textbf{Mark
+function applies the enabled state to the whole selection. \textbf{Use
 as background} classifies the selected functions; it does not subtract
-them from the data.
+them from the data. The larger switch is grouped immediately above the
+parameter table under \textbf{Selected functions: N}, so its targets are
+explicit. It shows \textbf{ON}, \textbf{OFF} or \textbf{Mixed} for a
+selection containing both roles. From Mixed, clicking marks every
+selected function as background; clicking again clears all those marks.
+Without selected functions the switch is disabled. The existing
+Background and subtraction status labels remain visible in the function
+list.
 
 The controls below the list are:
 
@@ -1539,7 +1546,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 1.2.2 optimizer.
+version 1.3.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -1690,23 +1697,25 @@ the supplied half-widths, rather than these converted scales.
 data errors / weights in the fit} is on by default. Turn it off to fit
 without imported Y errors or point weights. Masks, fit ranges and
 spectrum-level weights remain in effect. Rows invalid only because of
-their error or point weight can then participate. The display of bars
-and the noise model of Monte Carlo remain independent of this choice.
+their error or point weight can then participate. Monte Carlo still uses
+imported Y errors when data-error weighting is off.
 
-This is an approximation: two interval half-widths and a confidence
-level do not specify the full measurement distribution. The scales
-describe a Gaussian side on each side of the reported value; Monte Carlo
-assigns equal probability to the two sides, reproducing the supplied
-central interval. Covariance is a local Jacobian approximation, and
-asymmetrical parameter intervals should be assessed using resampling or
-a suitably calibrated profile. Correlation between measured points and X
-uncertainty are not incorporated into this Y-residual fit.
+Two interval half-widths and a confidence level only partially specify a
+noise distribution. CurveMole uses a two-piece Gaussian approximation
+for parametric Monte Carlo. The sides of the synthetic observation
+residual are reflected relative to the fitted prediction residual. Their
+probabilities are proportional to their scales. This makes the generator
+and the weighted refit use the same location model. When the refit
+ignores data errors, synthetic noise is centered at zero mean.
+Covariance remains a local Jacobian approximation. The standard
+Y-residual fit assumes independent observations and treats X coordinates
+as fixed.
 
 Use \textbf{Error bars} above the main graph to show or hide the bars.
 Autoscaling includes their endpoints, and bars follow logarithmic,
 waterfall and background views. Scalar and curve scaling propagate
-widths and exchange upper/lower sides for negative factors. Custom and
-column formulas use local derivative propagation; for strongly nonlinear
+widths and exchange upper/lower sides for negative factors. Custom
+formulas use local derivative propagation; for strongly nonlinear
 transformations this is only a local approximation.
 
 \hypertarget{curves-masks-and-transformations}{%
@@ -1811,39 +1820,42 @@ picker initially shows the active series; \textbf{All series} shows
 every spectrum grouped under colored series headings. Use checkboxes or
 Select all shown. Hidden spectra are excluded. Cancel changes nothing. A
 batch is checked in full before any spectrum is modified; one Undo
-restores the whole batch. Normalization also scales \texttt{sigma\_y}
-consistently. Dividing by zero and normalizing a zero or invalid signal
-are rejected.
+restores the whole batch. Normalization propagates the first-order
+marginal Y errors through the denominator computed from the data. It
+uses all finite observations, including masked rows. For a unique
+maximum the normalized maximum has zero marginal error and is excluded
+when weighting by errors. At tied maxima the local derivative uses the
+first maximum. Normalization introduces shared uncertainty. The fit
+still reports point estimates from its residual objective, while
+covariance, Gaussian information criteria and uncertainty analyses
+requiring the data noise model are unavailable on the normalized data.
+Dividing by zero and normalizing a zero or invalid signal are rejected.
 
-\hypertarget{advanced-column-formulas}{%
-\subsection{Advanced column formulas}\label{advanced-column-formulas}}
+\hypertarget{custom-formulas}{%
+\subsection{Custom formulas}\label{custom-formulas}}
 
-The note below Formula reminds you to use Python syntax for mathematical
+The green \textbf{Custom formulas} entry combines calculations over
+plotted axes and all retained numerical columns in one mode. The note
+below Formula reminds you to use Python syntax for mathematical
 operators.
 
-The green \textbf{Advanced - column formula} entry is first in the
-operation list, followed by the green \textbf{Custom formula} for a
-single plotted axis. New imports retain every source column as numeric
-data in the project, including columns not plotted. Original column
-order and row alignment are preserved. \texttt{c1}, \texttt{c2},
-\texttt{c3}, etc. refer to one-based source columns; \texttt{x} and
-\texttt{y} refer to the current plotted axes. \textbf{Insert into
-formula} lists the available codes with original column names; choose an
-entry, then press \textbf{Insert} to add its code at the cursor.
-\textbf{Write result to} chooses X, Y or any retained column for the
-result. The hint below it explains that Apply writes the formula result
-into this column. Merely selecting an input column does not edit the
-formula or change its destination. A live summary such as
-\texttt{Y\ -\ Counts\ \textless{}-\ c2\ /\ c3**2} makes the direction
-explicit. \textbf{Spectra to modify} separately chooses which spectra
-receive the operation.
+New imports retain every source column as numeric data in the project,
+including columns not plotted. Original column order and row alignment
+are preserved. \texttt{c1}, \texttt{c2}, \texttt{c3}, etc. refer to
+one-based source columns; \texttt{x} and \texttt{y} refer to the current
+plotted axes. \textbf{Write result to} lists each column once, using
+codes such as \texttt{c1\ (X)}, \texttt{c2\ (Y)} and \texttt{c3}. Axis
+markers follow the current import mapping. Open this selector to search
+by code or original column name and choose where Apply will write the
+result.
 
-\begin{figure}
-\centering
-\includegraphics{screenshots/advanced-calculator-dark.png}
-\caption{Advanced calculator with column insertion and destination
-controls in dark mode.}
-\end{figure}
+\textbf{Insert column\ldots{}}, beside Formula, opens a searchable,
+scrollable list of column codes, axis markers and original names. Click
+a result, or use the arrow keys and Enter, to insert its code at the
+formula cursor. Inserting a reference does not change the destination. A
+live summary such as \texttt{c2\ (Y)\ \textless{}-\ c2\ /\ c3**2} makes
+the direction explicit. \textbf{Spectra to modify} separately chooses
+the target spectra.
 
 For a file with Energy, Counts and Monitor columns, plotting c1 against
 c2:
@@ -1852,24 +1864,24 @@ c2:
 \def\labelenumi{\arabic{enumi}.}
 \tightlist
 \item
-  choose \textbf{Advanced - column formula};
+  choose \textbf{Custom formulas};
 \item
-  choose \textbf{Y - Counts} as the destination;
+  choose \textbf{c2 (Y)} as the destination;
 \item
-  insert \texttt{c2} and \texttt{c3} from the dropdown to enter
-  \texttt{c2\ /\ c3**2};
+  use \textbf{Insert column\ldots{}} to insert \texttt{c2} and
+  \texttt{c3}, forming \texttt{c2\ /\ c3**2};
 \item
-  choose Active curve or multiple spectra, then Apply non-destructively.
+  choose the target spectra, then Apply non-destructively.
 \end{enumerate}
 
 You can also enter \texttt{y\ /\ c3\^{}2} (\texttt{\^{}} and \texttt{**}
-both mean exponentiation in Advanced), \texttt{c2\ -\ c4}, or
-\texttt{sqrt(c5)}. A header may be referenced as
-\texttt{\$\{Monitor\ counts\}}; codes remain unambiguous for unusual
-names. Only restricted mathematical expressions are accepted, never
-Python execution. Scalar results are broadcast to every row; missing
-columns and non-finite output (including division by zero) reject the
-batch. Masks do not change row alignment: formulas operate on all rows.
+both mean exponentiation), \texttt{c2\ -\ c4}, or \texttt{sqrt(c5)}. A
+header may be referenced as \texttt{\$\{Monitor\ counts\}}; codes remain
+unambiguous for unusual names. Only restricted mathematical expressions
+are accepted, never Python execution. Scalar results are broadcast to
+every row; missing columns and non-finite output (including division by
+zero) reject the batch. Masks do not change row alignment: formulas
+operate on all rows.
 
 Writing to a plotted source column updates that axis. Writing to an
 unplotted column leaves the graph unchanged and makes the new values
@@ -1889,12 +1901,44 @@ agrees with \texttt{sigma\_z=abs(3*y**2)*sigma\_y}. Propagation remains
 a first-order local approximation; input correlations and uncertainties
 in other columns are not jointly propagated.
 
-Name and \textbf{Save formula} to retain the expression and destination
-in the project, then recall it through Saved formulas. Retained columns,
-formulas and their Undo/Redo history survive \texttt{.fitproj} saving
-without the original source file. Projects created before this feature
-contain only their previously stored axes: re-import the source to
-recover additional columns.
+\textbf{Load formula} and \textbf{Save formula} appear side by side
+below the expression. \textbf{Save formula} is always available in
+Custom formulas: click it and enter a name to save the expression and
+destination in the project and reusable library. You do not need to
+expand Load formula to save. \textbf{Load formula} expands the list of
+formulas from the project and library, with their origin marked. A
+project formula takes precedence when both contain the same name.
+
+By default, reusable files share a \textbf{curvemole\_data} folder in
+Documents:
+
+\begin{verbatim}
+curvemole_data/
+  my_curvemole_formulas/
+  my_curvemole_functions/
+  curvemole_plugins/
+\end{verbatim}
+
+The folder hierarchy is created on first use.
+\textbf{my\_curvemole\_formulas} stores calculator formulas;
+\textbf{my\_curvemole\_functions} stores Function Builder definitions;
+\textbf{curvemole\_plugins} stores downloaded plugins. Existing
+explicitly configured library and plugin locations remain in use. Choose
+\textbf{Library folder\ldots{}} in the calculator or Function Builder to
+use a different library, or choose the storage folder in the plugin
+browser. Existing files are not moved automatically. Formula files
+retain the portable \texttt{.curvemole-equation.json} extension for
+compatibility. Plugin trust records, settings and session state remain
+in the application config directory.
+
+Equations saved by either of the previous calculator modes can still be
+recalled; use \textbf{Save formula} to copy an old project equation into
+the library. If its destination does not exist in the active spectrum,
+choose a destination explicitly. Retained columns, equations and
+Undo/Redo history survive \texttt{.fitproj} saving without the original
+source file. Projects created before column retention contain only their
+previously stored axes, exposed as \texttt{c1\ (X)} and
+\texttt{c2\ (Y)}; re-import the source to recover additional columns.
 
 \hypertarget{curve-to-curve-calculations}{%
 \section{7.6 Curve-to-curve
@@ -1913,14 +1957,20 @@ The operand is aligned to the target x grid by:
   cubic spline interpolation.
 \end{itemize}
 
-Extrapolation is disabled by default. Outside the operand range, aligned
-values become missing and will therefore be excluded from later fitting.
-Enabling extrapolation is an explicit advanced choice. Cubic
-interpolation requires at least four unique finite operand x values.
+The operand uses its unmasked valid points. Without extrapolation,
+out-of-range values become missing and are excluded from later fits.
+With extrapolation, linear interpolation extends the first or last
+segment. Nearest neighbor uses the closest endpoint. Cubic interpolation
+requires four distinct usable X values.
 
-The aligned operand array is stored with the transformation so that
-reopening the project does not depend on a later change to the source
-curve.
+Available Y uncertainties from both spectra propagate at first order.
+This assumes independent errors between the two spectra and between the
+input points. An operand with no declared Y uncertainty is treated as
+exact. Reusing noisy input points in interpolation can correlate the
+output rows. CurveMole retains the marginal widths and suppresses
+inferential results that assume independence in this case. The aligned
+operand values and propagated input errors are stored with the
+transformation for replay.
 
 \hypertarget{restoring-original-data}{%
 \section{7.7 Restoring original data}\label{restoring-original-data}}
@@ -1993,8 +2043,8 @@ All entries in the function library are fitting functions. Constant,
 linear, polynomial, cubic-spline, peak-shaped, and custom formulas are
 not separated into a special background-function class. Background is
 instead a property of a model component. Select a component in
-\textbf{Model and parameters} and enable \textbf{Mark as background}
-when that component represents the experimental baseline or background.
+\textbf{Model and parameters} and enable \textbf{Use as background} when
+that component represents the experimental baseline or background.
 
 \textbf{Data \textgreater{} Subtract background\ldots{}} uses these
 component-level marks. If no component is marked, CurveMole first asks
@@ -2239,7 +2289,7 @@ backgrounds}\label{built-in-functions-commonly-used-as-backgrounds}}
 The library names are \textbf{Constant}, \textbf{Linear},
 \textbf{Polynomial} and \textbf{Cubic spline}. They become background
 components only when \textbf{Add as background} in the Add dialog or
-\textbf{Mark as background} in the model panel is enabled.
+\textbf{Use as background} in the model panel is enabled.
 
 \hypertarget{constant}{%
 \subsection{Constant}\label{constant}}
@@ -2767,6 +2817,16 @@ are shown in readable form\strut
 \bottomrule
 \end{longtable}
 
+For built-in peak widths (\texttt{sigma}, \texttt{gamma} and
+\texttt{fwhm}), an automatic positive lower limit is displayed as
+\textbf{0} instead of a machine-specific tiny number. Here 0 means
+\textbf{strictly greater than zero}: hover over the cell to see the
+actual numerical limit. Entering 0 or clearing that Lower cell preserves
+the positive numerical guard; a larger explicit lower bound remains
+displayed exactly as entered. This does not set the width value to zero
+or mark it Fixed. Parameter values, fitting calculations and bounds
+stored in existing projects are not rounded.
+
 Press \textbf{Set link\ldots{}} for the target parameter. Its name
 appears beside the expression: for a centre link, the dialog shows
 \texttt{center\ =} followed by the expression field. \textbf{Equal to
@@ -3015,7 +3075,10 @@ extrapolation before propagating covariance. The small cubic-link
 reference now agrees with its analytic derivative; these remain local
 uncertainties (Appendix J.3). Targets with \textbf{At least}, \textbf{At
 most}, or \textbf{Similar} relations remain independent optimizer
-variables constrained by their current allowed intervals.
+variables constrained by their current allowed intervals. Bounds on a
+single-source affine equality link restrict the source's solver domain.
+When an advanced equality cannot be mapped to solver bounds, CurveMole
+reports the incompatible limits before fitting.
 
 \hypertarget{safe-expression-language}{%
 \section{9.5 Safe expression language}\label{safe-expression-language}}
@@ -3485,10 +3548,21 @@ Y errors and weighting is enabled, the uncertainty is treated as
 absolute by default and the covariance is not rescaled by residual
 variance. Otherwise residual variance scales the covariance.
 
-CurveMole uses a pseudo-inverse when the Jacobian is rank deficient and
-reports a warning. Covariance is unavailable when degrees of freedom are
-not positive. A warning is also generated when at least one
-free-parameter correlation has absolute value 0.95 or greater.
+With arbitrary spectrum weights and known measurement errors, covariance
+propagates measurement variance through the weighted estimator.
+Multiplying all objective weights by the same factor leaves the
+parameter covariance unchanged. With unknown noise, nonuniform spectrum
+weights prevent calibrated ordinary covariance. Correlated data errors
+introduced by processing also prevent the independent-noise covariance
+calculation.
+
+A rank-deficient Jacobian produces a warning. Standard errors are
+available only for locally identifiable quantities, and the full
+parameter matrix is omitted. Estimating an unknown noise scale requires
+positive residual degrees of freedom. Known noise can give covariance at
+zero residual degrees of freedom when the Jacobian has full rank. A
+warning is generated when the magnitude of any free-parameter
+correlation is at least 0.95.
 
 Symmetric normal intervals respect static bounds and any global limits
 implied by the relations. For \textbf{At least}, \textbf{At most}, or
@@ -3786,16 +3860,13 @@ scientifically validated.
 \hypertarget{parametric-monte-carlo}{%
 \section{12.1 Parametric Monte Carlo}\label{parametric-monte-carlo}}
 
-This method generates synthetic y values from the fitted model plus
-independent normal noise using imported absolute \texttt{sigma\_y}, or a
-two-sided Gaussian approximation using the lower/upper Y error
-half-widths and their declared confidence. The latter transforms
-negative/positive standard-normal draws with the respective scale; it
-preserves the declared central interval and has its median at the fitted
-prediction. Every selected curve must provide valid Y errors on the
-fitted rows. Noise is still generated from these errors when weighting
-is turned off in the Fit dialog. The chosen approximation and input
-confidence are recorded in the analysis settings.
+Synthetic Y values use the fitted predictions and independent Gaussian
+noise for absolute \texttt{sigma\_y}, or the two-piece approximation
+described in §6.6 for interval errors. Valid Y errors are required on
+every fitted row. Each replica uses the same rows as the baseline.
+Refitting requires the same scientific model, data, weighting and loss
+as the recorded fit. The noise model and input confidence are recorded
+in the analysis settings.
 
 Each synthetic data set is refitted using the local solver. The result
 records the requested, completed, and failed replicates, seed, free
@@ -3864,8 +3935,10 @@ are counted. The desktop profile currently requires a single-spectrum
 baseline; it does not profile a global multi-spectrum fit. Profile
 threshold crossings are refined by bracketed refits.
 \texttt{confidence\_regions} contains every connected region detected by
-the scan; \texttt{interval} selects the region containing the fitted
-estimate and never bridges rejected gaps. Disconnected sets are marked
+the scan. The calibrated \texttt{interval} uses the region containing
+the fitted estimate. An endpoint remains unavailable when its threshold
+crossing lies beyond the scan or next to a failed refit. A known
+physical bound can close a region. Disconnected sets are marked
 \textbf{Critical}. \texttt{warnings} reports incomplete scans or
 unrefined endpoints; inspect every region and extend the scan where
 needed. A finite grid can still miss a narrow remote mode. The default
@@ -5510,12 +5583,15 @@ expectations; trust only reviewed plugin code.
 CurveMole}\label{research-using-curvemole}}
 
 Cite the exact software version used in your bibliography. This manual
-describes \textbf{CurveMole 1.2.2}, whose reference is:
+describes \textbf{CurveMole 1.3.0}, whose reference is:
+
+Zenodo archival is pending; use this version's GitHub release until its
+DOI is available.
 
 \begin{quote}
 Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version
-1.2.2) {[}Computer software{]}. Zenodo.
-https://doi.org/10.5281/zenodo.23924231
+1.3.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0
 \end{quote}
 
 If you used another release, including a beta, use that release's own
@@ -5530,7 +5606,7 @@ Use the software name, exact version and version-independent SciCrunch
 RRID:
 
 \begin{quote}
-Data were analysed with CurveMole version 1.2.2 (RRID:SCR\_029214).
+Data were analysed with CurveMole version 1.3.0 (RRID:SCR\_029214).
 \end{quote}
 
 \href{https://scicrunch.org/resolver/RRID:SCR_029214}{RRID:SCR\_029214}
@@ -5844,9 +5920,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-version-1.2.2-limitations}{%
-\chapter{Appendix D. Version 1.2.2
-limitations}\label{appendix-d.-version-1.2.2-limitations}}
+\hypertarget{appendix-d.-version-1.3.0-limitations}{%
+\chapter{Appendix D. Version 1.3.0
+limitations}\label{appendix-d.-version-1.3.0-limitations}}
 
 The following boundaries apply to this release:
 
@@ -5922,7 +5998,7 @@ contracts.
 \chapter{Appendix F. Python scripting
 reference}\label{appendix-f.-python-scripting-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.2.2.} \textbf{Current release
+\textbf{Stable API baseline: CurveMole 1.3.0.} \textbf{Current release
 behavior.} This edition includes the November 2026 scientific and
 data-integrity corrections. Use the documents matching your installed
 release; these corrections are not implied for older executables.
@@ -5944,7 +6020,7 @@ corrections do not apply retroactively to earlier executables.
 \hypertarget{installation-and-imports}{%
 \section{1. Installation and imports}\label{installation-and-imports}}
 
-Install the 1.2.2 wheel in a Python environment, or run
+Install the 1.3.0 wheel in a Python environment, or run
 \texttt{python\ -m\ pip\ install\ -e\ .} from a source checkout. A
 desktop executable is not a general Python interpreter. Run scripts with
 \texttt{python\ analysis.py}; no Qt event loop or open CurveMole window
@@ -6264,7 +6340,12 @@ with fewer than two usable rows\strut
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 \texttt{content\_hash}\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-SHA-256 of current scientific data/masks/errors\strut
+SHA-256 of current scientific data, row selection and errors\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{has\_correlated\_y\_errors}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Processing introduced shared Y uncertainty across rows\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 \texttt{add\_mask(name)}\strut
@@ -6336,7 +6417,7 @@ it does not deactivate other masks.
 fitting intervals. \texttt{row\_indices} retains original identities
 after point deletion.
 
-\texttt{Transformation(operation,\ parameters=\{\},\ description="",\ created\_at=generated,\ operand=None)}
+\texttt{Transformation(operation,\ parameters=\{\},\ description="",\ created\_at=generated,\ operand=None,\ operand\_errors=None)}
 is replayable. Prefer checked helpers from
 \texttt{curvemole.core.calculator}; each modifies the curve and returns
 \texttt{Transformation}:
@@ -6375,8 +6456,8 @@ Target \texttt{x}, \texttt{y} or retained column key such as
 \texttt{apply\_curve\_operation(target,\ operand,\ operation,\ *,\ interpolation="linear",\ extrapolate=False)}\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
 \texttt{curve\_add}, \texttt{curve\_subtract}, \texttt{curve\_multiply},
-\texttt{curve\_divide}; interpolation \texttt{linear} or
-\texttt{nearest}\strut
+\texttt{curve\_divide}; interpolation \texttt{linear}, \texttt{nearest}
+or \texttt{cubic}\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 \texttt{apply\_background\_subtraction(curve,\ background,\ *,\ method,\ description,\ parameters=None)}\strut
@@ -6386,19 +6467,21 @@ Subtract supplied array from all rows, including masked rows\strut
 \bottomrule
 \end{longtable}
 
-Curve arithmetic stores the interpolated operand as a snapshot. Without
-extrapolation, out-of-range points become invalid; enabled linear
-interpolation extends endpoint values. Formula output must be finite and
-match the row count; scalars broadcast. Coordinate/column formulas
-propagate existing uncertainty using a numerical first-order local
-derivative with respect to the target axis. Affine scaling is exact;
-nonlinear propagation is a local approximation. Asymmetric Y sides swap
-for a negative derivative. Uncertainty in other input columns,
-correlations, and operand-curve errors are not jointly propagated.
-Inverse-variance weights follow the same local Y-uncertainty
-propagation; direct arbitrary residual multipliers retain their declared
-multiplier semantics. Normalization uses current data, including masked
-rows.
+Curve arithmetic aligns unmasked valid source rows and stores the
+aligned operand and its error scales for replay. Linear extrapolation
+extends the boundary segments. Marginal uncertainties propagate with the
+interpolation and arithmetic derivatives under the independent-input
+assumption. Normalization uses all finite current data, including masked
+rows, and propagates the denominator uncertainty into the marginal
+errors. Shared errors from normalization or noisy interpolation suppress
+independent-noise inference.
+
+Formula output must be finite and match the row count. Scalars
+broadcast. Coordinate and column formulas use a numerical first-order
+derivative with respect to the target axis. Asymmetric Y sides swap for
+a negative derivative. Inverse-variance weights follow the same
+uncertainty propagation. Direct residual multipliers carry no
+measurement variance.
 
 Nonlinear formula derivatives use local, scale-aware perturbations and
 Richardson extrapolation. For \texttt{z=y**3}, the audited tiny-value
@@ -7576,11 +7659,14 @@ independent fits retain their separate fitted noise scales. The result
 records \texttt{negative\_twice\_log\_likelihood} and
 \texttt{likelihood\_parameters}. AIC/AICc/BIC are unavailable for robust
 losses, active interval-error arrays (including equal lower/upper
-half-widths) and arbitrary spectrum balancing. Insufficient degrees or
-rank may leave covariance unavailable. Matrix rows follow
-\texttt{free\_parameter\_paths}. Independent-batch matrices may be
-\texttt{BlockDiagonalMatrix}; \texttt{np.asarray(matrix)} densifies and
-can require substantial memory.
+half-widths) and arbitrary spectrum balancing or correlated errors from
+preprocessing. Known measurement variances propagate through spectrum
+weighting when calculating covariance. A rank-deficient fit reports
+local errors only for identifiable quantities and omits the full matrix.
+Matrix rows follow \texttt{free\_parameter\_paths}. Independent-batch
+matrices may be \texttt{BlockDiagonalMatrix};
+\texttt{np.asarray(matrix)} densifies and can require substantial
+memory.
 
 \texttt{result.to\_dict(arrays=False)} omits sampled curve/matrix
 arrays; \texttt{to\_dict(arrays=True)} includes them.
@@ -7641,6 +7727,14 @@ Three methods return \texttt{ResamplingResult} and share arguments
   \texttt{block\_bootstrap(...,\ block\_length=None,\ ...)}: residual
   blocks; None estimates block length for each curve.
 \end{itemize}
+
+All replicas preserve the baseline's fitted rows. Changed models, fitted
+rows or fit weighting require a new baseline. For asymmetric Monte
+Carlo, observations follow a two-piece Gaussian with side probabilities
+proportional to the scales and side orientation consistent with the
+weighted objective. When the refit ignores data errors, the noise has
+zero mean. Resampling requires independent input errors from
+preprocessing, or an explicitly modeled dependence.
 
 Both bootstrap methods standardize sigma and inverse-variance noise
 equivalently; automatic block lengths use the same standardized
@@ -7703,14 +7797,15 @@ sigma. Convolution preserves the full regular grid before selecting
 fitted rows.
 
 Profile threshold crossings are refined by bracketed refits.
-\texttt{confidence\_regions} contains every connected region detected by
-the scan; \texttt{interval} selects the region containing the fitted
-estimate and never bridges rejected gaps. Disconnected sets are marked
-\textbf{Critical}. \texttt{warnings} reports incomplete scans or
-unrefined endpoints; inspect every region and extend the scan where
-needed. A finite grid can still miss a narrow remote mode. The default
-Gaussian-location example now agrees with the analytic 95\% interval,
-approximately +/-1.959964 standard errors.
+\texttt{confidence\_regions} contains the connected regions detected
+within the scan. The calibrated \texttt{interval} contains the fitted
+estimate when the scan resolves it. An unresolved endpoint is returned
+as \texttt{None}. Disconnected sets are marked \textbf{Critical}.
+\texttt{warnings} reports incomplete scans or unrefined endpoints;
+inspect every region and extend the scan where needed. A finite grid can
+still miss a narrow remote mode. The default Gaussian-location example
+now agrees with the analytic 95\% interval, approximately +/-1.959964
+standard errors.
 
 \texttt{resampling\_batch(method,\ jobs,\ *,\ replicates,\ option=None,\ workers=1,\ adaptive=None,\ cancellation=None,\ progress=None,\ on\_result=None)}
 returns a list for jobs
@@ -8208,7 +8303,7 @@ analysis.
 \chapter{Appendix G. YAML workflow
 reference}\label{appendix-g.-yaml-workflow-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.2.2.} \textbf{Workflow schema:
+\textbf{Stable API baseline: CurveMole 1.3.0.} \textbf{Workflow schema:
 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.} This
 reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output
