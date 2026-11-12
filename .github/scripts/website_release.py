@@ -70,6 +70,18 @@ def generated_since(source):
     return True
 
 
+def promotion_published(run):
+    if run.get('status') != 'completed':
+        return False
+    if run['conclusion'] == 'success':
+        return True
+    # This job depends on stable validation and publishes the verified assets.
+    # Subsequent plugin or synchronization jobs can fail independently.
+    jobs = api(f'actions/runs/{run["id"]}/jobs?per_page=100')['jobs']
+    return any(job['name'] == 'packages / Attach packages to tagged release'
+               and job['conclusion'] == 'success' for job in jobs)
+
+
 def ready(*, require_ci=True):
     ci_run_id = None
     if require_ci:
@@ -79,7 +91,7 @@ def ready(*, require_ci=True):
             # A manual testing promotion validates and releases that exact snapshot
             # itself; its GITHUB_TOKEN push deliberately does not start main CI.
             runs = api('actions/workflows/automatic-release.yml/runs?branch=testing&event=workflow_dispatch&per_page=1')['workflow_runs']
-            if (not runs or runs[0].get('status') != 'completed' or runs[0]['conclusion'] != 'success'
+            if (not runs or not promotion_published(runs[0])
                     or not generated_since(runs[0]['head_sha'])):
                 return None, 'Waiting for successful CI or a completed testing promotion for the current source.'
         ci_run_id = runs[0]['id']

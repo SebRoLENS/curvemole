@@ -97,9 +97,17 @@ def test_generated_history_recognizes_release_documents_without_accepting_untest
     assert website.generated_since(source) is (change == 'prepared_release')
 
 
-@pytest.mark.parametrize('conclusion', ['success', 'failure', None])
-def test_manual_promotion_is_a_validated_website_source_only_after_success(
-        website, release, monkeypatch, tmp_path, conclusion):
+@pytest.mark.parametrize('conclusion, publication, expected', [
+    ('success', None, True),
+    ('failure', 'success', True),
+    ('cancelled', 'success', True),
+    ('failure', 'failure', False),
+    ('cancelled', 'skipped', False),
+    ('cancelled', None, False),
+    (None, 'success', False),
+])
+def test_manual_promotion_requires_verified_publication(
+        website, release, monkeypatch, tmp_path, conclusion, publication, expected):
     from types import SimpleNamespace
 
     monkeypatch.setattr(website, 'ROOT', tmp_path)
@@ -111,6 +119,9 @@ def test_manual_promotion_is_a_validated_website_source_only_after_success(
     def api(path):
         if 'ci.yml/runs?' in path:
             return {'workflow_runs': [{'id': 1, 'conclusion': 'success', 'head_sha': 'old'}]}
+        if path == 'actions/runs/2/jobs?per_page=100':
+            return {'jobs': [{'name': 'packages / Attach packages to tagged release',
+                              'conclusion': publication}]} if publication else {'jobs': []}
         if 'branch=testing' in path:
             return {'workflow_runs': [{'id': 2, 'status': 'completed' if conclusion else 'in_progress',
                                        'conclusion': conclusion, 'head_sha': 'tested'}]}
@@ -121,7 +132,7 @@ def test_manual_promotion_is_a_validated_website_source_only_after_success(
     monkeypatch.setattr(website, 'git', lambda *args: 'abc123')
     monkeypatch.setattr(website.subprocess, 'run', lambda *args, **kwargs: SimpleNamespace(returncode=0))
     metadata, reason = website.ready()
-    if conclusion == 'success':
+    if expected:
         assert metadata['ci_run_id'] == 2 and not reason
     else:
         assert metadata is None and 'promotion' in reason
@@ -220,7 +231,10 @@ def test_doi_publication_waits_for_metadata_and_preserves_ci_gate():
     ('CI', 'ci.yml', 'push', 'testing', 'success', 'same', False),
     ('CI', 'ci.yml', 'workflow_dispatch', 'main', 'success', 'same', False),
     ('Automatic release', 'testing.yml', 'workflow_dispatch', 'testing', 'success', 'same', False),
-    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'failure', 'same', False),
+    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'failure', 'same', True),
+    ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'cancelled', 'same', True),
+    ('Stable release', 'automatic-release.yml', 'workflow_dispatch', 'main', 'failure', 'same', False),
+    ('CI', 'ci.yml', 'push', 'main', 'failure', 'same', False),
     ('Promote testing to stable', 'automatic-release.yml', 'workflow_dispatch', 'testing', 'success', 'fork', False),
 ])
 def test_website_event_gate_accepts_named_promotions_and_rejects_unrelated_runs(
@@ -235,6 +249,23 @@ def test_website_event_gate_accepts_named_promotions_and_rejects_unrelated_runs(
     # A run's display name is dynamic; workflow path identifies its definition.
     condition = ' '.join(workflow['jobs']['deploy']['if'].split()).replace('&&', ' and ').replace('||', ' or ')
     assert eval(condition, {'__builtins__': {}}, {'github': github}) is expected
+
+
+@pytest.mark.parametrize('ref,mode,expected', [
+    ('main', 'integrated', True),
+    ('testing', 'standalone', True),
+    ('testing', 'integrated', False),
+    ('other', 'standalone', False),
+])
+def test_manual_website_recovery_from_testing_uses_standalone_mode(ref, mode, expected):
+    workflow = yaml.load((ROOT / '.github/workflows/website.yml').read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+    condition = workflow['jobs']['deploy']['if'].replace('&&', ' and ').replace('||', ' or ')
+    github = SimpleNamespace(ref=f'refs/heads/{ref}', event_name='workflow_dispatch',
+                             event=SimpleNamespace(workflow_run=None))
+    inputs = SimpleNamespace(mode=mode)
+    assert eval(' '.join(condition.split()), {'__builtins__': {}}, {'github': github, 'inputs': inputs}) is expected
+    checkout = workflow['jobs']['deploy']['steps'][0]
+    assert checkout['with']['ref'] == 'main'
 
 
 @pytest.mark.parametrize('doi_ready', [True, False])
@@ -283,15 +314,28 @@ def test_stable_changelog_excludes_development_and_other_versions(website, monke
     assert 'No detailed changelog entries' in website.stable_changelog('1.2.4')
 
 
-def test_sitemap_lists_the_public_pages_and_robots_advertises_it():
+@pytest.mark.parametrize('generated', [False, True])
+def test_sitemap_lists_the_public_pages_and_robots_advertises_it(website, tmp_path, generated):
     from xml.etree import ElementTree
 
     dist = ROOT / 'website/dist'
+    if generated:
+        import shutil
+
+        dist = Path(shutil.copytree(dist, tmp_path / 'dist'))
+        archive_url = 'https://sebrolens.github.io/curvemole/news-archive-beta-1-1.html'
+        (dist / 'news-archive-beta-1-1.html').write_text(
+            f'<link rel="canonical" href="{archive_url}">', encoding='utf-8')
+        website.write_sitemap(dist)
     namespace = {'s': 'http://www.sitemaps.org/schemas/sitemap/0.9'}
     urls = [node.text for node in ElementTree.parse(dist / 'sitemap.xml').findall('s:url/s:loc', namespace)]
     base = 'https://sebrolens.github.io/curvemole/'
-    assert set(urls) == {base + name for name in (
-        '', 'download.html', 'documentation.html', 'quick-start.html', 'news.html', 'news-archive.html', 'contact.html', 'privacy.html')}
+    expected = {
+        '', 'download.html', 'documentation.html', 'quick-start.html', 'news.html',
+        'news-archive.html', 'contact.html', 'privacy.html',
+    }
+    expected.update(path.name for path in dist.glob('news-archive-*.html'))
+    assert set(urls) == {base + name for name in expected}
     assert len(urls) == len(set(urls))
     assert f'Sitemap: {base}sitemap.xml' in (dist / 'robots.txt').read_text(encoding='utf-8')
     for url in urls:

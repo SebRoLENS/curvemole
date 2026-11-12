@@ -87,12 +87,16 @@ jobs:
 
   deploy:
     if: >-
-      github.ref == 'refs/heads/main' &&
-      (github.event_name == 'workflow_dispatch' ||
-       (github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_repository.full_name == github.repository &&
-        ((github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') ||
-         (github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.path == '.github/workflows/automatic-release.yml'))))
+      (github.event_name == 'workflow_dispatch' &&
+       (github.ref == 'refs/heads/main' ||
+        (github.ref == 'refs/heads/testing' && inputs.mode == 'standalone'))) ||
+      (github.ref == 'refs/heads/main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+        ((github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'main') ||
+         (github.event.workflow_run.event == 'workflow_dispatch' &&
+          github.event.workflow_run.path == '.github/workflows/automatic-release.yml' &&
+          (github.event.workflow_run.conclusion == 'success' || github.event.workflow_run.head_branch == 'testing'))))
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
@@ -125,14 +129,22 @@ jobs:
         with:
           enable-cache: false
           python-version: '3.12'
+      - name: Checkout updated publication tests for stable recovery
+        if: steps.readiness.outputs.ready == 'true' && github.ref == 'refs/heads/testing'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          path: publication-checks
+          persist-credentials: false
       - name: Generate screenshots for this exact website snapshot
         if: steps.readiness.outputs.ready == 'true'
         env:
           QT_QPA_PLATFORM: offscreen
           PYTHONPATH: src
+          PUBLICATION_TESTS: ${{ github.ref == 'refs/heads/testing' && 'publication-checks/tests/test_website_publication.py' || 'tests/test_website_publication.py' }}
         run: |
           uv sync --locked --no-default-groups --group screenshots --group test
-          uv run --no-sync pytest -q tests/test_website_publication.py
+          uv run --no-sync pytest -q "$PUBLICATION_TESTS"
           uv run --no-sync python website/scripts/render_demo_screenshots.py
           uv run --no-sync python website/scripts/render_project_screenshots.py
           uv run --no-sync python website/scripts/render_customization_screenshots.py
