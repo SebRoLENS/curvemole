@@ -49,9 +49,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Documentation
 
 - docs: streamline README and highlight community plugins. ([`b00701d7`](https://github.com/SebRoLENS/curvemole/commit/b00701d7a9829443c92ee8447fae690bbfb634c1))
+- docs: publish concise README with community plugins. ([`8954bd0d`](https://github.com/SebRoLENS/curvemole/commit/8954bd0d58d0ec3508e6984821c9fe0a3fe78c5a))
 - docs: clarify homepage and highlight scientific workflows and plugins. ([`49509c39`](https://github.com/SebRoLENS/curvemole/commit/49509c391f3534ed8a9531c7813e76818ce3555f))
 - docs: explain token-saving AI automation audits in README and homepage. ([`c65ba295`](https://github.com/SebRoLENS/curvemole/commit/c65ba295a698a27f39160853b4305f7559da6b91))
+- docs: publish concise homepage and AI automation audit guidance. ([`1dbb5a7a`](https://github.com/SebRoLENS/curvemole/commit/1dbb5a7a97cf795212e0e692574c4f33871ebc51))
 - docs: add illustrated Raman quick start with dark stable GUI captures. ([`b6c4af74`](https://github.com/SebRoLENS/curvemole/commit/b6c4af74db4452410c1539f1a0388eba1f9c2da2))
+- docs: publish illustrated Raman quick start with dark-mode screenshots. ([`1e0ac036`](https://github.com/SebRoLENS/curvemole/commit/1e0ac036f5c5c6b039cb14e5b593f01858f0267a))
+- docs: point README quick start links to website tutorial. ([`87db730e`](https://github.com/SebRoLENS/curvemole/commit/87db730e13f4945b7d8383df65e2e8e54c80a7cb))
+- docs: keep Quick Start guide and add graphical workflow example link. ([`528d0f65`](https://github.com/SebRoLENS/curvemole/commit/528d0f6526628942282e816d4b151b91c1646c20))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.2.2] - 2026-11-03
