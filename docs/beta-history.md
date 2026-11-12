@@ -2,6 +2,14 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.0-beta.132](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.132) — published 2026-11-12
+
+Changes since `v1.3.0-beta.130` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.130...v1.3.0-beta.132)).
+
+### Changed
+
+- Open independent CurveMole projects and keep selected files in one import. ([`49561306`](https://github.com/SebRoLENS/curvemole/commit/49561306b7996f0b7ff942637c152cfa8a175331))
+
 ## [1.3.0-beta.130](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.130) — published 2026-11-11
 
 Changes since `v1.3.0-beta.127` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.127...v1.3.0-beta.130)).

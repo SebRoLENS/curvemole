@@ -34,6 +34,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Open or focus tool tabs from a right-aligned toolbar group. ([`c95abbf0`](https://github.com/SebRoLENS/curvemole/commit/c95abbf054229b8bdc513e6c198480c1d423f2ac))
 - Open Model and parameters from the toolbar and highlight the active tool. ([`392dd5bd`](https://github.com/SebRoLENS/curvemole/commit/392dd5bdaf02b4b36822044e28f2b52e0c607d07))
 - Verify toolbar alignment at a platform-appropriate width. ([`f3d75044`](https://github.com/SebRoLENS/curvemole/commit/f3d75044571c08f06791d33b36b6f926ae82447c))
+- Open independent CurveMole projects and keep selected files in one import. ([`49561306`](https://github.com/SebRoLENS/curvemole/commit/49561306b7996f0b7ff942637c152cfa8a175331))
 
 ### Fixed
 
