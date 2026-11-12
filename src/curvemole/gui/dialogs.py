@@ -935,7 +935,7 @@ class FitPlanDialog(QDialog):
         settings.use_data_errors = self.use_data_errors.isChecked()
         return FitPlan(
             curve_ids,
-            self.mode.currentData(),
+            FitMode(self.mode.currentData()),
             settings,
             weights,
             self.equal_contribution.isChecked(),

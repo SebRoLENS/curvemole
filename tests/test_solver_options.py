@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication
 from curvemole import Component, Fitter, Model, Project
 from curvemole.core.errors import FitError
 from curvemole.core.export import BundleExportSelection, export_bundle
-from curvemole.core.fitting import FitResult, FitSettings
+from curvemole.core.fitting import FitMode, FitResult, FitSettings
 from curvemole.gui.dialogs import FitPlanDialog
 
 
@@ -43,6 +43,28 @@ def test_controls_follow_algorithm_loss_and_reset_preserves_selection(gaussian_c
     assert not d.solver_options.fields["de_popsize"].isHidden()
     d.close()
     app.processEvents()
+
+
+@pytest.mark.parametrize("mode", [FitMode.INDEPENDENT, FitMode.GLOBAL])
+def test_advanced_fit_dialog_produces_a_replayable_fit_plan(gaussian_curve, mode):
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    project.add_curve(gaussian_curve)
+    curve_id = gaussian_curve.id
+    model = Model(components=[Component.create("gaussian", initial={"area": 3, "center": .7, "sigma": .8})])
+    project.models[curve_id] = model
+    dialog = FitPlanDialog(project, {curve_id}, FitSettings())
+    try:
+        dialog.mode.setCurrentIndex(dialog.mode.findData(mode.value))
+        plan = dialog.plan()
+        assert plan.mode is mode
+        result = Fitter().fit(plan, {curve_id: gaussian_curve}, {curve_id: model})
+        assert result.success
+        assert result.provenance["plan"]["mode"] == mode.value
+    finally:
+        dialog.close()
+        dialog.deleteLater()
+        app.processEvents()
 
 
 @pytest.mark.parametrize("kwargs", [
