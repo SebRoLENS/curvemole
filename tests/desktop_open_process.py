@@ -98,7 +98,7 @@ def check_import():
     window = state.get('window')
     if window is not None and len(window.project.curves) == expected:
         result = dict(windows=state['windows'], dialogs=state['dialogs'], errors=state['errors'],
-                      paths=[curve.source for curve in window.project.curves])
+                      project_id=window.project.id, paths=[curve.source for curve in window.project.curves])
         output.write_text(json.dumps(result), encoding='utf-8')
         window.project.dirty = False
         window.close()
@@ -121,10 +121,18 @@ deadline.timeout.connect(expired)
 original_run = gui.run_primary
 
 
-def run_primary(*args):
+def run_primary(app, paths, instance, file_open_filter):
+    def report_receiver():
+        if instance.owner:
+            output.with_suffix('.receiver').touch()
+            receiver_poll.stop()
+
+    receiver_poll = QTimer()
+    receiver_poll.timeout.connect(report_receiver)
+    receiver_poll.start(20)
     timer.start(20)
     deadline.start(75_000)
-    return original_run(*args)
+    return original_run(app, paths, instance, file_open_filter)
 
 
 gui.run_primary = run_primary

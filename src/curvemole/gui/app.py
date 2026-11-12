@@ -369,7 +369,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def run_primary(app, paths, instance, file_open_filter) -> int:
-    """Only the elected desktop reaches GUI construction and plugin loading."""
+    """Run one desktop session and handle any file-open requests it receives."""
     _configure_gui_defaults()
     window = create_main_window()
     app.aboutToQuit.connect(window._finish_session)

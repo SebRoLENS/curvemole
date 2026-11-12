@@ -1,6 +1,6 @@
-"""Per-user desktop election and acknowledged, bounded local file-open IPC.
+"""Per-user file receiver election and acknowledged, bounded local file-open IPC.
 
-No scientific or GUI package imports belong here: secondary launches exit before
+No scientific or GUI package imports belong here: file-opening clients exit before
 constructing a window. QLocalServer uses local sockets on Unix and named pipes
 on Windows; a lifetime QLockFile serializes election and stale endpoint cleanup.
 """

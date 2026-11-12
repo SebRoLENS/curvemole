@@ -1,4 +1,4 @@
-"""Lightweight desktop launcher; secondary processes only forward open requests."""
+"""Launch independent desktop sessions and group incoming file-open requests."""
 from __future__ import annotations
 
 import sys
@@ -14,15 +14,17 @@ def main(argv: Sequence[str] | None = None, *, instance_directory: Path | None =
         from curvemole.core.automation_job import run_job
         return run_job(arguments[2])
 
-    from PySide6.QtCore import QCoreApplication, QLocale, Qt
+    from PySide6.QtCore import QCoreApplication, QLocale, Qt, QTimer
 
     from curvemole.single_instance import DesktopInstance, NativeFileOpenFilter, absolute_paths
     from curvemole.version import __version__
 
+    paths = absolute_paths(arguments[1:])
     instance = DesktopInstance(instance_directory)
-    if not instance.acquire():
+    receives_files = instance.acquire()
+    if paths and not receives_files:
         app = QCoreApplication(arguments)
-        instance.forward(arguments[1:])
+        instance.forward(paths)
         # Keep the event dispatcher alive until synchronous forwarding is done.
         del app
         return 0
@@ -40,10 +42,29 @@ def main(argv: Sequence[str] | None = None, *, instance_directory: Path | None =
         # Queue IPC alongside native events before any heavy imports or window
         # construction can run a nested event loop. Nothing is dropped at startup.
         instance.paths_received.connect(native_filter.enqueue)
-        instance.listen()
-        app.aboutToQuit.connect(instance.close)
+        election = QTimer(app)
+        election.setInterval(250)
+
+        def take_over_file_opening():
+            if instance.acquire():
+                election.stop()
+                instance.listen()
+
+        if receives_files:
+            instance.listen()
+        else:
+            # This desktop remains independent and can receive future batches
+            # if the current receiver exits.
+            election.timeout.connect(take_over_file_opening)
+            election.start()
+
+        def stop_file_opening():
+            election.stop()
+            instance.close()
+
+        app.aboutToQuit.connect(stop_file_opening)
         from curvemole.gui.app import run_primary
-        return run_primary(app, absolute_paths(arguments[1:]), instance, native_filter)
+        return run_primary(app, paths, instance, native_filter)
     finally:
         instance.close()
 

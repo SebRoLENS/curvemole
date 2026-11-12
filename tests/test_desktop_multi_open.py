@@ -51,3 +51,59 @@ def test_one_import_batch_for_100_files(tmp_path, separate_launches):
         if primary.poll() is None:
             primary.kill()
         primary.wait()
+
+
+def test_independent_launches_share_one_file_receiver(tmp_path):
+    script = Path(__file__).with_name('desktop_open_process.py')
+    directory = tmp_path / 'ipc'
+    processes = []
+    results = []
+    paths = [tmp_path / f'spettro {index}.xy' for index in range(20)]
+    for path in paths:
+        path.write_text('0 1\n1 2\n2 4\n3 3\n4 1\n')
+
+    def forward(selected):
+        result = subprocess.run(
+            [sys.executable, str(script), 'forward', str(directory), str(tmp_path / 'forward.json'),
+             *map(str, selected)],
+            capture_output=True, timeout=40,
+        )
+        assert result.returncode == 0, result.stderr.decode(errors='replace')
+
+    try:
+        for name in ('first', 'second'):
+            report = tmp_path / f'{name}.json'
+            child = subprocess.Popen(
+                [sys.executable, str(script), 'primary', str(directory), str(report), '10'],
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            )
+            processes.append(child)
+            wait_for(report.with_suffix('.ready'), child)
+        assert all(child.poll() is None for child in processes)
+
+        for child, name, batch in zip(processes, ('first', 'second'), (paths[:10], paths[10:]), strict=True):
+            report = tmp_path / f'{name}.json'
+            wait_for(report.with_suffix('.receiver'), child)
+
+            if name == 'first':
+                # Explorer-style launches can arrive after the first dialog opens.
+                forward(batch[:1])
+                wait_for(report.with_suffix('.dialog'), child)
+                with ThreadPoolExecutor(max_workers=9) as pool:
+                    list(pool.map(forward, ([path] for path in batch[1:])))
+            else:
+                forward(batch)
+            stdout, stderr = child.communicate(timeout=45)
+            assert child.returncode == 0, (stdout, stderr)
+            result = json.loads(report.read_text(encoding='utf-8'))
+            assert result['errors'] == []
+            assert result['windows'] == result['dialogs'] == 1
+            assert set(result['paths']) == set(map(str, batch))
+            results.append(result['project_id'])
+
+        assert results[0] != results[1]
+    finally:
+        for child in processes:
+            if child.poll() is None:
+                child.kill()
+            child.wait()
