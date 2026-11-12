@@ -9,6 +9,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Fixed
 
 - Restore macOS checks for community plugins and desktop screenshots. ([`6d6238d3`](https://github.com/SebRoLENS/curvemole/commit/6d6238d38d006c3f47d32907c56c3b8f8820e393))
+- Fix advanced fits failing before calculation. ([`05f5c8db`](https://github.com/SebRoLENS/curvemole/commit/05f5c8dbf2483a049cc8ee332ca83f48cdbe46c9))
 
 ### Documentation
 
