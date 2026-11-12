@@ -5,6 +5,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Fixed
+
+- Restore macOS checks for community plugins and desktop screenshots. ([`6d6238d3`](https://github.com/SebRoLENS/curvemole/commit/6d6238d38d006c3f47d32907c56c3b8f8820e393))
+
+### Documentation
+
+- Keep stable website publication independent of plugin checks and validate release archives. ([`b31ca910`](https://github.com/SebRoLENS/curvemole/commit/b31ca910db5f20d8bfde0e1900ef1bcdde16aa2c))
+<!-- END AUTOMATED CHANGES -->
+
 ## [1.3.0] - 2026-11-12
 
 ### Added
