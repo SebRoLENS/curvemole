@@ -5,10 +5,8 @@
 Cite the **exact version used** in your bibliography. The current stable reference
 is for **1.3.1**:
 
-Zenodo archival is pending; use this version's GitHub release until its DOI is available.
-
-> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.3.1) [Computer software]. GitHub.
-> https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.1
+> Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version 1.3.1) [Computer software]. Zenodo.
+> https://doi.org/10.5281/zenodo.24161959
 
 [Download version BibTeX](citation.bib). For another version, open its
 [GitHub release](https://github.com/SebRoLENS/curvemole/releases) and use the verified **Zenodo DOI**
