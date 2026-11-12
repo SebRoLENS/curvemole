@@ -9,7 +9,7 @@ CurveMole brings model building, fitting, diagnostics, and visualisation into on
 
 For spectroscopy, diffraction, kinetics, and other experimental x–y data.
 
-[**Download CurveMole**](https://github.com/SebRoLENS/curvemole/releases/latest) · [Quick start](docs/quick-start.md) · [Website](https://sebrolens.github.io/curvemole/)
+[**Download CurveMole**](https://github.com/SebRoLENS/curvemole/releases/latest) · [Quick start](docs/quick-start.md) · [Graphical workflow example](https://sebrolens.github.io/curvemole/quick-start.html) · [Website](https://sebrolens.github.io/curvemole/)
 
 Free and open source. Available for **Windows, Linux, and macOS**.
 
@@ -61,7 +61,7 @@ Find and install community plugins from **File > Plugin Manager > Browse validat
 2. Import a spectrum or curve and add your model.
 3. Run the fit, inspect residuals and parameter estimates, and save your project.
 
-The [quick start](docs/quick-start.md) walks through a first analysis. The [user manual](docs/manual.md) covers installation, scientific conventions, advanced tools, and current limitations.
+The [quick start](docs/quick-start.md) walks through a first analysis. For an illustrated step-by-step tutorial, see the [graphical workflow example](https://sebrolens.github.io/curvemole/quick-start.html). The [user manual](docs/manual.md) covers installation, scientific conventions, advanced tools, and current limitations.
 
 *Windows and macOS packages are unsigned; your operating system may require approval on first launch. See the [installation instructions](docs/manual.md#3-installation-and-first-launch).*
 
