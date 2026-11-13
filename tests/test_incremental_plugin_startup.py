@@ -29,10 +29,12 @@ def plugins(tmp_path, monkeypatch):
         source.write_text('''from PySide6.QtWidgets import QWidget
 def register(api):
     api.add("panels", "panel", "Panel", lambda context: QWidget(), auto_show=True)
+    api.add("importers", "import", "Test importer", lambda context: None)
 ''')
         manifest = tmp_path / f"{identifier}.curvemole-plugin.json"
         manifest.write_text(json.dumps(dict(identifier=identifier, version="1", api_compatibility="1",
-                                             licence="MIT", capabilities=["panels"], module=source.name)))
+                                             licence="MIT", capabilities=["panels", "importers"],
+                                             module=source.name)))
     for candidate in manager.discover_local(tmp_path):
         manager.load(candidate, trust=True)
     extensions.entries.clear()
@@ -100,6 +102,10 @@ def test_first_paint_precedes_loading_and_events_run_between_plugins(plugins, mo
     assert events.index("event turn") < events.index("second")
     assert set(window.plugin_manager.loaded) == {"first", "second"}
     assert window.centralWidget().isEnabled()
+    importers = window.plugin_host.menus["importers"]
+    assert importers.menuAction().isVisible()
+    assert importers.menuAction().isEnabled()
+    assert window.plugin_host.help_menu.menuAction().isEnabled()
     assert set(window.plugin_host.dialogs) == {"first:panel", "second:panel"}
     assert notices == [(False, set())]
     assert opened == [str(path)]

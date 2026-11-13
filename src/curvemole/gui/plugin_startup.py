@@ -22,9 +22,12 @@ class PluginStartup(QObject):
         self.timer.timeout.connect(self.advance)
         # Keep project operations unavailable until all plugin functions exist.
         # Native window controls (including close) remain usable throughout.
+        # The menu bar handles submenu access. Qt manages each submenu action's
+        # enabled state as its contents change.
+        commands = [action for action in window.findChildren(QAction) if action.menu() is None]
         controls = [window.centralWidget(), window.menuBar(),
                     *window.findChildren(QDockWidget), *window.findChildren(QToolBar),
-                    *window.findChildren(QAction)]
+                    *commands]
         self.controls = [(control, control.isEnabled()) for control in controls]
         for control, _ in self.controls:
             control.setEnabled(False)
