@@ -179,7 +179,7 @@ def _dispatch(args: argparse.Namespace) -> Any:
             "unchanged": len(summary.unchanged),
         }
     if args.command == "inspect":
-        if args.path.suffix.lower() in {".fitproj", ".fitmodel"}:
+        if args.path.suffix.lower() == ".fitproj":
             project = load_project(args.path, partial_recovery=True)
             return {
                 "format": "fitproj",
