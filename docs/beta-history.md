@@ -2,6 +2,36 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.2-beta.139](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.2-beta.139) — published 2026-11-18
+
+Changes since `v1.3.0-beta.132` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.132...v1.3.2-beta.139)).
+
+### Changed
+
+- Allow reinstalling plugins deleted from disk. ([`070f2df9`](https://github.com/SebRoLENS/curvemole/commit/070f2df950e5f3e1154e79cff3531fb760ce7c88))
+- Speed up block bootstrap sampling and automatic block-length selection. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+
+### Fixed
+
+- Restore macOS checks for community plugins and desktop screenshots. ([`6d6238d3`](https://github.com/SebRoLENS/curvemole/commit/6d6238d38d006c3f47d32907c56c3b8f8820e393))
+- Fix advanced fits failing before calculation. ([`05f5c8db`](https://github.com/SebRoLENS/curvemole/commit/05f5c8dbf2483a049cc8ee332ca83f48cdbe46c9))
+- Restore plugin menu access after CurveMole starts. ([`526d5d78`](https://github.com/SebRoLENS/curvemole/commit/526d5d788ddfc35c027945830bb62ce101028fd9))
+- Correct residual and block bootstrap intervals for asymmetric Y errors. Recalculate intervals previously obtained with either method and asymmetric errors. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Keep standardized residuals, autocorrelation and Durbin–Watson stable when residuals are expressed in very small or very large units. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Allow a plugin installation to be retried in the same session after the plugin registry could not be written. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Validate exported .fitmodel files from the command line and report malformed models. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Preserve other build artifacts when rebuilding the desktop application. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Preserve project and data routing in CLI inspection. ([`db3a44eb`](https://github.com/SebRoLENS/curvemole/commit/db3a44ebf51e6ea9fb47daaafbc3dad3aea0e7db))
+
+### Documentation
+
+- docs: publish concise README with community plugins. ([`8954bd0d`](https://github.com/SebRoLENS/curvemole/commit/8954bd0d58d0ec3508e6984821c9fe0a3fe78c5a))
+- docs: publish concise homepage and AI automation audit guidance. ([`1dbb5a7a`](https://github.com/SebRoLENS/curvemole/commit/1dbb5a7a97cf795212e0e692574c4f33871ebc51))
+- docs: publish illustrated Raman quick start with dark-mode screenshots. ([`1e0ac036`](https://github.com/SebRoLENS/curvemole/commit/1e0ac036f5c5c6b039cb14e5b593f01858f0267a))
+- docs: point README quick start links to website tutorial. ([`87db730e`](https://github.com/SebRoLENS/curvemole/commit/87db730e13f4945b7d8383df65e2e8e54c80a7cb))
+- docs: keep Quick Start guide and add graphical workflow example link. ([`528d0f65`](https://github.com/SebRoLENS/curvemole/commit/528d0f6526628942282e816d4b151b91c1646c20))
+- Keep stable website publication independent of plugin checks and validate release archives. ([`b31ca910`](https://github.com/SebRoLENS/curvemole/commit/b31ca910db5f20d8bfde0e1900ef1bcdde16aa2c))
+
 ## [1.3.0-beta.132](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.0-beta.132) — published 2026-11-12
 
 Changes since `v1.3.0-beta.130` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.0-beta.130...v1.3.0-beta.132)).

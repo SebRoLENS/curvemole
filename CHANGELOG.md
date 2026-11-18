@@ -9,10 +9,17 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Changed
 
 - Allow reinstalling plugins deleted from disk. ([`070f2df9`](https://github.com/SebRoLENS/curvemole/commit/070f2df950e5f3e1154e79cff3531fb760ce7c88))
+- Speed up block bootstrap sampling and automatic block-length selection. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
 
 ### Fixed
 
 - Restore plugin menu access after CurveMole starts. ([`526d5d78`](https://github.com/SebRoLENS/curvemole/commit/526d5d788ddfc35c027945830bb62ce101028fd9))
+- Correct residual and block bootstrap intervals for asymmetric Y errors. Recalculate intervals previously obtained with either method and asymmetric errors. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Keep standardized residuals, autocorrelation and Durbin–Watson stable when residuals are expressed in very small or very large units. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Allow a plugin installation to be retried in the same session after the plugin registry could not be written. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Validate exported .fitmodel files from the command line and report malformed models. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Preserve other build artifacts when rebuilding the desktop application. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
+- Preserve project and data routing in CLI inspection. ([`db3a44eb`](https://github.com/SebRoLENS/curvemole/commit/db3a44ebf51e6ea9fb47daaafbc3dad3aea0e7db))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.3.1] - 2026-11-12
