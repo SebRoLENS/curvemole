@@ -7,7 +7,6 @@ This never enables or changes plugins in the real user profile.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import statistics
@@ -28,19 +27,23 @@ def peak_rss_mib():
 
 
 def prepare_plugins(directory, profile):
+    from dataclasses import asdict
+
+    from curvemole.core.plugins import PluginManager
+
+    manager = PluginManager()
     records = {}
-    for manifest in sorted(directory.rglob("*.curvemole-plugin.json")):
-        raw = json.loads(manifest.read_text(encoding="utf-8"))
-        metadata = {key: raw[key] for key in
-                    ("identifier", "version", "api_compatibility", "licence", "capabilities", "module", "name")
-                    if key in raw}
-        metadata["source"] = str(manifest.resolve())
-        metadata.setdefault("name", "")
-        source = manifest.parent / metadata["module"]
-        identifier = metadata["identifier"]
-        records[identifier] = dict(metadata=metadata, reference=str(manifest.resolve()),
-                                   kind="local", enabled=True, symbol=f"P{len(records) + 1}",
-                                   fingerprint=hashlib.sha256(manifest.read_bytes() + source.read_bytes()).hexdigest())
+    for candidate in manager.discover_local(directory.resolve()):
+        identifier = candidate.metadata.identifier
+        if identifier in records:
+            raise ValueError(f"Duplicate benchmark plugin: {identifier}")
+        records[identifier] = {
+            "metadata": asdict(candidate.metadata), "reference": candidate.reference,
+            "kind": candidate.kind, "enabled": True, "symbol": manager.symbol(identifier),
+            "fingerprint": manager._fingerprint(candidate),
+        }
+    if not records:
+        raise ValueError(f"No plugins discovered in {directory}")
     storage = profile / "config" / "CurveMole" / "plugins"
     storage.mkdir(parents=True)
     (storage / "installed.json").write_text(json.dumps(records), encoding="utf-8")
@@ -54,8 +57,13 @@ def probe(plugins):
             os.environ[key] = str(profile / folder)
         os.environ.update(QT_QPA_PLATFORM="offscreen", CURVEMOLE_SMOKE_TEST="1",
                           CURVEMOLE_DISABLE_UPDATE_CHECK="1")
+        expected_plugins = set()
         if plugins:
-            prepare_plugins(plugins, profile)
+            # Prepare trust records in a separate interpreter to keep measured imports cold.
+            subprocess.run([sys.executable, str(Path(__file__).resolve()), "--plugins", str(plugins),
+                            "--prepare-profile", str(profile)], check=True)
+            records = profile / "config" / "CurveMole" / "plugins" / "installed.json"
+            expected_plugins = set(json.loads(records.read_text(encoding="utf-8")))
         started = time.perf_counter()
         # QSettings on macOS is native, and platformdirs may use native paths.
         # Override both before importing the application, on every platform.
@@ -109,6 +117,8 @@ def probe(plugins):
             app.exec()
             if getattr(window, "_startup_pending", False) or "first_paint_ms" not in result:
                 raise RuntimeError("Startup did not complete")
+            if set(window.plugin_manager.loaded) != expected_plugins:
+                raise RuntimeError(f"Plugin registration incomplete: {window.plugin_manager.errors}")
             result.update(import_ms=(imported - started) * 1000,
                           construct_ms=(constructed - imported) * 1000,
                           rss_mib=peak_rss_mib(),
@@ -127,7 +137,11 @@ def main():
     parser.add_argument("--source", type=Path, default=Path(__file__).resolve().parents[1] / "src")
     parser.add_argument("--plugins", type=Path, help="Execute plugins in this trusted directory in an isolated profile")
     parser.add_argument("--probe", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--prepare-profile", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.prepare_profile:
+        prepare_plugins(args.plugins, args.prepare_profile)
+        return
     if args.probe:
         print(json.dumps(probe(args.plugins)))
         return
@@ -139,7 +153,9 @@ def main():
         if args.plugins:
             command.extend(["--plugins", str(args.plugins.resolve())])
         process = subprocess.run(command, env=dict(os.environ, PYTHONPATH=str(args.source.resolve())),
-                                 capture_output=True, text=True, timeout=60, check=True)
+                                 capture_output=True, text=True, timeout=60)
+        if process.returncode:
+            raise RuntimeError(f"Startup probe failed:\n{process.stderr}")
         samples.append(json.loads(process.stdout))
     medians = {key: statistics.median(row[key] for row in samples)
                for key in samples[0] if samples[0][key] is not None}

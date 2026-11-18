@@ -83,7 +83,7 @@ jobs:
       - name: Generate PNG, ICO, and ICNS icons
         run: |
           mkdir -p generated-icons
-          uv run --no-project --with pillow==12.3.0 python - <<'PY'
+          uv run --no-project --with pillow==13.0.0 python - <<'PY'
           from pathlib import Path
           from PIL import Image
 

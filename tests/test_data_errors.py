@@ -247,3 +247,48 @@ def test_custom_formula_parallel_fit_keeps_ci_weighting(monkeypatch, use_errors)
     assert result.success and len(pools) == 1
     for output in result.curve_outputs.values():
         np.testing.assert_allclose(output.fitted, 160 / 17 if use_errors else 5., rtol=1e-6)
+
+
+@pytest.mark.parametrize("method", ["residual_bootstrap", "block_bootstrap"])
+def test_bootstrap_uses_fit_side_for_observation_minus_prediction(method):
+    # A positive observed-minus-fitted residual uses the lower measurement error.
+    curve, model = constant_problem()
+    plan = FitPlan([curve.id])
+    fitter = Fitter()
+    models = {curve.id: model}
+    baseline = fitter.fit(plan, [curve], models)
+    output = baseline.curve_outputs[curve.id]
+    residual = output.weighted_residual - np.mean(output.weighted_residual)
+    rng = np.random.default_rng(341)
+    if method == "residual_bootstrap":
+        drawn = rng.choice(residual, size=len(curve))
+    else:
+        blocks = [np.take(residual, rng.integers(len(curve)) + np.arange(3), mode="wrap")
+                  for _ in range((len(curve) + 2) // 3)]
+        drawn = np.concatenate(blocks)[:len(curve)]
+    lower, upper = curve.y_error_scales()
+    expected = output.fitted + drawn * np.where(drawn >= 0, lower, upper)
+
+    class Capture:
+        registry = fitter.registry
+
+        def fit(self, plan, curves, models, **kwargs):
+            np.testing.assert_allclose(curves[curve.id].y, expected, rtol=1e-12)
+            return baseline
+
+    _resample_trial(341, method, baseline, plan, {curve.id: curve}, models,
+                    {curve.id: 3}, Capture(), CancellationToken())
+
+
+@pytest.mark.parametrize("length", [1, 2, 3, 20])
+def test_circular_blocks_preserve_seed_stream_and_tail(length):
+    from curvemole.core.uncertainty import _sample_residual_blocks
+
+    values = np.arange(20.)
+    reference_rng = np.random.default_rng(1053)
+    blocks = [values[(reference_rng.integers(len(values)) + np.arange(length)) % len(values)]
+              for _ in range((len(values) + length - 1) // length)]
+    rng = np.random.default_rng(1053)
+    np.testing.assert_array_equal(_sample_residual_blocks(rng, values, length),
+                                  np.concatenate(blocks)[:len(values)])
+    assert rng.random() == reference_rng.random()

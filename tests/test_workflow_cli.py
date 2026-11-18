@@ -33,3 +33,20 @@ def test_folder_example_workflow(tmp_path: Path) -> None:
     assert outcome.result is not None and outcome.result.success
     assert outcome.imported_files == [tmp_path / "gaussian.csv"]
     assert (tmp_path / "folder_result.fitproj").exists()
+
+
+def test_validate_round_trip_and_malformed_fitmodel(tmp_path, capsys):
+    from curvemole import Component, Model
+    from curvemole.cli import EXIT_PROJECT
+    from curvemole.core.serialization import save_fitmodel
+
+    path = save_fitmodel(Model(components=[Component.create("gaussian")]), tmp_path / "valid")
+    assert main(["validate", str(path), "--json"]) == EXIT_OK
+    assert json.loads(capsys.readouterr().out) == {"valid": True, "failures": []}
+    valid = json.loads(path.read_text())
+    for invalid in ([], dict(valid, model={}), dict(valid, schema_version="broken"),
+                    dict(valid, custom_functions="oops")):
+        path.write_text(json.dumps(invalid))
+        assert main(["validate", str(path), "--json"]) == EXIT_PROJECT
+        result = json.loads(capsys.readouterr().out)
+        assert result["valid"] is False and result["failures"]

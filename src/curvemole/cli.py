@@ -18,7 +18,12 @@ from curvemole.core.initialization import component_from_suggestion, find_peak_s
 from curvemole.core.models import Component
 from curvemole.core.project import Project
 from curvemole.core.registry import default_registry
-from curvemole.core.serialization import load_project, save_project, validate_project_archive
+from curvemole.core.serialization import (
+    load_fitmodel,
+    load_project,
+    save_project,
+    validate_project_archive,
+)
 from curvemole.core.workflow import load_workflow, run_workflow, validate_workflow
 from curvemole.version import __version__
 
@@ -111,7 +116,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload = _dispatch(args)
         _print(payload, json_output)
         if args.command == "validate" and not payload["valid"]:
-            return EXIT_PROJECT if args.path.suffix.lower() == ".fitproj" else EXIT_DATA
+            return EXIT_PROJECT if args.path.suffix.lower() in {".fitproj", ".fitmodel"} else EXIT_DATA
         return EXIT_OK
     except ProjectFormatError as exc:
         _error(exc, json_output)
@@ -174,7 +179,7 @@ def _dispatch(args: argparse.Namespace) -> Any:
             "unchanged": len(summary.unchanged),
         }
     if args.command == "inspect":
-        if args.path.suffix.lower() == ".fitproj":
+        if args.path.suffix.lower() in {".fitproj", ".fitmodel"}:
             project = load_project(args.path, partial_recovery=True)
             return {
                 "format": "fitproj",
@@ -199,6 +204,12 @@ def _dispatch(args: argparse.Namespace) -> Any:
         suffix = args.path.suffix.lower()
         if suffix == ".fitproj":
             failures = validate_project_archive(args.path, raise_on_error=False)
+        elif suffix == ".fitmodel":
+            failures = []
+            try:
+                load_fitmodel(args.path)
+            except ProjectFormatError as exc:
+                failures.append(str(exc))
         elif suffix in {".yml", ".yaml"}:
             failures = validate_workflow(load_workflow(args.path))
         else:

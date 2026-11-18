@@ -300,9 +300,20 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
         residual = np.asarray(output.residual)
         if scales is not None and method != "parametric_monte_carlo":
             minus, plus = scales
-            residual = residual / np.where(residual >= 0, plus[output.indices], minus[output.indices])
+            # Stored residuals are observed minus fitted. A positive residual
+            # puts the fitted value on the lower side of the measurement.
+            residual = residual / np.where(residual >= 0, minus[output.indices], plus[output.indices])
         prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns))
     return prepared
+
+
+def _sample_residual_blocks(rng, residual, length):
+    size = len(residual)
+    starts = rng.integers(size, size=(size + length - 1) // length)
+    if length == 1:
+        return residual[starts]
+    indices = (starts[:, None] + np.arange(length)).reshape(-1)[:size]
+    return np.take(residual, indices, mode="wrap")
 
 
 def _resample_trial(
@@ -365,16 +376,10 @@ def _resample_trial_body(
                 sampled = rng.choice(residual, size=len(output.indices), replace=True)
             else:
                 length = max(1, min(lengths[curve_id], len(residual)))
-                blocks = []
-                count = 0
-                while count < len(residual):
-                    start = int(rng.integers(0, len(residual)))
-                    blocks.append(residual[(start + np.arange(length)) % len(residual)])
-                    count += length
-                sampled = np.concatenate(blocks)[:len(residual)]
+                sampled = _sample_residual_blocks(rng, residual, length)
             if scales is not None:
                 sampled = sampled * np.where(sampled >= 0,
-                    plus[output.indices], minus[output.indices])
+                    minus[output.indices], plus[output.indices])
             synthetic = full_fit.copy()
             synthetic[output.indices] += sampled
         trial.original_x = curve.x

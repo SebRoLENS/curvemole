@@ -35,3 +35,15 @@ assert curvemole.Curve is Curve
 assert curvemole.Project is curvemole.core.project.Project
 assert 'Curve' in dir(curvemole)
 '''], check=True, timeout=30)
+
+
+def test_benchmark_measures_enabled_plugins(tmp_path):
+    import json
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    source = root / "custom_plugins/by_main_developer/tsv_exporter"
+    result = subprocess.run([sys.executable, str(root / "scripts/benchmark_startup.py"),
+                             "--plugins", str(source), "--runs", "1"],
+                            check=True, capture_output=True, text=True, timeout=60)
+    assert json.loads(result.stdout)["samples"][0]["loaded_plugins"] == 1

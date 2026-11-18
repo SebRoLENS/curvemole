@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,3 +104,26 @@ def test_packaging_smoke_creates_valid_png_svg_and_pdf(tmp_path) -> None:
         image.verify()
     assert ET.parse(tmp_path / "packaging-plot.svg").getroot().tag.endswith("}svg")
     assert (tmp_path / "packaging-report.pdf").read_bytes().startswith(b"%PDF-")
+
+
+def test_build_preserves_sibling_artifacts_when_freezing_fails(tmp_path, monkeypatch):
+    import runpy
+    import shutil
+    import subprocess
+    import sys
+
+    script = tmp_path / "scripts/build_desktop.py"
+    script.parent.mkdir()
+    shutil.copy(ROOT / "scripts/build_desktop.py", script)
+    sentinels = (tmp_path / "dist/previous.whl", tmp_path / "build/community-catalog.json")
+    for path in sentinels:
+        path.parent.mkdir()
+        path.write_bytes(b"existing output")
+
+    def fail_build(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, [sys.executable])
+
+    monkeypatch.setattr(subprocess, "run", fail_build)
+    with pytest.raises(subprocess.CalledProcessError):
+        runpy.run_path(str(script))["main"]()
+    assert all(path.read_bytes() == b"existing output" for path in sentinels)

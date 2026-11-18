@@ -37,7 +37,12 @@ from curvemole.core.data import (
     Series,
     Transformation,
 )
-from curvemole.core.errors import ProjectFormatError
+from curvemole.core.errors import (
+    ConstraintError,
+    DataValidationError,
+    ExpressionError,
+    ProjectFormatError,
+)
 from curvemole.core.fitting import FitResult
 from curvemole.core.history import CompactHistory
 from curvemole.core.matrices import BlockDiagonalMatrix
@@ -643,14 +648,25 @@ def load_fitmodel(path: str | Path) -> tuple[Model, list[dict[str, Any]]]:
     source = Path(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, ValueError, RecursionError) as exc:
         raise ProjectFormatError(f"Cannot read fit model '{source}': {exc}") from exc
-    if payload.get("format") != "CurveMole fit model":
+    if not isinstance(payload, dict) or payload.get("format") != "CurveMole fit model":
         raise ProjectFormatError("The selected file is not a CurveMole .fitmodel file.")
-    schema = int(payload.get("schema_version", -1))
-    if schema > FITMODEL_SCHEMA_VERSION or schema < 1:
+    schema = payload.get("schema_version", -1)
+    # Historical readers also accepted integer versions encoded as strings.
+    if isinstance(schema, str) and schema in {str(v) for v in range(1, FITMODEL_SCHEMA_VERSION + 1)}:
+        schema = int(schema)
+    if type(schema) is not int or not 1 <= schema <= FITMODEL_SCHEMA_VERSION:
         raise ProjectFormatError(f"Unsupported fit-model schema: {schema}")
-    return Model.from_dict(payload["model"]), list(payload.get("custom_functions", []))
+    custom = payload.get("custom_functions", [])
+    if not isinstance(custom, list) or any(not isinstance(item, dict) for item in custom):
+        raise ProjectFormatError("Fit-model custom functions must be a list of objects.")
+    try:
+        model = Model.from_dict(payload["model"])
+    except (KeyError, TypeError, ValueError, AttributeError, OverflowError,
+            ConstraintError, DataValidationError, ExpressionError) as exc:
+        raise ProjectFormatError(f"Invalid fit model '{source}': {exc}") from exc
+    return model, custom
 
 
 def _process_identity(pid: int) -> str | None:

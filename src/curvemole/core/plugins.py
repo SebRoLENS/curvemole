@@ -141,8 +141,11 @@ class PluginManager:
                 return
             destination = self.storage / "installed.json"
             temporary = destination.with_suffix(f".{uuid.uuid4().hex}.tmp")
-            temporary.write_text(payload, encoding="utf-8")
-            temporary.replace(destination)
+            try:
+                temporary.write_text(payload, encoding="utf-8")
+                temporary.replace(destination)
+            finally:
+                temporary.unlink(missing_ok=True)
             self._saved_payload = payload
 
     def start_session(self) -> bool:
@@ -438,19 +441,29 @@ class PluginManager:
             raise CurveMoleError(f"Plugin loading failed: {exc}") from exc
         finally:
             self._loading.discard(metadata.identifier)
-        self.trusted_identifiers.add(metadata.identifier)
-        self.loaded[metadata.identifier] = metadata
-        previous = self.installed.get(metadata.identifier, {})
+        previous = self.installed.get(metadata.identifier)
         record = {
             "metadata": asdict(metadata), "reference": str(Path(candidate.reference).resolve())
             if candidate.kind == "local" else candidate.reference,
             "kind": candidate.kind, "fingerprint": fingerprint, "enabled": True,
             "symbol": self.symbol(metadata.identifier),
         }
-        if previous.get("reference") == record["reference"] and "files" in previous:
+        if previous and previous.get("reference") == record["reference"] and "files" in previous:
             record["files"] = previous["files"]
         self.installed[metadata.identifier] = record
-        self._save()
+        try:
+            self._save()
+        except OSError:
+            # Unregister live contributions without attempting another disk write.
+            self.installed.pop(metadata.identifier)
+            self.disable(metadata.identifier)
+            self.names.pop(metadata.identifier, None)
+            self.source_fingerprints.pop(metadata.identifier, None)
+            if previous is not None:
+                self.installed[metadata.identifier] = previous
+            raise
+        self.trusted_identifiers.add(metadata.identifier)
+        self.loaded[metadata.identifier] = metadata
         return metadata
 
     def _load_local(self, candidate: PluginCandidate) -> ModuleType:

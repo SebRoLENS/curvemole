@@ -701,3 +701,32 @@ def test_secondary_plugin_windows_follow_active_modal_parent(controller_case):
     assert controller.dialog.parent() is plugin_manager
     assert plugin_manager.isVisible()
     assert all(success for _, success in observed), observed
+
+
+def test_catalog_can_retry_after_registry_write_failure(update_case, tmp_path, monkeypatch):
+    manager, catalog, update, archive, _ = update_case
+    manager.remove(update.identifier)
+    destination = tmp_path / "downloads"
+    destination.mkdir()
+    plugin = community_plugins(catalog)[0]
+    registry = manager.storage / "installed.json"
+    before = registry.read_bytes()
+    original_replace = Path.replace
+
+    def fail_registry(source, target):
+        if target == registry:
+            raise OSError("registry unavailable")
+        return original_replace(source, target)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(Path, "replace", fail_registry)
+        with pytest.raises(OSError, match="registry unavailable"):
+            install_community_plugin(manager, plugin, archive, destination)
+    assert registry.read_bytes() == before
+    assert plugin.identifier not in manager.installed
+    assert plugin.identifier not in manager.trusted_identifiers
+    assert plugin.identifier not in manager.loaded
+    assert "test.plugin:test" not in extensions.entries
+    assert not (destination / plugin.category / plugin.folder).exists()
+    assert not list(manager.storage.glob("*.tmp"))
+    assert install_community_plugin(manager, plugin, archive, destination).version == plugin.latest

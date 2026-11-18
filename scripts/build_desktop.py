@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -13,9 +12,7 @@ def main() -> int:
     root = Path(__file__).resolve().parents[1]
     distribution = root / "dist"
     build = root / "build"
-    for directory in (distribution, build):
-        if directory.exists():
-            shutil.rmtree(directory)
+    # PyInstaller cleans its own work and bundle with --clean and --noconfirm.
     environment = os.environ.copy()
     environment.setdefault("QT_QPA_PLATFORM", "offscreen")
     environment.setdefault("MPLCONFIGDIR", str(build / "matplotlib"))
