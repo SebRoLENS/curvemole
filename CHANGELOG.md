@@ -6,6 +6,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 <!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Changed
+
+- Allow reinstalling plugins deleted from disk. ([`070f2df9`](https://github.com/SebRoLENS/curvemole/commit/070f2df950e5f3e1154e79cff3531fb760ce7c88))
+
 ### Fixed
 
 - Restore plugin menu access after CurveMole starts. ([`526d5d78`](https://github.com/SebRoLENS/curvemole/commit/526d5d788ddfc35c027945830bb62ce101028fd9))
