@@ -1399,8 +1399,12 @@ class PluginManagerDialog(QDialog):
         community = QHBoxLayout()
         controller = getattr(parent, "plugin_update_controller", None)
         if controller is not None:
+            def browse_validated():
+                controller.browse(directory=self.directory.text())
+                self.scan()
+
             browse_online = QPushButton(self.tr("Browse validated plugins…"))
-            browse_online.clicked.connect(lambda: controller.browse(directory=self.directory.text()))
+            browse_online.clicked.connect(browse_validated)
             community.addWidget(browse_online)
             updates = QPushButton(self.tr("Plugin updates…"))
             updates.clicked.connect(controller.open)

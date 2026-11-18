@@ -373,6 +373,8 @@ class PluginUpdateController(QObject):
     def _refresh_catalog(self):
         if self.catalog_dialog is None:
             return
+        if self.plugins.prune_missing_local_plugins() and hasattr(self.window, "plugin_host"):
+            self.window.plugin_host.refresh()
         self.catalog_check.setEnabled(not self.catalog_busy)
         self.catalog_folder.setEnabled(not self.catalog_busy)
         self.catalog_choose.setEnabled(not self.catalog_busy)

@@ -346,6 +346,7 @@ def install_community_plugin(
     manager: PluginManager, plugin: CommunityPlugin, archive: bytes, destination: str | Path
 ) -> PluginMetadata:
     """Verify, retain and load one previously uninstalled validated plugin."""
+    manager.prune_missing_local_plugins()
     if plugin.identifier in manager.installed or plugin.identifier in manager.loaded:
         raise CurveMoleError("This plugin is already installed; use Plugin updates instead.")
     if not plugin.compatible:

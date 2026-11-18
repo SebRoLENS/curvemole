@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import re
+import stat
 import time
 import uuid
 from collections.abc import Iterator, Mapping
@@ -64,6 +65,16 @@ class PluginCandidate:
     metadata: PluginMetadata
     reference: str
     kind: str
+
+
+def _missing_plugin_file(path: Path) -> bool:
+    try:
+        return not stat.S_ISREG(path.stat().st_mode)
+    except (FileNotFoundError, NotADirectoryError):
+        return True
+    except (OSError, ValueError):
+        # An inaccessible path is not evidence that the user removed the file.
+        return False
 
 
 class PluginManager:
@@ -174,8 +185,12 @@ class PluginManager:
 
     def discover_candidates(self, directory: str | Path) -> list[PluginCandidate]:
         """Merge discovery without replacing a retained update with an older copy."""
+        self.prune_missing_local_plugins()
         candidates = {c.metadata.identifier: c for c in self.installed_candidates()}
         for candidate in self.discover_local(directory):
+            module = candidate.metadata.module
+            if module and _missing_plugin_file(Path(candidate.reference).parent / module):
+                continue
             previous = candidates.get(candidate.metadata.identifier)
             if previous and previous.kind == "local" and (
                 Path(previous.reference).resolve() != Path(candidate.reference).resolve()
@@ -321,11 +336,28 @@ class PluginManager:
             self._save()
 
     def remove(self, identifier: str) -> None:
-        self.disable(identifier)
         self.installed.pop(identifier, None)
+        self.disable(identifier)
         self.trusted_identifiers.discard(identifier)
         self._save()
 
+    def prune_missing_local_plugins(self) -> bool:
+        """Forget registrations whose local manifests or entry modules are gone."""
+        removed = False
+        for identifier, record in tuple(self.installed.items()):
+            reference = record.get("reference")
+            if (record.get("kind") != "local" or not isinstance(reference, str)
+                    or not reference or identifier in self._loading):
+                continue
+            manifest = Path(reference)
+            metadata = record.get("metadata")
+            module = metadata.get("module") if isinstance(metadata, dict) else None
+            if _missing_plugin_file(manifest) or (
+                isinstance(module, str) and module and _missing_plugin_file(manifest.parent / module)
+            ):
+                self.remove(identifier)
+                removed = True
+        return removed
 
     def discover_local(self, directory: str | Path) -> list[PluginCandidate]:
         root = Path(directory)

@@ -2,6 +2,7 @@ import copy
 import hashlib
 import io
 import json
+import shutil
 import zipfile
 from dataclasses import replace
 from pathlib import Path
@@ -525,6 +526,66 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     assert "installed and loaded" in controller.catalog_status.text().lower()
     assert controller.catalog_folder.isEnabled()
     assert controller.catalog_destination is None
+
+
+@pytest.mark.parametrize("open_manager", [True, False])
+def test_deleted_plugin_disappears_and_can_be_downloaded_again(
+    controller_case, tmp_path, monkeypatch, open_manager
+):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMessageBox
+
+    from curvemole.gui.dialogs import PluginManagerDialog
+
+    _, controller, requests, catalog, update, archive = controller_case
+    manager = controller.plugins
+    manager.remove(update.identifier)
+    destination = tmp_path / "community"
+    destination.mkdir()
+    plugin = community_plugins(catalog)[0]
+    install_community_plugin(manager, plugin, archive, destination)
+    folder = destination / plugin.category / plugin.folder
+    assert "test.plugin:test" in extensions.entries
+    shutil.rmtree(folder)
+
+    if open_manager:
+        dialog = PluginManagerDialog(manager, destination, controller.window)
+        assert update.identifier not in {item.metadata.identifier for item in dialog.candidates}
+        assert update.identifier not in manager.loaded
+        dialog.close()
+    controller.browse(directory=str(destination))
+    requests[-1][1](json.dumps(catalog).encode(), "")
+    assert controller.catalog_table.item(1, 6).text() == "Available"
+    assert update.identifier not in manager.installed
+    assert update.identifier not in manager.loaded
+    assert update.identifier not in manager.trusted_identifiers
+    assert "test.plugin:test" not in extensions.entries
+    assert update.identifier not in PluginManager(storage=manager.storage).installed
+
+    monkeypatch.setattr(
+        QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Yes
+    )
+    controller.catalog_table.item(1, 0).setCheckState(Qt.CheckState.Checked)
+    controller.install_catalog_selected()
+    assert requests[-1][0] == plugin.url
+    requests[-1][1](archive, "")
+    assert controller.catalog_table.item(1, 6).text() == f"Installed {plugin.latest}"
+    assert (folder / "plugin.py").is_file()
+    assert update.identifier in manager.loaded
+    assert "test.plugin:test" in extensions.entries
+
+
+def test_install_replaces_stale_record_when_only_the_plugin_source_was_deleted(update_case, tmp_path):
+    manager, catalog, update, archive, original = update_case
+    (original / "plugin.py").unlink()
+    destination = tmp_path / "community"
+    destination.mkdir()
+    plugin = community_plugins(catalog)[0]
+    install_community_plugin(manager, plugin, archive, destination)
+    assert manager.loaded[update.identifier].version == plugin.latest
+    candidates = manager.discover_candidates(original)
+    plugin_candidates = [item for item in candidates if item.metadata.identifier == update.identifier]
+    assert [item.metadata.version for item in plugin_candidates] == [plugin.latest]
 
 
 @pytest.mark.parametrize('destination', ['', '   ', 'internal'])
