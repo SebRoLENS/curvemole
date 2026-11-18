@@ -45,6 +45,17 @@ ORDER = ("Added", "Changed", "Fixed", "Documentation")
 # One historical commit may contain changes in more than one user-facing category.
 # Preserve its immutable identity while making each change explicit in the notes.
 COMMIT_NOTES = {
+    "dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c": (
+        ("Fixed", "Correct residual and block bootstrap intervals for asymmetric Y errors. "
+         "Recalculate intervals previously obtained with either method and asymmetric errors"),
+        ("Fixed", "Keep standardized residuals, autocorrelation and Durbin–Watson stable "
+         "when residuals are expressed in very small or very large units"),
+        ("Fixed", "Allow a plugin installation to be retried in the same session after "
+         "the plugin registry could not be written"),
+        ("Fixed", "Validate exported .fitmodel files from the command line and report malformed models"),
+        ("Fixed", "Preserve other build artifacts when rebuilding the desktop application"),
+        ("Changed", "Speed up block bootstrap sampling and automatic block-length selection"),
+    ),
     # Website text is already live independently of application betas.
     "b7aaf49452a5f1e1eb95f16e90f6c6c75066f3ea": (),
     "9366b08aceb00f0e9e9e419e83dbc8cd6d97e5e3": (),
