@@ -374,6 +374,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
     seriesActivated = Signal(str)
     curveColourRequested = Signal(str)
     seriesPaletteRequested = Signal(str, str)
+    curvesPaletteRequested = Signal(object, str)
     newSeriesRequested = Signal()
     curvesMoveRequested = Signal(object, str)
     curvesReorderRequested = Signal(object, int)
@@ -1591,6 +1592,7 @@ class MainWindow(QMainWindow):
         self.curve_tree.curveDescriptionRequested.connect(self.describe_spectrum)
         self.curve_tree.curveColourRequested.connect(self.choose_curve_colour)
         self.curve_tree.seriesPaletteRequested.connect(self.apply_series_palette)
+        self.curve_tree.curvesPaletteRequested.connect(self.apply_selected_palette)
         self.curve_tree.newSeriesRequested.connect(self.create_series)
         self.curve_tree.curvesMoveRequested.connect(self.move_curves_to_series)
         self.curve_tree.curvesReorderRequested.connect(self.reorder_curves)
@@ -4167,6 +4169,45 @@ class MainWindow(QMainWindow):
                 self.tr("Change spectrum colour"),
                 lambda: self._set_curve_colour(curve_id, colour),
                 lambda: self._set_curve_colour(curve_id, old),
+            )
+        )
+
+    def apply_selected_palette(self, curve_ids: list[str], palette_name: str) -> None:
+        """Colour just the selected spectra in tree order, regardless of series."""
+        if not self._ensure_editable():
+            return
+        palette = SERIES_PALETTES.get(palette_name)
+        if not palette:
+            return
+        available = {curve.id: curve for curve in self.project.curves}
+        ordered_ids = [
+            curve_id for curve_id in dict.fromkeys(curve_ids) if curve_id in available
+        ]
+        if len(ordered_ids) < 2:
+            return
+        before = {curve_id: available[curve_id].colour for curve_id in ordered_ids}
+        after = {
+            curve_id: palette[index % len(palette)]
+            for index, curve_id in enumerate(ordered_ids)
+        }
+        if before == after:
+            return
+
+        def restore(colours: dict[str, str]) -> None:
+            for curve_id, colour in colours.items():
+                try:
+                    self.project.dataset.curve(curve_id).colour = colour.upper()
+                except KeyError:
+                    continue
+            # This operation changes individual colours, not any series palette.
+            self.project.touch()
+            self.refresh_all()
+
+        self.undo_stack.push(
+            CallbackCommand(
+                self.tr("Change selected spectra palette"),
+                lambda: restore(after),
+                lambda: restore(before),
             )
         )
 

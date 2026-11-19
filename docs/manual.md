@@ -492,6 +492,10 @@ and **State** columns.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
   with one of the built-in non-red palettes. Palette and individual colours are saved in
   the project.
+- Select at least two spectra (Ctrl-click, or Shift-click for a range), then right-click
+  one of the selected spectra and choose **Selected spectra palette**. The colours
+  follow tree order even across series; only selected spectra change, without
+  changing series palettes. The operation is a single Undo/Redo step.
 - Use the search field to filter curves by name without removing them.
 
 Curve states are:

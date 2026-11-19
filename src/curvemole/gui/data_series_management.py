@@ -182,6 +182,16 @@ def _show_context_menu(tree: CurveTree, position: Any) -> None:
             colour_action.triggered.connect(
                 lambda checked=False, curve_id=curve_id: tree.curveColourRequested.emit(curve_id)
             )
+            if len(selected_ids) > 1:
+                palette_menu = menu.addMenu(tree.tr("Selected spectra palette"))
+                palette_menu.setEnabled(not project.read_only)
+                for palette_name in SERIES_PALETTES:
+                    action = palette_menu.addAction(palette_name)
+                    action.triggered.connect(
+                        lambda checked=False, ids=tuple(selected_ids), name=palette_name: (
+                            tree.curvesPaletteRequested.emit(list(ids), name)
+                        )
+                    )
         elif metadata[0] == "series":
             series_id = str(metadata[1])
             rename_action = menu.addAction(tree.tr("Rename series…"))

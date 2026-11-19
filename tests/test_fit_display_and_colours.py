@@ -192,6 +192,54 @@ def test_series_palette_changes_colours_without_invalidating_fits() -> None:
     app.processEvents()
 
 
+def test_selected_palette_across_series_is_atomic_and_preserves_series_settings() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("selected palettes")
+    first = Series("First", metadata={"palette": "Colourblind"})
+    second = Series("Second", metadata={"palette": "Ocean"})
+    curves = [
+        Curve(f"curve {i}", [0., 1.], [float(i), float(i + 1)])
+        for i in range(5)
+    ]
+    for curve in curves[:2]:
+        first.add(curve)
+    for curve in curves[2:]:
+        second.add(curve)
+    project.add_series(first)
+    project.add_series(second)
+    for curve in curves:
+        curve.state = CurveState.FITTED
+    project.dirty = False
+
+    window = MainWindow(project)
+    original = [curve.colour for curve in curves]
+    metadata_before = [dict(series.metadata) for series in project.dataset.series]
+    # Selected order is the visible tree order across both series.
+    selected = [curves[0].id, curves[2].id, curves[4].id]
+    count = window.undo_stack.count()
+    window.apply_selected_palette(selected, "Ocean")
+    expected = SERIES_PALETTES["Ocean"]
+    assert [curves[i].colour for i in (0, 2, 4)] == list(expected[:3])
+    assert [curves[i].colour for i in (1, 3)] == [original[1], original[3]]
+    assert [dict(series.metadata) for series in project.dataset.series] == metadata_before
+    assert all(curve.state == CurveState.FITTED for curve in curves)
+    assert window.undo_stack.count() == count + 1
+
+    window.undo_stack.undo()
+    assert [curve.colour for curve in curves] == original
+    window.undo_stack.redo()
+    assert [curves[i].colour for i in (0, 2, 4)] == list(expected[:3])
+    assert [dict(series.metadata) for series in project.dataset.series] == metadata_before
+
+    window.apply_selected_palette(selected, "Ocean")
+    assert window.undo_stack.count() == count + 1  # No-op palette is not recorded.
+    window.apply_selected_palette(selected, "not a palette")
+    assert window.undo_stack.count() == count + 1
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
 def test_individual_spectrum_colour_picker_changes_non_red_colour(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

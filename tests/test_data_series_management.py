@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtWidgets import QApplication, QInputDialog, QMessageBox
+from PySide6.QtWidgets import QApplication, QInputDialog, QMenu, QMessageBox
 
 from curvemole import Curve, Project
 from curvemole.core.data import Series
@@ -131,6 +131,87 @@ def test_populated_series_confirmation_can_cancel(monkeypatch: pytest.MonkeyPatc
     assert first.id in project.models and second.id in project.models
     assert window.undo_stack.count() == 0
 
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_context_menu_selected_palette_across_series(monkeypatch: pytest.MonkeyPatch) -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project("Palette context menu")
+    first_series = Series("First", [
+        Curve("First A", [0., 1.], [1., 2.]),
+        Curve("First B", [0., 1.], [2., 3.]),
+    ])
+    second_series = Series("Second", [
+        Curve("Second A", [0., 1.], [3., 4.]),
+        Curve("Second B", [0., 1.], [4., 5.]),
+    ])
+    project.add_series(first_series)
+    project.add_series(second_series)
+    window = MainWindow(project)
+    window.show()
+    tree = window.curve_tree
+    tree.expandAll()
+    app.processEvents()
+
+    first_item = tree.topLevelItem(0).child(0)
+    last_item = tree.topLevelItem(1).child(1)
+    first_item.setSelected(True)
+    last_item.setSelected(True)
+    ids = [first_series.curves[0].id, second_series.curves[1].id]
+    assert tree.ordered_selected_curve_ids() == ids
+    before_other = (first_series.curves[1].colour, second_series.curves[0].colour)
+    menus_seen = []
+
+    def fake_exec(menu, *_args):
+        palette_actions = [
+            action for action in menu.actions()
+            if action.menu() is not None and action.text() == "Selected spectra palette"
+        ]
+        assert len(palette_actions) == 1
+        selected_palette = palette_actions[0].menu()
+        assert selected_palette.isEnabled()
+        menus_seen.append(selected_palette)
+        next(action for action in selected_palette.actions() if action.text() == "Ocean").trigger()
+
+    monkeypatch.setattr(QMenu, "exec", fake_exec)
+    tree._show_context_menu(tree.visualItemRect(first_item).center())
+
+    from curvemole.gui.colours import SERIES_PALETTES
+
+    assert len(menus_seen) == 1
+    assert [first_series.curves[0].colour, second_series.curves[1].colour] == list(
+        SERIES_PALETTES["Ocean"][:2]
+    )
+    assert (first_series.curves[1].colour, second_series.curves[0].colour) == before_other
+    assert window.undo_stack.count() == 1
+    window.undo_stack.undo()
+    assert all(curve.colour == "#0072B2" for curve in project.curves)
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_context_menu_single_spectrum_has_no_palette_submenu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    project, _, _, first, _ = _project()
+    window = MainWindow(project)
+    window.show()
+    tree = window.curve_tree
+    tree.expandAll()
+    app.processEvents()
+    item = tree.topLevelItem(0).child(0)
+    item.setSelected(True)
+
+    def fake_exec(menu, *_args):
+        assert not any(action.text() == "Selected spectra palette" for action in menu.actions())
+
+    monkeypatch.setattr(QMenu, "exec", fake_exec)
+    tree._show_context_menu(tree.visualItemRect(item).center())
+    assert first.colour == "#0072B2"
     project.dirty = False
     window.close()
     app.processEvents()
