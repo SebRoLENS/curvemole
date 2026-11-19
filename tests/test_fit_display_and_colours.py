@@ -286,6 +286,9 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
         item = tree.topLevelItem(0).child(0)
         index = tree.indexFromItem(item, 0)
         option = QStyleOptionViewItem()
+        # A standalone style option has an invalid (-1, -1) decoration size.
+        # Populate it as QTreeView does before querying Qt's icon rectangle.
+        option.decorationSize = tree.iconSize()
         delegate = tree.itemDelegate(index)
         delegate.initStyleOption(option, index)
         option.rect = tree.visualRect(index)
