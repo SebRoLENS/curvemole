@@ -2,6 +2,22 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.3-beta.152](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.152) — published 2026-11-19
+
+Changes since `v1.3.3-beta.146` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.146...v1.3.3-beta.152)).
+
+### Changed
+
+- Initialize Qt icon size in swatch rendering regression test. ([`6f1478a2`](https://github.com/SebRoLENS/curvemole/commit/6f1478a2d35c38c2d64babe3f2e4c48537ef659b))
+- Publish beta after successful spectrum-colour swatch validation. ([`39af7b27`](https://github.com/SebRoLENS/curvemole/commit/39af7b278fc6552130aaa0fce929d5c5f0d13f5c))
+- Use native item-checkbox geometry for spectrum colour icons. ([`ca8c05e7`](https://github.com/SebRoLENS/curvemole/commit/ca8c05e7551f288fda03151307e3bbab45c8658a))
+- Match spectrum swatch icon dimensions to native Qt checkbox. ([`4a99a0f3`](https://github.com/SebRoLENS/curvemole/commit/4a99a0f39820ad3e58fdfddf8ce7dbc178ce1caa))
+- Publish colour swatch beta after successful cross-platform validation. ([`16843b14`](https://github.com/SebRoLENS/curvemole/commit/16843b14b3416400aa29f6a3a422a69c44a1fd71))
+
+### Fixed
+
+- Fix invisible spectrum colour squares using native Qt decorations. ([`2fe97e50`](https://github.com/SebRoLENS/curvemole/commit/2fe97e50e3993d1e71ec996b28a0498274c1eda3))
+
 ## [1.3.3-beta.146](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.146) — published 2026-11-19
 
 Changes since `v1.3.2-beta.139` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.2-beta.139...v1.3.3-beta.146)).
