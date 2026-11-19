@@ -261,7 +261,9 @@ def test_individual_spectrum_colour_picker_changes_non_red_colour(
     app.processEvents()
 
 
-def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
+def test_visibility_colour_square_tracks_spectrum_colour_and_undo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from PySide6.QtCore import Qt
     from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
@@ -281,6 +283,13 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
     tree = window.curve_tree
     tree.expandAll()
     app.processEvents()
+    picker_calls = []
+
+    def cancelled_picker(*args, **_kwargs):
+        picker_calls.append(args[0].name().upper())
+        return QColor()
+
+    monkeypatch.setattr(QColorDialog, "getColor", cancelled_picker)
 
     def inspect(colour: str) -> None:
         item = tree.topLevelItem(0).child(0)
@@ -315,8 +324,10 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
         x = round(decoration.center().x() * scale)
         y = round(decoration.center().y() * scale)
         assert image.pixelColor(x, y).name().upper() == colour
+        count = len(picker_calls)
         QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=decoration.center())
         app.processEvents()
+        assert picker_calls == [*picker_calls[:count], colour]
         assert not first.visible  # The swatch is not a second checkbox.
 
     inspect(first.colour.upper())
