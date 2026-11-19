@@ -80,6 +80,7 @@ def test_quick_plot_style_controls_loaded_data_and_display_layout() -> None:
         assert first_item.opts.get("pen") is None
 
         workspace.display_mode.setCurrentIndex(1)
+        workspace.scope_project.click()
         workspace.set_plot_appearance(
             {
                 "data_style": "points",

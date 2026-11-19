@@ -228,6 +228,7 @@ def test_log_axes_and_waterfall_edit_actual_coordinates(point_window):
     main.project.dataset.series[0].curves.insert(0, other)
     main.refresh_all()
     workspace.display_mode.setCurrentIndex(2)
+    workspace.scope_project.click()
     workspace.x_offset.setValue(10)
     workspace.y_offset.setValue(20)
     workspace.set_log_x(True)

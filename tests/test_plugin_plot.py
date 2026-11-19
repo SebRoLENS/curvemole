@@ -167,6 +167,7 @@ def test_preview_coordinates_follow_log_waterfall_and_background_view(preview_wi
     main.project.add_curve(other)
     main.project.dataset.series[0].curves.reverse()
     ws.display_mode.setCurrentIndex(2)
+    ws.scope_project.click()
     ws.x_offset.setValue(2)
     ws.y_offset.setValue(3)
     model = main.project.model_for(curve.id)

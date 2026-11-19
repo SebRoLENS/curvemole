@@ -104,6 +104,7 @@ def test_display_scope_defaults_to_selected_but_preserves_explicit_choice():
     window = CurveMoleMainWindow(project)
     plot = window.plot_workspace
     assert plot.scope_selected.isChecked()
+    assert project.ui_state["display_scope"] == "selected"
 
     for mode in (1, 2):
         plot.display_mode.setCurrentIndex(mode)

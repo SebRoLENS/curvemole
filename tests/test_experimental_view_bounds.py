@@ -91,6 +91,7 @@ def test_waterfall_includes_offsets_and_only_visible_curves(plotted):
     curve = Curve("second", np.array([100., 200.]), np.array([1., 2.]))
     window.project.add_curve(curve)
     workspace.display_mode.setCurrentIndex(2)
+    workspace.scope_project.click()
     workspace.x_offset.setValue(500)
     workspace.y_offset.setValue(100)
     workspace.auto_range()

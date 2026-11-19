@@ -97,6 +97,7 @@ def test_all_scope_groups_types_and_excludes_every_occurrence_only_where_present
     curves[0].apply_transformation(Transformation('y_multiply', {'value': 3}))
     curves[1].apply_transformation(Transformation('y_add', {'value': 2}))
     window.plot_workspace.display_mode.setCurrentIndex(1)
+    window.plot_workspace.scope_project.click()
     window.refresh_all()
     controller.scope = 'all'
     controller.rebuild_menu()
@@ -122,6 +123,7 @@ def test_background_modes_work_for_current_and_all_with_waterfall_offsets(view_w
     _, window, controller, curves = view_window
     ws = window.plot_workspace
     ws.display_mode.setCurrentIndex(2)
+    ws.scope_project.click()
     ws.y_offset.setValue(5)
     window.refresh_all()
     controller.apply({curves[0].id: DisplayOptions(background='subtract')})
@@ -216,6 +218,7 @@ def test_all_scope_also_applies_to_hidden_spectra(view_window):
     hidden.apply_transformation(Transformation('y_multiply', {'value': 5}))
     hidden.visible = False
     window.plot_workspace.display_mode.setCurrentIndex(1)
+    window.plot_workspace.scope_project.click()
     window.refresh_all()
     controller.scope = 'all'
     menu_action(controller, 'view_original').trigger()

@@ -568,6 +568,7 @@ class PlotWorkspace(QWidget):
         self._project = project
         self._active_curve_id = active_curve_id
         if project is not None:
+            project.ui_state.setdefault("display_scope", "selected")
             if project_changed:
                 self.error_bars_toggle.blockSignals(True)
                 self.error_bars_toggle.setChecked(bool(project.ui_state.get("show_error_bars", True)))
@@ -594,7 +595,10 @@ class PlotWorkspace(QWidget):
             target = {"project": self.scope_project, "series": self.scope_series, "selected": self.scope_selected}.get(project.ui_state.get("display_scope"), self.scope_selected)
             target.setChecked(True)
             self.scope_group.blockSignals(False)
-        self._selected_curve_ids = set(selected_curve_ids or ())
+        self._selected_curve_ids = (
+            set(selected_curve_ids) if selected_curve_ids is not None
+            else ({active_curve_id} if active_curve_id else set())
+        )
         self._selected_component_id = selected_component_id
         self.refresh()
         if active_curve_changed and self.autoscale_toggle.isChecked():
