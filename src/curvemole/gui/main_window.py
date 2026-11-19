@@ -515,7 +515,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
                             "Checked: show this spectrum in Overlay and Waterfall.\n"
                             "Unchecked: hide it from these views without deleting its data or fit.\n"
                             "Click the coloured square to choose the spectrum colour "
-                            "and does not change visibility. Row highlighting selects spectra "
+                            "without changing visibility. Row highlighting selects spectra "
                             "for operations; the checkbox controls visibility. Hidden spectra "
                             "are excluded from fit plans."
                             " Up/Down navigation skips hidden spectra."
