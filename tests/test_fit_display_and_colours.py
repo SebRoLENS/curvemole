@@ -337,6 +337,49 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo(
     inspect(SERIES_PALETTES["Ocean"][0].upper())
     window.undo_stack.undo()
     inspect("#009E73")
+
+    # An accepted choice changes the spectrum colour and remains undoable.
+    monkeypatch.setattr(
+        QColorDialog, "getColor", lambda *_args, **_kwargs: QColor("#3455AA")
+    )
+    item = tree.topLevelItem(0).child(0)
+    index = tree.indexFromItem(item, 0)
+    option = QStyleOptionViewItem()
+    option.decorationSize = tree.iconSize()
+    tree.itemDelegate(index).initStyleOption(option, index)
+    option.rect = tree.visualRect(index)
+    option.widget = tree
+    swatch = tree.style().subElementRect(
+        QStyle.SubElement.SE_ItemViewItemDecoration, option, tree
+    )
+    checkbox = tree.style().subElementRect(
+        QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, tree
+    )
+    assert not swatch.intersects(checkbox)
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=swatch.center())
+    app.processEvents()
+    assert first.colour == "#3455AA"
+    assert not first.visible
+    window.undo_stack.undo()
+    assert first.colour == "#009E73"
+    window.undo_stack.redo()
+    assert first.colour == "#3455AA"
+
+    # The native checkbox still toggles visibility without changing colour.
+    item = tree.topLevelItem(0).child(0)
+    index = tree.indexFromItem(item, 0)
+    option = QStyleOptionViewItem()
+    option.decorationSize = tree.iconSize()
+    tree.itemDelegate(index).initStyleOption(option, index)
+    option.rect = tree.visualRect(index)
+    option.widget = tree
+    checkbox = tree.style().subElementRect(
+        QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, tree
+    )
+    QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=checkbox.center())
+    app.processEvents()
+    assert first.visible
+    assert first.colour == "#3455AA"
     project.dirty = False
     window.close()
     app.processEvents()
