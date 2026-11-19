@@ -66,6 +66,7 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
     def __init__(self, view, callback):
         super().__init__(view)
         self.view, self.callback = view, callback
+        self._pressed_swatch_curve_id = None
         view.viewport().installEventFilter(self)
 
     def note_rect(self, index):
@@ -76,6 +77,15 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         option.rect = self.view.visualRect(index)
         option.widget = self.view
         return self.view.style().subElementRect(QStyle.SubElement.SE_ItemViewItemDecoration, option, self.view)
+
+    def spectrum_swatch_curve_id(self, index, position):
+        """Return the spectrum ID only for clicks on the colour icon."""
+        if not index.isValid() or index.column() != 0:
+            return None
+        metadata = index.siblingAtColumn(1).data(Qt.ItemDataRole.UserRole)
+        if metadata and metadata[0] == "curve" and self.note_rect(index).contains(position):
+            return str(metadata[1])
+        return None
 
     def helpEvent(self, event, view, option, index):
         text = index.data(CHECKBOX_TOOLTIP_ROLE)
@@ -90,13 +100,25 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         return super().helpEvent(event, view, option, index)
 
     def eventFilter(self, watched, event):
-        if (event.type() == QEvent.Type.MouseButtonPress
+        if (event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
                 and isValid(self.view)
                 and watched is self.view.viewport()
                 and event.button() == Qt.MouseButton.LeftButton):
-            index = self.view.indexAt(event.position().toPoint())
-            ref = index.data(NOTE_ROLE)
-            if ref and self.note_rect(index).contains(event.position().toPoint()):
-                self.callback(ref)
+            position = event.position().toPoint()
+            index = self.view.indexAt(position)
+            if event.type() == QEvent.Type.MouseButtonPress:
+                self._pressed_swatch_curve_id = self.spectrum_swatch_curve_id(index, position)
+                if self._pressed_swatch_curve_id is not None:
+                    # Do not select the row or toggle its visibility checkbox.
+                    return True
+                ref = index.data(NOTE_ROLE)
+                if ref and self.note_rect(index).contains(position):
+                    self.callback(ref)
+                    return True
+            elif self._pressed_swatch_curve_id is not None:
+                curve_id = self._pressed_swatch_curve_id
+                self._pressed_swatch_curve_id = None
+                if self.spectrum_swatch_curve_id(index, position) == curve_id:
+                    self.view.curveColourRequested.emit(curve_id)
                 return True
         return super().eventFilter(watched, event)
