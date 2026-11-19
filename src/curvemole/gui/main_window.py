@@ -472,7 +472,8 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 items: dict[tuple[str, str], QTreeWidgetItem] = {}
                 for series in project.dataset.series:
                     from curvemole.gui.note_indicators import (
-                        SPECTRUM_COLOUR_SWATCH_ROLE, attach_note,
+                        SPECTRUM_COLOUR_SWATCH_ROLE,
+                        attach_note,
                     )
 
                     parent = QTreeWidgetItem(["", series.name, ""])
