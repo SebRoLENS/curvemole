@@ -396,6 +396,10 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
         self.setEditTriggers(self.EditTrigger.DoubleClicked | self.EditTrigger.EditKeyPressed)
+        self.setIconSize(QSize(
+            self.style().pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, self),
+            self.style().pixelMetric(QStyle.PixelMetric.PM_IndicatorHeight, None, self),
+        ))
         from curvemole.gui.note_indicators import NoteIndicatorDelegate
 
         self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
@@ -472,8 +476,8 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 items: dict[tuple[str, str], QTreeWidgetItem] = {}
                 for series in project.dataset.series:
                     from curvemole.gui.note_indicators import (
-                        SPECTRUM_COLOUR_SWATCH_ROLE,
                         attach_note,
+                        spectrum_colour_icon,
                     )
 
                     parent = QTreeWidgetItem(["", series.name, ""])
@@ -503,7 +507,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
                             | Qt.ItemFlag.ItemIsSelectable
                         )
                         child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
-                        child.setData(0, SPECTRUM_COLOUR_SWATCH_ROLE, curve.colour.upper())
+                        child.setIcon(0, spectrum_colour_icon(self, curve.colour))
                         self._style_curve_visibility(child)
                         child.setToolTip(0, self.tr(
                             "Checked: show this spectrum in Overlay and Waterfall.\n"

@@ -263,10 +263,8 @@ def test_individual_spectrum_colour_picker_changes_non_red_colour(
 
 def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
     from PySide6.QtCore import Qt
-    from PySide6.QtGui import QPainter, QPixmap
+    from PySide6.QtTest import QTest
     from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
-
-    from curvemole.gui.note_indicators import SPECTRUM_COLOUR_SWATCH_ROLE
 
     app = QApplication.instance() or QApplication([])
     project = Project("colour square")
@@ -287,27 +285,36 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
     def inspect(colour: str) -> None:
         item = tree.topLevelItem(0).child(0)
         index = tree.indexFromItem(item, 0)
-        delegate = tree.itemDelegate(index)
         option = QStyleOptionViewItem()
+        delegate = tree.itemDelegate(index)
+        delegate.initStyleOption(option, index)
         option.rect = tree.visualRect(index)
         option.widget = tree
-        delegate.initStyleOption(option, index)
         checkbox = tree.style().subElementRect(
             QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, tree
         )
-        square = delegate.colour_swatch_rect(option, index)
+        decoration = tree.style().subElementRect(
+            QStyle.SubElement.SE_ItemViewItemDecoration, option, tree
+        )
         assert item.checkState(0) == Qt.CheckState.Unchecked
-        assert item.data(0, SPECTRUM_COLOUR_SWATCH_ROLE) == colour
-        assert not square.isEmpty()
-        assert square.left() > checkbox.right()
-        assert square.size() == checkbox.size()
-        assert square.right() <= tree.visualRect(index).right()
-        image = QPixmap(tree.viewport().size())
-        image.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(image)
-        delegate.paint(painter, option, index)
-        painter.end()
-        assert image.toImage().pixelColor(square.center()).name().upper() == colour
+        assert not item.icon(0).isNull()
+        assert not decoration.isEmpty()
+        assert decoration.left() > checkbox.right()
+        assert decoration.right() <= option.rect.right()
+        assert decoration.size() == checkbox.size()
+        icon_image = item.icon(0).pixmap(tree.iconSize()).toImage()
+        center = icon_image.rect().center()
+        assert icon_image.pixelColor(center).name().upper() == colour
+        app.processEvents()
+        # Grab the real widget. A standalone delegate paint missed the clipping bug.
+        image = tree.viewport().grab().toImage()
+        scale = image.devicePixelRatio()
+        x = round(decoration.center().x() * scale)
+        y = round(decoration.center().y() * scale)
+        assert image.pixelColor(x, y).name().upper() == colour
+        QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=decoration.center())
+        app.processEvents()
+        assert not first.visible  # The swatch is not a second checkbox.
 
     inspect(first.colour.upper())
     window._set_curve_colour(first.id, "#009E73")
@@ -316,7 +323,6 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
     inspect(SERIES_PALETTES["Ocean"][0].upper())
     window.undo_stack.undo()
     inspect("#009E73")
-    assert not first.visible
     project.dirty = False
     window.close()
     app.processEvents()

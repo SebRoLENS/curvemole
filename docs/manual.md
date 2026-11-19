@@ -478,7 +478,8 @@ and **State** columns.
 - Moving, merging, creating, and reordering series are all Undo/Redo operations and do not invalidate fitted parameters.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays. The equally sized coloured square beside the checkbox shows that
-  spectrum's current colour; it is an indicator, not a second checkbox, and updates
+  spectrum's current colour (a native tree icon, beside the checkbox); it is an
+  indicator, not a second checkbox, and updates
   when colours or palettes change. Hover over the checkbox for an explanation.
   Hiding a spectrum retains
   its data and fit; hidden spectra are excluded from fit plans. Highlighting rows

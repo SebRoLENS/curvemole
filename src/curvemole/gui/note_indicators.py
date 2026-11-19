@@ -1,7 +1,7 @@
 """Reusable clickable note decorations for item views."""
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
 from shiboken6 import isValid
 
@@ -10,7 +10,22 @@ from curvemole.gui.icons import vector_icon
 
 NOTE_ROLE = int(Qt.ItemDataRole.UserRole) + 20
 CHECKBOX_TOOLTIP_ROLE = int(Qt.ItemDataRole.UserRole) + 21
-SPECTRUM_COLOUR_SWATCH_ROLE = int(Qt.ItemDataRole.UserRole) + 22
+def spectrum_colour_icon(view, colour: str) -> QIcon:
+    """Draw a passive swatch using Qt's native icon/decoration layout."""
+    style = view.style()
+    width = max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, view))
+    height = max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorHeight, None, view))
+    pixmap = QPixmap(width, height)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setPen(view.palette().color(view.foregroundRole()))
+    painter.setBrush(QColor(colour))
+    painter.drawRect(0, 0, width - 1, height - 1)
+    painter.end()
+    icon = QIcon()
+    for mode in (QIcon.Mode.Normal, QIcon.Mode.Selected, QIcon.Mode.Active, QIcon.Mode.Disabled):
+        icon.addPixmap(pixmap, mode)
+    return icon
 
 
 def attach_note(item, project, kind, object_id, curve_id="", *, column=None):
@@ -32,41 +47,6 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         super().__init__(view)
         self.view, self.callback = view, callback
         view.viewport().installEventFilter(self)
-
-    def colour_swatch_rect(self, option, index):
-        """Place a passive colour square immediately after the native checkbox."""
-        if index.column() != 0 or not index.data(SPECTRUM_COLOUR_SWATCH_ROLE):
-            return QRect()
-        indicator = self.view.style().subElementRect(
-            QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, self.view
-        )
-        if indicator.isEmpty():
-            return QRect()
-        return QRect(indicator.right() + 6, indicator.top(), indicator.width(), indicator.height())
-
-    def sizeHint(self, option, index):
-        size = super().sizeHint(option, index)
-        if index.column() == 0 and index.data(SPECTRUM_COLOUR_SWATCH_ROLE):
-            width = self.view.style().pixelMetric(
-                QStyle.PixelMetric.PM_IndicatorWidth, option, self.view
-            )
-            size.setWidth(size.width() + width + 6)
-        return size
-
-    def paint(self, painter, option, index):
-        # Keep Qt in charge of the checkbox, selection and focus indicators.
-        super().paint(painter, option, index)
-        colour = index.data(SPECTRUM_COLOUR_SWATCH_ROLE) if index.column() == 0 else None
-        if not colour:
-            return
-        square = self.colour_swatch_rect(option, index)
-        if square.isEmpty():
-            return
-        painter.save()
-        painter.setPen(option.palette.mid().color())
-        painter.setBrush(QColor(colour))
-        painter.drawRect(square.adjusted(0, 0, -1, -1))
-        painter.restore()
 
     def note_rect(self, index):
         option = QStyleOptionViewItem()
