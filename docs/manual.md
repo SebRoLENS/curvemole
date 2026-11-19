@@ -523,7 +523,7 @@ with the complete reading available in a tooltip.
 Controls above it provide:
 
 - **Display:** Single, Overlay, or Waterfall;
-- **All series / Active series / Selected:** one-click scope for Overlay and Waterfall;
+- **All series / Active series / Selected:** one-click scope for Overlay and Waterfall (Selected by default);
 - **X offset** and **Y offset:** display-only spacing, shown only in Waterfall;
 - **Residuals:** show or hide the linked residual panel;
 - **Autoscale:** automatically frame the experimental data when the active spectrum changes;
@@ -542,8 +542,9 @@ With Autoscale off, switching spectra preserves the view. **View all** and
 **View unmasked** explicitly frame the corresponding experimental points; model
 extrapolations, labels and handles do not affect these limits.
 
-The main toolbar contains the graphical **Mask** button. Its scope is chosen on
-entry in Overlay/Waterfall; mouse buttons determine the operation.
+The main toolbar contains the graphical **Mask** button. In Overlay/Waterfall, its
+scope is chosen on entry only when multiple spectra are displayed; otherwise it
+acts directly on the sole displayed spectrum. Mouse buttons determine the operation.
 
 Offsets never modify data and are removed when converting pointer positions back to
 scientific coordinates. Fitting and numeric data export use the underlying current
@@ -996,7 +997,8 @@ exclusions. Changing display mode also exits masking.
 | All visible | Changes every currently visible curve |
 
 Single view always uses the active spectrum. Overlay and Waterfall prompt for
-Active or All visible when entering Mask mode; cancelling leaves masking off.
+Active or All visible only when multiple spectra are displayed. With one displayed
+spectrum, Mask acts on it directly; cancelling a prompt leaves masking off.
 
 For interval masks, the same numeric x interval is applied to every target. For a
 single-point mask transferred from the active curve, CurveMole locates the nearest x

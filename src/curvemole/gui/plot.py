@@ -296,7 +296,7 @@ class PlotWorkspace(QWidget):
             self.scope_group.addButton(button)
             controls.addWidget(button)
             button.setEnabled(False)
-        self.scope_project.setChecked(True)
+        self.scope_selected.setChecked(True)
         self.scope_group.buttonToggled.connect(lambda button, checked: self._scope_changed() if checked else None)
         self.display_mode.currentIndexChanged.connect(self._scope_enabled)
         controls.addStretch(1)
@@ -591,7 +591,7 @@ class PlotWorkspace(QWidget):
             elif self._active_series_id not in {series.id for series in project.dataset.series}:
                 self._active_series_id = project.dataset.series[0].id if project.dataset.series else None
             self.scope_group.blockSignals(True)
-            target = {"series": self.scope_series, "selected": self.scope_selected}.get(project.ui_state.get("display_scope"), self.scope_project)
+            target = {"project": self.scope_project, "series": self.scope_series, "selected": self.scope_selected}.get(project.ui_state.get("display_scope"), self.scope_selected)
             target.setChecked(True)
             self.scope_group.blockSignals(False)
         self._selected_curve_ids = set(selected_curve_ids or ())
@@ -1438,15 +1438,24 @@ class PlotWorkspace(QWidget):
             self.cancel_placement()
             self._mask_scope = "active"
             if self.display_mode.currentIndex() != 0:
-                choices = [self.tr("Active spectrum only"), self.tr("All visible spectra")]
-                choice, accepted = QInputDialog.getItem(
-                    self, self.tr("Mask scope"), self.tr("Apply mask edits to:"), choices, 0, False,
-                )
-                if not accepted:
+                visible_count = len(self.displayed_curves())
+                if not visible_count:
                     self.mask_toggle.setChecked(False)
                     self.mask_action.setChecked(False)
                     return
-                self._mask_scope = "visible" if choice == choices[1] else "active"
+                if visible_count == 1:
+                    # Target the displayed curve, which need not be the active one.
+                    self._mask_scope = "visible"
+                else:
+                    choices = [self.tr("Active spectrum only"), self.tr("All visible spectra")]
+                    choice, accepted = QInputDialog.getItem(
+                        self, self.tr("Mask scope"), self.tr("Apply mask edits to:"), choices, 0, False,
+                    )
+                    if not accepted:
+                        self.mask_toggle.setChecked(False)
+                        self.mask_action.setChecked(False)
+                        return
+                    self._mask_scope = "visible" if choice == choices[1] else "active"
         self.view_box.mask_mode = enabled
         self._update_interaction_state()
         self.graphics.setToolTip(self.mask_toggle.toolTip() if enabled else "")

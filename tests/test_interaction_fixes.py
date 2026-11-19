@@ -112,6 +112,7 @@ def test_quick_fit_always_uses_independent_mode_and_current_settings(window, mon
 def test_mask_scope_and_mouse_buttons(window, monkeypatch, scope, mode):
     workspace = window.plot_workspace
     workspace.display_mode.setCurrentIndex(mode)
+    workspace.scope_project.click()
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (scope, True))
     workspace.mask_action.trigger()
     assert workspace.view_box.mask_mode
@@ -144,7 +145,51 @@ def test_mask_scope_and_mouse_buttons(window, monkeypatch, scope, mode):
 def test_cancel_mask_scope_leaves_button_off(window, monkeypatch):
     workspace = window.plot_workspace
     workspace.display_mode.setCurrentIndex(1)
+    workspace.scope_project.click()
     monkeypatch.setattr(QInputDialog, "getItem", lambda *args: ("", False))
+    workspace.mask_action.trigger()
+    assert not workspace.mask_action.isChecked()
+    assert not workspace.view_box.mask_mode
+
+
+@pytest.mark.parametrize("mode", [1, 2])
+def test_single_displayed_spectrum_masks_without_scope_dialog(window, monkeypatch, mode):
+    workspace = window.plot_workspace
+    workspace.display_mode.setCurrentIndex(mode)
+    other_id = next(curve.id for curve in window.project.curves if curve.id != window.active_curve_id)
+    # Selected can display a spectrum other than the active one.
+    workspace._selected_curve_ids = {other_id}
+    workspace.refresh()
+    assert {curve.id for curve in workspace.displayed_curves()} == {other_id}
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: pytest.fail("Unexpected mask scope dialog"))
+    workspace.mask_action.trigger()
+    assert workspace.view_box.mask_mode
+    assert workspace._mask_scope == "visible"
+    assert {curve.id for curve in window._mask_targets()} == {other_id}
+
+
+@pytest.mark.parametrize("mode", [1, 2])
+def test_only_one_visible_curve_avoids_scope_dialog_in_all_series(window, monkeypatch, mode):
+    workspace = window.plot_workspace
+    workspace.display_mode.setCurrentIndex(mode)
+    workspace.scope_project.click()
+    other = next(curve for curve in window.project.curves if curve.id != window.active_curve_id)
+    other.visible = False
+    workspace.refresh()
+    assert len(workspace.displayed_curves()) == 1
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: pytest.fail("Unexpected mask scope dialog"))
+    workspace.mask_action.trigger()
+    assert workspace.view_box.mask_mode
+    assert {curve.id for curve in window._mask_targets()} == {window.active_curve_id}
+
+
+def test_no_displayed_spectra_does_not_enable_mask(window, monkeypatch):
+    workspace = window.plot_workspace
+    workspace.display_mode.setCurrentIndex(1)
+    workspace._selected_curve_ids = set()
+    workspace.refresh()
+    assert not workspace.displayed_curves()
+    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: pytest.fail("Unexpected mask scope dialog"))
     workspace.mask_action.trigger()
     assert not workspace.mask_action.isChecked()
     assert not workspace.view_box.mask_mode

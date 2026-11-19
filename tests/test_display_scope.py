@@ -19,6 +19,8 @@ def test_one_click_scope_limits_rendering_ranges_masks_and_waterfall_offsets():
     plot = window.plot_workspace
     plot.display_mode.setCurrentIndex(1)
     assert plot.scope_project.isEnabled()
+    assert plot.scope_selected.isChecked()
+    plot.scope_project.click()
     assert len(plot._data_items) == 3
     plot.scope_series.click()
     assert set(plot._data_items) == {first.curves[0].id}
@@ -66,7 +68,7 @@ def test_selected_scope_with_real_ctrl_and_shift_clicks():
     tree = window.curve_tree
     plot = window.plot_workspace
     plot.display_mode.setCurrentIndex(1)
-    plot.scope_selected.click()
+    assert plot.scope_selected.isChecked()
 
     def click(row, modifiers=Qt.KeyboardModifier.NoModifier):
         item = tree.topLevelItem(0).child(row)
@@ -91,3 +93,33 @@ def test_selected_scope_with_real_ctrl_and_shift_clicks():
     assert project.ui_state["display_scope"] == "selected"
     project.dirty = False
     window.close()
+
+
+
+def test_display_scope_defaults_to_selected_but_preserves_explicit_choice():
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    curves = [Curve(str(i), [float(i), float(i + 1)], [0., 1.]) for i in range(2)]
+    project.add_series(Series("Series", curves))
+    window = CurveMoleMainWindow(project)
+    plot = window.plot_workspace
+    assert plot.scope_selected.isChecked()
+
+    for mode in (1, 2):
+        plot.display_mode.setCurrentIndex(mode)
+        assert plot.scope_selected.isChecked()
+        assert {curve.id for curve in plot.displayed_curves()} == window.curve_tree.selected_curve_ids()
+
+    plot.scope_project.click()
+    assert project.ui_state["display_scope"] == "project"
+    plot.display_mode.setCurrentIndex(0)
+    plot.display_mode.setCurrentIndex(1)
+    assert plot.scope_project.isChecked()
+    assert {curve.id for curve in plot.displayed_curves()} == {curve.id for curve in curves}
+
+    project.ui_state["display_scope"] = "series"
+    plot.set_context(project, window.active_curve_id, window.curve_tree.selected_curve_ids())
+    assert plot.scope_series.isChecked()
+    project.dirty = False
+    window.close()
+    app.processEvents()

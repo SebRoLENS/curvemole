@@ -25,7 +25,8 @@ respect Waterfall offsets and the displayed data transformations.
 ## Mask mode
 
 Activate **Mask** first. In Overlay/Waterfall, choose whether edits affect the
-active spectrum or all visible spectra when entering the mode.
+active spectrum or all visible spectra only when multiple spectra are displayed;
+with one, Mask applies directly to that spectrum.
 
 | Gesture | Action |
 |---|---|

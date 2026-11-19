@@ -175,7 +175,8 @@ while dragging to change the value while leaving it fixed. Use **Ctrl+Z** to und
 
 Click the graphical **Mask** toolbar button; it becomes grey while active. Single
 view acts on the displayed spectrum. Overlay/Waterfall asks whether to use the
-active spectrum or all visible spectra. **Right-drag masks; left-drag unmasks.**
+active spectrum or all visible spectra only when multiple spectra are displayed;
+with one, Mask applies directly. **Right-drag masks; left-drag unmasks.**
 Click Mask again to resume normal navigation. Masked intervals are shaded and data
 are faded. Point-transfer tolerance is under **Data → Mask transfer tolerance**.
 Undo/Redo also restore fits; the latest 20 operations are retained.
