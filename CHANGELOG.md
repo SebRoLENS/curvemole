@@ -9,10 +9,14 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Changed
 
 - Align display-scope state and regression tests with Selected default. ([`4b6587f8`](https://github.com/SebRoLENS/curvemole/commit/4b6587f83e692dd888a4d09d14c9f8f0661c8603))
+- Apply colour palettes to selected spectra across series. ([`1b6f63c1`](https://github.com/SebRoLENS/curvemole/commit/1b6f63c11d6bbd39d910e7083bf258f4ca165d69))
+- Show live spectrum colour swatches beside visibility checkboxes. ([`7409b54f`](https://github.com/SebRoLENS/curvemole/commit/7409b54f406986a5ae369fbe66b762055b54bb40))
+- Trigger beta release after validation. ([`9556d102`](https://github.com/SebRoLENS/curvemole/commit/9556d102440f93ffc66b80ae48bffa21c0c64dcd))
 
 ### Fixed
 
 - Fix mask prompt for a single displayed spectrum; default comparison scope to Selected. ([`5b863bd8`](https://github.com/SebRoLENS/curvemole/commit/5b863bd8a45dffb2eb91899ed0754b3aa8095409))
+- Avoid blocking native Qt menu in palette tests. ([`554cecea`](https://github.com/SebRoLENS/curvemole/commit/554cecea2696a0ade9e5c86cedd7c02f3002f353))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.3.2] - 2026-11-19
