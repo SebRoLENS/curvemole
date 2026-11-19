@@ -396,12 +396,14 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self.currentItemChanged.connect(self._active_changed)
         self.itemChanged.connect(self._item_changed)
         self.setEditTriggers(self.EditTrigger.DoubleClicked | self.EditTrigger.EditKeyPressed)
-        self.setIconSize(QSize(
-            self.style().pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, self),
-            self.style().pixelMetric(QStyle.PixelMetric.PM_IndicatorHeight, None, self),
-        ))
-        from curvemole.gui.note_indicators import NoteIndicatorDelegate
+        from curvemole.gui.note_indicators import (
+            NoteIndicatorDelegate,
+            checkbox_indicator_size,
+        )
 
+        # macOS styles may draw an 18px item checkbox even when PM_IndicatorWidth
+        # reports 14px. Match the actual checkbox geometry, not the generic metric.
+        self.setIconSize(checkbox_indicator_size(self))
         self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
 
     def _row_drop_at(self, source, position):
