@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.3.2] - 2026-11-19
+
 ### Changed
 
 - Allow reinstalling plugins deleted from disk. ([`070f2df9`](https://github.com/SebRoLENS/curvemole/commit/070f2df950e5f3e1154e79cff3531fb760ce7c88))
@@ -20,7 +21,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Validate exported .fitmodel files from the command line and report malformed models. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
 - Preserve other build artifacts when rebuilding the desktop application. ([`dd49c8a3`](https://github.com/SebRoLENS/curvemole/commit/dd49c8a3fa6f5cb0ea2a9610d7cf232226ba2f1c))
 - Preserve project and data routing in CLI inspection. ([`db3a44eb`](https://github.com/SebRoLENS/curvemole/commit/db3a44ebf51e6ea9fb47daaafbc3dad3aea0e7db))
-<!-- END AUTOMATED CHANGES -->
 
 ## [1.3.1] - 2026-11-12
 
