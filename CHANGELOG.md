@@ -5,6 +5,16 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Changed
+
+- Align display-scope state and regression tests with Selected default. ([`4b6587f8`](https://github.com/SebRoLENS/curvemole/commit/4b6587f83e692dd888a4d09d14c9f8f0661c8603))
+
+### Fixed
+
+- Fix mask prompt for a single displayed spectrum; default comparison scope to Selected. ([`5b863bd8`](https://github.com/SebRoLENS/curvemole/commit/5b863bd8a45dffb2eb91899ed0754b3aa8095409))
+<!-- END AUTOMATED CHANGES -->
+
 ## [1.3.2] - 2026-11-19
 
 ### Changed
