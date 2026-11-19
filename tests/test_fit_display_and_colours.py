@@ -261,6 +261,67 @@ def test_individual_spectrum_colour_picker_changes_non_red_colour(
     app.processEvents()
 
 
+def test_visibility_colour_square_tracks_spectrum_colour_and_undo() -> None:
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPainter, QPixmap
+    from PySide6.QtWidgets import QStyle, QStyleOptionViewItem
+
+    from curvemole.gui.note_indicators import SPECTRUM_COLOUR_SWATCH_ROLE
+
+    app = QApplication.instance() or QApplication([])
+    project = Project("colour square")
+    series = Series("Spectra")
+    first = Curve("first", [0., 1.], [1., 2.])
+    second = Curve("second", [0., 1.], [2., 3.])
+    first.visible = False
+    series.add(first)
+    series.add(second)
+    project.add_series(series)
+    project.dirty = False
+    window = MainWindow(project)
+    window.show()
+    tree = window.curve_tree
+    tree.expandAll()
+    app.processEvents()
+
+    def inspect(colour: str) -> None:
+        item = tree.topLevelItem(0).child(0)
+        index = tree.indexFromItem(item, 0)
+        delegate = tree.itemDelegate(index)
+        option = QStyleOptionViewItem()
+        option.rect = tree.visualRect(index)
+        option.widget = tree
+        delegate.initStyleOption(option, index)
+        checkbox = tree.style().subElementRect(
+            QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, tree
+        )
+        square = delegate.colour_swatch_rect(option, index)
+        assert item.checkState(0) == Qt.CheckState.Unchecked
+        assert item.data(0, SPECTRUM_COLOUR_SWATCH_ROLE) == colour
+        assert not square.isEmpty()
+        assert square.left() > checkbox.right()
+        assert square.size() == checkbox.size()
+        assert square.right() <= tree.visualRect(index).right()
+        image = QPixmap(tree.viewport().size())
+        image.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(image)
+        delegate.paint(painter, option, index)
+        painter.end()
+        assert image.toImage().pixelColor(square.center()).name().upper() == colour
+
+    inspect(first.colour.upper())
+    window._set_curve_colour(first.id, "#009E73")
+    inspect("#009E73")
+    window.apply_series_palette(series.id, "Ocean")
+    inspect(SERIES_PALETTES["Ocean"][0].upper())
+    window.undo_stack.undo()
+    inspect("#009E73")
+    assert not first.visible
+    project.dirty = False
+    window.close()
+    app.processEvents()
+
+
 def test_existing_red_spectrum_is_migrated_on_open() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("old red")

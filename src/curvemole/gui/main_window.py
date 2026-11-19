@@ -471,7 +471,9 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 active_item: QTreeWidgetItem | None = None
                 items: dict[tuple[str, str], QTreeWidgetItem] = {}
                 for series in project.dataset.series:
-                    from curvemole.gui.note_indicators import attach_note
+                    from curvemole.gui.note_indicators import (
+                        SPECTRUM_COLOUR_SWATCH_ROLE, attach_note,
+                    )
 
                     parent = QTreeWidgetItem(["", series.name, ""])
                     font = parent.font(1)
@@ -500,12 +502,15 @@ class CurveTree(RowDragMixin, QTreeWidget):
                             | Qt.ItemFlag.ItemIsSelectable
                         )
                         child.setCheckState(0, Qt.CheckState.Checked if curve.visible else Qt.CheckState.Unchecked)
+                        child.setData(0, SPECTRUM_COLOUR_SWATCH_ROLE, curve.colour.upper())
                         self._style_curve_visibility(child)
                         child.setToolTip(0, self.tr(
                             "Checked: show this spectrum in Overlay and Waterfall.\n"
                             "Unchecked: hide it from these views without deleting its data or fit.\n"
-                            "Row highlighting selects spectra for operations; this checkbox "
-                            "controls visibility. Hidden spectra are excluded from fit plans."
+                            "The coloured square beside the checkbox shows the spectrum colour "
+                            "and does not change visibility. Row highlighting selects spectra "
+                            "for operations; the checkbox controls visibility. Hidden spectra "
+                            "are excluded from fit plans."
                             " Up/Down navigation skips hidden spectra."
                         ))
                         self._style_uncertainty_state(child, curve)

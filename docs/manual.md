@@ -477,7 +477,10 @@ and **State** columns.
 - Right-click a series and choose **Merge series into** to append all its spectra to another series and remove the source series.
 - Moving, merging, creating, and reordering series are all Undo/Redo operations and do not invalidate fitted parameters.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
-  displays. Hover over the checkbox for an explanation. Hiding a spectrum retains
+  displays. The equally sized coloured square beside the checkbox shows that
+  spectrum's current colour; it is an indicator, not a second checkbox, and updates
+  when colours or palettes change. Hover over the checkbox for an explanation.
+  Hiding a spectrum retains
   its data and fit; hidden spectra are excluded from fit plans. Highlighting rows
   separately selects spectra for operations. Hidden spectrum names appear muted;
   Up/Down navigation skips them. Click a hidden spectrum to inspect it, or check
