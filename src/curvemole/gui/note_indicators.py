@@ -1,6 +1,6 @@
 """Reusable clickable note decorations for item views."""
 
-from PySide6.QtCore import QEvent, QSize, Qt
+from PySide6.QtCore import QEvent, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
 from shiboken6 import isValid
@@ -10,11 +10,31 @@ from curvemole.gui.icons import vector_icon
 
 NOTE_ROLE = int(Qt.ItemDataRole.UserRole) + 20
 CHECKBOX_TOOLTIP_ROLE = int(Qt.ItemDataRole.UserRole) + 21
+
+
+def checkbox_indicator_size(view) -> QSize:
+    """Get the real Qt item-checkbox size, which differs from PM_IndicatorSize on macOS."""
+    option = QStyleOptionViewItem()
+    option.initFrom(view)
+    option.rect = QRect(0, 0, 100, max(32, view.fontMetrics().height() + 12))
+    option.features |= QStyleOptionViewItem.ViewItemFeature.HasCheckIndicator
+    option.checkState = Qt.CheckState.Checked
+    style = view.style()
+    indicator = style.subElementRect(
+        QStyle.SubElement.SE_ItemViewItemCheckIndicator, option, view
+    )
+    if not indicator.isEmpty():
+        return indicator.size()
+    return QSize(
+        max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, view)),
+        max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorHeight, None, view)),
+    )
+
+
 def spectrum_colour_icon(view, colour: str) -> QIcon:
     """Draw a passive swatch using Qt's native icon/decoration layout."""
-    style = view.style()
-    width = max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorWidth, None, view))
-    height = max(1, style.pixelMetric(QStyle.PixelMetric.PM_IndicatorHeight, None, view))
+    size = view.iconSize()
+    width, height = max(1, size.width()), max(1, size.height())
     pixmap = QPixmap(width, height)
     pixmap.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pixmap)
