@@ -175,7 +175,12 @@ def test_context_menu_selected_palette_across_series(monkeypatch: pytest.MonkeyP
         menus_seen.append(selected_palette)
         next(action for action in selected_palette.actions() if action.text() == "Ocean").trigger()
 
-    monkeypatch.setattr(QMenu, "exec", fake_exec)
+    class NonBlockingMenu(QMenu):
+        def exec(self, *_args):
+            return fake_exec(self, *_args)
+
+    # Patch the factory: Qt can bypass a class-level exec monkeypatch on macOS.
+    monkeypatch.setattr("curvemole.gui.data_series_management.QMenu", NonBlockingMenu)
     tree._show_context_menu(tree.visualItemRect(first_item).center())
 
     from curvemole.gui.colours import SERIES_PALETTES
@@ -209,7 +214,12 @@ def test_context_menu_single_spectrum_has_no_palette_submenu(
     def fake_exec(menu, *_args):
         assert not any(action.text() == "Selected spectra palette" for action in menu.actions())
 
-    monkeypatch.setattr(QMenu, "exec", fake_exec)
+    class NonBlockingMenu(QMenu):
+        def exec(self, *_args):
+            return fake_exec(self, *_args)
+
+    # Patch the factory: Qt can bypass a class-level exec monkeypatch on macOS.
+    monkeypatch.setattr("curvemole.gui.data_series_management.QMenu", NonBlockingMenu)
     tree._show_context_menu(tree.visualItemRect(item).center())
     assert first.colour == "#0072B2"
     project.dirty = False
