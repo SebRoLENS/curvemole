@@ -21,6 +21,7 @@ from PySide6.QtCore import (
     QEvent,
     QItemSelectionModel,
     QObject,
+    QPersistentModelIndex,
     QSettings,
     QSignalBlocker,
     QSize,
@@ -396,6 +397,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self._uncertainty_method: str | None = None
         self._items_by_key: dict[tuple[str, str], QTreeWidgetItem] = {}
         self._marked_spectrum: QTreeWidgetItem | None = None
+        self._activation_click = QPersistentModelIndex()
         self._offscreen_active_name = ""
         self._active_visibility_timer = QTimer(self)
         self._active_visibility_timer.setSingleShot(True)
@@ -421,6 +423,30 @@ class CurveTree(RowDragMixin, QTreeWidget):
         offset = horizontal.value()
         super().scrollTo(index, hint)
         horizontal.setValue(offset)
+
+    def mousePressEvent(self, event) -> None:
+        self._activation_click = QPersistentModelIndex()
+        if event.button() == Qt.MouseButton.LeftButton and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+            index = self.indexAt(event.position().toPoint())
+            if index.isValid() and index.column() != 0:
+                item = self.itemFromIndex(index)
+                parent = item.parent()
+                if parent is not None and item is not self._marked_spectrum and (
+                    item.isSelected() or parent.isSelected()
+                ):
+                    self._activation_click = QPersistentModelIndex(index)
+        super().mousePressEvent(event)
+
+    def selectionCommand(self, index, event=None):
+        if (
+            event is not None
+            and event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
+            and index.isValid()
+            and index == self._activation_click
+        ):
+            # Qt updates the current row on press, then can clear the selection on release.
+            return QItemSelectionModel.SelectionFlag.NoUpdate
+        return super().selectionCommand(index, event)
 
     def _row_drop_at(self, source, position):
         if self._project is None or self._project.read_only:
@@ -569,12 +595,11 @@ class CurveTree(RowDragMixin, QTreeWidget):
         finally:
             self._updating = False
 
-        selected = self.selected_curve_ids()
-        self.mark_active_spectrum(active_curve_id, len(selected) > 1)
-        return selected
+        self.mark_active_spectrum(active_curve_id)
+        return self.selected_curve_ids()
 
-    def mark_active_spectrum(self, curve_id: str | None, multiple_selected: bool) -> None:
-        item = self._items_by_key.get(("curve", curve_id)) if multiple_selected and curve_id is not None else None
+    def mark_active_spectrum(self, curve_id: str | None) -> None:
+        item = self._items_by_key.get(("curve", curve_id)) if curve_id is not None else None
         if item is not self._marked_spectrum:
             index = self.indexFromItem(item, 1) if item is not None else None
             width = self.columnWidth(1)
@@ -4128,7 +4153,7 @@ class MainWindow(QMainWindow):
 
     def _selection_changed(self) -> None:
         selected = self.curve_tree.selected_curve_ids()
-        self.curve_tree.mark_active_spectrum(self.active_curve_id, len(selected) > 1)
+        self.curve_tree.mark_active_spectrum(self.active_curve_id)
         self.model_panel.set_context(
             self.project,
             self.active_curve_id,

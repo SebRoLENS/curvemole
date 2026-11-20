@@ -470,8 +470,10 @@ and **State** columns.
   new spectrum has fewer functions, its last function is selected; an empty model
   clears the parameter table. Show all functions retains its project-wide selection.
 - Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
-- With multiple spectra selected, a coloured bar and a bold name identify the active
-  spectrum. Its name appears above the search field when its row is out of view.
+- A coloured bar and a bold name identify the active spectrum. Its name appears
+  above the search field when its row is out of view. In a multi-selection, click
+  another selected spectrum to make it active while keeping the selection. Click
+  the active spectrum to select it alone.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use **New series** to create an empty named series. Empty series are retained when the project is saved.
 - Right-click one or more selected spectra and choose **Move selected to series** to reorganize them.

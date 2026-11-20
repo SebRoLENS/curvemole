@@ -175,8 +175,7 @@ def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
     series = tree.topLevelItem(0)
     first, second = series.child(0), series.child(1)
     try:
-        assert not first.font(1).bold()
-        first.setSelected(True)
+        assert first.font(1).bold() and not second.font(1).bold()
         tree.setCurrentItem(second, 1, QItemSelectionModel.SelectionFlag.Select)
         QTest.qWait(30)
         assert window.active_curve_id == project.curves[1].id
@@ -214,8 +213,52 @@ def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
         assert header.isHidden()
         tree.clearSelection()
         QTest.qWait(30)
-        assert not first.font(1).bold()
+        assert first.font(1).bold()
         assert header.isHidden()
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
+@pytest.mark.parametrize("select_series", [False, True])
+def test_clicking_selected_spectra_activates_then_selects_one(select_series):
+    app = QApplication.instance() or QApplication([])
+    project, first, second, curves = _project()
+    window = MainWindow(project)
+    window.show()
+    tree = window.curve_tree
+    node = tree.topLevelItem(0)
+    tree.setCurrentItem(node.child(1), 1, QItemSelectionModel.SelectionFlag.NoUpdate)
+    tree.clearSelection()
+    if select_series:
+        node.setSelected(True)
+    else:
+        for row in range(node.childCount()):
+            node.child(row).setSelected(True)
+    app.processEvents()
+
+    def click(item):
+        position = tree.visualRect(tree.indexFromItem(item, 1)).center()
+        QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, pos=position)
+
+    try:
+        assert window.active_curve_id == curves[1].id
+        assert tree.selected_curve_ids() == {curve.id for curve in first.curves}
+        target = node.child(2)
+        click(target)
+        assert window.active_curve_id == curves[2].id
+        assert tree.selected_curve_ids() == {curve.id for curve in first.curves}
+        assert target.font(1).bold() and not node.child(1).font(1).bold()
+
+        click(target)
+        assert window.active_curve_id == curves[2].id
+        assert tree.selected_curve_ids() == {curves[2].id}
+        assert target.font(1).bold()
+
+        click(tree.topLevelItem(1).child(0))
+        assert window.active_curve_id == second.curves[0].id
+        assert tree.selected_curve_ids() == {second.curves[0].id}
     finally:
         project.dirty = False
         window.close()
