@@ -5,7 +5,7 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QItemSelectionModel, QPoint, Qt
 from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QInputDialog
@@ -268,4 +268,6 @@ def test_series_arrow_and_visibility_controls_fit_without_activation_panning() -
         assert horizontal.value() == offset
     finally:
         tree.close()
+        tree.deleteLater()
+        QCoreApplication.sendPostedEvents(tree, QEvent.Type.DeferredDelete)
         app.processEvents()
