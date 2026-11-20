@@ -476,7 +476,8 @@ and **State** columns.
   the active spectrum to select it alone.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use **New series** to create an empty named series. Empty series are retained when the project is saved.
-- Right-click one or more selected spectra and choose **Move selected to series** to reorganize them.
+- Right-click one or more selected spectra and choose **Move to series…**. Choose an
+  existing series or enter a name for a new one. Spectra can come from several series.
 - Right-click selected spectra and choose **Move selected up/down** to change their order inside a series. Multiple adjacent spectra move as a stable group.
 - Right-click a series and choose **Merge series into** to append all its spectra to another series and remove the source series.
 - Moving, merging, creating, and reordering series are all Undo/Redo operations and do not invalidate fitted parameters.
@@ -493,9 +494,13 @@ and **State** columns.
   its visibility box to include it in navigation again.
 - Double-click an editable name, or right-click and choose **Rename data…** or
   **Rename series…**. Series names must remain unique.
-- Right-click a series and choose **Delete series…** to remove it together with all
-  its curves, models and results. A populated series requires confirmation; Undo
-  restores the complete series. Original files on disk are retained.
+- Select one or more series headers and choose **Delete series…** or
+  **Delete selected series…**. If any selected series contains data, one confirmation
+  covers the entire selection. Undo restores the series, curves, models and results.
+- **Duplicate data…** inserts a copy below each selected spectrum in its own series.
+  **Duplicate series…** copies a selected series and its spectra into a new series.
+  Choose the original RAW data or the processed data with applied operations.
+  Each copy has a new identity and starts with an empty fit model.
 - Right-click a **curve** and choose **Choose data colour…** to set its colour. The
   picker allows reds and rejects colours almost identical to the current Model sum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
@@ -915,6 +920,8 @@ contains** filter, the one-based X/Y columns and a **Wait for stable file** dela
 - **Automatic workflow** selects Import only or a loaded plugin's import processor.
   Configure the plugin first; processing runs on the new acquisition in the
   background before it is added to the live project.
+- The **Ruby fluorescence pressure monitor** appends new acquisitions to one
+  **Ruby fluorescence** series per project, including after that series is renamed.
 
 Only files directly in the folder are scanned. Symlinks, hidden/temporary files and
 projects are ignored, and automatic inputs are limited to 256 MiB. Identical content

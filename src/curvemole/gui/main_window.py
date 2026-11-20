@@ -716,6 +716,12 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 )
         return result
 
+    def selected_series_ids(self) -> list[str]:
+        return [
+            str(item.data(1, Qt.ItemDataRole.UserRole)[1])
+            for item in self.selectedItems() if item.parent() is None
+        ]
+
     def ordered_selected_curve_ids(self) -> list[str]:
         selected = self.selected_curve_ids()
         return [
@@ -4173,6 +4179,12 @@ class MainWindow(QMainWindow):
         self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
 
     def remove_selected_curves(self) -> None:
+        series_ids = self.curve_tree.selected_series_ids()
+        if series_ids and all(
+            item.parent() is None or item.parent().isSelected() for item in self.curve_tree.selectedItems()
+        ):
+            self.delete_selected_series(series_ids)
+            return
         if not self._ensure_editable():
             return
         if self._thread is not None:
@@ -4472,46 +4484,42 @@ class MainWindow(QMainWindow):
 
         self._push_series_layout_change(self.tr("Create series"), operation)
 
-    def move_curves_to_series(self, curve_ids: object, target_series_id: str) -> None:
+    def move_curves_to_series(
+        self, curve_ids: object, target_series_id: str | None, *, new_series_name: str = "",
+    ) -> None:
         if not self._ensure_editable():
             return
-        requested = [str(value) for value in list(curve_ids)]
-        if not requested:
+        if self._thread is not None:
+            self._notify(self.tr("Wait for the current task to finish before moving data."))
             return
-        target = next(
-            (series for series in self.project.dataset.series if series.id == target_series_id), None
-        )
-        if target is None:
+        dataset = self.project.dataset
+        if target_series_id is None:
+            name = new_series_name.strip()
+            if not name or any(series.name == name for series in dataset.series):
+                self._notify(self.tr("Enter a non-empty series name that is not already in use."), warning=True)
+                return
+            target = Series(name, metadata={"palette": DEFAULT_SERIES_PALETTE})
+        else:
+            target = next((series for series in dataset.series if series.id == target_series_id), None)
+            if target is None:
+                return
+        requested = {str(value) for value in curve_ids}
+        moved = [
+            curve for series in dataset.series if series is not target
+            for curve in series.curves if curve.id in requested
+        ]
+        if not moved:
             return
-        order = {curve.id: index for index, curve in enumerate(self.project.curves)}
-        requested = sorted(set(requested), key=lambda curve_id: order.get(curve_id, 10**9))
 
         def operation() -> None:
-            moved: list[Curve] = []
-            for curve_id in requested:
-                try:
-                    source = self.project.dataset.series_for(curve_id)
-                except KeyError:
-                    continue
-                if source.id == target_series_id:
-                    continue
-                moved.append(source.remove(curve_id))
-            for curve in moved:
-                target.add(curve)
+            if target_series_id is None:
+                dataset.add_series(target)
+            for series in dataset.series:
+                if series is not target:
+                    series.curves[:] = [curve for curve in series.curves if curve.id not in requested]
+            target.curves.extend(moved)
 
-        before = self._series_layout_snapshot()
-        operation()
-        after = self._series_layout_snapshot()
-        self._restore_series_layout(before)
-        if after == before:
-            return
-        self.undo_stack.push(
-            CallbackCommand(
-                self.tr("Move spectra to series"),
-                lambda: self._restore_series_layout(after),
-                lambda: self._restore_series_layout(before),
-            )
-        )
+        self._push_series_layout_change(self.tr("Move spectra to series"), operation)
 
     def merge_series(self, source_series_id: str, target_series_id: str) -> None:
         if not self._ensure_editable() or source_series_id == target_series_id:
