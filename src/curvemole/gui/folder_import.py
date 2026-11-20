@@ -37,6 +37,9 @@ from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.core.project import Project
 from curvemole.gui.plugin_host import PluginContext
 
+RUBY_IMPORT_PROCESSOR = "org.curvemole.community.ruby_fluo_pressure_monitor:automatic"
+IMPORT_PROCESSOR_KEY = "automatic_import_processor"
+
 
 def prepare_file(path, signature, x_column, y_column, entry, settings, cancellation):
     """Worker owns only a fresh acquisition project, never the GUI/live project."""
@@ -363,7 +366,7 @@ class FolderImportController:
                 ):
                     raise ValueError("Selected processor has been disabled or unloaded.")
                 if self.digests.get(path) != digest:
-                    self.commit(acquisition)
+                    self.commit(acquisition, processor_id=processor_id)
                     self.digests[path] = digest
                     self.log(summary)
                 self.scan.consumed[path] = signature
@@ -394,14 +397,13 @@ class FolderImportController:
             prepare_file, path, signature, self.x, self.y, entry, copy.deepcopy(data), self.token
         )
 
-    def commit(self, acquisition):
+    def commit(self, acquisition, *, processor_id=None):
         window = self.window
         series = copy.deepcopy(acquisition.dataset.series)
         from curvemole.core.data import Dataset
         from curvemole.core.models import Model
         previous_series = list(window.project.dataset.series)
-        next_series = [*previous_series, *series]
-        Dataset(next_series).validate_unique_ids()
+        Dataset([*previous_series, *series]).validate_unique_ids()
         ids = {c.id for s in series for c in s.curves}
         if not ids:
             raise ValueError("Workflow returned no spectra.")
@@ -419,6 +421,29 @@ class FolderImportController:
         for item in series:
             for curve in item.curves:
                 next_models[curve.id] = models.get(curve.id, Model(name=f"Model for {curve.name}"))
+        destination = None
+        if processor_id == RUBY_IMPORT_PROCESSOR:
+            destination = next(
+                (group for group in previous_series if group.metadata.get(IMPORT_PROCESSOR_KEY) == processor_id),
+                None,
+            )
+            incoming = [curve for group in series for curve in group.curves]
+            if destination is None:
+                base = window.tr("Ruby fluorescence")
+                name = base
+                names = {group.name for group in previous_series}
+                suffix = 2
+                while name in names:
+                    name = f"{base} {suffix}"
+                    suffix += 1
+                group = Series(name, incoming, id=series[0].id, metadata={IMPORT_PROCESSOR_KEY: processor_id})
+                next_series = [*previous_series, group]
+            else:
+                before_curves = list(destination.curves)
+                after_curves = [*before_curves, *incoming]
+                next_series = previous_series
+        else:
+            next_series = [*previous_series, *series]
         follow = self.follow
         active_before = window.active_curve_id
         active_after = next(c.id for s in reversed(series) for c in reversed(s.curves))
@@ -426,6 +451,8 @@ class FolderImportController:
         def redo():
             # All validation/copying precedes QUndoStack.push: a Python exception
             # from a Qt redo virtual cannot be relied on to abort that push.
+            if destination is not None:
+                destination.curves[:] = after_curves
             window.project.dataset.series[:] = next_series
             window.project.models = dict(next_models)
             window.project.results = dict(merged_results)
@@ -433,6 +460,8 @@ class FolderImportController:
                 window.active_curve_id = active_after
 
         def undo():
+            if destination is not None:
+                destination.curves[:] = before_curves
             window.project.dataset.series[:] = previous_series
             window.project.models = dict(previous_models)
             window.project.results = dict(previous_results)

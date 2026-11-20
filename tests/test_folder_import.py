@@ -7,12 +7,14 @@ import numpy as np
 import pytest
 from PySide6.QtWidgets import QApplication
 
-from curvemole import Project
+from curvemole import Curve, Project
+from curvemole.core.data import Series
 from curvemole.core.errors import DataValidationError
 from curvemole.core.folder_import import FolderScan
 from curvemole.core.importers import ColumnMapping, import_file, inspect_file
 from curvemole.core.spe import read_spe_frame
 from curvemole.gui.app import CurveMoleMainWindow
+from curvemole.gui.folder_import import RUBY_IMPORT_PROCESSOR
 
 
 def spe_bytes(*, nx=100, frames=1):
@@ -102,6 +104,38 @@ def wait_until(app, predicate, timeout=5):
         app.processEvents()
         time.sleep(0.01)
     assert predicate()
+
+
+def test_ruby_acquisitions_append_to_one_series_with_undo():
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    project.add_series(Series("Ruby fluorescence"))
+    window = CurveMoleMainWindow(project)
+    controller = window.folder_import
+    controller.follow = False
+
+    def acquire(name):
+        acquisition = Project()
+        acquisition.add_series(Series(name, [Curve(name, [690., 691.], [1., 2.])]))
+        controller.commit(acquisition, processor_id=RUBY_IMPORT_PROCESSOR)
+
+    try:
+        acquire("ruby.0")
+        ruby_series = project.dataset.series[-1]
+        assert ruby_series.name == "Ruby fluorescence 2"
+        ruby_series.name = "My ruby readings"
+        acquire("ruby.1")
+        assert len(project.dataset.series) == 2
+        assert project.dataset.series[-1] is ruby_series
+        assert [curve.name for curve in ruby_series.curves] == ["ruby.0", "ruby.1"]
+        window.undo_stack.undo()
+        assert [curve.name for curve in ruby_series.curves] == ["ruby.0"]
+        window.undo_stack.redo()
+        assert [curve.name for curve in ruby_series.curves] == ["ruby.0", "ruby.1"]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
 
 
 def test_automatic_mode_off_by_default_imports_once_and_undo(tmp_path):
