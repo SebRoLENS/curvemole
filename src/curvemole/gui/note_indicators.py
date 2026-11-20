@@ -107,7 +107,8 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         return super().helpEvent(event, view, option, index)
 
     def eventFilter(self, watched, event):
-        if not isValid(self.view) or watched is not self.view.viewport():
+        view = getattr(self, "view", None)
+        if view is None or not isValid(view) or watched is not view.viewport():
             return super().eventFilter(watched, event)
 
         kind = event.type()

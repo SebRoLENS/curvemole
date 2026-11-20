@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import colorsys
+
 import numpy as np
 import pytest
 
@@ -16,6 +18,7 @@ from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.colours import (
     MODEL_SUM_COLOUR,
     SERIES_PALETTES,
+    series_palette_colours,
     spectrum_colour_allowed,
 )
 from curvemole.gui.main_window import PALETTE, MainWindow
@@ -167,6 +170,56 @@ def test_builtin_spectrum_palettes_are_distinct_from_the_default_model_sum() -> 
     assert not spectrum_colour_allowed(MODEL_SUM_COLOUR)
     assert all(spectrum_colour_allowed(colour) for colours in SERIES_PALETTES.values() for colour in colours)
     assert all(colour.upper() != MODEL_SUM_COLOUR.upper() for colour in PALETTE)
+
+
+def test_automatic_palettes_have_dark_background_contrast_and_red_accents() -> None:
+    assert {"Neon", "Sunset", "Jewel"} <= SERIES_PALETTES.keys()
+    for name, palette in SERIES_PALETTES.items():
+        assert series_palette_colours(name, MODEL_SUM_COLOUR) == palette
+        has_red = False
+        for colour in palette:
+            rgb = [channel / 255 for channel in bytes.fromhex(colour[1:])]
+            hue, saturation, _ = colorsys.rgb_to_hsv(*rgb)
+            has_red |= saturation >= 0.25 and min(hue, 1 - hue) <= 15 / 360
+            linear_rgb = [
+                value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+                for value in rgb
+            ]
+            luminance = sum(value * weight for value, weight in zip(linear_rgb, (0.2126, 0.7152, 0.0722), strict=True))
+            assert (luminance + 0.05) / 0.05 >= 4.5, (name, colour)
+        assert has_red == (name not in {"Colourblind", "Grayscale"})
+
+
+@pytest.mark.parametrize("selected_only", [False, True])
+def test_automatic_palette_skips_a_colour_near_a_custom_fit(selected_only):
+    app = QApplication.instance() or QApplication([])
+    project = Project("Automatic colour")
+    series = Series("Spectra")
+    for index in range(3):
+        series.add(Curve(str(index), [0.0, 1.0], [1.0, 2.0]))
+    project.add_series(series)
+    window = MainWindow(project)
+    appearance = window.plot_workspace.plot_appearance()
+    fit_colour = "#E96578"
+    appearance["model_sum_colour"] = fit_colour
+    window.plot_workspace.set_plot_appearance(appearance)
+    before = [curve.colour for curve in series.curves]
+    try:
+        close_red = "#FF6F7E"
+        assert spectrum_colour_allowed(close_red, fit_colour)
+        palette = series_palette_colours("Sunset", fit_colour)
+        assert close_red not in palette
+        if selected_only:
+            window.apply_selected_palette([curve.id for curve in series.curves], "Sunset")
+        else:
+            window.apply_series_palette(series.id, "Sunset")
+        assert [curve.colour for curve in series.curves] == list(palette[:3])
+        window.undo_stack.undo()
+        assert [curve.colour for curve in series.curves] == before
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
 
 
 @pytest.mark.parametrize("colour", ["#FF0000", "#8B0000", "#F08080", "#B22222"])

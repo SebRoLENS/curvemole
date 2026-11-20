@@ -119,6 +119,7 @@ from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.colours import (
     DEFAULT_SERIES_PALETTE,
     SERIES_PALETTES,
+    series_palette_colours,
     spectrum_colour_allowed,
 )
 from curvemole.gui.dialogs import (
@@ -144,7 +145,7 @@ from curvemole.gui.panels import (
     WorksheetPanel,
 )
 from curvemole.gui.plot import PlotWorkspace
-from curvemole.gui.plot_appearance import PlotAppearanceDialog
+from curvemole.gui.plot_appearance import PlotAppearanceDialog, normalize_plot_appearance
 from curvemole.gui.row_drag import RowDragMixin, RowDrop
 from curvemole.gui.task_thread import TaskThread
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
@@ -1922,6 +1923,7 @@ class MainWindow(QMainWindow):
             return
         series = Series(self._next_series_name())
         series.metadata["palette"] = DEFAULT_SERIES_PALETTE
+        default_palette = self._automatic_palette(DEFAULT_SERIES_PALETTE)
         destination_id = None
         shared_mapping = None
         shared_config = None
@@ -2006,7 +2008,9 @@ class MainWindow(QMainWindow):
                                 position_mapping = shared_mapping.by_position(dialog.inspection.columns)
                     curves = import_file(path, file_mapping, file_config)
                 for curve in curves:
-                    curve.colour = PALETTE[(len(self.project.curves) + len(series.curves)) % len(PALETTE)]
+                    curve.colour = default_palette[
+                        (len(self.project.curves) + len(series.curves)) % len(default_palette)
+                    ]
                     if len(paths) > 1 and not (file_mapping.as_separated_files or file_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
                     series.add(curve)
@@ -2016,8 +2020,7 @@ class MainWindow(QMainWindow):
                 self.project.add_series(series)
             else:
                 destination = next(item for item in self.project.dataset.series if item.id == destination_id)
-                palette = SERIES_PALETTES.get(str(destination.metadata.get("palette", "")),
-                                             SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
+                palette = self._automatic_palette(str(destination.metadata.get("palette", ""))) or default_palette
                 for curve in series.curves:
                     curve.colour = palette[len(destination.curves) % len(palette)]
                     self.project.add_curve(curve, destination)
@@ -2444,11 +2447,15 @@ class MainWindow(QMainWindow):
                 numbers.add(number)
                 component.name = f"{self._component_base_name(component)}{number}"
 
+    def _automatic_palette(self, name: str) -> tuple[str, ...]:
+        appearance = normalize_plot_appearance(self.project.ui_state.get("plot_appearance"))
+        return series_palette_colours(name, str(appearance["model_sum_colour"]))
+
     def _normalise_spectrum_colours(self) -> None:
         changed = False
-        fallback = SERIES_PALETTES[DEFAULT_SERIES_PALETTE]
+        fallback = self._automatic_palette(DEFAULT_SERIES_PALETTE)
         for series in self.project.dataset.series:
-            palette = SERIES_PALETTES.get(str(series.metadata.get("palette", "")), fallback)
+            palette = self._automatic_palette(str(series.metadata.get("palette", ""))) or fallback
             for index, curve in enumerate(series.curves):
                 if spectrum_colour_allowed(curve.colour, model_sum_colour=None):
                     continue
@@ -4262,7 +4269,7 @@ class MainWindow(QMainWindow):
         """Colour just the selected spectra in tree order, regardless of series."""
         if not self._ensure_editable():
             return
-        palette = SERIES_PALETTES.get(palette_name)
+        palette = self._automatic_palette(palette_name)
         if not palette:
             return
         available = {curve.id: curve for curve in self.project.curves}
@@ -4300,7 +4307,7 @@ class MainWindow(QMainWindow):
     def apply_series_palette(self, series_id: str, palette_name: str) -> None:
         if not self._ensure_editable():
             return
-        palette = SERIES_PALETTES.get(palette_name)
+        palette = self._automatic_palette(palette_name)
         if not palette:
             return
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)

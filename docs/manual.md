@@ -497,8 +497,11 @@ and **State** columns.
 - Right-click a **curve** and choose **Choose data colour…** to set its colour. The
   picker allows reds and rejects colours almost identical to the current Model sum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
-  with one of the built-in non-red palettes. Palette and individual colours are saved in
-  the project.
+  with a built-in palette. **Neon**, **Sunset**, and **Jewel** offer distinct colours
+  for black backgrounds. The colour palettes include a red accent, except
+  **Colourblind**. **Grayscale** uses neutral shades. Automatic assignments leave
+  more separation from the current Model sum than individual colour choices.
+  Palette and individual colours are saved in the project.
 - Select at least two spectra (Ctrl-click, or Shift-click for a range), then right-click
   one of the selected spectra and choose **Selected spectra palette**. The colours
   follow tree order even across series; only selected spectra change, without
