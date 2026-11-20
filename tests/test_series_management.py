@@ -5,7 +5,9 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QItemSelectionModel, QPoint
+from PySide6.QtGui import QPalette
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QInputDialog
 
 from curvemole import Curve, Project
@@ -157,3 +159,63 @@ def test_drag_series_and_spectra_uses_visible_insertions_and_supports_undo() -> 
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    for index in range(70):
+        project.add_curve(Curve(f"Spectrum {index}", [0., 1.], [0., 1.]))
+    window = MainWindow(project)
+    window.resize(1050, 650)
+    window.show()
+    tree = window.curve_tree
+    header = window.offscreen_active_spectrum
+    QTest.qWait(30)
+    series = tree.topLevelItem(0)
+    first, second = series.child(0), series.child(1)
+    try:
+        assert not first.font(1).bold()
+        first.setSelected(True)
+        tree.setCurrentItem(second, 1, QItemSelectionModel.SelectionFlag.Select)
+        QTest.qWait(30)
+        assert window.active_curve_id == project.curves[1].id
+        assert tree.selected_curve_ids() == {curve.id for curve in project.curves[:2]}
+        assert second.font(1).bold() and not first.font(1).bold()
+        assert tree.columnWidth(1) >= tree.sizeHintForIndex(tree.indexFromItem(second, 1)).width()
+        assert header.isHidden()
+
+        window.plot_workspace.graphics.setFocus()
+        row = tree.visualItemRect(second)
+        image = tree.viewport().grab().toImage()
+        scale = image.devicePixelRatio()
+        base = tree.palette().color(QPalette.ColorRole.Base)
+        assert image.pixelColor(round(3 * scale), round(row.center().y() * scale)).name() == (
+            "#ffd166" if base.lightness() < 128 else "#995000"
+        )
+
+        scrollbar = tree.verticalScrollBar()
+        assert scrollbar.maximum() > 0
+        scrollbar.setValue(scrollbar.maximum())
+        QTest.qWait(30)
+        assert header.isVisible() and "Spectrum 1" in header.text()
+        scrollbar.setValue(0)
+        QTest.qWait(30)
+        assert header.isHidden()
+
+        series.setExpanded(False)
+        QTest.qWait(30)
+        assert header.isVisible() and "Spectrum 1" in header.text()
+        series.setExpanded(True)
+        tree.setCurrentItem(first, 1, QItemSelectionModel.SelectionFlag.NoUpdate)
+        QTest.qWait(30)
+        assert first.font(1).bold() and not second.font(1).bold()
+        assert header.isHidden()
+        tree.clearSelection()
+        QTest.qWait(30)
+        assert not first.font(1).bold()
+        assert header.isHidden()
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()

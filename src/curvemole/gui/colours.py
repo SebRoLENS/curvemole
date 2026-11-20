@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import colorsys
-
 MODEL_SUM_COLOUR = "#D62728"
+_FIT_COLOUR_DISTANCE = 12
 DEFAULT_SERIES_PALETTE = "Colourblind"
 SERIES_PALETTES: dict[str, tuple[str, ...]] = {
     "Colourblind": (
@@ -30,16 +29,23 @@ SERIES_PALETTES: dict[str, tuple[str, ...]] = {
 }
 
 
-def spectrum_colour_allowed(value: str) -> bool:
-    """Return False for saturated red hues reserved for the model sum."""
-
+def _rgb(value: str) -> bytes | None:
     text = value.strip().lstrip("#")
     if len(text) != 6:
-        return False
+        return None
     try:
-        red, green, blue = (int(text[index:index + 2], 16) / 255 for index in (0, 2, 4))
+        channels = bytes.fromhex(text)
     except ValueError:
+        return None
+    return channels if len(channels) == 3 else None
+
+
+def spectrum_colour_allowed(value: str, model_sum_colour: str | None = MODEL_SUM_COLOUR) -> bool:
+    """Allow valid RGB colours outside a small radius around the model-sum colour."""
+    spectrum = _rgb(value)
+    if spectrum is None:
         return False
-    hue, saturation, _ = colorsys.rgb_to_hsv(red, green, blue)
-    degrees = hue * 360.0
-    return not (saturation >= 0.25 and (degrees <= 15.0 or degrees >= 345.0))
+    model_sum = _rgb(model_sum_colour) if model_sum_colour is not None else None
+    return model_sum is None or sum(
+        (channel - reference) ** 2 for channel, reference in zip(spectrum, model_sum, strict=True)
+    ) > _FIT_COLOUR_DISTANCE ** 2

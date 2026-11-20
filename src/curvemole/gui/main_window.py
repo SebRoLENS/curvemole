@@ -365,6 +365,7 @@ def _curve_state_presentation(
 class CurveTree(RowDragMixin, QTreeWidget):
     noteRequested = Signal(object)
     activeCurveChanged = Signal(object)
+    offscreenActiveSpectrumChanged = Signal(str)
     curveVisibilityChanged = Signal(str, bool)
     curveRenamed = Signal(str, str)
     seriesRenamed = Signal(str, str)
@@ -391,6 +392,12 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self._updating = False
         self._project: Project | None = None
         self._uncertainty_method: str | None = None
+        self._items_by_key: dict[tuple[str, str], QTreeWidgetItem] = {}
+        self._marked_spectrum: QTreeWidgetItem | None = None
+        self._offscreen_active_name = ""
+        self._active_visibility_timer = QTimer(self)
+        self._active_visibility_timer.setSingleShot(True)
+        self._active_visibility_timer.timeout.connect(self._update_active_visibility)
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
         self.currentItemChanged.connect(self._active_changed)
@@ -449,7 +456,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
             drop.after,
         )
 
-    def populate(self, project: Project, active_curve_id: str | None) -> None:
+    def populate(self, project: Project, active_curve_id: str | None) -> set[str]:
         # Rebuild atomically: selection signals during clear() otherwise redraw
         # an empty selected-only plot and discard multi-selection on every edit.
         preserve = self._project is project
@@ -473,6 +480,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self._updating = True
         try:
             with QSignalBlocker(self):
+                self._marked_spectrum = None
                 self.clear()
                 active_item: QTreeWidgetItem | None = None
                 items: dict[tuple[str, str], QTreeWidgetItem] = {}
@@ -547,8 +555,58 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 if preserve:
                     self.verticalScrollBar().setValue(scroll_y)
                     self.horizontalScrollBar().setValue(scroll_x)
+                self._items_by_key = items
         finally:
             self._updating = False
+
+        selected = self.selected_curve_ids()
+        self.mark_active_spectrum(active_curve_id, len(selected) > 1)
+        return selected
+
+    def mark_active_spectrum(self, curve_id: str | None, multiple_selected: bool) -> None:
+        item = self._items_by_key.get(("curve", curve_id)) if multiple_selected and curve_id is not None else None
+        if item is not self._marked_spectrum:
+            index = self.indexFromItem(item, 1) if item is not None else None
+            width = self.columnWidth(1)
+            name_fits = index is not None and self.sizeHintForIndex(index).width() <= width
+            with QSignalBlocker(self):
+                for row, bold in ((self._marked_spectrum, False), (item, True)):
+                    if row is not None:
+                        font = row.font(1)
+                        font.setBold(bold)
+                        row.setFont(1, font)
+            if name_fits:
+                # Keep the full name readable when bold makes it slightly wider.
+                self.setColumnWidth(1, max(width, self.sizeHintForIndex(index).width()))
+            self._marked_spectrum = item
+            self.viewport().update()
+        self._active_visibility_timer.start(0)
+
+    def drawRow(self, painter, option, index) -> None:
+        super().drawRow(painter, option, index)
+        item = self._marked_spectrum
+        if item is not None and self.itemFromIndex(index) is item:
+            dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
+            accent = QColor("#FFD166" if dark else "#995000")
+            rect = option.rect
+            painter.fillRect(2, rect.top() + 2, 3, max(1, rect.height() - 4), accent)
+
+    def paintEvent(self, event) -> None:
+        super().paintEvent(event)
+        if self._marked_spectrum is not None and not self._active_visibility_timer.isActive():
+            # Check after scrolling, resizing or collapsing rows has updated their geometry.
+            self._active_visibility_timer.start(0)
+
+    def _update_active_visibility(self) -> None:
+        item = self._marked_spectrum
+        name = ""
+        if item is not None:
+            row = self.visualItemRect(item)
+            if not self.viewport().rect().intersects(row):
+                name = item.text(1) or self.tr("Unnamed spectrum")
+        if name != self._offscreen_active_name:
+            self._offscreen_active_name = name
+            self.offscreenActiveSpectrumChanged.emit(name)
 
     def set_uncertainty_method(self, method: str) -> None:
         self._uncertainty_method = method
@@ -981,6 +1039,12 @@ class MainWindow(QMainWindow):
         self.curve_filter.setPlaceholderText(self.tr("Search curves…"))
         self.curve_filter.textChanged.connect(self._filter_curves)
         self.curve_tree = CurveTree()
+        self.offscreen_active_spectrum = QLabel()
+        self.offscreen_active_spectrum.setTextFormat(Qt.TextFormat.PlainText)
+        self.offscreen_active_spectrum.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.offscreen_active_spectrum.hide()
+        self.curve_tree.offscreenActiveSpectrumChanged.connect(self._show_offscreen_active_spectrum)
+        left_layout.addWidget(self.offscreen_active_spectrum)
         left_layout.addWidget(self.curve_filter)
         selection_row = QHBoxLayout()
         self.select_all_curves_button = QPushButton(self.tr("Select all"))
@@ -1688,8 +1752,7 @@ class MainWindow(QMainWindow):
         if not self.notebook_dock.isHidden():
             self._ensure_notebook_widget()
         self.setWindowTitle(self._title())
-        self.curve_tree.populate(self.project, self.active_curve_id)
-        selected = self.curve_tree.selected_curve_ids()
+        selected = self.curve_tree.populate(self.project, self.active_curve_id)
         self.model_panel.set_context(
             self.project,
             self.active_curve_id,
@@ -2377,7 +2440,7 @@ class MainWindow(QMainWindow):
         for series in self.project.dataset.series:
             palette = SERIES_PALETTES.get(str(series.metadata.get("palette", "")), fallback)
             for index, curve in enumerate(series.curves):
-                if spectrum_colour_allowed(curve.colour):
+                if spectrum_colour_allowed(curve.colour, model_sum_colour=None):
                     continue
                 curve.colour = palette[index % len(palette)]
                 changed = True
@@ -4048,6 +4111,7 @@ class MainWindow(QMainWindow):
 
     def _selection_changed(self) -> None:
         selected = self.curve_tree.selected_curve_ids()
+        self.curve_tree.mark_active_spectrum(self.active_curve_id, len(selected) > 1)
         self.model_panel.set_context(
             self.project,
             self.active_curve_id,
@@ -4155,6 +4219,7 @@ class MainWindow(QMainWindow):
         if not self._ensure_editable(prepare_plot=False):
             return
         curve = self.project.dataset.curve(curve_id)
+        model_sum_colour = str(self.plot_workspace.plot_appearance()["model_sum_colour"])
         while True:
             selected = QColorDialog.getColor(
                 QColor(curve.colour),
@@ -4164,14 +4229,13 @@ class MainWindow(QMainWindow):
             if not selected.isValid():
                 return
             colour = selected.name(QColor.NameFormat.HexRgb).upper()
-            if spectrum_colour_allowed(colour):
+            if spectrum_colour_allowed(colour, model_sum_colour):
                 break
             QMessageBox.warning(
                 self,
-                self.tr("Reserved colour"),
-                self.tr(
-                    "Red is reserved for the Model sum so spectra and fitted-model curves can never use the same colour. Choose another spectrum colour."
-                ),
+                self.tr("Colour too close to the fit"),
+                self.tr("This colour is almost identical to the model-sum colour (%1). Choose a slightly different shade.")
+                .replace("%1", model_sum_colour),
             )
         old = curve.colour.upper()
         if colour == old:
@@ -4782,6 +4846,13 @@ class MainWindow(QMainWindow):
                 child.setHidden(not visible)
                 visible_children += int(visible)
             series.setHidden(bool(query) and visible_children == 0)
+
+    def _show_offscreen_active_spectrum(self, name: str) -> None:
+        label = self.offscreen_active_spectrum
+        caption = self.tr("Active spectrum: %1").replace("%1", name) if name else ""
+        label.setText(caption)
+        label.setToolTip(caption)
+        label.setVisible(bool(name))
 
     def _load_custom_functions(self) -> None:
         self.registry.set_project_functions(self.project.custom_functions)

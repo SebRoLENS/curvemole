@@ -470,6 +470,8 @@ and **State** columns.
   new spectrum has fewer functions, its last function is selected; an empty model
   clears the parameter table. Show all functions retains its project-wide selection.
 - Use Ctrl-click or Shift-click for a multi-selection, or use **Select all** and **Deselect all** above the tree.
+- With multiple spectra selected, a coloured bar and a bold name identify the active
+  spectrum. Its name appears above the search field when its row is out of view.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use **New series** to create an empty named series. Empty series are retained when the project is saved.
 - Right-click one or more selected spectra and choose **Move selected to series** to reorganize them.
@@ -492,8 +494,8 @@ and **State** columns.
 - Right-click a series and choose **Delete series…** to remove it together with all
   its curves, models and results. A populated series requires confirmation; Undo
   restores the complete series. Original files on disk are retained.
-- Right-click a **curve** and choose **Choose data colour…** to set its colour. Red is
-  reserved for the fitted Model sum and cannot be assigned to a spectrum.
+- Right-click a **curve** and choose **Choose data colour…** to set its colour. The
+  picker allows reds and rejects colours almost identical to the current Model sum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
   with one of the built-in non-red palettes. Palette and individual colours are saved in
   the project.

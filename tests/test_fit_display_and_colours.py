@@ -7,7 +7,7 @@ pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
 from PySide6.QtGui import QColor
-from PySide6.QtWidgets import QApplication, QColorDialog
+from PySide6.QtWidgets import QApplication, QColorDialog, QMessageBox
 
 from curvemole import Component, Curve, Project
 from curvemole.core.data import CurveState, Series
@@ -162,11 +162,16 @@ def test_regular_refresh_preserves_current_plot_view() -> None:
     app.processEvents()
 
 
-def test_model_sum_red_is_reserved_from_all_builtin_spectrum_palettes() -> None:
+def test_builtin_spectrum_palettes_are_distinct_from_the_default_model_sum() -> None:
     assert MODEL_SUM_COLOUR.upper() == "#D62728"
     assert not spectrum_colour_allowed(MODEL_SUM_COLOUR)
     assert all(spectrum_colour_allowed(colour) for colours in SERIES_PALETTES.values() for colour in colours)
     assert all(colour.upper() != MODEL_SUM_COLOUR.upper() for colour in PALETTE)
+
+
+@pytest.mark.parametrize("colour", ["#FF0000", "#8B0000", "#F08080", "#B22222"])
+def test_red_shades_distinct_from_the_fit_are_available(colour):
+    assert spectrum_colour_allowed(colour)
 
 
 def test_series_palette_changes_colours_without_invalidating_fits() -> None:
@@ -455,16 +460,45 @@ def test_colour_square_owns_click_and_preserves_current_spectra(monkeypatch, ges
         app.processEvents()
 
 
-def test_existing_red_spectrum_is_migrated_on_open() -> None:
+@pytest.mark.parametrize(
+    ("fit_colour", "too_close", "chosen"),
+    [(MODEL_SUM_COLOUR, "#D82A2A", "#FF0000"), ("#0055AA", "#0356A9", MODEL_SUM_COLOUR)],
+)
+def test_colour_picker_compares_with_the_current_fit_colour(monkeypatch, fit_colour, too_close, chosen):
+    app = QApplication.instance() or QApplication([])
+    project, curve, _ = _gaussian_project()
+    window = MainWindow(project)
+    appearance = window.plot_workspace.plot_appearance()
+    appearance["model_sum_colour"] = fit_colour
+    window.plot_workspace.set_plot_appearance(appearance)
+    choices = iter((QColor(too_close), QColor(chosen)))
+    warnings = []
+    monkeypatch.setattr(QColorDialog, "getColor", lambda *_args: next(choices))
+    monkeypatch.setattr(QMessageBox, "warning", lambda _parent, _title, text: warnings.append(text))
+    try:
+        window.choose_curve_colour(curve.id)
+        assert curve.colour == chosen
+        assert len(warnings) == 1 and fit_colour in warnings[0]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
+def test_existing_spectrum_colours_are_preserved_on_open() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("old red")
-    curve = Curve("legacy", [0.0, 1.0], [0.0, 1.0])
-    curve.colour = "#FF0000"
-    project.add_curve(curve)
+    colours = ["#FF0000", MODEL_SUM_COLOUR]
+    for index, colour in enumerate(colours):
+        curve = Curve(str(index), [0.0, 1.0], [0.0, 1.0])
+        curve.colour = colour
+        project.add_curve(curve)
     project.dirty = False
     window = MainWindow(project)
-    assert spectrum_colour_allowed(curve.colour)
-    assert curve.colour.upper() != MODEL_SUM_COLOUR.upper()
-    project.dirty = False
-    window.close()
-    app.processEvents()
+    try:
+        assert [curve.colour for curve in project.curves] == colours
+        assert not project.dirty
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
