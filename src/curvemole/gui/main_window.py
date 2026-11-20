@@ -4152,7 +4152,7 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def choose_curve_colour(self, curve_id: str) -> None:
-        if not self._ensure_editable():
+        if not self._ensure_editable(prepare_plot=False):
             return
         curve = self.project.dataset.curve(curve_id)
         while True:
@@ -4922,22 +4922,23 @@ class MainWindow(QMainWindow):
             return True
         return False
 
-    def _ensure_editable(self) -> bool:
+    def _ensure_editable(self, *, prepare_plot: bool = True) -> bool:
         if getattr(self, "_project_loading", False):
             self._notify(self.tr("Wait for project loading to finish."), warning=True)
             return False
-        editor = getattr(self, "_function_point_editor", None)
-        if editor is not None and editor.active and not editor.committing:
-            self.plot_workspace.cancel_placement()
-        if not self.project.read_only:
+        if self.project.read_only:
+            QMessageBox.information(
+                self,
+                self.tr("Read-only project"),
+                self.tr("This project is locked by another instance. Use Save As to create an editable copy."),
+            )
+            return False
+        if prepare_plot:
+            editor = getattr(self, "_function_point_editor", None)
+            if editor is not None and editor.active and not editor.committing:
+                self.plot_workspace.cancel_placement()
             self.plot_workspace.restore_data_view_for_editing()
-            return True
-        QMessageBox.information(
-            self,
-            self.tr("Read-only project"),
-            self.tr("This project is locked by another instance. Use Save As to create an editable copy."),
-        )
-        return False
+        return True
 
     def _fixed_notice(self) -> None:
         self._notify(

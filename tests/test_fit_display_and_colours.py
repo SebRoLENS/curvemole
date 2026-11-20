@@ -385,6 +385,76 @@ def test_visibility_colour_square_tracks_spectrum_colour_and_undo(
     app.processEvents()
 
 
+@pytest.mark.parametrize("gesture", ["slip", "double_click", "drag_then_click"])
+def test_colour_square_owns_click_and_preserves_current_spectra(monkeypatch, gesture):
+    from PySide6.QtCore import QPoint, Qt
+    from PySide6.QtTest import QTest
+
+    from curvemole.core.display import DisplayOptions
+
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    for name in ("Active", "Selected", "Target"):
+        curve = Curve(name, [0., 1., 2.], [2., 3., 4.])
+        project.add_curve(curve)
+        background = Component.create("constant", initial={"offset": 1.})
+        background.is_background = True
+        project.model_for(curve.id).add(background)
+    active, selected, target = project.curves
+    window = CurveMoleMainWindow(project)
+    window.show()
+    tree = window.curve_tree
+    tree.expandAll()
+    app.processEvents()
+    viewport = tree.viewport()
+    button = Qt.MouseButton.LeftButton
+    parent = tree.topLevelItem(0)
+    active_index = tree.indexFromItem(parent.child(0), 1)
+    QTest.mouseClick(viewport, button, pos=tree.visualRect(active_index).center())
+    parent.child(1).setSelected(True)
+    controller = window.view_options_controller
+    options = DisplayOptions(original=True)
+    assert controller.apply({active.id: options})
+    index = tree.indexFromItem(parent.child(2), 0)
+    swatch = tree.itemDelegate().note_rect(index)
+    original = target.colour
+    picker_calls = []
+
+    def pick(colour, *_args):
+        picker_calls.append(colour.name().upper())
+        assert controller.for_curve(active.id) == options
+        return QColor("#3455AA")
+
+    monkeypatch.setattr(QColorDialog, "getColor", pick)
+    try:
+        if gesture == "slip":
+            edge = QPoint(swatch.right(), swatch.center().y())
+            QTest.mousePress(viewport, button, pos=edge)
+            QTest.mouseRelease(viewport, button, pos=edge + QPoint(1, 0))
+        elif gesture == "double_click":
+            QTest.mouseDClick(viewport, button, pos=swatch.center())
+            QTest.mouseRelease(viewport, button, pos=swatch.center())
+        else:
+            outside = swatch.center() + QPoint(QApplication.startDragDistance() + swatch.width(), 0)
+            QTest.mousePress(viewport, button, pos=swatch.center())
+            QTest.mouseMove(viewport, outside)
+            QTest.mouseRelease(viewport, button, pos=outside)
+            assert tree._dragged_row is None
+            assert not picker_calls
+            QTest.mouseClick(viewport, button, pos=swatch.center())
+
+        assert picker_calls == [original.upper()]
+        assert window.active_curve_id == active.id
+        assert tree.selected_curve_ids() == {active.id, selected.id}
+        assert controller.for_curve(active.id) == options
+        assert target.colour == "#3455AA"
+    finally:
+        project.dirty = False
+        window.close()
+        window.deleteLater()
+        app.processEvents()
+
+
 def test_existing_red_spectrum_is_migrated_on_open() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project("old red")

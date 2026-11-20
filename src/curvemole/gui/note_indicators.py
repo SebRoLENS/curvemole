@@ -1,8 +1,16 @@
-"""Reusable clickable note decorations for item views."""
+"""Clickable note and spectrum colour decorations for item views."""
 
-from PySide6.QtCore import QEvent, QRect, QSize, Qt
+from math import floor
+
+from PySide6.QtCore import QEvent, QModelIndex, QPersistentModelIndex, QPoint, QRect, QSize, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPixmap
-from PySide6.QtWidgets import QStyle, QStyledItemDelegate, QStyleOptionViewItem, QToolTip
+from PySide6.QtWidgets import (
+    QApplication,
+    QStyle,
+    QStyledItemDelegate,
+    QStyleOptionViewItem,
+    QToolTip,
+)
 from shiboken6 import isValid
 
 from curvemole.core.notebook import description_key
@@ -32,7 +40,7 @@ def checkbox_indicator_size(view) -> QSize:
 
 
 def spectrum_colour_icon(view, colour: str) -> QIcon:
-    """Draw a passive swatch using Qt's native icon/decoration layout."""
+    """Draw a swatch using Qt's native icon/decoration layout."""
     size = view.iconSize()
     width, height = max(1, size.width()), max(1, size.height())
     pixmap = QPixmap(width, height)
@@ -66,24 +74,23 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
     def __init__(self, view, callback):
         super().__init__(view)
         self.view, self.callback = view, callback
-        self._pressed_swatch_curve_id = None
+        self._pressed_swatch = None
         view.viewport().installEventFilter(self)
 
     def note_rect(self, index):
         option = QStyleOptionViewItem()
-        size = self.view.iconSize()
-        option.decorationSize = size if size.isValid() else QSize(16, 16)
+        self.view.initViewItemOption(option)
         self.initStyleOption(option, index)
         option.rect = self.view.visualRect(index)
         option.widget = self.view
         return self.view.style().subElementRect(QStyle.SubElement.SE_ItemViewItemDecoration, option, self.view)
 
-    def spectrum_swatch_curve_id(self, index, position):
-        """Return the spectrum ID only for clicks on the colour icon."""
+    @staticmethod
+    def _swatch_curve_id(index):
         if not index.isValid() or index.column() != 0:
             return None
         metadata = index.siblingAtColumn(1).data(Qt.ItemDataRole.UserRole)
-        if metadata and metadata[0] == "curve" and self.note_rect(index).contains(position):
+        if metadata and metadata[0] == "curve":
             return str(metadata[1])
         return None
 
@@ -100,25 +107,44 @@ class NoteIndicatorDelegate(QStyledItemDelegate):
         return super().helpEvent(event, view, option, index)
 
     def eventFilter(self, watched, event):
-        if (event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
-                and isValid(self.view)
-                and watched is self.view.viewport()
+        if not isValid(self.view) or watched is not self.view.viewport():
+            return super().eventFilter(watched, event)
+
+        kind = event.type()
+        if kind in (QEvent.Type.UngrabMouse, QEvent.Type.Hide):
+            self._pressed_swatch = None
+        if kind == QEvent.Type.MouseMove and self._pressed_swatch is not None:
+            # This press belongs to the swatch, including movement over adjacent cells.
+            return True
+        if (kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick, QEvent.Type.MouseButtonRelease)
                 and event.button() == Qt.MouseButton.LeftButton):
-            position = event.position().toPoint()
-            index = self.view.indexAt(position)
-            if event.type() == QEvent.Type.MouseButtonPress:
-                self._pressed_swatch_curve_id = self.spectrum_swatch_curve_id(index, position)
-                if self._pressed_swatch_curve_id is not None:
-                    # Do not select the row or toggle its visibility checkbox.
+            point = event.position()
+            position = QPoint(floor(point.x()), floor(point.y()))
+            if kind != QEvent.Type.MouseButtonRelease:
+                self._pressed_swatch = None
+                index = self.view.indexAt(position)
+                if self._swatch_curve_id(index) is not None and self.note_rect(index).contains(position):
+                    self._pressed_swatch = QPersistentModelIndex(index), position
                     return True
                 ref = index.data(NOTE_ROLE)
-                if ref and self.note_rect(index).contains(position):
+                if kind == QEvent.Type.MouseButtonPress and ref and self.note_rect(index).contains(position):
                     self.callback(ref)
                     return True
-            elif self._pressed_swatch_curve_id is not None:
-                curve_id = self._pressed_swatch_curve_id
-                self._pressed_swatch_curve_id = None
-                if self.spectrum_swatch_curve_id(index, position) == curve_id:
-                    self.view.curveColourRequested.emit(curve_id)
+            elif self._pressed_swatch is not None:
+                self._release_swatch(position)
                 return True
         return super().eventFilter(watched, event)
+
+    def _release_swatch(self, position):
+        pressed, origin = self._pressed_swatch
+        self._pressed_swatch = None
+        index = QModelIndex(pressed)
+        curve_id = self._swatch_curve_id(index)
+        if curve_id is None or not self.view.viewport().rect().contains(position):
+            return
+        rect = self.note_rect(index)
+        # A small slip just outside the square still belongs to the captured click.
+        if rect.contains(position) or (
+            rect.contains(origin) and (position - origin).manhattanLength() < QApplication.startDragDistance()
+        ):
+            self.view.curveColourRequested.emit(curve_id)
