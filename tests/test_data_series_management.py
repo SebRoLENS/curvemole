@@ -157,9 +157,12 @@ def test_remove_selected_series_confirms_once_and_restores_the_group(monkeypatch
     window.show()
     app.processEvents()
     tree = window.curve_tree
-    for row, modifier in ((0, Qt.KeyboardModifier.NoModifier), (1, Qt.KeyboardModifier.ControlModifier)):
-        index = tree.indexFromItem(tree.topLevelItem(row), 1)
-        QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, modifier, tree.visualRect(index).center())
+    try:
+        for row, modifier in ((0, Qt.KeyboardModifier.NoModifier), (1, Qt.KeyboardModifier.ControlModifier)):
+            index = tree.indexFromItem(tree.topLevelItem(row), 1)
+            QTest.mouseClick(tree.viewport(), Qt.MouseButton.LeftButton, modifier, tree.visualRect(index).center())
+    finally:
+        QTest.keyRelease(tree.viewport(), Qt.Key.Key_Control)
     assert set(tree.selected_series_ids()) == {loaded.id, empty.id}
     confirmations = []
     answers = iter((QMessageBox.StandardButton.No, QMessageBox.StandardButton.Yes))
