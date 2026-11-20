@@ -2,6 +2,31 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.3-beta.159](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.159) — published 2026-11-20
+
+Changes since `v1.3.3-beta.152` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.152...v1.3.3-beta.159)).
+
+### Added
+
+- Add bright spectrum palettes with reds distinct from the fitted curve. ([`eb1e185d`](https://github.com/SebRoLENS/curvemole/commit/eb1e185d02c2df05aa1d17850caaac45a7b7a800))
+
+### Changed
+
+- Open spectrum colour dialog directly from swatch. ([`fc60db95`](https://github.com/SebRoLENS/curvemole/commit/fc60db95d0294047badea3f2ca8a4d787063e226))
+- Verify swatch clicks open picker without toggling visibility. ([`ce0232f8`](https://github.com/SebRoLENS/curvemole/commit/ce0232f8adf220f2b35f813def8f8e443bc83d06))
+- Polish spectrum colour tooltip text. ([`9bbe004d`](https://github.com/SebRoLENS/curvemole/commit/9bbe004db864b630ca6e9ef2019857eaaffef933))
+- Allow mouse-wheel scrolling while dragging rows. ([`dc8e1786`](https://github.com/SebRoLENS/curvemole/commit/dc8e1786979ddf8857bece0b77df2deeda04b863))
+- Default Mask to all visible spectra in Overlay and Waterfall. ([`b5a3a039`](https://github.com/SebRoLENS/curvemole/commit/b5a3a03971c2e16a5eca4b9d34a5f88fc6f46f5c))
+- Open the spectrum colour picker reliably on the first click. ([`7a8c7da2`](https://github.com/SebRoLENS/curvemole/commit/7a8c7da249b446fc41b46a282639af1a41bea68d))
+- Mark the active spectrum and allow distinct red shades. ([`60a175c9`](https://github.com/SebRoLENS/curvemole/commit/60a175c9c259cac03d2261f3493b07d39895e617))
+- Keep spectrum visibility controls in view when selecting rows. ([`98d4db2f`](https://github.com/SebRoLENS/curvemole/commit/98d4db2f7fa8dee7f88a55fb4218453bc9a306d9))
+- Cleanly close the series-tree layout test window. ([`8ef41a29`](https://github.com/SebRoLENS/curvemole/commit/8ef41a29e338b39db340b107d79eaf9cbfe43ec8))
+
+### Documentation
+
+- Document direct colour picker access from spectrum swatches. ([`d9425aad`](https://github.com/SebRoLENS/curvemole/commit/d9425aadb31ce51ebcb8bc78b84919aaca3a0c80))
+- Clarify clickable colour-swatch tooltip. ([`ab2d12b4`](https://github.com/SebRoLENS/curvemole/commit/ab2d12b4ee5feeb2b5822bc14adfe7b69d89e126))
+
 ## [1.3.3-beta.152](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.152) — published 2026-11-19
 
 Changes since `v1.3.3-beta.146` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.146...v1.3.3-beta.152)).
