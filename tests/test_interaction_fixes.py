@@ -113,7 +113,12 @@ def test_mask_scope_and_mouse_buttons(window, monkeypatch, scope, mode):
     workspace = window.plot_workspace
     workspace.display_mode.setCurrentIndex(mode)
     workspace.scope_project.click()
-    monkeypatch.setattr(QInputDialog, "getItem", lambda *args: (scope, True))
+
+    def choose_scope(_parent, _title, _prompt, choices, current, _editable):
+        assert choices[current] == "All visible spectra"
+        return (choices[current] if scope == "All visible spectra" else scope), True
+
+    monkeypatch.setattr(QInputDialog, "getItem", choose_scope)
     workspace.mask_action.trigger()
     assert workspace.view_box.mask_mode
     monkeypatch.setattr(workspace.view_box, "mapSceneToView", lambda point: point)

@@ -1453,7 +1453,7 @@ class PlotWorkspace(QWidget):
                 else:
                     choices = [self.tr("Active spectrum only"), self.tr("All visible spectra")]
                     choice, accepted = QInputDialog.getItem(
-                        self, self.tr("Mask scope"), self.tr("Apply mask edits to:"), choices, 0, False,
+                        self, self.tr("Mask scope"), self.tr("Apply mask edits to:"), choices, 1, False,
                     )
                     if not accepted:
                         self.mask_toggle.setChecked(False)
