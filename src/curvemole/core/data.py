@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import uuid
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -323,6 +324,25 @@ class Curve:
 
     def __len__(self) -> int:
         return len(getattr(self, "_x", self.original_x))
+
+    def duplicate(self, name: str, *, raw: bool = False) -> Curve:
+        """Copy data into a new identity, optionally retaining applied processing."""
+        metadata = copy.deepcopy(self.metadata)
+        # Import deduplication and pressure results belong to the acquisition.
+        metadata.pop("automatic_import", None)
+        metadata.pop("ruby_monitor", None)
+        return replace(
+            self, id=_identifier("curve"), name=name, state=CurveState.NOT_FITTED,
+            transformations=[] if raw else copy.deepcopy(self.transformations),
+            redo_transformations=[],
+            masks={} if raw else {
+                key: Mask(mask.name, self.original_mask(mask), list(mask.ranges))
+                for key, mask in self.masks.items()
+            },
+            active_mask="Default" if raw else self.active_mask,
+            fit_ranges=[] if raw else list(self.fit_ranges),
+            metadata=metadata, column_labels=dict(self.column_labels), column_axes=dict(self.column_axes),
+        )
 
     @property
     def row_indices(self) -> np.ndarray:
