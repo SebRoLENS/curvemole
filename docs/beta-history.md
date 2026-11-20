@@ -2,6 +2,18 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.3-beta.161](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.161) — published 2026-11-20
+
+Changes since `v1.3.3-beta.159` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.159...v1.3.3-beta.161)).
+
+### Changed
+
+- Always mark the active spectrum and preserve multiselection on activation. ([`dd58b90b`](https://github.com/SebRoLENS/curvemole/commit/dd58b90b8161c098cfbe878e452ddbb71b35a755))
+- Append Ruby pressure acquisitions to a single series. ([`ce4da461`](https://github.com/SebRoLENS/curvemole/commit/ce4da461420c64e9386fc11a1a6227cd14dc9864))
+- Copy raw or processed spectra with independent data and identities. ([`1a10d6d3`](https://github.com/SebRoLENS/curvemole/commit/1a10d6d3459282c9d7bcbd0f2d901868ab9ff315))
+- Move and duplicate selected data and delete multiple series from the project tree. ([`1c1115dd`](https://github.com/SebRoLENS/curvemole/commit/1c1115dd81a7cdce3f95fd472187875dcd2b2734))
+- Release the simulated Ctrl key after testing multi-series selection. ([`98273d7e`](https://github.com/SebRoLENS/curvemole/commit/98273d7e7743df22d5e3f587aab1da0d0eca1bdb))
+
 ## [1.3.3-beta.159](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.159) — published 2026-11-20
 
 Changes since `v1.3.3-beta.152` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.152...v1.3.3-beta.159)).

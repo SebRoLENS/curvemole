@@ -30,6 +30,11 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Mark the active spectrum and allow distinct red shades. ([`60a175c9`](https://github.com/SebRoLENS/curvemole/commit/60a175c9c259cac03d2261f3493b07d39895e617))
 - Keep spectrum visibility controls in view when selecting rows. ([`98d4db2f`](https://github.com/SebRoLENS/curvemole/commit/98d4db2f7fa8dee7f88a55fb4218453bc9a306d9))
 - Cleanly close the series-tree layout test window. ([`8ef41a29`](https://github.com/SebRoLENS/curvemole/commit/8ef41a29e338b39db340b107d79eaf9cbfe43ec8))
+- Always mark the active spectrum and preserve multiselection on activation. ([`dd58b90b`](https://github.com/SebRoLENS/curvemole/commit/dd58b90b8161c098cfbe878e452ddbb71b35a755))
+- Append Ruby pressure acquisitions to a single series. ([`ce4da461`](https://github.com/SebRoLENS/curvemole/commit/ce4da461420c64e9386fc11a1a6227cd14dc9864))
+- Copy raw or processed spectra with independent data and identities. ([`1a10d6d3`](https://github.com/SebRoLENS/curvemole/commit/1a10d6d3459282c9d7bcbd0f2d901868ab9ff315))
+- Move and duplicate selected data and delete multiple series from the project tree. ([`1c1115dd`](https://github.com/SebRoLENS/curvemole/commit/1c1115dd81a7cdce3f95fd472187875dcd2b2734))
+- Release the simulated Ctrl key after testing multi-series selection. ([`98273d7e`](https://github.com/SebRoLENS/curvemole/commit/98273d7e7743df22d5e3f587aab1da0d0eca1bdb))
 
 ### Fixed
 
