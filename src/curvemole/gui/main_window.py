@@ -386,6 +386,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
         super().__init__(parent)
         self.setColumnCount(3)
         self.setHeaderLabels([self.tr("Visible"), self.tr("Series / Curve"), self.tr("State")])
+        self.setTreePosition(1)
         self.setSelectionMode(self.SelectionMode.ExtendedSelection)
         self.setup_row_drag()
         self.setAlternatingRowColors(True)
@@ -413,6 +414,13 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self.setIconSize(checkbox_indicator_size(self))
         self.setItemDelegate(NoteIndicatorDelegate(self, self.noteRequested.emit))
 
+    def scrollTo(self, index, hint=QTreeWidget.ScrollHint.EnsureVisible) -> None:
+        # Follow the current row vertically without panning away from its controls.
+        horizontal = self.horizontalScrollBar()
+        offset = horizontal.value()
+        super().scrollTo(index, hint)
+        horizontal.setValue(offset)
+
     def _row_drop_at(self, source, position):
         if self._project is None or self._project.read_only:
             return None
@@ -437,7 +445,8 @@ class CurveTree(RowDragMixin, QTreeWidget):
             return RowDrop(self.indexFromItem(series, 1), after, 3, y)
         after = position.y() >= rect.center().y() or target.parent() is None
         y = rect.bottom() + 1 if after else rect.top()
-        return RowDrop(self.indexFromItem(target, 1), after, 2 * self.indentation(), y)
+        x = max(3, self.columnViewportPosition(1) + 2 * self.indentation())
+        return RowDrop(self.indexFromItem(target, 1), after, x, y)
 
     @staticmethod
     def _last_visible_series_row(series):
@@ -589,7 +598,8 @@ class CurveTree(RowDragMixin, QTreeWidget):
             dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
             accent = QColor("#FFD166" if dark else "#995000")
             rect = option.rect
-            painter.fillRect(2, rect.top() + 2, 3, max(1, rect.height() - 4), accent)
+            x = self.columnViewportPosition(1) + 2
+            painter.fillRect(x, rect.top() + 2, 3, max(1, rect.height() - 4), accent)
 
     def paintEvent(self, event) -> None:
         super().paintEvent(event)

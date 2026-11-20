@@ -5,14 +5,14 @@ import pytest
 pytest.importorskip("PySide6", exc_type=ImportError)
 pytest.importorskip("pyqtgraph", exc_type=ImportError)
 
-from PySide6.QtCore import QItemSelectionModel, QPoint
+from PySide6.QtCore import QItemSelectionModel, QPoint, Qt
 from PySide6.QtGui import QPalette
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QInputDialog
 
 from curvemole import Curve, Project
 from curvemole.core.data import CurveState, Series
-from curvemole.gui.main_window import MainWindow
+from curvemole.gui.main_window import CurveTree, MainWindow
 
 
 def _project() -> tuple[Project, Series, Series, list[Curve]]:
@@ -190,7 +190,8 @@ def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
         image = tree.viewport().grab().toImage()
         scale = image.devicePixelRatio()
         base = tree.palette().color(QPalette.ColorRole.Base)
-        assert image.pixelColor(round(3 * scale), round(row.center().y() * scale)).name() == (
+        marker_x = tree.columnViewportPosition(1) + 3
+        assert image.pixelColor(round(marker_x * scale), round(row.center().y() * scale)).name() == (
             "#ffd166" if base.lightness() < 128 else "#995000"
         )
 
@@ -218,4 +219,53 @@ def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
     finally:
         project.dirty = False
         window.close()
+        app.processEvents()
+
+
+def test_series_arrow_and_visibility_controls_fit_without_activation_panning() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    series = Series("Long spectra")
+    for index in range(40):
+        series.add(Curve(f"Spectrum {index} " + "long name " * 12, [0., 1.], [1., 2.]))
+    project.add_series(series)
+    tree = CurveTree()
+    tree.resize(275, 220)
+    tree.populate(project, series.curves[0].id)
+    tree.show()
+    app.processEvents()
+    parent = tree.topLevelItem(0)
+    viewport = tree.viewport()
+    horizontal = tree.horizontalScrollBar()
+    button = Qt.MouseButton.LeftButton
+    try:
+        assert tree.treePosition() == 1
+        assert tree.columnWidth(0) == max(
+            tree.header().sectionSizeHint(0),
+            tree.sizeHintForIndex(tree.indexFromItem(parent.child(0), 0)).width(),
+        )
+        heading = tree.visualRect(tree.indexFromItem(parent, 1))
+        arrow = QPoint(tree.columnViewportPosition(1) + tree.indentation() // 2, heading.center().y())
+        assert parent.isExpanded()
+        QTest.mouseClick(viewport, button, pos=arrow)
+        assert not parent.isExpanded()
+        QTest.mouseClick(viewport, button, pos=arrow)
+        assert parent.isExpanded()
+
+        assert horizontal.maximum() > 0
+        name = tree.visualRect(tree.indexFromItem(parent.child(1), 1))
+        QTest.mouseClick(viewport, button, pos=QPoint(name.left() + 8, name.center().y()))
+        assert tree.currentItem() is parent.child(1)
+        tree.setCurrentItem(parent.child(2), 1)
+        assert horizontal.value() == 0
+
+        horizontal.setValue(15)
+        offset = horizontal.value()
+        last = tree.indexFromItem(parent.child(parent.childCount() - 1), 1)
+        tree.scrollTo(last)
+        assert tree.verticalScrollBar().value() > 0
+        assert viewport.rect().intersects(tree.visualRect(last))
+        assert horizontal.value() == offset
+    finally:
+        tree.close()
         app.processEvents()
