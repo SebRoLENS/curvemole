@@ -5,6 +5,7 @@ import time
 
 import numpy as np
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Curve, Project
@@ -14,6 +15,7 @@ from curvemole.core.folder_import import FolderScan
 from curvemole.core.importers import ColumnMapping, import_file, inspect_file
 from curvemole.core.spe import read_spe_frame
 from curvemole.gui.app import CurveMoleMainWindow
+from curvemole.gui.colours import SERIES_PALETTES
 from curvemole.gui.folder_import import RUBY_IMPORT_PROCESSOR
 
 
@@ -106,11 +108,12 @@ def wait_until(app, predicate, timeout=5):
     assert predicate()
 
 
-def test_ruby_acquisitions_append_to_one_series_with_undo():
+def test_ruby_acquisitions_append_to_one_series_with_undo(tmp_path):
     app = QApplication.instance() or QApplication([])
     project = Project()
     project.add_series(Series("Ruby fluorescence"))
     window = CurveMoleMainWindow(project)
+    window.settings = QSettings(str(tmp_path / "palette.ini"), QSettings.Format.IniFormat)
     controller = window.folder_import
     controller.follow = False
 
@@ -120,6 +123,7 @@ def test_ruby_acquisitions_append_to_one_series_with_undo():
         controller.commit(acquisition, processor_id=RUBY_IMPORT_PROCESSOR)
 
     try:
+        window.apply_series_palette(project.dataset.series[0].id, "Jewel")
         acquire("ruby.0")
         ruby_series = project.dataset.series[-1]
         assert ruby_series.name == "Ruby fluorescence 2"
@@ -128,6 +132,8 @@ def test_ruby_acquisitions_append_to_one_series_with_undo():
         assert len(project.dataset.series) == 2
         assert project.dataset.series[-1] is ruby_series
         assert [curve.name for curve in ruby_series.curves] == ["ruby.0", "ruby.1"]
+        assert ruby_series.metadata["palette"] == "Jewel"
+        assert [curve.colour for curve in ruby_series.curves] == list(SERIES_PALETTES["Jewel"][:2])
         window.undo_stack.undo()
         assert [curve.name for curve in ruby_series.curves] == ["ruby.0"]
         window.undo_stack.redo()

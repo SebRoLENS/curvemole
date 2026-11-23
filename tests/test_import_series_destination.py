@@ -1,10 +1,12 @@
 from pathlib import Path
 
 import pytest
+from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
 from curvemole import Curve, Project, Series
 from curvemole.gui.app import CurveMoleMainWindow
+from curvemole.gui.colours import SERIES_PALETTES
 from curvemole.gui.dialogs import ImportMappingDialog
 
 
@@ -105,6 +107,42 @@ def test_new_series_option_is_retained(importing_window, monkeypatch):
     assert len(project.dataset.series) == 3
     assert project.dataset.series[-1].name == 'New acquisition'
     assert len(project.dataset.series[-1].curves) == 2
+
+
+@pytest.mark.parametrize("selected_only", [False, True])
+def test_last_chosen_palette_becomes_the_default_for_new_imports(
+    importing_window, tmp_path, monkeypatch, selected_only,
+):
+    _, window, project, paths = importing_window
+    preferences = str(tmp_path / "palette.ini")
+    window.settings = QSettings(preferences, QSettings.Format.IniFormat)
+    assert window.default_series_palette() == "Neon"
+
+    def choose(dialog):
+        dialog.series_name.setText(f"Import {len(project.dataset.series)}")
+        dialog.apply_all.setChecked(True)
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(ImportMappingDialog, "exec", choose)
+    window.import_data(paths)
+    first_batch = project.dataset.series[-1]
+    assert first_batch.metadata["palette"] == "Neon"
+    assert [curve.colour for curve in first_batch.curves] == list(SERIES_PALETTES["Neon"][1:3])
+
+    if selected_only:
+        window.apply_selected_palette([curve.id for curve in first_batch.curves], "Jewel")
+    else:
+        window.apply_series_palette(first_batch.id, "Jewel")
+    window.undo_stack.undo()
+    assert first_batch.metadata["palette"] == "Neon"
+    window.settings.sync()
+    window.settings = QSettings(preferences, QSettings.Format.IniFormat)
+    assert window.default_series_palette() == "Jewel"
+    window.import_data(paths)
+    second_batch = project.dataset.series[-1]
+    assert second_batch.metadata["palette"] == "Jewel"
+    assert [curve.colour for curve in second_batch.curves] == list(SERIES_PALETTES["Jewel"][3:5])
 
 
 @pytest.mark.parametrize("start_by_position", [False, True])

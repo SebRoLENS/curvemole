@@ -174,7 +174,9 @@ def test_builtin_spectrum_palettes_are_distinct_from_the_default_model_sum() -> 
 
 def test_automatic_palettes_have_dark_background_contrast_and_red_accents() -> None:
     assert {"Neon", "Sunset", "Jewel"} <= SERIES_PALETTES.keys()
+    assert len(SERIES_PALETTES["Neon"]) == len(SERIES_PALETTES["Jewel"]) == 12
     for name, palette in SERIES_PALETTES.items():
+        assert len(palette) == len(set(palette))
         assert series_palette_colours(name, MODEL_SUM_COLOUR) == palette
         has_red = False
         for colour in palette:

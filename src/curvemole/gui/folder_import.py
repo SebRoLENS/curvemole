@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from curvemole.core.data import Series
+from curvemole.core.data import DEFAULT_CURVE_COLOUR, Series
 from curvemole.core.extensions import extensions
 from curvemole.core.fitting import CancellationToken
 from curvemole.core.folder_import import FolderScan
@@ -39,6 +39,12 @@ from curvemole.gui.plugin_host import PluginContext
 
 RUBY_IMPORT_PROCESSOR = "org.curvemole.community.ruby_fluo_pressure_monitor:automatic"
 IMPORT_PROCESSOR_KEY = "automatic_import_processor"
+
+
+def _colour_imports(curves, palette, offset=0):
+    for index, curve in enumerate(curves, offset):
+        if curve.colour.upper() == DEFAULT_CURVE_COLOUR:
+            curve.colour = palette[index % len(palette)]
 
 
 def prepare_file(path, signature, x_column, y_column, entry, settings, cancellation):
@@ -444,6 +450,17 @@ class FolderImportController:
                 next_series = previous_series
         else:
             next_series = [*previous_series, *series]
+        if destination is not None:
+            _colour_imports(incoming, window._palette_for_appending(destination))
+        else:
+            default_name = window.default_series_palette()
+            default_palette = window._automatic_palette(default_name)
+            offset = len(window.project.curves)
+            for group in next_series[len(previous_series):]:
+                name = group.metadata.setdefault("palette", default_name)
+                palette = window._automatic_palette(str(name)) or default_palette
+                _colour_imports(group.curves, palette, offset)
+                offset += len(group.curves)
         follow = self.follow
         active_before = window.active_curve_id
         active_after = next(c.id for s in reversed(series) for c in reversed(s.curves))

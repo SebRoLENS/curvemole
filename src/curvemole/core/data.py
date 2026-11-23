@@ -16,6 +16,8 @@ import numpy as np
 from curvemole.core.errors import DataValidationError
 from curvemole.core.expressions import SafeExpression
 
+DEFAULT_CURVE_COLOUR = "#0072B2"
+
 
 def _identifier(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
@@ -246,7 +248,7 @@ class Curve:
     source: str | None = None
     id: str = field(default_factory=lambda: _identifier("curve"))
     visible: bool = True
-    colour: str = "#0072B2"
+    colour: str = DEFAULT_CURVE_COLOUR
     state: CurveState = CurveState.NOT_FITTED
     transformations: list[Transformation] = field(default_factory=list)
     redo_transformations: list[Transformation] = field(default_factory=list)

@@ -10,6 +10,7 @@ import re
 import socket
 import time
 import traceback
+from collections import Counter
 from collections.abc import Callable
 from importlib import resources
 from pathlib import Path
@@ -156,6 +157,7 @@ from curvemole.gui.windowing import transient_widget
 from curvemole.version import __version__
 
 PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
+_DEFAULT_PALETTE_SETTING = "plot/default_series_palette"
 
 
 def _resource_icon(
@@ -1953,8 +1955,8 @@ class MainWindow(QMainWindow):
         if not paths:
             return
         series = Series(self._next_series_name())
-        series.metadata["palette"] = DEFAULT_SERIES_PALETTE
-        default_palette = self._automatic_palette(DEFAULT_SERIES_PALETTE)
+        series.metadata["palette"] = self.default_series_palette()
+        default_palette = self._automatic_palette(series.metadata["palette"])
         destination_id = None
         shared_mapping = None
         shared_config = None
@@ -2051,9 +2053,9 @@ class MainWindow(QMainWindow):
                 self.project.add_series(series)
             else:
                 destination = next(item for item in self.project.dataset.series if item.id == destination_id)
-                palette = self._automatic_palette(str(destination.metadata.get("palette", ""))) or default_palette
-                for curve in series.curves:
-                    curve.colour = palette[len(destination.curves) % len(palette)]
+                palette = self._palette_for_appending(destination)
+                for index, curve in enumerate(series.curves):
+                    curve.colour = palette[index % len(palette)]
                     self.project.add_curve(curve, destination)
             self.active_curve_id = series.curves[0].id
             self.selected_component_id = None
@@ -2478,13 +2480,25 @@ class MainWindow(QMainWindow):
                 numbers.add(number)
                 component.name = f"{self._component_base_name(component)}{number}"
 
+    def default_series_palette(self) -> str:
+        name = str(self.settings.value(_DEFAULT_PALETTE_SETTING, DEFAULT_SERIES_PALETTE))
+        return name if name in SERIES_PALETTES else DEFAULT_SERIES_PALETTE
+
     def _automatic_palette(self, name: str) -> tuple[str, ...]:
         appearance = normalize_plot_appearance(self.project.ui_state.get("plot_appearance"))
         return series_palette_colours(name, str(appearance["model_sum_colour"]))
 
+    def _palette_for_appending(self, series: Series) -> tuple[str, ...]:
+        palette = self._automatic_palette(str(series.metadata.get("palette", ""))) or self._automatic_palette(
+            self.default_series_palette(),
+        )
+        counts = Counter(curve.colour.upper() for curve in series.curves)
+        # Fill unused colours first, even if existing spectra were recoloured or moved.
+        return tuple(sorted(palette, key=counts.__getitem__))
+
     def _normalise_spectrum_colours(self) -> None:
         changed = False
-        fallback = self._automatic_palette(DEFAULT_SERIES_PALETTE)
+        fallback = self._automatic_palette(self.default_series_palette())
         for series in self.project.dataset.series:
             palette = self._automatic_palette(str(series.metadata.get("palette", ""))) or fallback
             for index, curve in enumerate(series.curves):
@@ -4315,6 +4329,7 @@ class MainWindow(QMainWindow):
         ]
         if len(ordered_ids) < 2:
             return
+        self.settings.setValue(_DEFAULT_PALETTE_SETTING, palette_name)
         before = {curve_id: available[curve_id].colour for curve_id in ordered_ids}
         after = {
             curve_id: palette[index % len(palette)]
@@ -4350,6 +4365,7 @@ class MainWindow(QMainWindow):
         series = next((item for item in self.project.dataset.series if item.id == series_id), None)
         if series is None:
             return
+        self.settings.setValue(_DEFAULT_PALETTE_SETTING, palette_name)
         before_colours = [curve.colour for curve in series.curves]
         before_palette = series.metadata.get("palette")
         after_colours = [palette[index % len(palette)] for index in range(len(series.curves))]
@@ -4479,7 +4495,7 @@ class MainWindow(QMainWindow):
 
         def operation() -> None:
             self.project.dataset.add_series(
-                Series(name, metadata={"palette": DEFAULT_SERIES_PALETTE})
+                Series(name, metadata={"palette": self.default_series_palette()})
             )
 
         self._push_series_layout_change(self.tr("Create series"), operation)
@@ -4498,7 +4514,7 @@ class MainWindow(QMainWindow):
             if not name or any(series.name == name for series in dataset.series):
                 self._notify(self.tr("Enter a non-empty series name that is not already in use."), warning=True)
                 return
-            target = Series(name, metadata={"palette": DEFAULT_SERIES_PALETTE})
+            target = Series(name, metadata={"palette": self.default_series_palette()})
         else:
             target = next((series for series in dataset.series if series.id == target_series_id), None)
             if target is None:

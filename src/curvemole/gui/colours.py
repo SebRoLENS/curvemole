@@ -5,7 +5,7 @@ from __future__ import annotations
 MODEL_SUM_COLOUR = "#D62728"
 _FIT_COLOUR_DISTANCE = 12
 _PALETTE_FIT_DISTANCE = 64
-DEFAULT_SERIES_PALETTE = "Colourblind"
+DEFAULT_SERIES_PALETTE = "Neon"
 SERIES_PALETTES: dict[str, tuple[str, ...]] = {
     "Colourblind": (
         "#2084C6", "#009E73", "#CC79A7", "#E69F00",
@@ -14,14 +14,17 @@ SERIES_PALETTES: dict[str, tuple[str, ...]] = {
     "Ocean": (
         "#56B4E9", "#FF6F7E", "#7ED9C3", "#678AD7",
         "#4C9DDB", "#72B7B2", "#5B8FF9", "#9F94FF",
+        "#13AE61", "#E3F9FF",
     ),
     "Viridis": (
         "#9575D1", "#FF7888", "#6385D7", "#3898AE", "#3BB498",
         "#49C578", "#8FD649", "#B6DE2B", "#FDE725",
+        "#CCD5FF", "#169451",
     ),
     "Pastel": (
         "#6BAED6", "#FF98A2", "#74C476", "#9E9AC8", "#9ECAE1",
         "#A1D99B", "#BCBDDC", "#FDD0A2", "#BDBDBD",
+        "#C7FFFF", "#F588F2",
     ),
     "Grayscale": (
         "#777777", "#8B8B8B", "#9F9F9F", "#B3B3B3",
@@ -30,14 +33,17 @@ SERIES_PALETTES: dict[str, tuple[str, ...]] = {
     "Neon": (
         "#55E9FD", "#FF6278", "#D6FA54", "#B49CFF",
         "#FFBA49", "#52F5B0", "#FF91F5", "#F5EB84",
+        "#E800FF", "#1687FF", "#12C53A", "#C08C10",
     ),
     "Sunset": (
         "#FFBF64", "#FF6F7E", "#B49BFD", "#FF9CCA",
         "#68CFE1", "#EADB84", "#FF9A53", "#BEE68B",
+        "#476FFF", "#D820C5",
     ),
     "Jewel": (
         "#42D8C3", "#FA738A", "#9D8AF3", "#EAC762",
         "#70BBFF", "#DA91E8", "#88DD87", "#F5AC79",
+        "#D13BDF", "#127CD0", "#D57324", "#F5F953",
     ),
 }
 
