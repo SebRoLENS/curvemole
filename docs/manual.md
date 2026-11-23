@@ -473,7 +473,8 @@ and **State** columns.
 - A coloured bar and a bold name identify the active spectrum. Its name appears
   above the search field when its row is out of view. In a multi-selection, click
   another selected spectrum to make it active while keeping the selection. Click
-  the active spectrum to select it alone.
+  the active spectrum to select it alone. Rapid clicks that start in a
+  multi-selection follow the same rules.
 - Use **Remove selected** to delete one or more accidentally imported curves. Removal is undoable.
 - Use **New series** to create an empty named series. Empty series are retained when the project is saved.
 - Right-click one or more selected spectra and choose **Move to series…**. Choose an
@@ -504,8 +505,10 @@ and **State** columns.
 - Right-click a **curve** and choose **Choose data colour…** to set its colour. The
   picker allows reds and rejects colours almost identical to the current Model sum.
 - Right-click a **series** and choose **Series palette** to recolour the complete series
-  with a built-in palette. **Neon**, **Sunset**, and **Jewel** offer distinct colours
-  for black backgrounds. The colour palettes include a red accent, except
+  with a built-in palette. **Neon** is the initial default and offers 12 colours
+  for black backgrounds. Applying a series or selected spectra palette makes it
+  the default for new series and imports, including after you restart. The colour
+  palettes include a red accent, except
   **Colourblind**. **Grayscale** uses neutral shades. Automatic assignments leave
   more separation from the current Model sum than individual colour choices.
   Palette and individual colours are saved in the project.
@@ -592,8 +595,8 @@ shifted vertically when necessary to avoid overlap. Right-click the main plot an
 toggle **Show component labels** to hide or show these labels. After every completed
 fit, CurveMole explicitly applies the returned optimized parameters to the displayed
 model and redraws the plot while preserving the current zoom.
-The **Model sum is always red**; imported spectra and selectable series palettes exclude red
-so a data curve can never be confused with the fitted sum.
+The **Model sum** is red by default. Automatic spectrum colours skip shades close
+to the current model-sum colour.
 
 ### 5.3 Navigation and axes
 

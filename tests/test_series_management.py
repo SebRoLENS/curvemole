@@ -265,6 +265,45 @@ def test_clicking_selected_spectra_activates_then_selects_one(select_series):
         app.processEvents()
 
 
+@pytest.mark.parametrize("already_active", [False, True])
+def test_rapid_clicks_in_a_multiselection_select_without_renaming(already_active):
+    app = QApplication.instance() or QApplication([])
+    project, first, _, curves = _project()
+    window = MainWindow(project)
+    window.show()
+    app.processEvents()
+    tree = window.curve_tree
+    series = tree.topLevelItem(0)
+    current, target = series.child(0), series.child(0 if already_active else 1)
+    tree.setCurrentItem(current, 1)
+    for row in range(series.childCount()):
+        series.child(row).setSelected(True)
+    target_index = tree.indexFromItem(target, 1)
+    button = Qt.MouseButton.LeftButton
+    try:
+        assert tree.selected_curve_ids() == {curve.id for curve in first.curves}
+        position = tree.visualRect(target_index).center()
+        QTest.mouseClick(tree.viewport(), button, pos=position)
+        assert len(tree.selected_curve_ids()) == (1 if already_active else 3)
+        QTest.mouseDClick(tree.viewport(), button, pos=position)
+        QTest.mouseRelease(tree.viewport(), button, pos=position)
+        assert tree.state() != tree.State.EditingState
+        curve_id = curves[0 if already_active else 1].id
+        assert window.active_curve_id == curve_id
+        assert tree.selected_curve_ids() == {curve_id}
+
+        # An ordinary double-click that starts with just one spectrum still edits.
+        QTest.mouseClick(tree.viewport(), button, pos=position)
+        QTest.mouseDClick(tree.viewport(), button, pos=position)
+        QTest.mouseRelease(tree.viewport(), button, pos=position)
+        assert tree.state() == tree.State.EditingState
+        QTest.keyClick(app.focusWidget(), Qt.Key.Key_Escape)
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
 def test_series_arrow_and_visibility_controls_fit_without_activation_panning() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project()

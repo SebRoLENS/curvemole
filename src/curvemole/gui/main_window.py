@@ -400,6 +400,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
         self._items_by_key: dict[tuple[str, str], QTreeWidgetItem] = {}
         self._marked_spectrum: QTreeWidgetItem | None = None
         self._activation_click = QPersistentModelIndex()
+        self._multiselection_click = QPersistentModelIndex()
         self._offscreen_active_name = ""
         self._active_visibility_timer = QTimer(self)
         self._active_visibility_timer.setSingleShot(True)
@@ -428,21 +429,41 @@ class CurveTree(RowDragMixin, QTreeWidget):
 
     def mousePressEvent(self, event) -> None:
         self._activation_click = QPersistentModelIndex()
-        if event.button() == Qt.MouseButton.LeftButton and event.modifiers() == Qt.KeyboardModifier.NoModifier:
+        self._multiselection_click = QPersistentModelIndex()
+        if event.button() == Qt.MouseButton.LeftButton:
             index = self.indexAt(event.position().toPoint())
-            if index.isValid() and index.column() != 0:
-                item = self.itemFromIndex(index)
-                parent = item.parent()
-                if parent is not None and item is not self._marked_spectrum and (
-                    item.isSelected() or parent.isSelected()
-                ):
-                    self._activation_click = QPersistentModelIndex(index)
+            if index.column() > 0 and index.parent().isValid():
+                if self._has_multiple_selected_rows():
+                    self._multiselection_click = QPersistentModelIndex(index)
+                if event.modifiers() == Qt.KeyboardModifier.NoModifier:
+                    item = self.itemFromIndex(index)
+                    if item is not self._marked_spectrum and (item.isSelected() or item.parent().isSelected()):
+                        self._activation_click = QPersistentModelIndex(index)
         super().mousePressEvent(event)
+
+    def _has_multiple_selected_rows(self) -> bool:
+        rows = self.selectedItems()
+        return len(rows) > 1 or bool(rows and rows[0].childCount() > 1)
+
+    def mouseDoubleClickEvent(self, event) -> None:
+        index = self.indexAt(event.position().toPoint())
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and index.column() > 0 and index.parent().isValid()
+            and (index == self._multiselection_click or self._has_multiple_selected_rows())
+        ):
+            # Qt reports the second press as a double-click. Apply the ordinary
+            # click rules even if the first press already reduced the selection.
+            self.mousePressEvent(event)
+            return
+        super().mouseDoubleClickEvent(event)
 
     def selectionCommand(self, index, event=None):
         if (
             event is not None
-            and event.type() in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease)
+            and event.type() in (
+                QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease, QEvent.Type.MouseButtonDblClick,
+            )
             and index.isValid()
             and index == self._activation_click
         ):
