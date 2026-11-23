@@ -114,6 +114,38 @@ def _normalized_errors(minus, plus, normalized, scale, coefficients):
     return np.hypot(own_minus, other_minus), np.hypot(own_plus, other_plus)
 
 
+def _formula_partials(transformation, target, x, y, columns, labels, axes, sigma_x, sigma_y):
+    from curvemole.core.columns import evaluate_columns
+    from curvemole.core.numerics import local_derivative
+
+    def partial(axis, data, errors):
+        if errors is None:
+            return 0.
+
+        def evaluate(shifted):
+            xx, yy = (shifted, y) if axis == "x" else (x, shifted)
+            if transformation.operation == "column_formula":
+                p = transformation.parameters
+                inputs = {**columns, axes[axis]: shifted}
+                xx, yy = evaluate_columns(p["formula"], p["target"], xx, yy, inputs, labels, axes)
+            else:
+                xx, yy, _ = transformation.apply(xx, yy, None)
+            return xx if target == "x" else yy
+
+        return local_derivative(evaluate, data, errors)
+
+    return partial("x", x, sigma_x), partial("y", y, sigma_y)
+
+
+def _formula_standard_deviation(dx, dy, sigma_x, sigma_y, covariance):
+    x_error = 0. if sigma_x is None else dx * sigma_x
+    y_error = 0. if sigma_y is None else dy * sigma_y
+    independent = np.hypot(x_error, y_error)
+    if covariance is None:
+        return independent
+    return np.sqrt(np.maximum(0., independent**2 + 2 * dx * dy * covariance))
+
+
 @dataclass(slots=True)
 class Transformation:
     operation: str
@@ -667,9 +699,15 @@ class Curve:
             # when no Y scaling occurs (no inverse/sqrt round-trip noise).
             weight_sigma = np.ones_like(weights)
         correlated = False
+        xy_covariance = None
+        uncertain_auxiliary = set()
         rows = np.arange(len(x))
         original_masks = {mask.id: self.original_mask(mask) for mask in self.masks.values()}
-        from curvemole.core.columns import calculator_column_axes, evaluate_columns
+        from curvemole.core.columns import (
+            calculator_column_axes,
+            compile_column_formula,
+            evaluate_columns,
+        )
 
         columns = dict(self.original_columns)
         column_axes = calculator_column_axes(columns, self.column_axes)
@@ -707,61 +745,79 @@ class Curve:
                         for value in (sigma, sigma_x, minus, plus, weights))
                     if weight_sigma is not None:
                         weight_sigma = weight_sigma[keep]
+                    if xy_covariance is not None:
+                        xy_covariance = xy_covariance[keep]
                     columns = {key: value[keep] for key, value in columns.items()}
                 for axis, values in (("x", x), ("y", y)):
                     if axis in column_axes:
                         columns[column_axes[axis]] = values.copy()
                 continue
-            derivative = None
             target = p.get("axis") if op == "custom_formula" else p.get("target")
             if op in {"custom_formula", "column_formula"}:
                 target = next((axis for axis in ("x", "y")
                                if target == axis or target == column_axes.get(axis)), target)
-                errors = sigma_x if target == "x" else (sigma if sigma is not None else
-                                                        minus if minus is not None else weight_sigma)
-                if target in {"x", "y"} and errors is not None:
-                    # Local propagation for arbitrary formulas; affine operations are exact.
-                    values = x if target == "x" else y
-                    from curvemole.core.numerics import local_derivative
-
-                    def evaluate_shifted(shifted, x=x, y=y, target=target, op=op,
-                                         columns=columns, p=p, transformation=transformation):
-                        xx, yy = x.copy(), y.copy()
-                        if target == "x":
-                            xx = shifted
+                if op == "column_formula":
+                    expression = compile_column_formula(p["formula"], p["target"])
+                    inputs = set(expression.variables) | {
+                        key for key, label in self.column_labels.items() if label in expression.references
+                    }
+                    inherits_auxiliary = bool(inputs & uncertain_auxiliary)
+                    if target not in {"x", "y"}:
+                        axis_inputs = {"x", "y", *column_axes.values()}
+                        if inherits_auxiliary or bool(inputs & axis_inputs):
+                            uncertain_auxiliary.add(target)
                         else:
-                            yy = shifted
-                        if op == "column_formula":
-                            shifted_columns = {key: val.copy() for key, val in columns.items()}
-                            if target in column_axes:
-                                shifted_columns[column_axes[target]] = xx if target == "x" else yy
-                            xx, yy = evaluate_columns(p["formula"], p["target"], xx, yy,
-                                                      shifted_columns, self.column_labels, column_axes)
-                        else:
-                            xx, yy, _ = transformation.apply(xx, yy, None)
-                        return xx if target == "x" else yy
-
-                    derivative = local_derivative(evaluate_shifted, values, errors)
+                            uncertain_auxiliary.discard(target)
+                    elif inherits_auxiliary:
+                        correlated = True  # An intermediate column has unrecorded cross-column covariance.
+                y_scale = sigma
+                if minus is not None:
+                    from scipy.special import ndtri
+                    z = ndtri((1 + self.error_confidence_level) / 2)
+                    y_scale = (minus + plus) / (2 * z)
+                elif weight_sigma is not None:
+                    y_scale = np.divide(weight_sigma, np.sqrt(np.maximum(weights, 0)),
+                                        out=np.zeros_like(weight_sigma), where=weights > 0)
+                if target in {"x", "y"} and (sigma_x is not None or y_scale is not None):
+                    dx, dy = _formula_partials(transformation, target, x, y, columns, self.column_labels,
+                                               column_axes, sigma_x, y_scale)
+                    old_covariance = xy_covariance
                     if target == "x":
-                        sigma_x *= np.abs(derivative)
+                        if sigma_x is not None or np.any(dy):
+                            sigma_x = _formula_standard_deviation(dx, dy, sigma_x, y_scale, old_covariance)
+                        xy_covariance = dx * (0. if old_covariance is None else old_covariance)
+                        if y_scale is not None:
+                            xy_covariance = xy_covariance + dy * y_scale**2
+                        if minus is not None and np.any(dy):
+                            correlated = True  # A symmetric X bar approximates the asymmetric Y contribution.
                     else:
-                        if weight_sigma is not None:
-                            weight_sigma *= np.abs(derivative)
-                        if sigma is not None:
-                            sigma *= np.abs(derivative)
+                        xy_covariance = dy * (0. if old_covariance is None else old_covariance)
+                        if sigma_x is not None:
+                            xy_covariance = xy_covariance + dx * sigma_x**2
                         if minus is not None:
-                            minus, plus = (np.where(derivative < 0, plus, minus) * np.abs(derivative),
-                                           np.where(derivative < 0, minus, plus) * np.abs(derivative))
-            if op == "x_multiply" and sigma_x is not None:
-                sigma_x *= abs(float(p["value"]))
-            if transformation.operation == "column_formula":
-                p = transformation.parameters
-                x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
-                                        self.column_labels, column_axes)
+                            minus, plus = _scale_interval(minus, plus, dy)
+                            if sigma_x is not None:
+                                x_contribution = z * dx * sigma_x
+                                minus, plus = np.hypot(minus, x_contribution), np.hypot(plus, x_contribution)
+                                correlated |= old_covariance is not None and bool(np.any(dx * dy * old_covariance))
+                        elif weight_sigma is not None and not np.any(dx):
+                            weight_sigma *= np.abs(dy)
+                        elif sigma is not None or np.any(dx):
+                            sigma = _formula_standard_deviation(dx, dy, sigma_x, y_scale, old_covariance)
+                            if weight_sigma is not None:
+                                weight_sigma = weights = None
+                    if not np.any(xy_covariance):
+                        xy_covariance = None
+                if op == "column_formula":
+                    x, y = evaluate_columns(p["formula"], p["target"], x, y, columns,
+                                            self.column_labels, column_axes)
+                else:
+                    x, y, _ = transformation.apply(x, y, None)
             elif op in {"normalize_max", "normalize_area"}:
                 scale, coefficients = _normalization(x, y, op)
                 y = y / scale
                 correlated = True
+                xy_covariance = None  # Normalisation adds off-row covariance.
                 if minus is not None:
                     minus, plus = _normalized_errors(minus, plus, y, scale, coefficients)
                 if sigma is not None:
@@ -773,17 +829,31 @@ class Curve:
                     weight_sigma = error * np.sqrt(np.maximum(weights, 0))
             else:
                 x, next_y, next_sigma = transformation.apply(x, y, sigma)
-                if derivative is None:
-                    factor = transformation.target_y_derivative()
-                    if p.get("same_measurement"):
-                        # Differentiate both appearances of the same Y value.
-                        factor = 2 * y if op == "curve_multiply" else 2. if op == "curve_add" else 0.
-                        if sigma is not None:
-                            next_sigma = sigma * np.abs(factor)
-                    if minus is not None:
-                        minus, plus = _scale_interval(minus, plus, factor)
-                    if weight_sigma is not None:
-                        weight_sigma = weight_sigma * np.abs(factor)
+                factor = transformation.target_y_derivative()
+                same_rows = p.get("same_measurement_rows")
+                if same_rows or p.get("same_measurement"):
+                    joint_factor = 2 * y if op == "curve_multiply" else 2. if op == "curve_add" else 0.
+                    if same_rows:
+                        factor = np.broadcast_to(factor, y.shape).copy()
+                        factor[same_rows] = np.broadcast_to(joint_factor, y.shape)[same_rows]
+                    else:
+                        factor = joint_factor
+                    if sigma is not None:
+                        next_sigma = sigma * np.abs(factor)
+                if minus is not None:
+                    minus, plus = _scale_interval(minus, plus, factor)
+                if weight_sigma is not None:
+                    weight_sigma = weight_sigma * np.abs(factor)
+                if op == "x_multiply":
+                    x_factor = float(p["value"])
+                    if sigma_x is not None:
+                        sigma_x *= abs(x_factor)
+                    if xy_covariance is not None:
+                        xy_covariance *= x_factor
+                if xy_covariance is not None:
+                    xy_covariance = xy_covariance * factor
+                if op == "background_subtract":
+                    correlated |= p.get("estimated_background", str(p.get("method", "")).startswith("model"))
                 if transformation.operand_errors is not None:
                     if transformation.operand_errors.shape != (2, len(y)):
                         raise DataValidationError("Aligned operand uncertainties do not match the curve.")

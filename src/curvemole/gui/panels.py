@@ -1165,15 +1165,25 @@ class DiagnosticsPanel(QWidget):
         self.summary = QPlainTextEdit()
         self.summary.setReadOnly(True)
         layout.addWidget(self.summary)
+        self._last_residual = None
+        self._diagnostic_text = ""
 
-    def set_residual(self, residual: np.ndarray | None) -> None:
+    def set_residual(self, residual: np.ndarray | None, *, indices=None, x=None,
+                     historical: bool = False, standardized: bool = False) -> None:
         if residual is None:
+            self._last_residual = None
+            self._diagnostic_text = ""
             self.summary.setPlainText(self.tr("No fitted residuals are available."))
             return
-        diagnostics = residual_diagnostics(residual)
-        values = diagnostics.summary()
-        text = "\n".join(f"{key}: {value}" for key, value in values.items())
-        self.summary.setPlainText(text)
+        if residual is not self._last_residual:
+            values = residual_diagnostics(residual, indices=indices, x=x).summary()
+            self._diagnostic_text = "\n".join(f"{key}: {value}" for key, value in values.items())
+            self._last_residual = residual
+        status = self.tr("Historical fit: the current spectrum or model no longer matches.") if historical else ""
+        units = self.tr("Residuals standardized by recorded point errors") if standardized else self.tr("Raw residuals")
+        text = "\n".join(line for line in (status, units, self._diagnostic_text) if line)
+        if text != self.summary.toPlainText():
+            self.summary.setPlainText(text)
 
 
 class UncertaintyPanel(QWidget):
@@ -1270,6 +1280,10 @@ class UncertaintyPanel(QWidget):
         self.confidence.setRange(50, 99.9)
         self.confidence.setValue(95)
         self.confidence.setSuffix(" %")
+        self.replica_global_search = QCheckBox(self.tr("Search for alternative minima in each replica"))
+        self.replica_global_search.setToolTip(self.tr(
+            "Runs Differential Evolution before each local refit. Set physical bounds to cover all plausible "
+            "minima. This can substantially increase computation time."))
         from curvemole.gui.uncertainty_results import UncertaintyResults
         self.results = UncertaintyResults(self)
         self.status = self.results.details
@@ -1293,6 +1307,7 @@ class UncertaintyPanel(QWidget):
         layout.addRow(self.tr("Consecutive stable checks"), self.adaptive_checks)
         layout.addRow(self.tr("Maximum attempts (including failures)"), self.adaptive_maximum)
         layout.addRow(self.tr("CPU processes"), self.workers)
+        layout.addRow(self.replica_global_search)
         layout.addRow(self.tr("Block length"), self.block_length)
         layout.addRow(self.tr("Profile parameter"), self.parameter)
         layout.addRow(self.tr("Profile grid points"), self.profile_points)
@@ -1348,6 +1363,7 @@ class UncertaintyPanel(QWidget):
             (self.replica_mode, resampling),
             (self.replicates, resampling and not adaptive),
             (self.replica_timeout, resampling),
+            (self.replica_global_search, resampling),
             (self.workers, method != "covariance"),
             (self.block_length, method == "block_bootstrap"),
             (self.parameter, method == "profile_likelihood"),

@@ -53,10 +53,27 @@ def _lag_limit(size, max_lag=None):
     return min(max_lag, size - 1)
 
 
-def _lag_correlations(demeaned, limit):
+def contiguous_residual_segments(indices, x):
+    """Split fitted rows at original-row gaps or changes in the X spacing."""
+    rows = np.asarray(indices)
+    steps = np.diff(np.asarray(x, dtype=float))
+    neighbours = np.diff(rows) == 1
+    eligible = neighbours & np.isfinite(steps) & (steps != 0)
+    if np.any(eligible):
+        step = float(np.median(steps[eligible]))
+        neighbours &= np.isclose(steps, step, rtol=1e-5, atol=0) & eligible
+    else:
+        neighbours[:] = False
+    starts = np.r_[0, np.flatnonzero(~neighbours) + 1, len(rows)]
+    return tuple(slice(int(start), int(stop)) for start, stop in zip(starts[:-1], starts[1:], strict=True))
+
+
+def _lag_correlations(demeaned, limit, segments=None):
     denominator = np.dot(demeaned, demeaned)
+    parts = (demeaned,) if segments is None else tuple(demeaned[segment] for segment in segments)
     for lag in range(1, limit + 1):
-        yield np.dot(demeaned[:-lag], demeaned[lag:]) / denominator if denominator else np.nan
+        numerator = sum(np.dot(part[:-lag], part[lag:]) for part in parts if len(part) > lag)
+        yield numerator / denominator if denominator else np.nan
 
 
 def residual_diagnostics(
@@ -64,8 +81,11 @@ def residual_diagnostics(
     *,
     max_lag: int | None = None,
     histogram_bins: int | str = "auto",
+    indices: np.ndarray | None = None,
+    x: np.ndarray | None = None,
 ) -> ResidualDiagnostics:
     values = np.asarray(residual, dtype=float).reshape(-1)
+    input_count = len(values)
     finite_indices = np.flatnonzero(np.isfinite(values))
     values = values[finite_indices]
     warnings: list[str] = []
@@ -92,19 +112,33 @@ def residual_diagnostics(
     probabilities = (np.arange(len(ordered)) + 0.5) / len(ordered)
     from scipy.special import ndtri
     theoretical = ndtri(probabilities)
-    lag_limit = _lag_limit(len(values), max_lag)
+    segments = None
+    if x is not None or indices is not None or len(finite_indices) != input_count:
+        rows = finite_indices if indices is None else np.asarray(indices)[finite_indices]
+        coordinates = rows if x is None else np.asarray(x)[finite_indices]
+        segments = contiguous_residual_segments(rows, coordinates)
+    lengths = [len(values)] if segments is None else [segment.stop - segment.start for segment in segments]
+    lag_limit = min(_lag_limit(len(values), max_lag), max(lengths) - 1)
     autocorrelation = np.ones(lag_limit + 1)
-    autocorrelation[1:] = list(_lag_correlations(demeaned, lag_limit))
-    differences = np.diff(scaled)
+    autocorrelation[1:] = list(_lag_correlations(demeaned, lag_limit, segments))
+    parts = (scaled,) if segments is None else tuple(scaled[segment] for segment in segments)
+    differences = [np.diff(part) for part in parts if len(part) > 1]
     total = float(np.dot(scaled, scaled))
-    durbin_watson = float(np.dot(differences, differences)) / total if total else None
+    durbin_watson = sum(float(np.dot(part, part)) for part in differences) / total if total and differences else None
+    if len(parts) > 1:
+        warnings.append("Lag statistics skip gaps and changes in X spacing.")
     outlier_local = np.flatnonzero(np.abs(standardised) >= 3)
     outlier_indices = finite_indices[outlier_local]
     if len(outlier_indices):
         warnings.append(f"{len(outlier_indices)} potential |standardised residual| >= 3 outlier(s).")
-    significance = 1.96 / math.sqrt(len(values))
-    if len(autocorrelation) > 1 and np.any(np.abs(autocorrelation[1:]) > significance):
-        warnings.append("Residual autocorrelation exceeds the approximate 95% white-noise band.")
+    if lag_limit:
+        pairs = np.array([sum(max(0, length - lag) for length in lengths)
+                          for lag in range(1, lag_limit + 1)])
+        # Under white noise Var(r_k) is approximately pairs / N² for this
+        # pooled estimator. Adjust the point thresholds for testing many lags.
+        significance = ndtri(1 - .025 / lag_limit) * np.sqrt(pairs) / len(values)
+        if np.any((pairs >= 20) & (np.abs(autocorrelation[1:]) > significance)):
+            warnings.append("Residual autocorrelation exceeds the multiple-lag 95% white-noise threshold.")
     return ResidualDiagnostics(
         standardised,
         counts,
@@ -118,15 +152,17 @@ def residual_diagnostics(
     )
 
 
-def estimate_block_length(residual: np.ndarray) -> int:
+def estimate_block_length(residual: np.ndarray, segments=None) -> int:
     values = np.asarray(residual, dtype=float).reshape(-1)
     finite = values[np.isfinite(values)]
     if len(finite) < 3:
         return 1
     scaled, _ = _scale_residuals(finite)
-    limit = _lag_limit(len(finite))
+    limit = min(_lag_limit(len(finite)), max(
+        (segment.stop - segment.start - 1 for segment in segments), default=len(finite) - 1,
+    )) if segments is not None else _lag_limit(len(finite))
     threshold = math.exp(-1)
-    for lag, correlation in enumerate(_lag_correlations(_centred(scaled), limit), 1):
+    for lag, correlation in enumerate(_lag_correlations(_centred(scaled), limit, segments), 1):
         if abs(correlation) < threshold:
             return lag
     return max(1, min(len(values) // 10, limit))

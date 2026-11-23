@@ -856,6 +856,17 @@ class FitPlanDialog(QDialog):
         from curvemole.gui.solver_options import SolverOptions
         self.solver_options = SolverOptions(settings)
         self.solver_options.form.insertRow(0, self.use_data_errors)
+        self.noise_scale = QComboBox()
+        self.noise_scale.addItem(self.tr("Automatic from data"), None)
+        self.noise_scale.addItem(self.tr("Known absolute uncertainties"), True)
+        self.noise_scale.addItem(self.tr("Estimate scale from residuals"), False)
+        self.noise_scale.setCurrentIndex(self.noise_scale.findData(settings.absolute_sigma))
+        self.noise_scale.setToolTip(self.tr(
+            "Automatic treats imported standard deviations or inverse variances as calibrated. "
+            "Select Estimate scale when these columns specify only relative precision."))
+        self.solver_options.form.insertRow(1, self.tr("Y noise scale"), self.noise_scale)
+        self.noise_scale.setEnabled(settings.use_data_errors)
+        self.use_data_errors.toggled.connect(self.noise_scale.setEnabled)
         self.advanced_scroll = QScrollArea()
         self.advanced_scroll.setWidgetResizable(True)
         self.advanced_scroll.setWidget(self.solver_options)
@@ -901,6 +912,7 @@ class FitPlanDialog(QDialog):
         self.max_nfev.setValue(defaults.max_nfev)
         self.workers.setValue(defaults.workers)
         self.use_data_errors.setChecked(defaults.use_data_errors)
+        self.noise_scale.setCurrentIndex(0)
         self.confidence.setValue(defaults.confidence_level * 100)
         self.de_lower_percent.setValue(defaults.de_lower_percent)
         self.de_upper_percent.setValue(defaults.de_upper_percent)
@@ -933,6 +945,7 @@ class FitPlanDialog(QDialog):
         settings.workers = self.workers.value()
         settings.confidence_level = self.confidence.value() / 100
         settings.use_data_errors = self.use_data_errors.isChecked()
+        settings.absolute_sigma = self.noise_scale.currentData()
         return FitPlan(
             curve_ids,
             FitMode(self.mode.currentData()),

@@ -4,12 +4,15 @@ from __future__ import annotations
 import copy
 import hashlib
 import importlib
+import inspect
 import json
+import marshal
 import os
 import platform
 import sys
 from functools import lru_cache
 from pathlib import Path
+from types import BuiltinFunctionType, CodeType, FunctionType, ModuleType
 
 import numpy as np
 
@@ -59,6 +62,54 @@ def environment_record():
     return record
 
 
+def _without_source_path(code):
+    return code.replace(
+        co_filename="",
+        co_consts=tuple(_without_source_path(item) if isinstance(item, CodeType) else item
+                        for item in code.co_consts),
+    )
+
+
+def _evaluation_state(value, stack):
+    """Encode callable inputs without reprs that hide mutable state or embed addresses."""
+    from curvemole.core.expressions import SafeExpression
+
+    if value is None or isinstance(value, (bool, int, float, str)):
+        return value
+    if isinstance(value, np.generic):
+        return _evaluation_state(value.item(), stack)
+    if isinstance(value, np.ndarray) and not value.dtype.hasobject:
+        return {"array": [value.dtype.str, value.shape, hashlib.sha256(value.tobytes()).hexdigest()]}
+    if isinstance(value, SafeExpression):
+        return {"expression": value.source}
+    if isinstance(value, ModuleType):
+        # Arbitrary external namespaces can depend on mutable plugin state or
+        # input files. Library identity is already captured by the environment.
+        if value.__name__.split(".", 1)[0] not in {"math", "numpy", "scipy"}:
+            raise TypeError(f"Module state of {value.__name__} cannot be verified.")
+        return {"module": value.__name__, "version": getattr(value, "__version__", None)}
+    if isinstance(value, (BuiltinFunctionType, np.ufunc)):
+        return {"builtin": [getattr(value, "__module__", None), value.__name__]}
+    identity = id(value)
+    if identity in stack:
+        raise TypeError("Recursive evaluator state cannot be verified.")
+    child_stack = stack | {identity}
+    if isinstance(value, (tuple, list)):
+        return {type(value).__name__: [_evaluation_state(item, child_stack) for item in value]}
+    if isinstance(value, dict) and all(isinstance(key, str) for key in value):
+        return {key: _evaluation_state(item, child_stack) for key, item in value.items()}
+    if isinstance(value, FunctionType):
+        closure = inspect.getclosurevars(value)
+        return {
+            "code": hashlib.sha256(marshal.dumps(_without_source_path(value.__code__))).hexdigest(),
+            "globals": _evaluation_state(closure.globals, child_stack),
+            "nonlocals": _evaluation_state(closure.nonlocals, child_stack),
+            "defaults": _evaluation_state(value.__defaults__, child_stack),
+            "keyword_defaults": _evaluation_state(value.__kwdefaults__, child_stack),
+        }
+    raise TypeError(f"Evaluator state of type {type(value).__name__} cannot be verified.")
+
+
 def function_records(registry, models):
     records = {}
     for model in models.values():
@@ -69,12 +120,17 @@ def function_records(registry, models):
             # Source paths are environment details, not function semantics.
             code_digest = None
             if code is not None:
-                import marshal
                 code_digest = hashlib.sha256(marshal.dumps(code.replace(co_filename=''))).hexdigest()
             value = {'identifier': definition.identifier,
                      'metadata': copy.deepcopy(definition.custom_metadata),
                      'evaluator_module': getattr(evaluator, '__module__', None),
                      'evaluator_code_sha256': code_digest}
+            value['legacy_sha256'] = _digest(value)
+            try:
+                value['evaluation_state'] = _evaluation_state(evaluator, set())
+                value['verifiable'] = True
+            except (TypeError, ValueError):
+                value['verifiable'] = False
             value['sha256'] = _digest(value)
             records[component.function_id] = value
     return records
@@ -88,6 +144,7 @@ def fit_record(plan, curves, models, registry):
                    if entry.identifier == plan.settings.solver), None)
     selected = {cid: models[cid] for cid in plan.curve_ids if cid in models}
     return {'schema_version': 2, 'kind': 'fit',
+            'function_identity_version': 2,
             'plan': {'curve_ids': list(plan.curve_ids), 'mode': plan.mode.value,
                      'settings': asdict(plan.settings),
                      'spectrum_weights': dict(plan.spectrum_weights),

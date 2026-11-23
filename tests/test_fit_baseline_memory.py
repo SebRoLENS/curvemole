@@ -50,7 +50,7 @@ def test_individual_baseline_copies_only_selected_spectrum_and_covariance_block(
     assert baseline.statistics["N"] == 5
     assert baseline.statistics["k"] == 2
     assert baseline.statistics["degrees_of_freedom"] == 3
-    assert baseline.statistics["chi_square"] == pytest.approx(
+    assert baseline.statistics["weighted_residual_sum_squares"] == pytest.approx(
         np.dot(result.curve_outputs["first"].weighted_residual,
                result.curve_outputs["first"].weighted_residual))
     for field in ("message", "status", "evaluations", "timestamp", "elapsed_seconds",

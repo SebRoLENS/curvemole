@@ -134,9 +134,10 @@ def summarize(project, baseline, analysis, method):
                 flag(1, warning)
             if baseline.get("settings", {}).get("loss", "linear") != "linear":
                 flag(1, "Chi-square profile thresholds are not calibrated for a robust-loss optimum.")
-            if curve is not None and (not curve.has_y_errors or
-                    not baseline.get("settings", {}).get("use_data_errors", True)):
-                flag(1, "Profile confidence assumes calibrated noise; no absolute sigma_y was supplied.")
+            if curve is not None and not baseline.get("curve_outputs", {}).get(curve.id, {}).get(
+                "statistics", {},
+            ).get("noise_scale_known", curve.has_y_errors):
+                flag(1, "Profile uses a fitted common noise scale. Small-sample calibration assumes a linear model.")
             grid = analysis.get("values", [])
             if finite and grid and (low <= min(grid) + tol or high >= max(grid) - tol):
                 flag(1, "Profile interval reaches the scanned range; extend the scan before interpreting its endpoints.")

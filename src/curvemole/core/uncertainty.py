@@ -17,8 +17,14 @@ from typing import Any
 import numpy as np
 
 from curvemole.core.data import Curve, ImmutableColumns
-from curvemole.core.diagnostics import estimate_block_length
-from curvemole.core.errors import ConstraintError, DataValidationError, ExpressionError, FitError
+from curvemole.core.diagnostics import contiguous_residual_segments, estimate_block_length
+from curvemole.core.errors import (
+    ConstraintError,
+    DataValidationError,
+    ExpressionError,
+    FitCancelled,
+    FitError,
+)
 from curvemole.core.expressions import SafeExpression
 from curvemole.core.fit_records import fit_model_matches
 from curvemole.core.fitting import (
@@ -177,7 +183,7 @@ def _init_uncertainty_worker(stop: Any, formulas: Mapping[str, Any], activity: A
                              timeout: float, *context: Any) -> None:
     global _WORKER_CONTEXT, _WORKER_FITTER, _WORKER_REPLICA_ACTIVITY, REPLICA_TIMEOUT_SECONDS
     _WORKER_CONTEXT = (stop, *context)
-    _WORKER_FITTER = Fitter(registry_from_worker_formulas(formulas))
+    _WORKER_FITTER = Fitter(registry_from_worker_formulas(formulas), _compute_inference=False)
     _WORKER_REPLICA_ACTIVITY = activity
     REPLICA_TIMEOUT_SECONDS = timeout
 
@@ -228,14 +234,18 @@ def _worker_formulas(
     return worker_formula_specs(fitter.registry, models, curve_ids)
 
 
-def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str]) -> bool:
+def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str], solver="local") -> bool:
+    from curvemole.core.extensions import extensions
+
+    if any(entry.identifier == solver for entry in extensions.values("fit_solvers")):
+        return False
     # A spawned worker reconstructs the standard fitter. Preserve overridden
     # fitting behaviour rather than silently replacing a caller's subclass.
     return type(fitter) is Fitter and _worker_formulas(fitter, models, curve_ids) is not None
 
 
 def _resampling_scales(curve, method):
-    return curve.y_error_scales(include_inverse_variance=method != "parametric_monte_carlo")
+    return curve.y_error_scales(include_inverse_variance=True)
 
 
 def _baseline_output(baseline, curve, settings):
@@ -290,9 +300,11 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
                                                  registry=fitter.registry), copy=True)
         full_fit[output.indices] = output.fitted
         scales = _resampling_scales(curve, method)
+        if method == "parametric_monte_carlo" and not curve.has_y_errors and plan.settings.absolute_sigma is False:
+            scales = None  # Relative precision does not supply the amplitude of simulated noise.
         if scales is None and method == "parametric_monte_carlo":
             raise FitError(
-                f"Parametric Monte Carlo requires sigma_y or confidence-interval Y errors for '{curve.name}'."
+                f"Parametric Monte Carlo requires calibrated Y errors or absolute inverse variance for '{curve.name}'."
             )
         if scales is not None and any(np.any(~np.isfinite(side[output.indices]) |
                                               (side[output.indices] <= 0)) for side in scales):
@@ -303,17 +315,19 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
             # Stored residuals are observed minus fitted. A positive residual
             # puts the fitted value on the lower side of the measurement.
             residual = residual / np.where(residual >= 0, minus[output.indices], plus[output.indices])
-        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns))
+        segments = contiguous_residual_segments(curve.row_indices[output.indices], output.x)
+        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns), segments)
     return prepared
 
 
-def _sample_residual_blocks(rng, residual, length):
+def _sample_residual_blocks(rng, residual, length, *, circular=True):
     size = len(residual)
-    starts = rng.integers(size, size=(size + length - 1) // length)
+    positions = size if circular else size - length + 1
+    starts = rng.integers(positions, size=(size + length - 1) // length)
     if length == 1:
         return residual[starts]
     indices = (starts[:, None] + np.arange(length)).reshape(-1)[:size]
-    return np.take(residual, indices, mode="wrap")
+    return np.take(residual, indices, mode="wrap" if circular else "raise")
 
 
 def _resample_trial(
@@ -362,7 +376,7 @@ def _resample_trial_body(
         trial.column_axes = dict(curve.column_axes)
         trial.column_labels = dict(curve.column_labels)
         output = baseline.curve_outputs[curve_id]
-        full_fit, scales, residual, columns = prepared[curve_id]
+        full_fit, scales, residual, columns, segments = prepared[curve_id]
         if method == "parametric_monte_carlo":
             minus, plus = scales
             synthetic = full_fit.copy()
@@ -375,8 +389,12 @@ def _resample_trial_body(
             if method == "residual_bootstrap":
                 sampled = rng.choice(residual, size=len(output.indices), replace=True)
             else:
-                length = max(1, min(lengths[curve_id], len(residual)))
-                sampled = _sample_residual_blocks(rng, residual, length)
+                sampled = np.concatenate([
+                    _sample_residual_blocks(rng, residual[segment],
+                                            max(1, min(lengths[curve_id], segment.stop - segment.start - 1)),
+                                            circular=False)
+                    for segment in segments
+                ])
             if scales is not None:
                 sampled = sampled * np.where(sampled >= 0,
                     minus[output.indices], plus[output.indices])
@@ -402,8 +420,12 @@ def _resample_trial_body(
         mask.excluded[output.indices] = False
         trial_curves[curve_id] = trial
     try:
-        result = fitter.fit(copy.deepcopy(plan), trial_curves, trial_models, cancellation=cancellation,
-                            **({"_record_provenance": False} if type(fitter) is Fitter else {}))
+        trial_fitter = (Fitter(fitter.registry, _compute_inference=False) if type(fitter) is Fitter else fitter)
+        trial_plan = copy.deepcopy(plan)
+        if trial_plan.settings.solver == "differential_evolution":
+            trial_plan.settings.seed = seed % 2**32
+        result = trial_fitter.fit(trial_plan, trial_curves, trial_models, cancellation=cancellation,
+                                  **({"_record_provenance": False} if type(fitter) is Fitter else {}))
         if result.success:
             return [result.parameters[path].value for path in baseline.free_parameter_paths], None
         return None, result.message
@@ -442,7 +464,8 @@ def _profile_scale_known(baseline: FitResult, curve: Curve) -> bool:
 
 def _profile_noise_baseline(baseline: FitResult, curve: Curve, local_chi: float):
     if baseline.mode == FitMode.GLOBAL:
-        return float(baseline.statistics["chi_square"]), int(baseline.statistics["N"])
+        statistics = baseline.statistics
+        return float(statistics.get("weighted_residual_sum_squares", statistics["chi_square"])), int(statistics["N"])
     return local_chi, len(baseline.curve_outputs[curve.id].residual)
 
 
@@ -457,7 +480,6 @@ def _profile_trial(
     trial_parameter.value = float(value)
     trial_parameter.fixed = True
     settings = copy.deepcopy(baseline.settings)
-    settings.solver = "local"
     settings.workers = 1
     try:
         if any(p.is_free and path in baseline.free_parameter_paths
@@ -465,11 +487,13 @@ def _profile_trial(
             trial_plan = FitPlan([curve.id], settings=settings,
                                  spectrum_weights={curve.id: spectrum_weight},
                                  equal_contribution=equal_contribution)
-            result = fitter.fit(trial_plan, [copy.deepcopy(curve)],
-                                {curve.id: trial_model}, cancellation=cancellation)
+            trial_fitter = (Fitter(fitter.registry, _compute_inference=False) if type(fitter) is Fitter else fitter)
+            result = trial_fitter.fit(trial_plan, [copy.deepcopy(curve)], {curve.id: trial_model},
+                                      cancellation=cancellation,
+                                      **({"_record_provenance": False} if type(fitter) is Fitter else {}))
             if not result.success:
                 raise FitError(result.message)
-            chi = float(result.statistics["chi_square"])
+            chi = float(result.statistics.get("weighted_residual_sum_squares", result.statistics["chi_square"]))
         else:
             x, observed, _, indices = curve.fit_arrays(use_data_errors=settings.use_data_errors)
             fitted = trial_model.evaluate_for_curve(
@@ -479,13 +503,18 @@ def _profile_trial(
             weight = spectrum_weight / len(residual) if equal_contribution else spectrum_weight
             residual = weighted_residual(residual, scale, weight)
             chi = float(np.dot(residual, residual))
+        difference = chi - baseline_chi
+        if math.isclose(chi, baseline_chi, rel_tol=1e-8, abs_tol=np.finfo(float).tiny):
+            difference = 0.0
         if _profile_scale_known(baseline, curve):
-            return max(0.0, chi - baseline_chi)
+            return difference
         # For an uncoupled global fit, the other curves stay at their optima
         # while the shared nuisance variance is profiled over all observations.
         total_chi, count = _profile_noise_baseline(baseline, curve, baseline_chi)
-        trial_chi = total_chi + (chi - baseline_chi)
-        return max(0.0, count * math.log(max(trial_chi, np.finfo(float).tiny) / total_chi))
+        trial_chi = total_chi + difference
+        return count * math.log(max(trial_chi, np.finfo(float).tiny) / total_chi)
+    except FitCancelled:
+        raise
     except (FitError, ConstraintError, DataValidationError, ExpressionError):
         return None
 
@@ -528,7 +557,7 @@ class UncertaintyAnalyzer:
             adaptive.validate()
         token = cancellation or CancellationToken()
         parallel = (workers > 1 and len(jobs) > 1 and all(
-            _parallel_safe(self.fitter, models, plan.curve_ids)
+            _parallel_safe(self.fitter, models, plan.curve_ids, plan.settings.solver)
             for _, plan, _, models in jobs
         ))
         if parallel:
@@ -725,14 +754,14 @@ class UncertaintyAnalyzer:
         failed = 0
         baseline_weighted = output.weighted_residual
         baseline_chi = float(np.dot(baseline_weighted, baseline_weighted))
-        noise_chi, _ = _profile_noise_baseline(baseline, curve, baseline_chi)
+        noise_chi, count = _profile_noise_baseline(baseline, curve, baseline_chi)
         if not _profile_scale_known(baseline, curve) and noise_chi <= np.finfo(float).tiny:
             raise FitError("Cannot estimate an unknown noise scale from a zero-residual fit. Supply known sigma.")
         def report(count: int) -> None:
             if progress:
                 progress(count / points, f"Profile point {count}/{points}")
 
-        if workers > 1 and _parallel_safe(self.fitter, {curve.id: model}, [curve.id]):
+        if workers > 1 and _parallel_safe(self.fitter, {curve.id: model}, [curve.id], baseline.settings.solver):
             values = _parallel_map(
                 _profile_in_process, grid.tolist(), workers,
                 (curve, model, parameter_path, baseline, baseline_chi,
@@ -751,9 +780,22 @@ class UncertaintyAnalyzer:
                 failed += 1
             else:
                 delta[index] = value
-        threshold = 3.841458820694124 if math.isclose(confidence_level, 0.95) else _chi2_one(confidence_level)
-        inside = np.isfinite(delta) & (delta <= threshold)
+        if np.any(delta < 0):
+            raise FitError("The profile found a better fit than its baseline. Refit before interpreting intervals.")
         warnings = []
+        threshold = _chi2_one(confidence_level)
+        if not _profile_scale_known(baseline, curve):
+            from scipy.stats import f
+
+            dof = count - len(baseline.free_parameter_paths)
+            if dof <= 0:
+                raise FitError("Profiling an unknown noise scale requires positive residual degrees of freedom.")
+            threshold = count * math.log1p(f.ppf(confidence_level, 1, dof) / dof)
+        nonregular = any(item.at_bound for item in baseline.parameters.values())
+        if nonregular:
+            warnings.append("A fit parameter is at a bound. Profile regions are shown for inspection without "
+                            "calibrated confidence limits; use simulations to calibrate coverage.")
+        inside = np.isfinite(delta) & (delta <= threshold)
         regions = []
         from scipy.optimize import brentq
 
@@ -764,6 +806,8 @@ class UncertaintyAnalyzer:
                                        self.fitter, token)
                 if trial is None or not math.isfinite(trial):
                     raise ValueError("Profile refit failed during endpoint refinement.")
+                if trial < 0:
+                    raise FitError("The profile found a better fit during endpoint refinement. Refit before analysis.")
                 return trial - threshold
             try:
                 return float(brentq(objective, left, right,
@@ -795,7 +839,7 @@ class UncertaintyAnalyzer:
             region = (left if calibrated_left is None else calibrated_left,
                       right if calibrated_right is None else calibrated_right)
             regions.append(region)
-            if region[0] <= estimate.value <= region[1]:
+            if not nonregular and region[0] <= estimate.value <= region[1]:
                 interval = (calibrated_left, calibrated_right)
         if len(regions) > 1:
             warnings.append("The confidence set is disconnected; inspect every confidence region.")
@@ -807,7 +851,8 @@ class UncertaintyAnalyzer:
         provenance = analysis_record('profile_likelihood', baseline, plan, {curve.id: curve},
                                      {curve.id: model}, self.fitter.registry,
                                      parameter_path=parameter_path, lower=lo, upper=hi,
-                                     points=points, confidence_level=confidence_level, workers=workers)
+                                     points=points, confidence_level=confidence_level, workers=workers,
+                                     threshold=threshold)
         return ProfileResult(parameter_path, grid, delta, confidence_level, interval, failed,
                              regions, list(dict.fromkeys(warnings)), provenance)
 
@@ -874,8 +919,11 @@ class UncertaintyAnalyzer:
         paths = list(baseline.free_parameter_paths)
         base_models = {key: model.clone() for key, model in models.items()}
         settings = copy.deepcopy(plan.settings)
-        settings.solver = "local"
         settings.workers = 1
+        extra_configuration["refit_search"] = (
+            "bounded global search with local refinement"
+            if settings.solver == "differential_evolution" else "baseline-initialized search"
+        )
         trial_plan = copy.deepcopy(plan)
         trial_plan.settings = settings
         prepared = _prepare_resampling(
@@ -883,9 +931,16 @@ class UncertaintyAnalyzer:
         lengths = {}
         if method == "block_bootstrap":
             block_length = extra_configuration.pop("block_length", None)
-            lengths = {curve_id: block_length or estimate_block_length(values[2])
+            lengths = {curve_id: block_length or estimate_block_length(values[2], values[4])
                        for curve_id, values in prepared.items()}
             extra_configuration["block_lengths"] = dict(lengths)
+            extra_configuration["blocks_cross_gaps"] = False
+            extra_configuration["contiguous_segments"] = {
+                curve_id: len(values[4]) for curve_id, values in prepared.items()
+            }
+            if any(not any(segment.stop - segment.start > 1 for segment in values[4])
+                   for values in prepared.values()):
+                raise FitError("Block bootstrap requires adjacent fitted rows on a regular X grid.")
         lengths["_prepared"] = prepared
         from curvemole.core.provenance import analysis_record
         provenance = analysis_record(method, baseline, trial_plan, curves, models, self.fitter.registry,
@@ -903,9 +958,9 @@ class UncertaintyAnalyzer:
             result.provenance = provenance
             return result
         seeds = rng.integers(0, np.iinfo(np.int64).max, size=replicates).tolist()
-        parallel = workers > 1 and replicates > 1 and _parallel_safe(self.fitter, base_models, plan.curve_ids)
-        isolated = (_WORKER_REPLICA_ACTIVITY is None
-                    and _parallel_safe(self.fitter, base_models, plan.curve_ids))
+        parallel_safe = _parallel_safe(self.fitter, base_models, plan.curve_ids, plan.settings.solver)
+        parallel = workers > 1 and replicates > 1 and parallel_safe
+        isolated = _WORKER_REPLICA_ACTIVITY is None and parallel_safe
 
         def report(count: int) -> None:
             if progress:
@@ -970,9 +1025,9 @@ class UncertaintyAnalyzer:
             0, np.iinfo(np.int64).max, size=adaptive.maximum_attempts).tolist()
         context = (method, baseline, plan, curves, models, lengths)
         parallel = (workers > 1 and adaptive.maximum_attempts > 1
-                    and _parallel_safe(self.fitter, models, plan.curve_ids))
+                    and _parallel_safe(self.fitter, models, plan.curve_ids, plan.settings.solver))
         isolated = (_WORKER_REPLICA_ACTIVITY is None
-                    and _parallel_safe(self.fitter, models, plan.curve_ids))
+                    and _parallel_safe(self.fitter, models, plan.curve_ids, plan.settings.solver))
         collected: list[list[float]] = []
         failures: list[str] = []
         attempts = stable_checks = checks_completed = 0

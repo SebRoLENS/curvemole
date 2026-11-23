@@ -368,8 +368,11 @@ def test_marginal_confidence_interval_follows_uncertain_source_beyond_its_curren
     assert target.ci_high > target.maximum
     assert target.ci_high - target.ci_low > 40 * tolerance
     assert target.global_minimum == -5. and target.global_maximum == 5.
-    assert target.ci_low == pytest.approx(target.value - 1.959963984540054 * target.standard_error)
-    assert target.ci_high == pytest.approx(target.value + 1.959963984540054 * target.standard_error)
+    from scipy.stats import t
+
+    quantile = t.ppf(.975, result.statistics["degrees_of_freedom"])
+    assert target.ci_low == pytest.approx(target.value - quantile * target.standard_error)
+    assert target.ci_high == pytest.approx(target.value + quantile * target.standard_error)
     restored = FitResult.from_dict(result.to_dict(arrays=True)).parameters[target_path]
     assert restored.global_minimum == target.global_minimum
     assert restored.global_maximum == target.global_maximum

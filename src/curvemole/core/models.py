@@ -279,14 +279,16 @@ class Model:
                     index += 1
                 if len(arrays) > 1:
                     differences = np.diff(x)
-                    tolerance = np.finfo(float).eps * float(np.max(np.abs(x), initial=0.)) * 16
+                    grid_step = float(np.median(differences)) if len(differences) else 0.
+                    origin_ulp = np.spacing(float(np.max(np.abs(x), initial=0.)))
+                    tolerance = min(origin_ulp, abs(grid_step) / 4)
                     if (len(x) < 2 or not np.all(np.isfinite(x))
                             or not (np.all(differences > 0) or np.all(differences < 0))
-                            or not np.allclose(differences, differences[0], rtol=1e-7, atol=tolerance)):
+                            or not np.allclose(differences, grid_step, rtol=1e-7, atol=tolerance)):
                         raise DataValidationError(
                             "FFT convolution requires a finite, uniformly spaced monotonic X axis. "
                             "Resample the data onto a regular grid before using convolution.")
-                spacing = abs(float(x[1] - x[0])) if len(x) > 1 else 1.0
+                spacing = abs(grid_step) if len(arrays) > 1 else 1.0
                 full = arrays[0].copy()
                 for array in arrays[1:]:
                     full = fftconvolve(full, array, mode="full") * spacing

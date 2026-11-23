@@ -263,7 +263,7 @@ def test_bootstrap_uses_fit_side_for_observation_minus_prediction(method):
     if method == "residual_bootstrap":
         drawn = rng.choice(residual, size=len(curve))
     else:
-        blocks = [np.take(residual, rng.integers(len(curve)) + np.arange(3), mode="wrap")
+        blocks = [residual[rng.integers(len(curve) - 2) + np.arange(3)]
                   for _ in range((len(curve) + 2) // 3)]
         drawn = np.concatenate(blocks)[:len(curve)]
     lower, upper = curve.y_error_scales()

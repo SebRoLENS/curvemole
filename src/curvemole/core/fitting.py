@@ -102,6 +102,8 @@ class FitSettings:
         from curvemole.core.extensions import extensions
         if not isinstance(self.use_data_errors, bool):
             raise FitError("Use data errors must be a boolean.")
+        if self.absolute_sigma is not None and not isinstance(self.absolute_sigma, bool):
+            raise FitError("Absolute noise scale must be a boolean or automatic.")
         if self.solver not in {"local", "differential_evolution", "trf", "dogbox", "lm",
                                "nelder_mead", "powell", "lbfgsb"} and not any(
                 entry.identifier == self.solver for entry in extensions.values("fit_solvers")):
@@ -577,6 +579,7 @@ class _Problem:
 
     def outputs(self, values: Mapping[str, float]) -> dict[str, CurveFitOutput]:
         result: dict[str, CurveFitOutput] = {}
+        known_scale = absolute_noise_scale(self.plan.settings, self.curves)
         for curve in self.curves:
             x, observed, point_scale, indices = self._data[curve.id]
             fitted = np.asarray(
@@ -602,9 +605,13 @@ class _Problem:
                     "likelihood_supported": int(
                         not curve.has_correlated_y_errors
                         and (not self.plan.settings.use_data_errors or curve.current_error_y_minus is None)
+                        and not _arbitrary_point_weights(self.plan.settings, curve)
                         and not self.plan.equal_contribution
                         and self.plan.spectrum_weights.get(curve.id, 1.0) == 1.0),
-                    "noise_scale_known": int(absolute_noise_scale(self.plan.settings, self.curves)),
+                    "noise_scale_known": int(known_scale),
+                    "standardized_residuals": int(self.plan.settings.use_data_errors
+                                                  and not _arbitrary_point_weights(self.plan.settings, curve)
+                                                  and point_scale is not None),
                     "log_precision_sum": (float(np.log(point_scale).sum())
                                           if point_scale is not None else 0.0),
                     "RSS": rss,
@@ -616,8 +623,9 @@ class _Problem:
 
 
 class Fitter:
-    def __init__(self, registry: FunctionRegistry | None = None) -> None:
+    def __init__(self, registry: FunctionRegistry | None = None, *, _compute_inference: bool = True) -> None:
         self.registry = registry or default_registry()
+        self._compute_inference = _compute_inference
 
     def fit(
         self,
@@ -652,7 +660,8 @@ class Fitter:
             result = self._fit_problem(selected, models, plan, cancellation, progress)
         elif plan.mode == FitMode.SEQUENTIAL:
             result = self._fit_sequential(selected, models, plan, cancellation, progress)
-        elif plan.mode == FitMode.INDEPENDENT and len(selected) > 1 and plan.settings.workers > 1:
+        elif (plan.mode == FitMode.INDEPENDENT and len(selected) > 1
+                and plan.settings.workers > 1 and self._compute_inference):
             result = self._fit_independent_parallel(selected, models, plan, cancellation, progress, on_curve_result)
         else:
             result = self._fit_independent(selected, models, plan, cancellation, progress, on_curve_result)
@@ -684,7 +693,18 @@ class Fitter:
                     raise FitError(f"Cannot replay: input data changed or legacy fitted rows are missing for {cid}.")
         models = {cid: Model.from_dict(copy.deepcopy(value))
                   for cid, value in record['initial_models'].items()}
-        if {key: value['sha256'] for key, value in function_records(self.registry, models).items()} != {key: value['sha256'] for key, value in record['functions'].items()}:
+        current_functions = function_records(self.registry, models)
+        if any(not entry["verifiable"] for entry in current_functions.values()):
+            raise FitError('Cannot replay exactly: a function has callable state that cannot be verified.')
+        identity_field = "sha256"
+        if record.get("function_identity_version", 1) < 2:
+            if any(not entry.get("metadata", {}).get("formula")
+                   and entry.get("evaluator_module") != "curvemole.core.functions"
+                   for entry in current_functions.values()):
+                raise FitError("Cannot replay exactly: this older record did not capture custom evaluator state.")
+            identity_field = "legacy_sha256"
+        if ({key: value[identity_field] for key, value in current_functions.items()}
+                != {key: value["sha256"] for key, value in record["functions"].items()}):
             raise FitError('Cannot replay: function definitions changed.')
         if verify_environment and environment_record() != record['environment']:
             raise FitError('Cannot replay exactly: numerical environment changed.')
@@ -760,7 +780,7 @@ class Fitter:
                 on_curve_result(curve.id, current)
             if progress:
                 progress((index + 1) / len(curves), f"Completed {curve.name}")
-        return _merge_results(results, plan.mode, plan.settings)
+        return _merge_results(results, plan.mode, plan.settings, infer=self._compute_inference)
 
     def _fit_independent_parallel(
         self,
@@ -891,12 +911,13 @@ class Fitter:
                                       scales / residual_unit)
 
             if settings.solver == "differential_evolution":
-                lower, upper = _automatic_de_bounds(problem, settings)
+                search_lower, search_upper = _automatic_de_bounds(problem, settings)
+                execution["search_bounds"] = [search_lower.tolist(), search_upper.tolist()]
                 if progress:
                     progress(0.0, "Differential Evolution initial search")
                 differential = optimize.differential_evolution(
                     lambda vector: _objective(scaled_residual(vector, report=False), solver_settings),
-                    list(zip(lower / scales, upper / scales, strict=True)),
+                    list(zip(search_lower / scales, search_upper / scales, strict=True)),
                     seed=settings.seed,
                     maxiter=settings.de_maxiter,
                     popsize=settings.de_popsize,
@@ -911,7 +932,10 @@ class Fitter:
                 )
                 cancellation.raise_if_cancelled()
                 initial = differential.x * scales
-            execution['solver_bounds'] = [lower.tolist(), upper.tolist()]
+            execution['solver_bounds'] = [
+                [float(bound) if math.isfinite(bound) else None for bound in side]
+                for side in (lower, upper)
+            ]
             from curvemole.core.extensions import extensions
             custom = next((entry for entry in extensions.values("fit_solvers")
                            if entry.identifier == settings.solver), None)
@@ -929,7 +953,8 @@ class Fitter:
                     raise FitError("Plugin solver returned invalid or out-of-bounds parameters.")
                 # Recompute residuals/Jacobian through the standard constrained problem.
                 least_squares = SimpleNamespace(x=vector, fun=problem.residual(vector, report=False),
-                    jac=problem.jacobian(vector), nfev=int(least_squares.nfev),
+                    jac=problem.jacobian(vector) if self._compute_inference and least_squares.success else None,
+                    nfev=int(least_squares.nfev),
                     success=bool(least_squares.success), status=int(least_squares.status),
                     message=str(least_squares.message))
             elif settings.solver in {"nelder_mead", "powell", "lbfgsb"}:
@@ -956,7 +981,8 @@ class Fitter:
                 vector = np.clip(minimised.x * scales, lower, upper)
                 least_squares = SimpleNamespace(
                     x=vector, fun=problem.residual(vector, report=False),
-                    jac=problem.jacobian(vector), nfev=minimised.nfev,
+                    jac=problem.jacobian(vector) if self._compute_inference and minimised.success else None,
+                    nfev=minimised.nfev,
                     success=minimised.success, status=minimised.status,
                     message=minimised.message,
                 )
@@ -964,7 +990,8 @@ class Fitter:
                 method = (settings.solver if settings.solver in {"trf", "dogbox", "lm"}
                           else _select_method(settings, lower, upper))
                 if (method == "lm" and settings.local_method == "auto" and settings.solver != "lm"
-                        and problem._jacobian_sparsity is not None):
+                        and (problem._jacobian_sparsity is not None
+                             or sum(len(data[0]) for data in problem._data.values()) < len(initial))):
                     method = "trf"
                 if method == "lm" and (np.any(np.isfinite(lower)) or
                                        np.any(np.isfinite(upper)) or settings.loss != "linear"):
@@ -998,7 +1025,7 @@ class Fitter:
             # and extension paths above already reconstructed the raw J.
             covariance_jacobian = (
                 problem.jacobian(least_squares.x)
-                if settings.loss != "linear" and custom is None
+                if self._compute_inference and least_squares.success and settings.loss != "linear" and custom is None
                 and settings.solver not in {"nelder_mead", "powell", "lbfgsb"}
                 else least_squares.jac)
         except FitCancelled:
@@ -1026,15 +1053,17 @@ class Fitter:
         objective_weights = (None if all(weight == 1.0 for weight in weights) else
                              np.repeat(weights, [len(problem._data[c.id][0]) for c in curves]))
         nullspace = []
-        covariance, correlation, errors = _covariance(
-            scale_jacobian(covariance_jacobian, scales),
-            np.asarray(least_squares.fun),
-            settings,
-            curves,
-            warnings,
-            objective_weights=objective_weights,
-            nullspace=nullspace,
-        )
+        covariance = correlation = errors = None
+        if self._compute_inference and least_squares.success:
+            covariance, correlation, errors = _covariance(
+                scale_jacobian(covariance_jacobian, scales),
+                np.asarray(least_squares.fun),
+                settings,
+                curves,
+                warnings,
+                objective_weights=objective_weights,
+                nullspace=nullspace,
+            )
         if covariance is not None:
             covariance = covariance * np.outer(scales, scales)
             errors, correlation = covariance_statistics(covariance)
@@ -1057,13 +1086,15 @@ class Fitter:
             transform = problem.physical_free_jacobian(least_squares.x)
             covariance = transform @ covariance @ transform.T
             errors, correlation = covariance_statistics(covariance)
-        statistics = _global_statistics(outputs, len(problem.free_paths), settings.loss)
+        statistics = _global_statistics(outputs, len(problem.free_paths), settings.loss,
+                                        infer=self._compute_inference and least_squares.success)
+        statistics["objective"] = _objective(np.asarray(least_squares.fun), settings)
         if correlation is not None and correlation.size:
             upper_triangle = np.abs(correlation[np.triu_indices_from(correlation, 1)])
             finite_correlations = upper_triangle[np.isfinite(upper_triangle)]
             if finite_correlations.size and np.max(finite_correlations) >= 0.95:
                 warnings.append("At least one free-parameter correlation has |r| >= 0.95.")
-        rows, columns = least_squares.jac.shape
+        rows, columns = len(least_squares.fun), len(problem.free_paths)
         if rows < columns:
             warnings.append("The fit is underdetermined.")
         elif rows == columns:
@@ -1192,9 +1223,17 @@ def absolute_noise_scale(settings: FitSettings, curves: Sequence[Curve]) -> bool
     """Whether residual scale is known, rather than estimated from fitted RSS."""
     if not settings.use_data_errors:
         return False
+    if any(_arbitrary_point_weights(settings, curve) for curve in curves):
+        return False
     if settings.absolute_sigma is not None:
         return settings.absolute_sigma
-    return all(curve.has_y_errors for curve in curves)
+    return all(curve.has_y_errors or (curve.weights_are_inverse_variance and curve.current_weights is not None)
+               for curve in curves)
+
+
+def _arbitrary_point_weights(settings: FitSettings, curve: Curve) -> bool:
+    return (settings.use_data_errors and not curve.has_y_errors
+            and curve.current_weights is not None and not curve.weights_are_inverse_variance)
 
 
 def _covariance(
@@ -1210,6 +1249,9 @@ def _covariance(
     rows, columns = jacobian.shape
     if any(curve.has_correlated_y_errors for curve in curves):
         warnings.append("Covariance is unavailable for correlated data errors after preprocessing.")
+        return None, None, None
+    if any(_arbitrary_point_weights(settings, curve) for curve in curves):
+        warnings.append("Covariance is unavailable for arbitrary point weights; supply a noise model or resample.")
         return None, None, None
     absolute = absolute_noise_scale(settings, curves)
     if rows < columns or columns == 0 or (rows == columns and (not absolute or settings.loss != "linear")):
@@ -1287,8 +1329,16 @@ def _parameter_estimates(
     nullspace: np.ndarray | None = None,
 ) -> dict[str, ParameterEstimate]:
     free_index = {path: index for index, path in enumerate(problem.free_paths)}
-    from scipy.special import ndtri
-    z_value = float(ndtri(0.5 + settings.confidence_level / 2))
+    critical = 0.0
+    if covariance is not None:
+        probability = 0.5 + settings.confidence_level / 2
+        dof = sum(len(data[0]) for data in problem._data.values()) - len(problem.free_paths)
+        if settings.loss == "linear" and not absolute_noise_scale(settings, problem.curves) and dof > 0:
+            from scipy.stats import t
+            critical = float(t.ppf(probability, dof))
+        else:
+            from scipy.special import ndtri
+            critical = float(ndtri(probability))
     estimates: dict[str, ParameterEstimate] = {}
     linked_gradients: dict[str, np.ndarray] = {}
     all_paths = [path for path, parameter in problem.parameters.items()
@@ -1346,8 +1396,8 @@ def _parameter_estimates(
         # A confidence interval is marginal over the source's uncertainty.
         # Its source can move together with this parameter, so current-source
         # bounds describe the optimum, not the allowed marginal interval.
-        ci_low = max(global_minimum, value - z_value * error) if error is not None else None
-        ci_high = min(global_maximum, value + z_value * error) if error is not None else None
+        ci_low = max(global_minimum, value - critical * error) if error is not None else None
+        ci_high = min(global_maximum, value + critical * error) if error is not None else None
         parameter.standard_error = error
         parameter.ci_low = ci_low
         parameter.ci_high = ci_high
@@ -1373,7 +1423,7 @@ def _parameter_estimates(
 
 
 def _global_statistics(
-    outputs: Mapping[str, CurveFitOutput], k: int, loss: str
+    outputs: Mapping[str, CurveFitOutput], k: int, loss: str, *, infer: bool = True,
 ) -> dict[str, float | int | None]:
     residual = np.concatenate([item.residual for item in outputs.values()])
     weighted = np.concatenate([item.weighted_residual for item in outputs.values()])
@@ -1383,23 +1433,31 @@ def _global_statistics(
     rss = float(np.dot(residual, residual))
     chi_square = float(np.dot(weighted, weighted))
     tss = float(np.dot(observed - np.mean(observed), observed - np.mean(observed)))
+    within_tss = sum(float(np.sum((item.observed - np.mean(item.observed)) ** 2)) for item in outputs.values())
     result: dict[str, float | int | None] = {
         "N": n,
         "k": k,
         "degrees_of_freedom": dof,
         "RSS": rss,
         "RMSE": math.sqrt(rss / n) if n else None,
-        "chi_square": chi_square,
-        "reduced_chi_square": chi_square / dof if dof > 0 else None,
+        "weighted_residual_sum_squares": chi_square,
+        "chi_square": None,
+        "reduced_chi_square": None,
         "R_squared": 1 - rss / tss if tss > 0 else None,
+        "within_spectrum_R_squared": 1 - rss / within_tss if within_tss > 0 else None,
         "AIC": None,
         "AICc": None,
         "BIC": None,
     }
     supported = all(item.statistics.get("likelihood_supported", int(np.array_equal(
         item.residual, item.weighted_residual))) for item in outputs.values())
-    if loss == "linear" and n > 0 and supported:
+    if infer and loss == "linear" and n > 0 and supported:
         known = all(item.statistics.get("noise_scale_known", 0) for item in outputs.values())
+        # Preserve the historical sum under chi_square for Gaussian fits.
+        # Its inferential reduced statistic requires an absolute scale.
+        result["chi_square"] = chi_square
+        if known and dof > 0:
+            result["reduced_chi_square"] = chi_square / dof
         log_precision = sum(float(item.statistics.get("log_precision_sum", 0.0))
                             for item in outputs.values())
         if known:
@@ -1435,7 +1493,7 @@ def _copy_matching_values(source: Model, target: Model) -> None:
                 parameter.value = min(max(source_parameter.value, parameter.minimum), parameter.maximum)
 
 
-def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSettings) -> FitResult:
+def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSettings, *, infer=True) -> FitResult:
     if not results:
         return FitResult(
             False,
@@ -1473,7 +1531,11 @@ def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSet
             _, corr = covariance_statistics(block)
             correlations.append(corr)
         correlation = BlockDiagonalMatrix(correlations)
-    statistics = _global_statistics(outputs, len(free_paths), settings.loss) if outputs else {}
+    complete = all(result.success for result in results)
+    statistics = _global_statistics(outputs, len(free_paths), settings.loss, infer=complete and infer) if outputs else {}
+    objectives = [result.statistics.get("objective") for result in results]
+    if all(value is not None for value in objectives):
+        statistics["objective"] = sum(objectives)
     if all("negative_twice_log_likelihood" in r.statistics for r in results):
         _information_criteria(statistics,
             sum(r.statistics["negative_twice_log_likelihood"] for r in results),

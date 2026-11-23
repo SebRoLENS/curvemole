@@ -13,14 +13,15 @@ def test_correlations_and_quantiles_match_reference(size):
     diagnostic = residual_diagnostics(residual, max_lag=100)
     finite = residual[np.isfinite(residual)]
     centred = finite - finite.mean()
-    reference = np.array([np.dot(centred[:-lag], centred[lag:]) / np.dot(centred, centred)
-                          for lag in range(1, 101)])
+    segments = (centred[:2], centred[2:])
+    reference = np.array([sum(np.dot(part[:-lag], part[lag:]) for part in segments if len(part) > lag)
+                          / np.dot(centred, centred) for lag in range(1, 101)])
     np.testing.assert_allclose(diagnostic.autocorrelation[1:], reference, atol=1e-14, rtol=1e-12)
     np.testing.assert_allclose(diagnostic.qq_theoretical,
                                norm.ppf((np.arange(len(finite)) + .5) / len(finite)),
                                atol=1e-14, rtol=1e-14)
     assert diagnostic.durbin_watson == pytest.approx(
-        np.dot(np.diff(finite), np.diff(finite)) / np.dot(finite, finite))
+        sum(np.dot(np.diff(part), np.diff(part)) for part in (finite[:2], finite[2:])) / np.dot(finite, finite))
 
 
 def test_constant_and_insufficient_residuals_preserve_undefined_statistics():

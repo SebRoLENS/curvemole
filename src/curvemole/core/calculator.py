@@ -74,6 +74,7 @@ def apply_background_subtraction(
     method: str,
     description: str,
     parameters: dict[str, Any] | None = None,
+    estimated: bool = True,
 ) -> Transformation:
     """Subtract a background array from every data point, including masked points."""
     values = np.asarray(background, dtype=np.float64).reshape(-1)
@@ -84,7 +85,7 @@ def apply_background_subtraction(
     usable = np.isfinite(curve.x) & np.isfinite(curve.y)
     if np.any(usable & ~np.isfinite(values)):
         raise DataValidationError("Background contains invalid values at usable data points.")
-    metadata: dict[str, Any] = {"method": str(method)}
+    metadata: dict[str, Any] = {"method": str(method), "estimated_background": estimated}
     metadata.update(parameters or {})
     transformation = Transformation(
         "background_subtract",
@@ -119,8 +120,13 @@ def apply_curve_operation(
         target.x, source_x, operand.y[usable], method=interpolation,
         extrapolate=extrapolate, errors=errors,
     )
-    same_measurement = (target is operand
-                        and len(np.unique(source_x)) == len(source_x))
+    same_rows = None
+    if target is operand:
+        _, first = np.unique(source_x, return_index=True)
+        same_rows = np.flatnonzero(usable)[first]
+        if aligned_errors is not None:
+            # The target derivative accounts for both appearances on these rows.
+            aligned_errors[:, same_rows] = 0
     correlated = aligned_errors is not None and (
         operand.has_correlated_y_errors
         or not np.all(np.isin(target.x[np.isfinite(aligned)], source_x))
@@ -134,12 +140,12 @@ def apply_curve_operation(
             "interpolation": interpolation,
             "extrapolate": extrapolate,
             "asymmetric_operand": operand.current_error_y_minus is not None,
-            "correlated_operand": correlated and not same_measurement,
-            "same_measurement": same_measurement,
+            "correlated_operand": correlated,
+            "same_measurement_rows": [] if same_rows is None else same_rows.tolist(),
         },
         description=f"{operation} with {operand.name} ({interpolation} interpolation)",
         operand=aligned,
-        operand_errors=None if same_measurement else aligned_errors,
+        operand_errors=aligned_errors if same_rows is None or len(same_rows) < len(target) else None,
     )
     target.apply_transformation(transformation)
     return transformation
