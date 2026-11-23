@@ -102,8 +102,9 @@ allowed peak separation and width limits are configurable.
    top of the fitted line; widths remain free and η is fixed (default 0.5).
 4. The straight background is **fixed by default** after its first fit. Legacy
    settings are migrated to this default. Advanced settings can explicitly enable
-   joint background refinement if desired. **After the final automatic fit, the
-   line parameters are always unlocked** for manual refinement.
+   joint background refinement if desired. The stored model keeps the same
+   constraints as the recorded fit. Unlocking the line for manual refinement
+   changes the model and requires a new fit before uncertainty analysis.
 5. Use the longer-wavelength center, R1, for pressure calculation. The final band
    mask remains active and editable; it is never reinstalled over manual edits.
 

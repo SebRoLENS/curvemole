@@ -42,9 +42,14 @@ IMPORT_PROCESSOR_KEY = "automatic_import_processor"
 
 
 def _colour_imports(curves, palette, offset=0):
-    for index, curve in enumerate(curves, offset):
+    from collections import Counter
+
+    used = Counter(curve.colour.upper() for curve in curves if curve.colour.upper() != DEFAULT_CURVE_COLOUR)
+    order = palette[offset % len(palette):] + palette[:offset % len(palette)]
+    for curve in curves:
         if curve.colour.upper() == DEFAULT_CURVE_COLOUR:
-            curve.colour = palette[index % len(palette)]
+            curve.colour = min(order, key=used.__getitem__)
+            used[curve.colour] += 1
 
 
 def prepare_file(path, signature, x_column, y_column, entry, settings, cancellation):
@@ -52,8 +57,22 @@ def prepare_file(path, signature, x_column, y_column, entry, settings, cancellat
     if signature[0] > 256 * 1024 * 1024:
         raise ValueError("File exceeds the 256 MiB automatic import limit.")
     cancellation.raise_if_cancelled()
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    curves = import_file(path, ColumnMapping(x=x_column, y=[y_column]))
+    hasher = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            cancellation.raise_if_cancelled()
+            hasher.update(chunk)
+    digest = hasher.hexdigest()
+    from curvemole.core.spe import is_spe
+
+    if is_spe(path):
+        from curvemole.core.importers import inspect_file
+
+        inspection = inspect_file(path, rows=1)
+        mapping = ColumnMapping(x=0, y=list(range(1, len(inspection.columns))))
+        curves = import_file(path, mapping, inspection.config)
+    else:
+        curves = import_file(path, ColumnMapping(x=x_column, y=[y_column]))
     acquisition = Project("Automatic import")
     series = Series(path.name, curves)
     acquisition.add_series(series)
@@ -82,7 +101,8 @@ def prepare_file(path, signature, x_column, y_column, entry, settings, cancellat
         curve.__post_init__()
     acquisition.resolved_parameter_values()
     json.dumps(acquisition.ui_state.get("plugin_data", {}), allow_nan=False)
-    return acquisition, digest, str(summary or f"Imported {path.name}")
+    imported = f"Imported {path.name}: {len(curves)} spectrum/spectra"
+    return acquisition, digest, f"{imported}\n{summary}" if summary else imported
 
 
 class FolderImportDialog(QDialog):
@@ -403,9 +423,9 @@ class FolderImportController:
             prepare_file, path, signature, self.x, self.y, entry, copy.deepcopy(data), self.token
         )
 
-    def commit(self, acquisition, *, processor_id=None):
+    def commit(self, acquisition, *, processor_id=None, destination=None, automatic=True, follow=None):
         window = self.window
-        series = copy.deepcopy(acquisition.dataset.series)
+        series = copy.deepcopy(acquisition.dataset.series) if automatic else acquisition.dataset.series
         from curvemole.core.data import Dataset
         from curvemole.core.models import Model
         previous_series = list(window.project.dataset.series)
@@ -413,8 +433,8 @@ class FolderImportController:
         ids = {c.id for s in series for c in s.curves}
         if not ids:
             raise ValueError("Workflow returned no spectra.")
-        if ids & {c.id for c in window.project.curves}:
-            raise ValueError("Duplicate curve identifiers.")
+        if destination is not None and not any(group is destination for group in previous_series):
+            raise ValueError("The destination series is no longer available.")
         models = copy.deepcopy(acquisition.models)
         results = copy.deepcopy(acquisition.results)
         if not set(models) <= ids:
@@ -422,18 +442,17 @@ class FolderImportController:
         from curvemole.core.folder_import import merge_acquisition_results
         previous_results = dict(window.project.results)
         merged_results = merge_acquisition_results(previous_results, results, ids)
-        previous_models = dict(window.project.models)
-        next_models = dict(previous_models)
+        next_models = {}
         for item in series:
             for curve in item.curves:
                 next_models[curve.id] = models.get(curve.id, Model(name=f"Model for {curve.name}"))
-        destination = None
+        incoming = [curve for group in series for curve in group.curves]
+        added_groups = series
         if processor_id == RUBY_IMPORT_PROCESSOR:
             destination = next(
                 (group for group in previous_series if group.metadata.get(IMPORT_PROCESSOR_KEY) == processor_id),
                 None,
             )
-            incoming = [curve for group in series for curve in group.curves]
             if destination is None:
                 base = window.tr("Ruby fluorescence")
                 name = base
@@ -443,51 +462,70 @@ class FolderImportController:
                     name = f"{base} {suffix}"
                     suffix += 1
                 group = Series(name, incoming, id=series[0].id, metadata={IMPORT_PROCESSOR_KEY: processor_id})
-                next_series = [*previous_series, group]
-            else:
-                before_curves = list(destination.curves)
-                after_curves = [*before_curves, *incoming]
-                next_series = previous_series
-        else:
-            next_series = [*previous_series, *series]
+                added_groups = [group]
         if destination is not None:
+            added_groups = []
+        if automatic and destination is not None:
             _colour_imports(incoming, window._palette_for_appending(destination))
-        else:
+        elif automatic:
             default_name = window.default_series_palette()
             default_palette = window._automatic_palette(default_name)
             offset = len(window.project.curves)
-            for group in next_series[len(previous_series):]:
+            for group in added_groups:
                 name = group.metadata.setdefault("palette", default_name)
                 palette = window._automatic_palette(str(name)) or default_palette
                 _colour_imports(group.curves, palette, offset)
                 offset += len(group.curves)
-        follow = self.follow
+        follow = self.follow if follow is None else follow
         active_before = window.active_curve_id
-        active_after = next(c.id for s in reversed(series) for c in reversed(s.curves))
+        component_before = window.selected_component_id
+        active_after = incoming[-1 if automatic else 0].id
+        added_ids = {group.id for group in added_groups}
+        changed_results = {key: value for key, value in merged_results.items()
+                           if key not in previous_results or value is not previous_results[key]}
+        added_curves = [(group, tuple(group.curves)) for group in added_groups]
 
         def redo():
             # All validation/copying precedes QUndoStack.push: a Python exception
             # from a Qt redo virtual cannot be relied on to abort that push.
             if destination is not None:
-                destination.curves[:] = after_curves
-            window.project.dataset.series[:] = next_series
-            window.project.models = dict(next_models)
-            window.project.results = dict(merged_results)
+                destination.curves.extend(incoming)
+            for group, curves in added_curves:
+                retained = next((item for item in window.project.dataset.series if item.id == group.id), None)
+                if retained is None:
+                    group.curves[:] = curves
+                    window.project.dataset.series.append(group)
+                else:
+                    retained.curves[:0] = curves
+            window.project.models.update(next_models)
+            window.project.results.update(changed_results)
             if follow:
                 window.active_curve_id = active_after
+                window.selected_component_id = None
 
         def undo():
-            if destination is not None:
-                destination.curves[:] = before_curves
-            window.project.dataset.series[:] = previous_series
-            window.project.models = dict(previous_models)
-            window.project.results = dict(previous_results)
-            window.active_curve_id = (
-                active_before if active_before in {c.id for c in window.project.curves} else None
-            )
+            for group in window.project.dataset.series:
+                group.curves[:] = [curve for curve in group.curves if curve.id not in ids]
+            window.project.dataset.series[:] = [
+                group for group in window.project.dataset.series if group.id not in added_ids or group.curves
+            ]
+            for identity in ids:
+                window.project.models.pop(identity, None)
+            for key, value in changed_results.items():
+                if window.project.results.get(key) is value:
+                    if key in previous_results:
+                        window.project.results[key] = previous_results[key]
+                    else:
+                        window.project.results.pop(key, None)
+            if follow or window.active_curve_id in ids:
+                window.active_curve_id = (
+                    active_before if active_before in {c.id for c in window.project.curves} else None
+                )
+                window.selected_component_id = component_before if window.active_curve_id else None
 
-        window._push_change("Automatic import", redo, undo, modified_curve_ids=set())
-        if self.follow:
+        title = "Automatic import" if automatic else window.tr("Import data")
+        window._push_change(title, redo, undo, modified_curve_ids=set())
+        if automatic and follow:
             window.curve_filter.clear()
             tree = window.curve_tree
             for i in range(tree.topLevelItemCount()):

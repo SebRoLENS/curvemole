@@ -1978,6 +1978,8 @@ class MainWindow(QMainWindow):
         series = Series(self._next_series_name())
         series.metadata["palette"] = self.default_series_palette()
         default_palette = self._automatic_palette(series.metadata["palette"])
+        colour_offset = len(self.project.curves)
+        imported_ids = set()
         destination_id = None
         shared_mapping = None
         shared_config = None
@@ -2063,27 +2065,34 @@ class MainWindow(QMainWindow):
                     curves = import_file(path, file_mapping, file_config)
                 for curve in curves:
                     curve.colour = default_palette[
-                        (len(self.project.curves) + len(series.curves)) % len(default_palette)
+                        (colour_offset + len(series.curves)) % len(default_palette)
                     ]
                     if len(paths) > 1 and not (file_mapping.as_separated_files or file_mapping.spectra):
                         curve.name = f"{Path(path).stem}: {curve.name}"
-                    series.add(curve)
+                    if curve.id in imported_ids:
+                        raise ValueError("Imported spectra contain duplicate identifiers.")
+                    imported_ids.add(curve.id)
+                    series.curves.append(curve)
             if batch is not None:
                 batch.accepting = False
-            if destination_id is None:
-                self.project.add_series(series)
-            else:
-                destination = next(item for item in self.project.dataset.series if item.id == destination_id)
+            destination = next((item for item in self.project.dataset.series if item.id == destination_id), None)
+            if destination_id is not None and destination is None:
+                raise ValueError("The destination series is no longer available.")
+            if destination is not None:
                 palette = self._palette_for_appending(destination)
                 for index, curve in enumerate(series.curves):
                     curve.colour = palette[index % len(palette)]
-                    self.project.add_curve(curve, destination)
-            self.active_curve_id = series.curves[0].id
-            self.selected_component_id = None
-            self.refresh_all()
+            self._commit_import(series, destination)
             self._notify(self.tr("Imported ") + f"{len(series.curves)} " + self.tr("curve(s)."))
         except Exception as exc:
             self._show_error(self.tr("Import data"), exc)
+
+    def _commit_import(self, series: Series, destination: Series | None) -> None:
+        acquisition = Project()
+        acquisition.add_series(series)
+        self.folder_import.commit(
+            acquisition, destination=destination, automatic=False, follow=True,
+        )
 
     def _ask_import_column_positions(self, file_name: str, reason: str) -> tuple[str, bool]:
         with transient_widget(QMessageBox(self)) as prompt:
@@ -3419,6 +3428,12 @@ class MainWindow(QMainWindow):
             return baseline, plan_from_record(record["plan"])
         # Existing projects only retained the most recent fit. Do not infer
         # historical residuals or covariance from the model currently shown.
+        recorded = self.project.results.get(curve_id)
+        if isinstance(recorded, FitResult) and recorded.success and curve_id in recorded.curve_outputs:
+            saved_plan = recorded.provenance.get("plan")
+            plan = (plan_from_record(saved_plan) if saved_plan else
+                    FitPlan([curve_id], settings=copy.deepcopy(recorded.settings)))
+            return baseline_for_curve(recorded, curve_id), individual_plan(plan, curve_id)
         latest = self._last_fit_result()
         if latest is None or curve_id not in latest.curve_outputs:
             return None
@@ -3475,12 +3490,16 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Profile likelihood requires an independent single-spectrum fit."), warning=True)
                 return
             if method == "monte_carlo" and any(
-                not self.project.dataset.curve(cid).has_y_errors
+                self.project.dataset.curve(cid).y_error_scales(
+                    include_inverse_variance=plan.settings.absolute_sigma is not False) is None
                 for cid in plan.curve_ids
             ):
                 missing.append(curve_id)
                 continue
             plan.settings.confidence_level = self.uncertainty_panel.confidence.value() / 100
+            if (method in {"monte_carlo", "residual_bootstrap", "block_bootstrap"}
+                    and self.uncertainty_panel.replica_global_search.isChecked()):
+                plan.settings.solver = "differential_evolution"
             jobs.append((curve_id, baseline, plan))
         if not jobs:
             self._notify(self.tr("No usable saved fit for the requested spectra. Refit them first."), warning=True)
@@ -4249,7 +4268,7 @@ class MainWindow(QMainWindow):
         ) != QMessageBox.StandardButton.Yes:
             return
 
-        records: list[tuple[str, str, int, Curve, dict[str, Any] | None, bool, Any]] = []
+        records: list[tuple[str, str, int, Curve, dict[str, Any] | None]] = []
         for curve_id in [curve.id for curve in self.project.curves if curve.id in selected]:
             series = self.project.dataset.series_for(curve_id)
             curve = self.project.dataset.curve(curve_id)
@@ -4258,9 +4277,7 @@ class MainWindow(QMainWindow):
             index = next(index for index, item in enumerate(series.curves) if item.id == curve_id)
             model = self.project.models.get(curve_id)
             model_state = model.to_dict() if model is not None else None
-            had_result = curve_id in self.project.results
-            result_value = copy.deepcopy(self.project.results.get(curve_id))
-            records.append((curve_id, series.id, index, curve, model_state, had_result, result_value))
+            records.append((curve_id, series.id, index, curve, model_state))
         active_before = self.active_curve_id
         saved_results = copy_result_maps(self.project.results)
         saved_states = {curve.id: curve.state for curve in self.project.curves}
@@ -4273,7 +4290,7 @@ class MainWindow(QMainWindow):
             self.selected_component_id = None
 
         def undo() -> None:
-            for curve_id, series_id, index, curve, model_state, had_result, result_value in sorted(
+            for curve_id, series_id, index, curve, model_state in sorted(
                 records, key=lambda item: item[2]
             ):
                 # Series layout Undo can recreate Series objects with the same ID.
@@ -4282,8 +4299,6 @@ class MainWindow(QMainWindow):
                     series.add(curve, index)
                 if model_state is not None:
                     self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
-                if had_result:
-                    self.project.results[curve_id] = copy.deepcopy(result_value)
             self.project.results = copy_result_maps(saved_results)
             for curve in self.project.curves:
                 if curve.id in saved_states:
@@ -4302,7 +4317,13 @@ class MainWindow(QMainWindow):
         curve = self.project.dataset.curve(curve_id)
         curve.colour = colour.upper()
         self.project.touch()
-        self.refresh_all()
+        self._refresh_curve_colours()
+
+    def _refresh_curve_colours(self) -> None:
+        selected = self.curve_tree.populate(self.project, self.active_curve_id)
+        self.plot_workspace.set_context(
+            self.project, self.active_curve_id, selected, self.selected_component_id,
+        )
 
     def choose_curve_colour(self, curve_id: str) -> None:
         if not self._ensure_editable(prepare_plot=False):
@@ -4367,7 +4388,7 @@ class MainWindow(QMainWindow):
                     continue
             # This operation changes individual colours, not any series palette.
             self.project.touch()
-            self.refresh_all()
+            self._refresh_curve_colours()
 
         self.undo_stack.push(
             CallbackCommand(
@@ -4400,7 +4421,7 @@ class MainWindow(QMainWindow):
             else:
                 series.metadata["palette"] = marker
             self.project.touch()
-            self.refresh_all()
+            self._refresh_curve_colours()
 
         self.undo_stack.push(
             CallbackCommand(
@@ -4422,7 +4443,7 @@ class MainWindow(QMainWindow):
         ]
 
     def _restore_series_layout(
-        self, snapshot: list[tuple[Series, str, dict[str, Any], list[str]]]
+        self, snapshot: list[tuple[Series, str, dict[str, Any], list[str]]], *, refresh: bool = True,
     ) -> None:
         # Keep the original Series objects alive across Undo/Redo. This matters for
         # GUI and external references, and also allows a merged-away series to be
@@ -4435,8 +4456,9 @@ class MainWindow(QMainWindow):
             series.curves = [curve_map[curve_id] for curve_id in curve_ids]
             restored.append(series)
         self.project.dataset.series = restored
-        self.project.touch()
-        self.refresh_all()
+        if refresh:
+            self.project.touch()
+            self.refresh_all()
 
     def _push_series_layout_change(self, text: str, operation: Callable[[], None]) -> None:
         if not self._ensure_editable():
@@ -4444,7 +4466,9 @@ class MainWindow(QMainWindow):
         before = self._series_layout_snapshot()
         operation()
         after = self._series_layout_snapshot()
-        self._restore_series_layout(before)
+        if after == before:
+            return
+        self._restore_series_layout(before, refresh=False)
         self.undo_stack.push(
             CallbackCommand(
                 text,
@@ -4610,19 +4634,7 @@ class MainWindow(QMainWindow):
                     if curves[index].id in selected and curves[index + 1].id not in selected:
                         curves[index], curves[index + 1] = curves[index + 1], curves[index]
 
-        before = self._series_layout_snapshot()
-        operation()
-        after = self._series_layout_snapshot()
-        self._restore_series_layout(before)
-        if after == before:
-            return
-        self.undo_stack.push(
-            CallbackCommand(
-                self.tr("Reorder spectra"),
-                lambda: self._restore_series_layout(after),
-                lambda: self._restore_series_layout(before),
-            )
-        )
+        self._push_series_layout_change(self.tr("Reorder spectra"), operation)
 
     def _prompt_rename_series(self, series_id: str) -> None:
         if not self._ensure_editable():
@@ -4759,7 +4771,8 @@ class MainWindow(QMainWindow):
             modified_curve_ids = self.curve_tree.selected_curve_ids() or (
                 {self.active_curve_id} if self.active_curve_id else set()
             )
-        self.project.invalidate_fits(modified_curve_ids, preserve=preserve_curve_ids or ())
+        if modified_curve_ids:
+            self.project.invalidate_fits(modified_curve_ids, preserve=preserve_curve_ids or ())
         self.refresh_all()
 
     def _validate_all_links(self) -> None:
@@ -4903,6 +4916,10 @@ class MainWindow(QMainWindow):
         return value if isinstance(value, FitResult) else None
 
     def _refresh_diagnostics(self) -> None:
+        curve = self.project.dataset.curve(self.active_curve_id) if self.active_curve_id else None
+        if curve is None:
+            self.diagnostics.set_residual(None)
+            return
         record = self.project.results.get("fit_by_curve", {}).get(self.active_curve_id, {})
         if "global_key" in record:
             result = self.project.results.get("global_fit_baselines", {}).get(record["global_key"])
@@ -4911,9 +4928,19 @@ class MainWindow(QMainWindow):
         if isinstance(result, dict):
             result = FitResult.from_dict(result)
         if result is None:
-            result = self._last_fit_result()
-        output = result.curve_outputs.get(self.active_curve_id) if result and self.active_curve_id else None
-        self.diagnostics.set_residual(output.residual if output else None)
+            recorded = self.project.results.get(curve.id)
+            result = recorded if isinstance(recorded, FitResult) else self._last_fit_result()
+        output = result.curve_outputs.get(curve.id) if result else None
+        if output is None:
+            self.diagnostics.set_residual(None)
+            return
+        historical = (curve.state != CurveState.FITTED or output.indices.max(initial=-1) >= len(curve))
+        rows = output.indices if historical else curve.row_indices[output.indices]
+        standardized = bool(output.statistics.get("standardized_residuals"))
+        self.diagnostics.set_residual(
+            output.weighted_residual if standardized else output.residual,
+            indices=rows, x=output.x, historical=historical, standardized=standardized,
+        )
 
     def refresh_worksheet(self) -> None:
         if not self.worksheet_dock.isVisible():

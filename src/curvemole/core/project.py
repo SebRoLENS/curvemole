@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import uuid
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,18 +60,28 @@ class Project:
         self.touch()
 
     def add_curve(self, curve: Curve, series: Series | None = None) -> Series:
+        return self.add_curves([curve], series)
+
+    def add_curves(self, curves: Iterable[Curve], series: Series | None = None) -> Series:
+        """Append a batch after validating every identifier, then touch once."""
         self.ensure_editable()
+        curves = list(curves)
+        if not curves:
+            raise DataValidationError("Select at least one spectrum to add.")
         if series is not None and not any(item is series for item in self.dataset.series):
             raise DataValidationError("The destination series does not belong to this project.")
         identities = {item.id for item in self.dataset.series} | {item.id for item in self.curves}
-        if curve.id in identities:
-            raise DataValidationError(f"Curve id '{curve.id}' already exists in this project.")
+        for curve in curves:
+            if curve.id in identities:
+                raise DataValidationError(f"Curve id '{curve.id}' already exists in this project or batch.")
+            identities.add(curve.id)
         if series is None:
             if not self.dataset.series:
                 self.dataset.add_series(Series("Imported data"))
             series = self.dataset.series[-1]
-        series.add(curve)
-        self.models[curve.id] = Model(name=f"Model for {curve.name}")
+        models = {curve.id: Model(name=f"Model for {curve.name}") for curve in curves}
+        series.curves.extend(curves)
+        self.models.update(models)
         self.touch()
         return series
 
@@ -93,8 +104,33 @@ class Project:
     def remove_curves(self, curve_ids) -> list[Curve]:
         self.ensure_editable()
         identities = list(dict.fromkeys(curve_ids))
+        if not identities:
+            return []
         self.validate_curve_removal(identities)
-        return [self._remove_curve(identity) for identity in identities]
+        self.invalidate_fits(identities)
+        removed = set(identities)
+        curves = {curve.id: curve for curve in self.curves if curve.id in removed}
+        for series in self.dataset.series:
+            series.curves[:] = [curve for curve in series.curves if curve.id not in removed]
+        fitted = self.results.get("fit_by_curve", {})
+        global_keys = {record.get("global_key") for identity, record in fitted.items()
+                       if identity in removed and record.get("global_key") is not None}
+        affected_records = removed | {identity for identity, record in fitted.items()
+                                      if record.get("global_key") in global_keys}
+        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
+                    "uncertainty_failures_by_curve", "uncertainty_display_method_by_curve"):
+            if isinstance(self.results.get(key), dict):
+                self.results[key] = {identity: value for identity, value in self.results[key].items()
+                                     if identity not in affected_records}
+        if global_keys and isinstance(self.results.get("global_fit_baselines"), dict):
+            self.results["global_fit_baselines"] = {
+                key: value for key, value in self.results["global_fit_baselines"].items() if key not in global_keys
+            }
+        for identity in identities:
+            self.models.pop(identity, None)
+            self.results.pop(identity, None)
+        self.touch()
+        return [curves[identity] for identity in identities]
 
     def remove_curve(self, curve_id: str) -> Curve:
         return self.remove_curves([curve_id])[0]
@@ -123,28 +159,6 @@ class Project:
             if curve.id in affected and curve.state == CurveState.FITTED:
                 curve.state = CurveState.MODIFIED
         return affected
-
-    def _remove_curve(self, curve_id: str) -> Curve:
-        self.ensure_editable()
-        self.invalidate_fits({curve_id})
-        fitted = self.results.get("fit_by_curve", {})
-        global_key = fitted.get(curve_id, {}).get("global_key") if isinstance(fitted, dict) else None
-        series = self.dataset.series_for(curve_id)
-        curve = series.remove(curve_id)
-        self.models.pop(curve_id, None)
-        self.results.pop(curve_id, None)
-        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve"):
-            if isinstance(self.results.get(key), dict):
-                self.results[key].pop(curve_id, None)
-        if global_key is not None:
-            self.results.get("global_fit_baselines", {}).pop(global_key, None)
-            for other_id, record in list(self.results.get("fit_by_curve", {}).items()):
-                if record.get("global_key") == global_key:
-                    self.results["fit_by_curve"].pop(other_id, None)
-                    self.results.get("uncertainty_by_curve", {}).pop(other_id, None)
-                    self.results.get("uncertainty_reports_by_curve", {}).pop(other_id, None)
-        self.touch()
-        return curve
 
     def model_for(self, curve_id: str) -> Model:
         if curve_id not in self.models:

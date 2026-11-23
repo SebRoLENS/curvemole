@@ -53,6 +53,21 @@ def test_spe_calibration_and_multiframe(tmp_path):
     assert "[nm]" in curves[0].x_label
 
 
+def test_automatic_spe_import_keeps_every_frame(tmp_path):
+    from curvemole.core.fitting import CancellationToken
+    from curvemole.gui.folder_import import prepare_file
+
+    path = tmp_path / "ruby.0"
+    path.write_bytes(spe_bytes(frames=3))
+    stat = path.stat()
+    acquisition, _, summary = prepare_file(
+        path, (stat.st_size, stat.st_mtime_ns), 0, 1, None, {}, CancellationToken(),
+    )
+    assert len(acquisition.curves) == 3
+    assert [curve.y[0] for curve in acquisition.curves] == [0, 100, 200]
+    assert "3 spectrum/spectra" in summary
+
+
 @pytest.mark.parametrize(
     "mutate", ["partial", "uncalibrated", "wrong_unit", "version3", "short_binary"]
 )

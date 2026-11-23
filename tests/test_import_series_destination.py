@@ -109,6 +109,33 @@ def test_new_series_option_is_retained(importing_window, monkeypatch):
     assert len(project.dataset.series[-1].curves) == 2
 
 
+def test_manual_and_automatic_imports_undo_independently(importing_window, monkeypatch):
+    _, window, project, paths = importing_window
+    from curvemole.gui.folder_import import RUBY_IMPORT_PROCESSOR
+
+    acquisition = Project()
+    acquisition.add_series(Series("Ruby", [Curve("Ruby A", [1, 2], [2, 3])]))
+    window.folder_import.follow = False
+    window.folder_import.commit(acquisition, processor_id=RUBY_IMPORT_PROCESSOR)
+
+    def accept(dialog):
+        dialog.series_name.setText("Manual B")
+        dialog._accept()
+        return dialog.result()
+
+    monkeypatch.setattr(ImportMappingDialog, "exec", accept)
+    window.import_data(paths[:1])
+    assert [group.name for group in project.dataset.series][-2:] == ["Ruby fluorescence", "Manual B"]
+    window.undo_stack.undo()
+    assert project.dataset.series[-1].name == "Ruby fluorescence"
+    window.undo_stack.undo()
+    assert len(project.dataset.series) == 2
+    window.undo_stack.redo()
+    window.undo_stack.redo()
+    assert [group.name for group in project.dataset.series][-2:] == ["Ruby fluorescence", "Manual B"]
+    assert all(curve.id in project.models for curve in project.curves)
+
+
 @pytest.mark.parametrize("selected_only", [False, True])
 def test_last_chosen_palette_becomes_the_default_for_new_imports(
     importing_window, tmp_path, monkeypatch, selected_only,

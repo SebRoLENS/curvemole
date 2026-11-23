@@ -412,13 +412,14 @@ def analyse_curve(curve, s, cancellation=None):
         metadata.update(pressure_uncertainty(centers_fit[1], components[1].parameters["center"], s))
         metadata.update(pressure_scale_metadata(P, s))
     curve.metadata["ruby_monitor"] = metadata
-    for parameter in bg.parameters.values():
-        parameter.fixed = False
     return model, result, metadata
 
 
 def process(context):
     """Headless callback for CurveMole's opt-in automatic import worker."""
+    from curvemole.core.fit_records import plan_to_record
+    from curvemole.core.fitting import FitPlan
+
     s = settings(context.data)
     summaries = []
     for curve in context.project.curves:
@@ -438,6 +439,10 @@ def process(context):
             curve.metadata = working.metadata
             context.project.models[curve.id] = model
             context.project.results[curve.id] = result
+            context.project.results.setdefault("fit_by_curve", {})[curve.id] = {
+                "plan": plan_to_record(FitPlan([curve.id], settings=result.settings)),
+                "baseline": result,
+            }
             context.project.results["last_fit"] = result
             if meta["pressure_GPa"] is not None:
                 recalculate_curve(context, curve)
@@ -695,9 +700,7 @@ def calculation_fingerprint(context, curve):
         "state": str(curve.state), "fit_ranges": curve.fit_ranges,
     }
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode())
-    for array in (curve.x, curve.y, curve.effective_mask, curve.weights, curve.sigma_y):
-        if array is not None:
-            digest.update(np.asarray(array).tobytes())
+    digest.update(curve.content_hash.encode())
     return digest.hexdigest()
 
 

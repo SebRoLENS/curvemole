@@ -444,7 +444,12 @@ def test_exact_background_mask_inversion_and_gui_unmask_undo(monkeypatch, tmp_pa
     assert curve.metadata["ruby_monitor"]["temperature_K"] == 296
     assert curve.metadata["ruby_monitor"]["pressure_GPa"] is not None
     assert curve.active_mask == "Ruby local fit region"
-    assert all(not p.fixed for p in project.models[curve.id].components[0].parameters.values())
+    assert all(p.fixed for p in project.models[curve.id].components[0].parameters.values())
+    record = project.results["fit_by_curve"][curve.id]["baseline"]
+    assert record is project.results[curve.id]
+    from curvemole.core.fit_records import fit_model_matches
+
+    assert fit_model_matches(record, curve.id, project.models[curve.id], project.resolved_parameter_values())
     window = CurveMoleMainWindow(project)
     try:
         window.active_curve_id = curve.id
