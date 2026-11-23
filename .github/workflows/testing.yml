@@ -16,6 +16,7 @@ permissions:
 concurrency:
   group: testing-${{ github.ref }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   plan:
