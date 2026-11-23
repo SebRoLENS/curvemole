@@ -421,6 +421,10 @@ def process(context):
     from curvemole.core.fitting import FitPlan
 
     s = settings(context.data)
+    set_destination = getattr(context, "set_series_destination", None)
+    if callable(set_destination):
+        for series in context.project.dataset.series:
+            set_destination(series.id, name="Ruby fluorescence")
     summaries = []
     for curve in context.project.curves:
         if (

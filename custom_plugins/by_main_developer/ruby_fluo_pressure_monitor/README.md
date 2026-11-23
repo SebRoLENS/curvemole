@@ -16,8 +16,10 @@ On newer hosts, periodic refresh copies only the active spectrum, linked models
 and this plugin's settings, omitting historical fits and uncertainty samples.
 Polling pauses while the panel is hidden. Older hosts retain the full-snapshot
 fallback.
-This version changes only the plugin; an app that already has these services does
-not need another desktop rebuild.
+Persistent series routing uses the newer automatic import processor API. On
+supporting hosts this plugin declares one **Ruby fluorescence** series per project.
+CurveMole preserves the series after a user rename. Earlier versions of CurveMole
+can still load this plugin and use their own import layout.
 1. In **File > Plugin Manager > Choose plugin folder…**, choose this directory.
 2. Select `ruby_fluo_pressure_monitor`, review its source and choose
    **Review and trust selected plugin…**.
@@ -43,7 +45,7 @@ The panel's direct Start uses columns 1/2 and a two-second stable-file delay.
 ### Manual corrections while monitoring
 
 Select a spectrum and edit its masks and model using CurveMole's normal tools.
-The background parameters are unlocked after automatic fitting. There is no
+The background parameters keep the constraints used by the automatic fit. There is no
 special mask button, temperature-apply button, or selection-apply checkbox.
 Monitoring continues throughout manual review. By default, new acquisitions do
 not steal the spectrum being edited; the first acquisition is shown if no spectrum

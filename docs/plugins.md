@@ -343,6 +343,27 @@ curves and settings are not exposed to the worker. Exceptions do not commit a
 partial acquisition; processors may explicitly retain raw curves with diagnostic
 metadata when scientific analysis is inconclusive.
 
+An import processor may declare how its acquisition series are grouped:
+
+```python
+def process(context):
+    for series in context.project.dataset.series:
+        context.set_series_destination(series.id, name="Beamline scans", key="scans")
+    return "Acquisition added to Beamline scans"
+```
+
+Pass a series ID from the detached acquisition. The destination key defaults to
+`"default"` and is scoped to the registered processor within the project.
+Use the same key across acquisitions to append to one series, or distinct keys
+for separate groups. Several source series can share a destination in the same
+acquisition if their proposed names agree. Undeclared source series are added
+individually. The proposed name is used on creation; the host resolves name
+collisions and preserves any later user rename. A processor can plan this layout
+using only its acquisition data. CurveMole applies the layout with the import's
+Undo and Redo, preserving curve IDs, models and results. On older hosts, use
+`hasattr(context, "set_series_destination")` if the plugin also supports independent
+series per acquisition.
+
 The dialog exposes a case-insensitive filename substring, X/Y column indices,
 file stability delay, optional inclusion of pre-existing files, and optional
 re-import of modified files as new spectra. Only files directly in the folder are
@@ -354,7 +375,7 @@ or via **Retry failed files**. Closing the panel keeps the session running;
 Calibrated 1D WinSpec SPE 2.x acquisitions are supported alongside text inputs;
 SPE 3.x, uncalibrated axes and image/multiple-ROI acquisitions require export to
 calibrated X/Y text first. SPE columns are wavelength in nm followed by one intensity
-column per frame; select the desired frame using the Y-column control.
+column per frame. Automatic import includes every calibrated frame.
 
 ### Nonmodal monitor panels
 

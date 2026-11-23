@@ -111,12 +111,16 @@ def test_new_series_option_is_retained(importing_window, monkeypatch):
 
 def test_manual_and_automatic_imports_undo_independently(importing_window, monkeypatch):
     _, window, project, paths = importing_window
-    from curvemole.gui.folder_import import RUBY_IMPORT_PROCESSOR
+    from curvemole.core.folder_import import ImportSeriesDestination
 
     acquisition = Project()
     acquisition.add_series(Series("Ruby", [Curve("Ruby A", [1, 2], [2, 3])]))
     window.folder_import.follow = False
-    window.folder_import.commit(acquisition, processor_id=RUBY_IMPORT_PROCESSOR)
+    source = acquisition.dataset.series[0]
+    window.folder_import.commit(
+        acquisition, processor_id="org.example.acquisition:automatic",
+        destinations={source.id: ImportSeriesDestination("default", "Ruby fluorescence")},
+    )
 
     def accept(dialog):
         dialog.series_name.setText("Manual B")

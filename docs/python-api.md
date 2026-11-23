@@ -620,8 +620,16 @@ extension host; manually invoking a callback does not create a desktop commit.
 An import processor instead receives a fresh acquisition project, owner settings
 and `context.cancellation`; pass that token to fits. It must not access Qt or
 shared GUI objects. The host merges completed acquisition series/models/results;
-acquisition UI state/notebook changes are not merged. Plugin loading does not
-start folder monitoring or execute a workflow automatically.
+acquisition UI state/notebook changes are not merged. In automatic import,
+`context.set_series_destination(series_id, name="Beamline scans", key="scans")`
+declares a destination for a series in that acquisition. Use the same key to
+append subsequent acquisitions and distinct keys for independent destinations.
+The key defaults to `default` and is scoped to the registered processor and project.
+The name is used on creation. CurveMole resolves name collisions, retains user
+renames and commits the placement with the import's Undo/Redo. Source series
+without a declaration are added individually. Several source series can share
+a key if their proposed names agree. Plugin loading does not start folder
+monitoring or execute a workflow automatically.
 
 Solver request fields: `initial`, `bounds` (lower/upper arrays),
 `residual(vector)`, `jacobian(vector)`, copied `settings`, `cancellation`.

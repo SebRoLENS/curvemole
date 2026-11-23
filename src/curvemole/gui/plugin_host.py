@@ -18,7 +18,9 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.errors import DataValidationError
 from curvemole.core.extensions import extensions
+from curvemole.core.folder_import import DEFAULT_IMPORT_DESTINATION, ImportSeriesDestination
 from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.gui.dock_collapse import DockViewport
 from curvemole.gui.documentation import plugin_manuals, show_markdown_document
@@ -77,6 +79,21 @@ class PluginContext:
                 self._settings = state.get("plugin_data", {}).get(self.owner, {})
             return self._settings
         return project.ui_state.setdefault("plugin_data", {}).setdefault(self.owner, {})
+
+
+@dataclass
+class ImportProcessorContext(PluginContext):
+    """Detached acquisition with declarative routing requests for the host."""
+
+    _series_destinations: dict[str, ImportSeriesDestination] = field(default_factory=dict, init=False, repr=False)
+
+    def set_series_destination(
+        self, series_id: str, *, name: str, key: str = DEFAULT_IMPORT_DESTINATION,
+    ) -> None:
+        """Route a series in this acquisition to a persistent processor-local destination."""
+        if not any(group.id == series_id for group in self.project.dataset.series):
+            raise DataValidationError("Choose a series in the current import acquisition.")
+        self._series_destinations[series_id] = ImportSeriesDestination(key, name)
 
 
 class PluginHost:

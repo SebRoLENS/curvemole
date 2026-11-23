@@ -94,6 +94,9 @@ Monte Carlo/bootstrap/profile analyses, or graphical interaction. Loading a plug
 extensions; it does not automatically invoke a plugin command, transformation,
 import processor, or workflow. Use the Python API for operations outside this
 contract. A plugin can register a fit solver usable through `fit.settings.solver`.
+Persistent destinations for the desktop's Automatic folder import are declared
+by a Python import processor through `context.set_series_destination(...)`. Use
+the workflow's existing import options for batch imports.
 
 ## W2. Run, validate, and inspect
 

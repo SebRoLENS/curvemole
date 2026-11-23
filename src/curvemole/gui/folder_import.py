@@ -31,14 +31,16 @@ from PySide6.QtWidgets import (
 from curvemole.core.data import DEFAULT_CURVE_COLOUR, Series
 from curvemole.core.extensions import extensions
 from curvemole.core.fitting import CancellationToken
-from curvemole.core.folder_import import FolderScan
+from curvemole.core.folder_import import (
+    FolderScan,
+    merge_acquisition_results,
+    plan_import_series,
+    validate_import_destinations,
+)
 from curvemole.core.importers import ColumnMapping, import_file
 from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.core.project import Project
-from curvemole.gui.plugin_host import PluginContext
-
-RUBY_IMPORT_PROCESSOR = "org.curvemole.community.ruby_fluo_pressure_monitor:automatic"
-IMPORT_PROCESSOR_KEY = "automatic_import_processor"
+from curvemole.gui.plugin_host import ImportProcessorContext
 
 
 def _colour_imports(curves, palette, offset=0):
@@ -80,9 +82,10 @@ def prepare_file(path, signature, x_column, y_column, entry, settings, cancellat
         curve.name = path.name if len(curves) == 1 else f"{path.name}: {curve.name}"
         curve.metadata["automatic_import"] = {"sha256": digest, "file_name": path.name}
     summary = None
+    destinations = {}
     if entry is not None:
         acquisition.ui_state["plugin_data"] = {entry.owner: copy.deepcopy(settings)}
-        context = PluginContext(
+        context = ImportProcessorContext(
             acquisition,
             curves[-1].id,
             tuple(c.id for c in curves),
@@ -92,17 +95,19 @@ def prepare_file(path, signature, x_column, y_column, entry, settings, cancellat
         )
         summary = entry.callback(context)
         acquisition = context.project
+        destinations = dict(context._series_destinations)
     cancellation.raise_if_cancelled()
     stat = path.stat()
     if (stat.st_size, stat.st_mtime_ns) != signature:
         raise ValueError("File changed during import; it will be retried after settling.")
     acquisition.dataset.validate_unique_ids()
+    validate_import_destinations(acquisition.dataset.series, destinations)
     for curve in acquisition.curves:
         curve.__post_init__()
     acquisition.resolved_parameter_values()
     json.dumps(acquisition.ui_state.get("plugin_data", {}), allow_nan=False)
     imported = f"Imported {path.name}: {len(curves)} spectrum/spectra"
-    return acquisition, digest, f"{imported}\n{summary}" if summary else imported
+    return acquisition, digest, f"{imported}\n{summary}" if summary else imported, destinations
 
 
 class FolderImportDialog(QDialog):
@@ -123,7 +128,7 @@ class FolderImportDialog(QDialog):
         row.addWidget(browse)
         form.addRow("Folder / Cartella", row)
         self.contains = QLineEdit()
-        self.contains.setPlaceholderText("e.g. ruby → ruby.0, ruby_0.spe, test_ruby_47.spe")
+        self.contains.setPlaceholderText("e.g. scan → scan_001.txt, scan_002.spe")
         form.addRow("Filename contains (case insensitive)", self.contains)
         self.processor = QComboBox()
         self.processor.addItem("Import only / Solo importazione", None)
@@ -385,14 +390,14 @@ class FolderImportController:
                 self.timer.stop()
                 return
             try:
-                acquisition, digest, summary = future.result()
+                acquisition, digest, summary, destinations = future.result()
                 if processor_id and (
                     processor_id not in extensions.entries
                     or extensions.entries[processor_id].owner in self.window.plugin_manager.errors
                 ):
                     raise ValueError("Selected processor has been disabled or unloaded.")
                 if self.digests.get(path) != digest:
-                    self.commit(acquisition, processor_id=processor_id)
+                    self.commit(acquisition, processor_id=processor_id, destinations=destinations)
                     self.digests[path] = digest
                     self.log(summary)
                 self.scan.consumed[path] = signature
@@ -423,7 +428,8 @@ class FolderImportController:
             prepare_file, path, signature, self.x, self.y, entry, copy.deepcopy(data), self.token
         )
 
-    def commit(self, acquisition, *, processor_id=None, destination=None, automatic=True, follow=None):
+    def commit(self, acquisition, *, processor_id=None, destinations=None, destination=None, automatic=True,
+               follow=None):
         window = self.window
         series = copy.deepcopy(acquisition.dataset.series) if automatic else acquisition.dataset.series
         from curvemole.core.data import Dataset
@@ -435,11 +441,12 @@ class FolderImportController:
             raise ValueError("Workflow returned no spectra.")
         if destination is not None and not any(group is destination for group in previous_series):
             raise ValueError("The destination series is no longer available.")
+        if destinations and (not automatic or destination is not None):
+            raise ValueError("Processor series destinations require a processor-managed automatic import.")
         models = copy.deepcopy(acquisition.models)
         results = copy.deepcopy(acquisition.results)
         if not set(models) <= ids:
             raise ValueError("Processor returned models outside the imported acquisition.")
-        from curvemole.core.folder_import import merge_acquisition_results
         previous_results = dict(window.project.results)
         merged_results = merge_acquisition_results(previous_results, results, ids)
         next_models = {}
@@ -447,27 +454,15 @@ class FolderImportController:
             for curve in item.curves:
                 next_models[curve.id] = models.get(curve.id, Model(name=f"Model for {curve.name}"))
         incoming = [curve for group in series for curve in group.curves]
-        added_groups = series
-        if processor_id == RUBY_IMPORT_PROCESSOR:
-            destination = next(
-                (group for group in previous_series if group.metadata.get(IMPORT_PROCESSOR_KEY) == processor_id),
-                None,
-            )
-            if destination is None:
-                base = window.tr("Ruby fluorescence")
-                name = base
-                names = {group.name for group in previous_series}
-                suffix = 2
-                while name in names:
-                    name = f"{base} {suffix}"
-                    suffix += 1
-                group = Series(name, incoming, id=series[0].id, metadata={IMPORT_PROCESSOR_KEY: processor_id})
-                added_groups = [group]
-        if destination is not None:
-            added_groups = []
-        if automatic and destination is not None:
-            _colour_imports(incoming, window._palette_for_appending(destination))
-        elif automatic:
+        if automatic:
+            added_groups, appends = plan_import_series(previous_series, series, processor_id, destinations or {})
+            if destination is not None:
+                added_groups, appends = [], [(destination, incoming)]
+        else:
+            added_groups, appends = (series, []) if destination is None else ([], [(destination, incoming)])
+        if automatic:
+            for target, curves in appends:
+                _colour_imports(curves, window._palette_for_appending(target))
             default_name = window.default_series_palette()
             default_palette = window._automatic_palette(default_name)
             offset = len(window.project.curves)
@@ -488,8 +483,8 @@ class FolderImportController:
         def redo():
             # All validation/copying precedes QUndoStack.push: a Python exception
             # from a Qt redo virtual cannot be relied on to abort that push.
-            if destination is not None:
-                destination.curves.extend(incoming)
+            for target, curves in appends:
+                target.curves.extend(curves)
             for group, curves in added_curves:
                 retained = next((item for item in window.project.dataset.series if item.id == group.id), None)
                 if retained is None:

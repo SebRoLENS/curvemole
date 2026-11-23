@@ -923,8 +923,9 @@ contains** filter, the one-based X/Y columns and a **Wait for stable file** dela
 - **Automatic workflow** selects Import only or a loaded plugin's import processor.
   Configure the plugin first; processing runs on the new acquisition in the
   background before it is added to the live project.
-- The **Ruby fluorescence pressure monitor** appends new acquisitions to one
-  **Ruby fluorescence** series per project, including after that series is renamed.
+- An import processor can declare named, reusable series destinations. For example,
+  the updated **Ruby fluorescence pressure monitor** requests one series per
+  project. Later acquisitions use the same series after it is renamed.
 
 Only files directly in the folder are scanned. Symlinks, hidden/temporary files and
 projects are ignored, and automatic inputs are limited to 256 MiB. Identical content
@@ -3483,7 +3484,8 @@ guide for required branch protection settings and the limits of validation.
 Plugins can register `import_processors` for Automatic folder import (Section 6.4).
 A processor receives only the detached new acquisition and its settings, runs in
 a background thread, and returns spectra/models/results to be added as one Undo
-operation. Enabling a plugin does not start acquisition monitoring.
+operation. It can declare a persistent series destination for each series it
+creates in the acquisition. Enabling a plugin does not start monitoring.
 
 Plugin panels join the shared dock/tab workspace and can be reopened without
 losing their current widget state. Supported panel services offer project
@@ -4516,8 +4518,16 @@ extension host; manually invoking a callback does not create a desktop commit.
 An import processor instead receives a fresh acquisition project, owner settings
 and `context.cancellation`; pass that token to fits. It must not access Qt or
 shared GUI objects. The host merges completed acquisition series/models/results;
-acquisition UI state/notebook changes are not merged. Plugin loading does not
-start folder monitoring or execute a workflow automatically.
+acquisition UI state/notebook changes are not merged. In automatic import,
+`context.set_series_destination(series_id, name="Beamline scans", key="scans")`
+declares a destination for a series in that acquisition. Use the same key to
+append subsequent acquisitions and distinct keys for independent destinations.
+The key defaults to `default` and is scoped to the registered processor and project.
+The name is used on creation. CurveMole resolves name collisions, retains user
+renames and commits the placement with the import's Undo/Redo. Source series
+without a declaration are added individually. Several source series can share
+a key if their proposed names agree. Plugin loading does not start folder
+monitoring or execute a workflow automatically.
 
 Solver request fields: `initial`, `bounds` (lower/upper arrays),
 `residual(vector)`, `jacobian(vector)`, copied `settings`, `cancellation`.
@@ -5165,6 +5175,9 @@ Monte Carlo/bootstrap/profile analyses, or graphical interaction. Loading a plug
 extensions; it does not automatically invoke a plugin command, transformation,
 import processor, or workflow. Use the Python API for operations outside this
 contract. A plugin can register a fit solver usable through `fit.settings.solver`.
+Persistent destinations for the desktop's Automatic folder import are declared
+by a Python import processor through `context.set_series_destination(...)`. Use
+the workflow's existing import options for batch imports.
 
 ### W2. Run, validate, and inspect
 

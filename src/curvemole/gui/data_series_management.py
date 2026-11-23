@@ -20,10 +20,10 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.data import Series
 from curvemole.core.errors import ConstraintError, DataValidationError
+from curvemole.core.folder_import import IMPORT_DESTINATION_KEY, IMPORT_PROCESSOR_KEY
 from curvemole.core.models import Model
 from curvemole.core.state import copy_result_maps
 from curvemole.gui.colours import SERIES_PALETTES
-from curvemole.gui.folder_import import IMPORT_PROCESSOR_KEY
 from curvemole.gui.main_window import CurveTree, MainWindow
 from curvemole.gui.windowing import transient_widget
 
@@ -232,6 +232,7 @@ def _duplicate_data(window: MainWindow, curve_ids: list[str], series_ids: list[s
                 name = _copy_name(window, series.name, names)
                 metadata = copy.deepcopy(series.metadata)
                 metadata.pop(IMPORT_PROCESSOR_KEY, None)
+                metadata.pop(IMPORT_DESTINATION_KEY, None)
                 group = Series(name, [curve.duplicate(curve.name, raw=raw) for curve in series.curves], metadata=metadata)
                 copied_series[series.id] = (group, tuple(group.curves))
                 new_curves = group.curves

@@ -272,8 +272,11 @@ def test_curve_duplicate_has_independent_raw_or_processed_data():
 
 @pytest.mark.parametrize("copy_series", [False, True])
 def test_duplicate_selected_data_and_series_are_inserted_next_to_sources(monkeypatch, copy_series):
+    from curvemole.core.folder_import import IMPORT_DESTINATION_KEY, IMPORT_PROCESSOR_KEY
+
     app = QApplication.instance() or QApplication([])
     project, series, other, first, second = _project()
+    series.metadata.update({IMPORT_PROCESSOR_KEY: "org.example:processor", IMPORT_DESTINATION_KEY: "scans"})
     third = Curve("third", [0., 1.], [4., 5.])
     project.add_curve(third, other)
     window = MainWindow(project)
@@ -298,6 +301,8 @@ def test_duplicate_selected_data_and_series_are_inserted_next_to_sources(monkeyp
             copied_series = project.dataset.series[1]
             assert project.dataset.series == [series, copied_series, other]
             assert copied_series.name == "Loaded data (copy)"
+            assert IMPORT_PROCESSOR_KEY not in copied_series.metadata
+            assert IMPORT_DESTINATION_KEY not in copied_series.metadata
             duplicate = copied_series.curves[0]
         else:
             duplicate = series.curves[1]

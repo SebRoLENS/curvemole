@@ -11,12 +11,19 @@ from PySide6.QtWidgets import QApplication
 from curvemole import Curve, Project
 from curvemole.core.data import Series
 from curvemole.core.errors import DataValidationError
-from curvemole.core.folder_import import FolderScan
+from curvemole.core.extensions import Contribution
+from curvemole.core.fitting import CancellationToken
+from curvemole.core.folder_import import (
+    IMPORT_DESTINATION_KEY,
+    IMPORT_PROCESSOR_KEY,
+    FolderScan,
+    ImportSeriesDestination,
+)
 from curvemole.core.importers import ColumnMapping, import_file, inspect_file
 from curvemole.core.spe import read_spe_frame
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.colours import SERIES_PALETTES
-from curvemole.gui.folder_import import RUBY_IMPORT_PROCESSOR
+from curvemole.gui.folder_import import prepare_file
 
 
 def spe_bytes(*, nx=100, frames=1):
@@ -54,18 +61,16 @@ def test_spe_calibration_and_multiframe(tmp_path):
 
 
 def test_automatic_spe_import_keeps_every_frame(tmp_path):
-    from curvemole.core.fitting import CancellationToken
-    from curvemole.gui.folder_import import prepare_file
-
     path = tmp_path / "ruby.0"
     path.write_bytes(spe_bytes(frames=3))
     stat = path.stat()
-    acquisition, _, summary = prepare_file(
+    acquisition, _, summary, destinations = prepare_file(
         path, (stat.st_size, stat.st_mtime_ns), 0, 1, None, {}, CancellationToken(),
     )
     assert len(acquisition.curves) == 3
     assert [curve.y[0] for curve in acquisition.curves] == [0, 100, 200]
     assert "3 spectrum/spectra" in summary
+    assert destinations == {}
 
 
 @pytest.mark.parametrize(
@@ -123,40 +128,101 @@ def wait_until(app, predicate, timeout=5):
     assert predicate()
 
 
-def test_ruby_acquisitions_append_to_one_series_with_undo(tmp_path):
+def test_processor_series_destinations_preserve_identity_and_undo(tmp_path):
     app = QApplication.instance() or QApplication([])
     project = Project()
-    project.add_series(Series("Ruby fluorescence"))
+    project.add_series(Series("Raman scans"))
     window = CurveMoleMainWindow(project)
     window.settings = QSettings(str(tmp_path / "palette.ini"), QSettings.Format.IniFormat)
     controller = window.folder_import
     controller.follow = False
 
-    def acquire(name):
-        acquisition = Project()
-        acquisition.add_series(Series(name, [Curve(name, [690., 691.], [1., 2.])]))
-        controller.commit(acquisition, processor_id=RUBY_IMPORT_PROCESSOR)
+    def organize(context):
+        signal = context.project.dataset.series[0]
+        reference = Series("Reference", [Curve("Blank", [0., 1.], [1., 2.])])
+        second_signal = Series("Other signal", [Curve("Replicate", [0., 1.], [3., 4.])])
+        context.project.add_series(reference)
+        context.project.add_series(second_signal)
+        context.set_series_destination(signal.id, name="Raman scans", key="signal")
+        context.set_series_destination(second_signal.id, name="Raman scans", key="signal")
+        context.set_series_destination(reference.id, name="Raman blanks", key="blank")
+
+    def acquire(name, owner="org.example.raman"):
+        path = tmp_path / name
+        path.write_text("690 1\n691 2\n692 3\n")
+        stat = path.stat()
+        entry = Contribution(owner, owner + ":automatic", "Raman", "import_processors", organize)
+        acquisition, _, _, destinations = prepare_file(
+            path, (stat.st_size, stat.st_mtime_ns), 0, 1, entry, {}, CancellationToken(),
+        )
+        controller.commit(acquisition, processor_id=entry.identifier, destinations=destinations)
 
     try:
         window.apply_series_palette(project.dataset.series[0].id, "Jewel")
-        acquire("ruby.0")
-        ruby_series = project.dataset.series[-1]
-        assert ruby_series.name == "Ruby fluorescence 2"
-        ruby_series.name = "My ruby readings"
-        acquire("ruby.1")
-        assert len(project.dataset.series) == 2
-        assert project.dataset.series[-1] is ruby_series
-        assert [curve.name for curve in ruby_series.curves] == ["ruby.0", "ruby.1"]
-        assert ruby_series.metadata["palette"] == "Jewel"
-        assert [curve.colour for curve in ruby_series.curves] == list(SERIES_PALETTES["Jewel"][:2])
+        acquire("first.txt")
+        signal, blanks = project.dataset.series[1:]
+        assert (signal.name, blanks.name) == ("Raman scans 2", "Raman blanks")
+        assert [curve.name for curve in signal.curves] == ["first.txt", "Replicate"]
+        assert signal.metadata["palette"] == "Jewel"
+        assert [curve.colour for curve in signal.curves] == list(SERIES_PALETTES["Jewel"][:2])
+        signal.name = "Renamed scans"
+        acquire("second.txt")
+        assert project.dataset.series[1] is signal
+        assert signal.name == "Renamed scans"
+        assert len(project.dataset.series) == 3
+        assert [curve.name for curve in signal.curves] == ["first.txt", "Replicate", "second.txt", "Replicate"]
+        assert len(blanks.curves) == 2
         window.undo_stack.undo()
-        assert [curve.name for curve in ruby_series.curves] == ["ruby.0"]
+        assert [curve.name for curve in signal.curves] == ["first.txt", "Replicate"]
+        assert len(blanks.curves) == 1
         window.undo_stack.redo()
-        assert [curve.name for curve in ruby_series.curves] == ["ruby.0", "ruby.1"]
+        assert [curve.name for curve in signal.curves] == ["first.txt", "Replicate", "second.txt", "Replicate"]
+        assert len(blanks.curves) == 2
+        acquire("third.txt", "org.example.other")
+        assert len(project.dataset.series) == 5
+        assert len(signal.curves) == 4 and len(blanks.curves) == 2
     finally:
         project.dirty = False
         window.close()
         app.processEvents()
+
+
+def test_existing_processor_only_metadata_is_the_default_destination(tmp_path):
+    from curvemole.core.folder_import import plan_import_series
+    from curvemole.core.serialization import load_project, save_project
+
+    processor = "org.example.scans:auto"
+    project = Project()
+    project.add_series(Series("Renamed legacy series", metadata={IMPORT_PROCESSOR_KEY: processor}))
+    reopened = load_project(save_project(project, tmp_path / "legacy.fitproj"))
+    existing = reopened.dataset.series[0]
+    imported = Series("Source", [Curve("Scan", [0., 1.], [1., 2.])])
+    new, appends = plan_import_series(
+        [existing], [imported], processor, {imported.id: ImportSeriesDestination("default", "Proposed")},
+    )
+    assert new == [] and appends[0][0] is existing
+    assert existing.name == "Renamed legacy series"
+    assert len(appends[0][1]) == 1
+    assert IMPORT_DESTINATION_KEY not in existing.metadata
+
+
+def test_invalid_routes_and_unsolicited_project_metadata_are_not_used():
+    from curvemole.core.folder_import import plan_import_series
+
+    group = Series("Detached", metadata={IMPORT_PROCESSOR_KEY: "other", IMPORT_DESTINATION_KEY: "default"})
+    another = Series("Another")
+    with pytest.raises(DataValidationError, match="outside"):
+        plan_import_series([], [group], "test", {"missing": ImportSeriesDestination("default", "Test")})
+    with pytest.raises(DataValidationError, match="non-empty key"):
+        ImportSeriesDestination(" ", "Test")
+    with pytest.raises(DataValidationError, match="conflicting series names"):
+        plan_import_series([], [group, another], "test", {
+            group.id: ImportSeriesDestination("shared", "One"),
+            another.id: ImportSeriesDestination("shared", "Two"),
+        })
+    new, appends = plan_import_series([], [group], "test", {})
+    assert new == [group] and not appends
+    assert not group.metadata
 
 
 def test_automatic_mode_off_by_default_imports_once_and_undo(tmp_path):
@@ -210,7 +276,7 @@ def test_completed_job_is_discarded_after_stop(tmp_path):
     controller.start(tmp_path)
     controller.future = Future()
     controller.pending = tmp_path / "ruby.txt", (1, 1), controller.generation, None
-    controller.future.set_result((Project(), "digest", "unused"))
+    controller.future.set_result((Project(), "digest", "unused", {}))
     controller.stop()
     controller.tick()
     assert not window.project.curves and controller.future is None

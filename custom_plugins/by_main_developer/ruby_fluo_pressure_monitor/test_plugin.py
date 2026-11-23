@@ -157,6 +157,22 @@ def test_folder_to_plugin_to_main_plot(tmp_path):
         assert "last_fit" not in window.project.results
         window.undo_stack.redo()
         assert len(window.project.curves) == 1
+        series = window.project.dataset.series[0]
+        assert series.name == "Ruby fluorescence"
+        series.name = "Pressure run"
+        np.savetxt(tmp_path / "ruby.1", np.column_stack([curve.x, curve.y]))
+        deadline = time.monotonic() + 10
+        while len(window.project.curves) < 2 and time.monotonic() < deadline:
+            app.processEvents()
+            time.sleep(0.01)
+        assert len(window.project.dataset.series) == 1
+        assert window.project.dataset.series[0] is series
+        assert series.name == "Pressure run"
+        assert [spectrum.name for spectrum in series.curves] == ["ruby.0", "ruby.1"]
+        window.undo_stack.undo()
+        assert [spectrum.id for spectrum in series.curves] == [imported.id]
+        window.undo_stack.redo()
+        assert len(series.curves) == 2
     finally:
         controller.stop()
         window.project.dirty = False
