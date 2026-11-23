@@ -38,6 +38,9 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Remember the last spectrum palette and offer more colours. ([`5a4f7ebe`](https://github.com/SebRoLENS/curvemole/commit/5a4f7ebeeef95cb28d0482b179c13f4bdb1ffffa))
 - Keep rapid spectrum clicks in selection mode during multiselection. ([`51bc5763`](https://github.com/SebRoLENS/curvemole/commit/51bc57635306be3382918a14f8dd4e44dbbe8671))
 - Stage bundle exports and verify the beta audit regressions. ([`ea951338`](https://github.com/SebRoLENS/curvemole/commit/ea951338767a507aa1afa352ed50b715dfd27f29))
+- Let import processors declare their own series destinations. ([`ff5d1bc0`](https://github.com/SebRoLENS/curvemole/commit/ff5d1bc093bb582b8cbe994932f15b60cbbb6e91))
+- Move selected rows together and merge all selected series. ([`ce3142dc`](https://github.com/SebRoLENS/curvemole/commit/ce3142dca58b9618e912b6f84e11a6e7e40a81da))
+- Start the CurveMole 1.4.0 beta cycle. ([`8a228612`](https://github.com/SebRoLENS/curvemole/commit/8a228612a00411ef6ea674d10ddf6dc3de75ea33))
 
 ### Fixed
 

@@ -2,6 +2,16 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.4.0-beta.163](https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.0-beta.163) — published 2026-11-23
+
+Changes since `v1.3.3-beta.162` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.162...v1.4.0-beta.163)).
+
+### Changed
+
+- Let import processors declare their own series destinations. ([`ff5d1bc0`](https://github.com/SebRoLENS/curvemole/commit/ff5d1bc093bb582b8cbe994932f15b60cbbb6e91))
+- Move selected rows together and merge all selected series. ([`ce3142dc`](https://github.com/SebRoLENS/curvemole/commit/ce3142dca58b9618e912b6f84e11a6e7e40a81da))
+- Start the CurveMole 1.4.0 beta cycle. ([`8a228612`](https://github.com/SebRoLENS/curvemole/commit/8a228612a00411ef6ea674d10ddf6dc3de75ea33))
+
 ## [1.3.3-beta.162](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.162) — published 2026-11-23
 
 Changes since `v1.3.3-beta.161` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.161...v1.3.3-beta.162)).
