@@ -35,12 +35,17 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Copy raw or processed spectra with independent data and identities. ([`1a10d6d3`](https://github.com/SebRoLENS/curvemole/commit/1a10d6d3459282c9d7bcbd0f2d901868ab9ff315))
 - Move and duplicate selected data and delete multiple series from the project tree. ([`1c1115dd`](https://github.com/SebRoLENS/curvemole/commit/1c1115dd81a7cdce3f95fd472187875dcd2b2734))
 - Release the simulated Ctrl key after testing multi-series selection. ([`98273d7e`](https://github.com/SebRoLENS/curvemole/commit/98273d7e7743df22d5e3f587aab1da0d0eca1bdb))
+- Remember the last spectrum palette and offer more colours. ([`5a4f7ebe`](https://github.com/SebRoLENS/curvemole/commit/5a4f7ebeeef95cb28d0482b179c13f4bdb1ffffa))
+- Keep rapid spectrum clicks in selection mode during multiselection. ([`51bc5763`](https://github.com/SebRoLENS/curvemole/commit/51bc57635306be3382918a14f8dd4e44dbbe8671))
+- Stage bundle exports and verify the beta audit regressions. ([`ea951338`](https://github.com/SebRoLENS/curvemole/commit/ea951338767a507aa1afa352ed50b715dfd27f29))
 
 ### Fixed
 
 - Fix mask prompt for a single displayed spectrum; default comparison scope to Selected. ([`5b863bd8`](https://github.com/SebRoLENS/curvemole/commit/5b863bd8a45dffb2eb91899ed0754b3aa8095409))
 - Avoid blocking native Qt menu in palette tests. ([`554cecea`](https://github.com/SebRoLENS/curvemole/commit/554cecea2696a0ade9e5c86cedd7c02f3002f353))
 - Fix invisible spectrum colour squares using native Qt decorations. ([`2fe97e50`](https://github.com/SebRoLENS/curvemole/commit/2fe97e50e3993d1e71ec996b28a0498274c1eda3))
+- Correct fit diagnostics, error propagation and uncertainty inference. ([`9f12949a`](https://github.com/SebRoLENS/curvemole/commit/9f12949a9b44fb483b11fa9d5db77e43dfaba7e7))
+- Preserve imported spectra on Undo and retain every Ruby fit and SPE frame. ([`c32ef8fa`](https://github.com/SebRoLENS/curvemole/commit/c32ef8fa3a1735d70567092d59a56bd203de2523))
 
 ### Documentation
 

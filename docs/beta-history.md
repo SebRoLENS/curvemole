@@ -2,6 +2,21 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.3.3-beta.162](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.162) — published 2026-11-23
+
+Changes since `v1.3.3-beta.161` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.161...v1.3.3-beta.162)).
+
+### Changed
+
+- Remember the last spectrum palette and offer more colours. ([`5a4f7ebe`](https://github.com/SebRoLENS/curvemole/commit/5a4f7ebeeef95cb28d0482b179c13f4bdb1ffffa))
+- Keep rapid spectrum clicks in selection mode during multiselection. ([`51bc5763`](https://github.com/SebRoLENS/curvemole/commit/51bc57635306be3382918a14f8dd4e44dbbe8671))
+- Stage bundle exports and verify the beta audit regressions. ([`ea951338`](https://github.com/SebRoLENS/curvemole/commit/ea951338767a507aa1afa352ed50b715dfd27f29))
+
+### Fixed
+
+- Correct fit diagnostics, error propagation and uncertainty inference. ([`9f12949a`](https://github.com/SebRoLENS/curvemole/commit/9f12949a9b44fb483b11fa9d5db77e43dfaba7e7))
+- Preserve imported spectra on Undo and retain every Ruby fit and SPE frame. ([`c32ef8fa`](https://github.com/SebRoLENS/curvemole/commit/c32ef8fa3a1735d70567092d59a56bd203de2523))
+
 ## [1.3.3-beta.161](https://github.com/SebRoLENS/curvemole/releases/tag/v1.3.3-beta.161) — published 2026-11-20
 
 Changes since `v1.3.3-beta.159` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.159...v1.3.3-beta.161)).
