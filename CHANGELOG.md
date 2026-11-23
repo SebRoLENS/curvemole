@@ -41,6 +41,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Let import processors declare their own series destinations. ([`ff5d1bc0`](https://github.com/SebRoLENS/curvemole/commit/ff5d1bc093bb582b8cbe994932f15b60cbbb6e91))
 - Move selected rows together and merge all selected series. ([`ce3142dc`](https://github.com/SebRoLENS/curvemole/commit/ce3142dca58b9618e912b6f84e11a6e7e40a81da))
 - Start the CurveMole 1.4.0 beta cycle. ([`8a228612`](https://github.com/SebRoLENS/curvemole/commit/8a228612a00411ef6ea674d10ddf6dc3de75ea33))
+- Set Ruby fluorescence plugin version to 1.0.0. ([`0f3dac2c`](https://github.com/SebRoLENS/curvemole/commit/0f3dac2c27623eca0a2959c35a4a2d51f09d9460))
+- Set Cosmic Ray Removal plugin version to 1.0.0. ([`b9c65b0c`](https://github.com/SebRoLENS/curvemole/commit/b9c65b0c57c1ac01bb343e67971b0882b567d907))
+- Credit MAtti0201 for the community TSV exporter. ([`6f5c56f8`](https://github.com/SebRoLENS/curvemole/commit/6f5c56f8602fc3ec111b52978e7dcce6adfefd82))
+- Check plugin contributor identity and trust official developer downloads. ([`b5497bfb`](https://github.com/SebRoLENS/curvemole/commit/b5497bfbacf2fa7ce96380cc728a93c0a017375d))
 
 ### Fixed
 
@@ -49,6 +53,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Fix invisible spectrum colour squares using native Qt decorations. ([`2fe97e50`](https://github.com/SebRoLENS/curvemole/commit/2fe97e50e3993d1e71ec996b28a0498274c1eda3))
 - Correct fit diagnostics, error propagation and uncertainty inference. ([`9f12949a`](https://github.com/SebRoLENS/curvemole/commit/9f12949a9b44fb483b11fa9d5db77e43dfaba7e7))
 - Preserve imported spectra on Undo and retain every Ruby fit and SPE frame. ([`c32ef8fa`](https://github.com/SebRoLENS/curvemole/commit/c32ef8fa3a1735d70567092d59a56bd203de2523))
+- Preserve queued testing builds across successive pushes. ([`1bd63b7f`](https://github.com/SebRoLENS/curvemole/commit/1bd63b7f62b7ce2acef99fde5e5e340605920755))
 
 ### Documentation
 
