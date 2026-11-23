@@ -161,6 +161,62 @@ def repository(tmp_path, monkeypatch):
     return checkout
 
 
+@pytest.mark.parametrize(("category", "author", "submitter_id", "expected_error"), [
+    ("by_main_developer", "community-user", 2, "Only the repository owner"),
+    ("by_main_developer", "CurveMole contributors", 1, None),
+    ("by_community", "other-user", 2, "GitHub username"),
+    ("by_community", "@Community-User", 2, None),
+    ("by_community", "credited-contributor", 1, None),
+])
+def test_new_plugin_origin_uses_the_pull_request_author(
+    repository, category, author, submitter_id, expected_error,
+):
+    base = git(repository, "rev-parse", "HEAD")
+    manifest = repository / "custom_plugins" / category / "sample" / "sample.curvemole-plugin.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text(json.dumps({"identifier": "test.plugin", "author": author}))
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "Submit sample plugin")
+    head = git(repository, "rev-parse", "HEAD")
+    paths = [manifest.relative_to(repository).as_posix()]
+    event = {
+        "pull_request": {"user": {"id": submitter_id, "login": "community-user"}},
+        "repository": {"owner": {"id": 1}},
+        "sender": {"id": 1},
+    }
+    if expected_error:
+        with pytest.raises(SystemExit, match=expected_error):
+            policy.check_plugin_submission(paths, event, base, head)
+    else:
+        policy.check_plugin_submission(paths, event, base, head)
+
+
+@pytest.mark.parametrize("updated_author", ["original-contributor", "community-user"])
+def test_existing_plugin_credit_survives_contributions_and_path_renames(repository, updated_author):
+    old = repository / "custom_plugins/by_community/sample/sample.curvemole-plugin.json"
+    old.parent.mkdir(parents=True)
+    old.write_text(json.dumps({"identifier": "test.plugin", "author": "original-contributor"}))
+    git(repository, "add", ".")
+    git(repository, "commit", "-m", "Existing plugin")
+    base = git(repository, "rev-parse", "HEAD")
+    new_folder = old.parent.rename(old.parent.with_name("renamed"))
+    new = new_folder / old.name
+    new.write_text(json.dumps({"identifier": "test.plugin", "author": updated_author}))
+    git(repository, "add", "-A")
+    git(repository, "commit", "-m", "Update plugin")
+    head = git(repository, "rev-parse", "HEAD")
+    paths = [path.relative_to(repository).as_posix() for path in (old, new)]
+    event = {
+        "pull_request": {"user": {"id": 2, "login": "community-user"}},
+        "repository": {"owner": {"id": 1}},
+    }
+    if updated_author == "original-contributor":
+        policy.check_plugin_submission(paths, event, base, head)
+    else:
+        with pytest.raises(SystemExit, match="preserve the existing plugin author"):
+            policy.check_plugin_submission(paths, event, base, head)
+
+
 def archive_changes(checkout):
     path = checkout / "src/curvemole/version.py"
     path.write_text('__version__ = "0.35.5"\n')

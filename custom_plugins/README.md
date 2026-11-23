@@ -61,14 +61,18 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
    Upload your complete plugin folder inside `by_community`, for example `my_exporter`, containing the
    files listed below. Do not scatter its files directly inside `custom_plugins`.
 3. Commit the uploaded files in your fork. Then choose **Contribute > Open pull
-   request**, targeting `SebRoLENS/curvemole`, branch `main`. Describe what the plugin
+   request**, targeting `SebRoLENS/curvemole`, branch `testing`. Describe what the plugin
    does and how you tested it.
 4. The pull request's **Checks** tab shows the automatic validation results.
    Fix any failures in your fork; pushing the correction updates the same PR.
    A maintainer reviews and merges the contribution.
-5. After the merged code passes the main workflow, the plugin is included in the
-   **validated-community-plugins** download. Opening a PR or uploading to a fork
-   alone does not make it part of that catalog.
+5. The stable release workflow includes the validated plugin in the
+   **validated-community-plugins** download.
+
+GitHub checks the identity of the account that opened the pull request. New
+community plugins use that account's username in the manifest's `author` field.
+Updates preserve existing attribution. The repository owner can change
+`by_main_developer/` and can credit contributions submitted on someone else's behalf.
 
 ### What your plugin folder must contain
 
@@ -90,7 +94,8 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 | Manifest field | Requirement |
 | --- | --- |
 | `identifier` | Unique stable identifier, e.g. `org.yourlab.tsv-exporter` |
-| `name`, `description`, `author` | Nonempty human-readable strings |
+| `name`, `description` | Nonempty human-readable strings |
+| `author` | GitHub username for a new community submission |
 | `version` | `major.minor.patch`; increment when changing the plugin |
 | `api_compatibility` | String `"1"` |
 | `licence` | Licence identifier; include its text in `LICENSE` |
@@ -108,14 +113,16 @@ The generated catalog records a SHA-256 fingerprint of every submitted plugin fo
 
 ## Repository settings for maintainers
 
-In GitHub **Settings > Rules > Rulesets**, protect `main`, require a pull request,
-review approval, an up-to-date branch, and these required status checks:
+In GitHub **Settings > Rules > Rulesets**, protect the target branches, require
+review approval, an up-to-date contribution branch, and these status checks for
+plugin submissions:
 
 - `Validate plugins / ubuntu-22.04`
 - `Validate plugins / windows-2022`
-- `Validate plugins / macos-14`
+- `Validate plugins / macos-15`
 
-Also retain the normal CI checks. Require owner review for the workflow, validator,
+Also retain the CI plan check, which checks the submission's origin.
+Require owner review for the workflow, validator,
 and community submissions. Workflow files alone cannot make checks mandatory or
 prevent an administrator from merging directly. The catalog job remains gated by
 all three platform jobs, independently of branch protection.

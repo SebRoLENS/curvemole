@@ -446,22 +446,24 @@ class PluginUpdateController(QObject):
             if self.catalog_table.item(row, 0).data(Qt.ItemDataRole.UserRole)
             and self.catalog_table.item(row, 0).checkState() == Qt.CheckState.Checked
         }
-        self.catalog_queue = [
+        plugins = [
             plugin for plugin in self.catalog_entries if plugin.identifier in selected
         ]
-        if not self.catalog_queue:
+        if not plugins:
             self.catalog_status.setText("Select at least one available plugin.")
             return
-        answer = QMessageBox.warning(
-            self.catalog_dialog,
-            "Install Python plugins",
-            "The selected plugins are validated, but loading them "
-            "still executes Python code with your user permissions. Download and load them now?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
-            QMessageBox.StandardButton.Cancel,
-        )
-        if answer != QMessageBox.StandardButton.Yes:
-            return
+        if any(plugin.category != "by_main_developer" for plugin in plugins):
+            answer = QMessageBox.warning(
+                self.catalog_dialog,
+                "Install community plugins",
+                "Loading the selected community plugins executes Python code with your user "
+                "permissions. Download and load the selection now?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        self.catalog_queue = plugins
         self.catalog_destination = folder
         self.settings.setValue("community_plugins/folder", str(folder))
         self.catalog_errors = []

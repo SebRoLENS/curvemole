@@ -490,8 +490,9 @@ def test_controller_requests_user_storage_when_source_is_not_writable(
         assert not list(selected.iterdir())
 
 
+@pytest.mark.parametrize("category", ["by_community", "by_main_developer"])
 def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
-    controller_case, tmp_path, monkeypatch
+    controller_case, tmp_path, monkeypatch, category
 ):
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QMessageBox
@@ -501,16 +502,23 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     controller.plugins.remove(update.identifier)
     destination = tmp_path / "community"
     destination.mkdir()
+    catalog["plugins"][0]["category"] = category
+    warnings = []
+
+    def confirm(*args):
+        warnings.append(args)
+        return QMessageBox.StandardButton.Yes
+
     monkeypatch.setattr(
-        QMessageBox, "warning", lambda *args, **kwargs: QMessageBox.StandardButton.Yes
+        QMessageBox, "warning", confirm
     )
     controller.browse()
     controller.catalog_folder.setText(str(destination))
     requests[-1][1](json.dumps(catalog).encode(), "")
     assert controller.catalog_table.rowCount() == 2
-    assert controller.catalog_table.item(0, 0).text() == "by community"
-    assert controller.catalog_table.item(1, 2).text() == "by community"
-    assert controller.catalog_table.item(1, 3).text() == "Test author"
+    assert controller.catalog_table.item(0, 0).text() == category.replace("_", " ")
+    assert controller.catalog_table.item(1, 2).text() == category.replace("_", " ")
+    assert controller.catalog_table.item(1, 3).text() == ("Test author" if category == "by_community" else "")
     controller.catalog_table.item(1, 0).setCheckState(Qt.CheckState.Checked)
     controller.install_catalog_selected()
     assert requests[-1][0].endswith("/test_plugin.zip")
@@ -522,10 +530,43 @@ def test_browse_catalog_installs_selected_plugin_in_chosen_folder(
     controller.catalog_folder.setText(str(controller.plugins.storage))
     requests[-1][1](archive, "")
     assert update.identifier in controller.plugins.loaded
-    assert (destination / "by_community" / "test_plugin" / "plugin.py").is_file()
+    assert (destination / category / "test_plugin" / "plugin.py").is_file()
     assert "installed and loaded" in controller.catalog_status.text().lower()
     assert controller.catalog_folder.isEnabled()
     assert controller.catalog_destination is None
+    assert len(warnings) == int(category == "by_community")
+
+
+def test_mixed_catalog_selection_requires_approval_before_installing_any_plugin(
+    controller_case, tmp_path, monkeypatch,
+):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QMessageBox
+
+    _, controller, requests, catalog, update, _ = controller_case
+    controller.plugins.remove(update.identifier)
+    catalog["plugins"].append(dict(catalog["plugins"][0], identifier="developer.plugin",
+                                   category="by_main_developer"))
+    warnings = []
+
+    def cancel(*args):
+        warnings.append(args)
+        return QMessageBox.StandardButton.Cancel
+
+    monkeypatch.setattr(QMessageBox, "warning", cancel)
+    destination = tmp_path / "plugins"
+    destination.mkdir()
+    controller.browse()
+    controller.catalog_folder.setText(str(destination))
+    requests[-1][1](json.dumps(catalog).encode(), "")
+    for row in (1, 3):
+        controller.catalog_table.item(row, 0).setCheckState(Qt.CheckState.Checked)
+    before = len(requests)
+    controller.install_catalog_selected()
+
+    assert len(warnings) == 1
+    assert len(requests) == before
+    assert controller.catalog_queue == []
 
 
 @pytest.mark.parametrize("open_manager", [True, False])

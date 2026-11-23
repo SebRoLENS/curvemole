@@ -60,7 +60,9 @@ downloads. The catalog starts with the folder currently selected in Plugin Manag
 Plugins are retained below that folder as `<category>/<plugin>/`; an empty path or
 CurveMole's internal storage cannot be used. The confirmed destination applies to
 the whole download batch. Archives are size-limited, path-checked and verified against the catalog
-SHA-256 before loading. Already installed plugins are shown but cannot be installed
+SHA-256 before loading. Installing only main-developer plugins from the official
+catalog proceeds on **Install selected**. A selection containing a community
+plugin asks for permission to execute its Python code. Already installed plugins are shown but cannot be installed
 twice; update them through **Plugin updates…**.
 
 To install a private or locally developed plugin instead:
@@ -306,7 +308,7 @@ rather than monkey-patching CurveMole internals.
 ## Contributing a community plugin
 
 **Where to send it:** create `custom_plugins/by_community/your_plugin/` in your GitHub fork,
-then open a pull request to `SebRoLENS/curvemole:main`. For browser upload steps,
+then open a pull request to `SebRoLENS/curvemole:testing`. For browser upload steps,
 see [Submit a plugin](../custom_plugins/README.md#submit-a-plugin).
 Inside CurveMole, **File > Plugin manager > Share my plugin on GitHub...** opens
 these instructions. **Choose plugin folder...** installs locally and never uploads
@@ -314,7 +316,8 @@ anything to the public repository.
 
 Follow [custom_plugins/README.md](../custom_plugins/README.md). A submission needs
 its own folder, clear manifest, README, licence and functional pytest tests.
-The TSV exporter there is a complete minimal example. Run
+The manifest's `author` must match the GitHub username opening a new community
+plugin pull request. The TSV exporter is a complete minimal example. Run
 `python scripts/validate_community_plugins.py` before opening a PR.
 GitHub runs validation on Linux, Windows and macOS. A successful main run publishes
 a downloadable validated catalog bundle; failed checks cannot publish it.

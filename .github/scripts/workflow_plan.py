@@ -50,17 +50,59 @@ def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bo
     }
 
 
+def community_plugin_authors(revision: str) -> dict[str, str]:
+    filenames = subprocess.check_output(
+        ["git", "ls-tree", "-r", "--name-only", "-z", revision, "--", "custom_plugins/by_community/"],
+        text=True,
+    ).split("\0")
+    authors = {}
+    for filename in filenames:
+        if len(filename.split("/")) == 4 and filename.endswith(".curvemole-plugin.json"):
+            manifest = json.loads(subprocess.check_output(["git", "show", f"{revision}:{filename}"], text=True))
+            authors[manifest["identifier"]] = manifest["author"]
+    return authors
+
+
+def check_plugin_submission(paths: list[str], event: dict, before: str, after: str) -> None:
+    if not touches(paths, ("custom_plugins/",)):
+        return
+    submitter = event["pull_request"]["user"]
+    if submitter["id"] == event["repository"]["owner"]["id"]:
+        return
+
+    if touches(paths, ("custom_plugins/by_main_developer/",)):
+        raise SystemExit(
+            "Only the repository owner can change plugins in custom_plugins/by_main_developer/. "
+            "Submit community plugins under custom_plugins/by_community/<plugin_name>/."
+        )
+
+    if not any(path.startswith("custom_plugins/by_community/") and path.endswith(".curvemole-plugin.json")
+               for path in paths):
+        return
+
+    existing = community_plugin_authors(before)
+    login = submitter["login"]
+    for identifier, author in community_plugin_authors(after).items():
+        if identifier in existing:
+            if author != existing[identifier]:
+                raise SystemExit(f"{identifier}: preserve the existing plugin author ({existing[identifier]}).")
+        elif not isinstance(author, str) or author.strip().removeprefix("@").casefold() != login.casefold():
+            raise SystemExit(f"{identifier}: set the manifest author to your GitHub username ({login}).")
+
+
 def main() -> None:
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     name = os.environ["GITHUB_EVENT_NAME"]
     before = event.get("before") if name == "push" else event["pull_request"]["base"]["sha"]
     after = os.environ["GITHUB_SHA"]
     if not before or set(before) == {"0"}:
-        command = ["git", "ls-files"]
+        command = ["git", "ls-files", "-z"]
     else:
         subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", before], check=True)
-        command = ["git", "diff", "--name-only", before, after]
-    paths = subprocess.check_output(command, text=True).splitlines()
+        command = ["git", "diff", "--name-only", "--no-renames", "-z", before, after]
+    paths = [path for path in subprocess.check_output(command, text=True).split("\0") if path]
+    if name == "pull_request":
+        check_plugin_submission(paths, event, before, after)
     result = plan(paths, name, (event.get("head_commit") or {}).get("message", ""),
                   os.environ["GITHUB_ACTOR"])
     with Path(os.environ["GITHUB_OUTPUT"]).open("a") as output:
