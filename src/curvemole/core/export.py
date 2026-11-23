@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import copy
 import csv
 import json
 import math
 import os
 import re
+import shutil
 import tempfile
 from collections.abc import Iterable, Mapping
+from contextlib import suppress
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -121,6 +124,10 @@ class ExportSummary:
     updated: list[Path] = field(default_factory=list)
     unchanged: list[Path] = field(default_factory=list)
     preserved_external: list[Path] = field(default_factory=list)
+
+
+class _BundleRollbackError(CurveMoleError):
+    """Keep staged backups available if a filesystem refuses rollback."""
 
 
 def wide_dataframe(
@@ -745,8 +752,6 @@ def export_bundle(
     selection: BundleExportSelection | None = None,
     current_view: Any | None = None,
 ) -> ExportSummary:
-    import pandas as pd
-
     selection = selection or BundleExportSelection()
     if result is None and isinstance(project.results.get("last_fit"), FitResult):
         result = project.results["last_fit"]
@@ -821,9 +826,96 @@ def export_bundle(
         if any(destination.is_symlink() for destination in destinations):
             raise FileExistsError(f"Export refuses symbolic-link destinations: {output}")
 
-    root.mkdir(parents=True, exist_ok=True)
-    summary = ExportSummary(root)
+    root.parent.mkdir(parents=True, exist_ok=True)
     before = {relative: _sha256(root / relative) for relative in collisions}
+    summary = ExportSummary(root)
+    staging = Path(tempfile.mkdtemp(prefix=".curvemole-bundle-", dir=root.parent))
+    preserve_staging = False
+    try:
+        stage = staging / "files"
+        stage.mkdir()
+        written, config = _write_bundle_files(
+            project, stage, root, result, selection, delimiter, current_view, registry,
+            planned, previous_owned, include_uncertainty_samples,
+        )
+        updated = {relative for relative in written
+                   if relative not in before or before[relative] != _sha256(stage / relative)}
+        _publish_bundle(stage, root, written, before, updated)
+        project.export_config.update(config)
+    except _BundleRollbackError:
+        preserve_staging = True
+        raise
+    finally:
+        if not preserve_staging:
+            shutil.rmtree(staging, ignore_errors=True)
+    for relative in written:
+        target = root / relative
+        if relative not in before:
+            summary.created.append(target)
+        elif relative in updated:
+            summary.updated.append(target)
+        else:
+            summary.unchanged.append(target)
+    return summary
+
+
+def _publish_bundle(stage, root, written, before, updated):
+    """Publish only after staging succeeds, backing up in-place updates for rollback."""
+    backup = stage.parent / "previous"
+    for relative in written:
+        target = root / relative
+        parents = [root.joinpath(*Path(relative).parts[:depth]) for depth in range(len(Path(relative).parts) + 1)]
+        if any(path.is_symlink() for path in parents):
+            raise FileExistsError(f"Export destination changed: {target}")
+        if relative in before:
+            if not target.is_file() or _sha256(target) != before[relative]:
+                raise FileExistsError(f"Export destination changed: {target}")
+            if relative in updated:
+                saved = backup / relative
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(target, saved)
+        elif target.exists():
+            raise FileExistsError(f"Export destination changed: {target}")
+    committed = []
+    created_directories = []
+    try:
+        for relative in sorted(updated, key=lambda path: (path in {"manifest.json", "README.txt"}, path)):
+            target = root / relative
+            parent = target.parent
+            missing = []
+            while not parent.exists():
+                missing.append(parent)
+                parent = parent.parent
+            for directory in reversed(missing):
+                directory.mkdir()
+                created_directories.append(directory)
+            os.replace(stage / relative, target)
+            committed.append(relative)
+    except OSError as exc:
+        unrecovered = []
+        for relative in reversed(committed):
+            try:
+                if relative in before:
+                    os.replace(backup / relative, root / relative)
+                else:
+                    (root / relative).unlink(missing_ok=True)
+            except OSError:
+                unrecovered.append(relative)
+        for directory in reversed(created_directories):
+            with suppress(OSError):  # A concurrent writer may have populated the directory.
+                directory.rmdir()
+        if unrecovered:
+            raise _BundleRollbackError(
+                f"The export failed and some files could not be restored. Backups: {backup}. "
+                f"Affected files: {', '.join(unrecovered)}."
+            ) from exc
+        raise
+
+
+def _write_bundle_files(project, root, destination, result, selection, delimiter, current_view, registry,
+                        planned, previous_owned, include_uncertainty_samples):
+    import pandas as pd
+
     base = _safe_name(project.name) or "curvemole"
     stems = _curve_export_stems(project)
     parameter_values = project.resolved_parameter_values()
@@ -832,7 +924,7 @@ def export_bundle(
         from curvemole.core.spectrum_export import export_spectra
 
         export_spectra(project, root / "spectra", [curve.id for curve in project.curves],
-                       registry=registry, overwrite=overwrite)
+                       registry=registry, overwrite=False)
 
     parameter_path = root / "function_parameters.csv"
     if selection.function_parameters:
@@ -955,7 +1047,15 @@ def export_bundle(
 
     if selection.diagnostics and result:
         for curve_id, output in result.curve_outputs.items():
-            diagnostics = residual_diagnostics(output.residual)
+            curve = next((item for item in project.curves if item.id == curve_id), None)
+            indices = output.indices
+            if curve is not None and curve.state == CurveState.FITTED and indices.max(initial=-1) < len(curve):
+                indices = curve.row_indices[indices]
+            standardized = bool(output.statistics.get("standardized_residuals"))
+            diagnostics = residual_diagnostics(
+                output.weighted_residual if standardized else output.residual,
+                indices=indices, x=output.x,
+            )
             diagnostics_path = root / "diagnostics" / f"{curve_id}_autocorrelation.csv"
             diagnostics_path.parent.mkdir(parents=True, exist_ok=True)
             pd.DataFrame(
@@ -990,25 +1090,15 @@ def export_bundle(
     written = sorted(relative for relative in planned if (root / relative).is_file()
                      or selection.project_copy and relative == f"{base}.fitproj")
     owned = sorted(previous_owned | set(written))
-    project.export_config["directory"] = str(root)
-    project.export_config["owned_files"] = owned
-    project.export_config["selection"] = selection.to_dict()
+    config = {**project.export_config, "directory": str(destination), "owned_files": owned,
+              "selection": selection.to_dict()}
     if selection.project_copy:
-        # The reopenable copy must know the ownership of this very bundle, not
-        # the prior export, so updating it after reopening remains safe.
-        save_project(project, root / f"{base}.fitproj",
+        export_project = copy.copy(project)
+        export_project.export_config = config
+        save_project(export_project, root / f"{base}.fitproj",
                      include_uncertainty_samples=include_uncertainty_samples,
                      update_project_path=False)
-    for relative in written:
-        output_path = root / relative
-        if relative in before:
-            (summary.unchanged if before[relative] == _sha256(output_path) else summary.updated).append(
-                output_path
-            )
-        else:
-            summary.created.append(output_path)
-
-    return summary
+    return written, config
 
 
 def _bundle_paths(

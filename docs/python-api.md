@@ -735,7 +735,7 @@ normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 | `seed` | `1729` | Integer 0-4294967295 |
 | `workers` | `1` | Positive process count |
 | `confidence_level` | `0.95` | Strictly between 0 and 1 |
-| `absolute_sigma` | `None` | Automatic covariance error scaling; `True`/`False` overrides |
+| `absolute_sigma` | `None` | Imported Y errors and inverse variance are absolute by default; `False` estimates a common scale and `True` declares a known scale |
 | `use_data_errors` | `True` | Apply imported errors/weights; False retains invalid-error rows if X/Y finite |
 | `de_maxiter`, `de_popsize` | `400`, `15` | Positive generations/population multiplier |
 | `de_lower_percent`, `de_upper_percent` | `50.0`, `50.0` | Positive automatic finite search-bound percentages |

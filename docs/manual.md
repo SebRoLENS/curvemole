@@ -1117,10 +1117,12 @@ column leaves the graph unchanged and makes the new values available to later
 formulas. Normal calculator operations on X/Y are also reflected in their mapped
 columns. Calculations are local to each spectrum, even when spectra originated in
 the same file. In a multi-spectrum batch `cN` always means position N in each file;
-check that the files have compatible layouts. Formulas updating X or Y propagate
-supplied uncertainty using the local derivative with respect to that target axis;
-inverse-variance Y weights follow the same rule. This does not jointly propagate
-errors in other columns or correlations between inputs. Changing an auxiliary
+check that the files have compatible layouts. Formulas updating X or Y use the
+local partial derivatives with respect to both axes. The propagated covariance
+between X and Y is used by subsequent axis formulas. Input X and Y errors are
+assumed independent before processing. Uncertainty that passes through an
+auxiliary column can be incomplete and prevents independent-error inference.
+Changing an auxiliary
 uncertainty column does not remap the error arrays originally selected for fitting.
 Nonlinear formula derivatives use local, scale-aware perturbations and
 Richardson extrapolation. For `z=y**3`, the audited tiny-value example now agrees
@@ -2173,10 +2175,10 @@ When a free parameter lacks a finite bound, CurveMole creates one around its cur
 value. By default, the search extends 50% of the absolute current value below and
 50% above it. At zero, a scale based on the plotted data is used. Edit the separate
 **Below** and **Above** percentages in the Fit dialog; existing explicit bounds
-always take precedence. These temporary search limits do not change the parameter
-table or the saved model. Inspect them conceptually before interpreting the result:
-a global search cannot discover a solution outside its search interval. It is
-usually much slower than a well-initialized local fit.
+always take precedence. Automatic limits apply only to the population search.
+The local refinement uses the physical model bounds, and the fit record lists
+the search and refinement bounds separately. A population search is usually much
+slower than a well-initialized local fit.
 
 ### 10.7 Cancellation and failed fits
 
@@ -2231,9 +2233,12 @@ parameters. CurveMole reports:
 | Degrees of freedom | $N-k$ |
 | RSS | $\sum_i(y_i-f_i)^2$ without point weighting |
 | RMSE | $\sqrt{\mathrm{RSS}/N}$ |
-| Chi-square | Sum of squared weighted residuals |
-| Reduced chi-square | Chi-square divided by $N-k$ when positive |
+| Solver objective | Loss evaluated at the final parameters in the recorded residual units |
+| Weighted residual sum of squares | Sum of squared weighted residuals before applying a robust loss |
+| Chi-square | Weighted residual sum of squares for a supported converged Gaussian fit |
+| Reduced chi-square | Chi-square divided by positive $N-k$ with an absolute noise scale |
 | Descriptive $R^2$ | $1-\mathrm{RSS}/\mathrm{TSS}$ |
+| Within-spectrum $R^2$ | Uses a separate mean for each spectrum in the denominator |
 | AIC | $-2\log L_{max}+2K$ for a supported Gaussian noise model |
 | AICc | $AIC+2K(K+1)/(N-K-1)$ when $N>K+1$ |
 | BIC | $-2\log L_{max}+K\log N$ |
@@ -2283,8 +2288,9 @@ conditional limits. A parameter at a bound is flagged because its true uncertain
 is generally asymmetric and not adequately summarized by a symmetric covariance
 interval.
 
-These are local normal intervals, not exact Student-t intervals for a small
-linear sample with an estimated variance. Linked errors use scale-aware gradients;
+Intervals use a Student-t quantile for linear loss with an estimated noise scale
+and a normal quantile for known scale or robust loss. Nonlinear and constrained
+intervals remain local approximations. Linked errors use scale-aware gradients;
 bound diagnostics use local parameter scales and floating-point spacing.
 See Appendix J.1/J.3 for the audited regression cases.
 
@@ -2515,9 +2521,11 @@ data-error weighting is disabled; they must be positive and finite on fitted row
 
 ### 12.3 Block bootstrap
 
-The block bootstrap resamples contiguous circular residual blocks. With Y errors it
-resamples standardized residuals and restores the destination row's noise scale,
-as in residual bootstrap. Enter a block length or choose Automatic. The automatic estimate uses the first lag at which the
+The block bootstrap resamples overlapping residual blocks within contiguous
+regularly spaced segments. Blocks never cross masked rows, grid discontinuities,
+or spectrum endpoints. With Y errors it resamples standardized residuals and
+restores the destination row's noise scale, as in residual bootstrap. Enter a
+block length or choose Automatic. The automatic estimate uses the first lag at which the
 absolute residual autocorrelation falls below $e^{-1}$, subject to practical limits.
 
 Block resampling is often preferable for spectra or kinetic traces with local
@@ -2540,7 +2548,11 @@ Convolution is evaluated on the full regular grid before masked rows are selecte
 The default grid spans approximately three covariance standard errors on either side,
 or a fallback span when no standard error is available, while respecting bounds.
 
-The default uses 31 grid points and a one-parameter chi-square threshold. The grid
+The default uses 31 grid points. With unknown noise the cutoff uses the finite-sample
+F reference that is exact for an unconstrained linear model. Bounds and nonlinear
+models can change coverage. A refit that materially improves the baseline invalidates
+the profile and prompts the user to refit. At an active parameter bound the scan
+shows exploratory regions and leaves calibrated confidence limits unavailable. The grid
 size, confidence level and lower/upper scan limits can be changed in the panel;
 blank limits select the automatic range, and explicit limits must respect parameter
 bounds. Failed grid points are counted. The desktop profile currently requires a
@@ -4619,7 +4631,7 @@ normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 | `seed` | `1729` | Integer 0-4294967295 |
 | `workers` | `1` | Positive process count |
 | `confidence_level` | `0.95` | Strictly between 0 and 1 |
-| `absolute_sigma` | `None` | Automatic covariance error scaling; `True`/`False` overrides |
+| `absolute_sigma` | `None` | Imported Y errors and inverse variance are absolute by default; `False` estimates a common scale and `True` declares a known scale |
 | `use_data_errors` | `True` | Apply imported errors/weights; False retains invalid-error rows if X/Y finite |
 | `de_maxiter`, `de_popsize` | `400`, `15` | Positive generations/population multiplier |
 | `de_lower_percent`, `de_upper_percent` | `50.0`, `50.0` | Positive automatic finite search-bound percentages |
