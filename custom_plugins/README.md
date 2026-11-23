@@ -35,7 +35,7 @@ instructions, and cite scientific articles about its methods separately.
 | Fityk project importer | by main developer | [fityk_importer.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/fityk_importer.zip) |
 | Ruby fluorescence pressure monitor | by main developer | [ruby_fluo_pressure_monitor.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/ruby_fluo_pressure_monitor.zip) |
 | X-axis calibration | by main developer | [x_axis_calibration.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/x_axis_calibration.zip) |
-| TSV exporter | by main developer | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
+| TSV exporter | [MAtti0201](https://github.com/MAtti0201) (community) | [tsv_exporter.zip](https://github.com/SebRoLENS/curvemole/releases/download/community-plugins-latest/tsv_exporter.zip) |
 
 These stable links download the latest published ZIP directly, without a GitHub
 account. [Package details and validation provenance](https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest)
@@ -73,7 +73,7 @@ in the manager. No plugin is downloaded, installed or trusted automatically.
 ### What your plugin folder must contain
 
 
-1. Fork CurveMole. Copy `custom_plugins/by_main_developer/tsv_exporter` into a new directory under `custom_plugins/by_community/` with a
+1. Fork CurveMole. Copy `custom_plugins/by_community/tsv_exporter` into a new directory under `custom_plugins/by_community/` with a
    simple unique name. Do not upload directly to main.
 2. Rename the module and manifest, assign your own identifier, and implement
    `register(api)` using the [plugin author guide](https://github.com/SebRoLENS/curvemole/blob/main/docs/plugins.md).

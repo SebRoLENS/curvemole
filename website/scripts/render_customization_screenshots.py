@@ -56,12 +56,12 @@ def render():
     window.function_dock.show()
     capture(window.function_dock, 'function-builder.jpg')
     window.function_dock.hide()
-    dialog = PluginManagerDialog(window.plugin_manager, ROOT / 'custom_plugins/by_main_developer/tsv_exporter', window)
+    dialog = PluginManagerDialog(window.plugin_manager, ROOT / 'custom_plugins/by_community/tsv_exporter', window)
     dialog.resize(1000, 650)
     if dialog.list.count():
         dialog.list.setCurrentRow(0)
     # Display a portable relative source path; the real manager has already scanned it.
-    dialog.directory.setText('custom_plugins/by_main_developer/tsv_exporter')
+    dialog.directory.setText('custom_plugins/by_community/tsv_exporter')
     dialog.details.setPlainText(dialog.details.toPlainText().replace(str(ROOT) + '/', ''))
     dialog.show()
     capture(dialog, 'plugin-manager.jpg')
