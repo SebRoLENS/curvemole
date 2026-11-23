@@ -148,7 +148,7 @@ from curvemole.gui.panels import (
 )
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog, normalize_plot_appearance
-from curvemole.gui.row_drag import RowDragMixin, RowDrop
+from curvemole.gui.row_drag import RowDragMixin, RowDrop, row_block_order
 from curvemole.gui.task_thread import TaskThread
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 from curvemole.gui.updates import semantic_version as _semantic_version  # noqa: F401
@@ -383,7 +383,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
     newSeriesRequested = Signal()
     curvesMoveRequested = Signal(object, str)
     curvesReorderRequested = Signal(object, int)
-    seriesMergeRequested = Signal(str, str)
+    seriesMergeRequested = Signal(object, str)
     rowMoveRequested = Signal(object, object, bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -471,6 +471,19 @@ class CurveTree(RowDragMixin, QTreeWidget):
             return QItemSelectionModel.SelectionFlag.NoUpdate
         return super().selectionCommand(index, event)
 
+    def _row_drag_sources(self, source):
+        if not source.isValid():
+            return ()
+        item = self.itemFromIndex(source)
+        parent = item.parent()
+        if parent is None and item.isSelected():
+            keys = [("series", identity) for identity in self.selected_series_ids()]
+        elif parent is not None and (item.isSelected() or parent.isSelected()):
+            keys = [("curve", identity) for identity in self.selected_curve_ids()]
+        else:
+            return (source,)
+        return tuple(self.indexFromItem(self._items_by_key[key], source.column()) for key in keys)
+
     def _row_drop_at(self, source, position):
         if self._project is None or self._project.read_only:
             return None
@@ -504,16 +517,14 @@ class CurveTree(RowDragMixin, QTreeWidget):
             return series.child(series.childCount() - 1)
         return series
 
-    def _request_row_move(self, source, drop):
+    def _request_row_move(self, source, drop, sources=()):
         source_item = self.itemFromIndex(source)
         target_item = self.itemFromIndex(drop.target)
         if source_item.parent() is not None and target_item.parent() is None:
             target_item.setExpanded(True)
-        self.rowMoveRequested.emit(
-            source_item.data(1, Qt.ItemDataRole.UserRole),
-            drop.target.data(Qt.ItemDataRole.UserRole),
-            drop.after,
-        )
+        keys = tuple(self.itemFromIndex(index).data(1, Qt.ItemDataRole.UserRole) for index in (sources or (source,)))
+        self.rowMoveRequested.emit(keys[0] if len(keys) == 1 else keys, drop.target.data(Qt.ItemDataRole.UserRole),
+                                   drop.after)
 
     def populate(self, project: Project, active_curve_id: str | None) -> set[str]:
         # Rebuild atomically: selection signals during clear() otherwise redraw
@@ -773,6 +784,19 @@ class CurveTree(RowDragMixin, QTreeWidget):
     def deselect_all_curves(self) -> None:
         self.clearSelection()
 
+    def _add_series_merge_menu(self, menu: QMenu, clicked_id: str) -> None:
+        selected = self.selected_series_ids()
+        source_ids = tuple(selected) if clicked_id in selected else (clicked_id,)
+        multiple = len(source_ids) > 1
+        title = self.tr("Merge selected series into") if multiple else self.tr("Merge series into")
+        submenu = menu.addMenu(title)
+        targets = [series for series in self._project.dataset.series if multiple or series.id != clicked_id]
+        submenu.setEnabled(bool(targets) and not self._project.read_only)
+        for target in targets:
+            submenu.addAction(target.name).triggered.connect(
+                lambda checked=False, target_id=target.id: self.seriesMergeRequested.emit(source_ids, target_id)
+            )
+
     def _show_context_menu(self, position: Any) -> None:
         item = self.itemAt(position)
         project = self._project
@@ -832,16 +856,7 @@ class CurveTree(RowDragMixin, QTreeWidget):
                 description_action.triggered.connect(
                     lambda checked=False, series_id=series_id: self.seriesDescriptionRequested.emit(series_id)
                 )
-                merge_menu = menu.addMenu(self.tr("Merge series into"))
-                targets = [series for series in project.dataset.series if series.id != series_id]
-                merge_menu.setEnabled(bool(targets))
-                for target in targets:
-                    action = merge_menu.addAction(target.name)
-                    action.triggered.connect(
-                        lambda checked=False, source_id=series_id, target_id=target.id: (
-                            self.seriesMergeRequested.emit(source_id, target_id)
-                        )
-                    )
+                self._add_series_merge_menu(menu, series_id)
                 palette_menu = menu.addMenu(self.tr("Series palette"))
                 for palette_name in SERIES_PALETTES:
                     action = palette_menu.addAction(palette_name)
@@ -2581,24 +2596,45 @@ class MainWindow(QMainWindow):
         index = next((i for i, item in enumerate(model.components) if item.id == component_id), 0)
         self._model_mutation(self.tr("Reorder component"), lambda value: value.move(component_id, index + delta))
 
-    def move_function_row(self, curve_id: str, source_id: str, target_id: str, after: bool) -> None:
-        if self._thread is not None or source_id == target_id:
+    def move_function_row(
+        self, curve_id: str, sources: str | tuple[tuple[str, str], ...], target_id: str, after: bool,
+    ) -> None:
+        if self._thread is not None:
             return
-        model = self.project.model_for(curve_id)
-        before = list(model.display_order)
+        model = self.project.models.get(curve_id)
+        if model is None:
+            return
         current = [component.id for component in model.display_components]
-        order = list(current)
-        order.remove(source_id)
-        order.insert(order.index(target_id) + int(after), source_id)
-        if order == current:
+        if target_id not in current:
+            return
+        gap = current.index(target_id) + int(after)
+        refs = ((curve_id, sources),) if isinstance(sources, str) else sources
+        selected: dict[str, set[str]] = {}
+        for owner, function_id in refs:
+            selected.setdefault(owner, set()).add(function_id)
+        before, after_orders = {}, {}
+        for owner, component_ids in selected.items():
+            group_model = self.project.models.get(owner)
+            if group_model is None:
+                return
+            order = [component.id for component in group_model.display_components]
+            if not component_ids.issubset(order):
+                return
+            moved = [identity for identity in order if identity in component_ids]
+            new_order = row_block_order(order, moved, min(gap, len(order)))
+            if new_order != order:
+                before[owner] = list(group_model.display_order)
+                after_orders[owner] = new_order
+        if not after_orders:
             return
 
-        def restore(display_order: list[str]) -> None:
-            self.project.model_for(curve_id).display_order = list(display_order)
+        def restore(orders: dict[str, list[str]]) -> None:
+            for owner, order in orders.items():
+                self.project.model_for(owner).display_order = list(order)
 
         self._push_change(
             self.tr("Reorder functions"),
-            lambda: restore(order),
+            lambda: restore(after_orders),
             lambda: restore(before),
             modified_curve_ids=set(),
         )
@@ -4466,7 +4502,9 @@ class MainWindow(QMainWindow):
         before = self._series_layout_snapshot()
         operation()
         after = self._series_layout_snapshot()
-        if after == before:
+        before_order = [(group.id, ids) for group, _, _, ids in before]
+        after_order = [(group.id, ids) for group, _, _, ids in after]
+        if before_order == after_order:
             return
         self._restore_series_layout(before, refresh=False)
         self.undo_stack.push(
@@ -4477,42 +4515,57 @@ class MainWindow(QMainWindow):
             )
         )
 
-    def move_data_row(self, source: tuple[str, str], target: tuple[str, str], after: bool) -> None:
-        if source == target or self._thread is not None:
+    def move_data_row(
+        self, source: tuple[str, str] | tuple[tuple[str, str], ...], target: tuple[str, str], after: bool,
+    ) -> None:
+        if not source or self._thread is not None:
             return
         dataset = self.project.dataset
-        source_kind, source_id = source
+        sources = (source,) if isinstance(source[0], str) else source
+        source_kind = sources[0][0]
+        requested = {identity for kind, identity in sources if kind == source_kind}
         target_kind, target_id = target
+        series_by_id = {group.id: group for group in dataset.series}
         if source_kind == "series":
-            series = dataset.series
-            old_index = next(i for i, item in enumerate(series) if item.id == source_id)
-            gap = next(i for i, item in enumerate(series) if item.id == target_id) + int(after)
-            index = gap - int(old_index < gap)
-            if index != old_index:
-                self._push_series_layout_change(
-                    self.tr("Reorder series"), lambda: series.insert(index, series.pop(old_index))
-                )
+            if target_kind != "series" or target_id not in series_by_id or not requested.issubset(series_by_id):
+                return
+            current = list(series_by_id)
+            moved = [identity for identity in current if identity in requested]
+            order = row_block_order(current, moved, current.index(target_id) + int(after))
+
+            def reorder_series() -> None:
+                dataset.series[:] = [series_by_id[identity] for identity in order]
+
+            self._push_series_layout_change(self.tr("Reorder series"), reorder_series)
             return
 
-        source_series = dataset.series_for(source_id)
+        curve_locations = {curve.id: (group, curve) for group in dataset.series for curve in group.curves}
+        if not requested or not requested.issubset(curve_locations):
+            return
         if target_kind == "curve":
-            target_series = dataset.series_for(target_id)
-            gap = next(i for i, curve in enumerate(target_series.curves) if curve.id == target_id) + int(after)
+            if target_id not in curve_locations:
+                return
+            destination = curve_locations[target_id][0]
+            current = [curve.id for curve in destination.curves]
+            gap = current.index(target_id) + int(after)
         else:
-            target_series = next(item for item in dataset.series if item.id == target_id)
+            destination = series_by_id.get(target_id)
+            if destination is None:
+                return
+            current = [curve.id for curve in destination.curves]
             gap = 0
-        if source_series is target_series:
-            old_index = next(i for i, curve in enumerate(source_series.curves) if curve.id == source_id)
-            index = gap - int(old_index < gap)
-            if index != old_index:
-                self._push_series_layout_change(
-                    self.tr("Reorder spectra"), lambda: source_series.move(source_id, index)
-                )
-        else:
-            self._push_series_layout_change(
-                self.tr("Move spectrum to series"),
-                lambda: dataset.transfer_curve(source_id, target_series.id, gap),
-            )
+        moved = [identity for identity in curve_locations if identity in requested]
+        order = row_block_order(current, moved, gap)
+        source_groups = {curve_locations[identity][0].id for identity in moved}
+
+        def operation() -> None:
+            for identity in source_groups - {destination.id}:
+                group = series_by_id[identity]
+                group.curves[:] = [curve for curve in group.curves if curve.id not in requested]
+            destination.curves[:] = [curve_locations[identity][1] for identity in order]
+
+        title = self.tr("Reorder spectra") if source_groups == {destination.id} else self.tr("Move spectra to series")
+        self._push_series_layout_change(title, operation)
 
     def _next_series_name(self) -> str:
         number = len(self.project.dataset.series) + 1
@@ -4582,24 +4635,23 @@ class MainWindow(QMainWindow):
 
         self._push_series_layout_change(self.tr("Move spectra to series"), operation)
 
-    def merge_series(self, source_series_id: str, target_series_id: str) -> None:
-        if not self._ensure_editable() or source_series_id == target_series_id:
+    def merge_series(self, source_series_ids: str | tuple[str, ...], target_series_id: str) -> None:
+        if self._thread is not None:
             return
-        source = next(
-            (series for series in self.project.dataset.series if series.id == source_series_id), None
-        )
-        target = next(
-            (series for series in self.project.dataset.series if series.id == target_series_id), None
-        )
-        if source is None or target is None:
+        dataset = self.project.dataset
+        selected = {source_series_ids} if isinstance(source_series_ids, str) else set(source_series_ids)
+        selected.discard(target_series_id)
+        by_id = {series.id: series for series in dataset.series}
+        target = by_id.get(target_series_id)
+        if target is None or not selected or not selected.issubset(by_id):
             return
+        sources = [series for identity, series in by_id.items() if identity in selected]
 
         def operation() -> None:
-            while source.curves:
-                target.add(source.remove(source.curves[0].id))
-            self.project.dataset.series = [
-                series for series in self.project.dataset.series if series.id != source_series_id
-            ]
+            target.curves.extend(curve for series in sources for curve in series.curves)
+            for series in sources:
+                series.curves.clear()
+            dataset.series[:] = [series for series in dataset.series if series.id not in selected]
 
         self._push_series_layout_change(self.tr("Merge series"), operation)
 

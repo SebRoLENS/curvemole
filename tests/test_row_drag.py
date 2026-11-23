@@ -24,13 +24,17 @@ def _functions():
 
 
 @pytest.mark.parametrize("kind", ["series", "spectrum", "function"])
-def test_wheel_scrolls_held_row_to_new_drop_target(kind):
+@pytest.mark.parametrize("multiple", [False, True])
+def test_wheel_scrolls_held_row_to_new_drop_target(kind, multiple):
     app = QApplication.instance() or QApplication([])
     role = Qt.ItemDataRole.UserRole
     if kind == "function":
         view = _functions()
         source = view.indexFromItem(view.item(1))
         source_id = source.data(role)
+        extra = view.item(3)
+        extra_id = extra.data(role)
+        extra.setData(COMPONENT_CURVE_ROLE, "second spectrum")
     else:
         view = CurveTree()
         project = Project()
@@ -50,8 +54,17 @@ def test_wheel_scrolls_held_row_to_new_drop_target(kind):
             parent = view.topLevelItem(0)
             parent.setExpanded(True)
             item = parent.child(1)
+            extra = parent.child(3)
+        else:
+            extra = view.topLevelItem(3)
         source = view.indexFromItem(item, 1)
         source_id = tuple(source.data(role))
+        extra_id = tuple(extra.data(1, role))
+
+    if multiple:
+        view.setSelectionMode(view.SelectionMode.ExtendedSelection)
+        view.itemFromIndex(source).setSelected(True)
+        extra.setSelected(True)
 
     moves = []
     view.rowMoveRequested.connect(lambda *args: moves.append(args))
@@ -86,13 +99,20 @@ def test_wheel_scrolls_held_row_to_new_drop_target(kind):
         after = view._row_drop.after
         QTest.mouseRelease(viewport, button, pos=destination)
         if kind == "function":
-            assert moves == [("spectrum", source_id, scrolled_target, after)]
+            assert len(moves) == 1
+            actual_curve, actual_source, actual_target, actual_after = moves[0]
+            assert (actual_curve, actual_target, actual_after) == ("spectrum", scrolled_target, after)
         else:
             assert len(moves) == 1
             actual_source, actual_target, actual_after = moves[0]
-            assert (tuple(actual_source), tuple(actual_target), actual_after) == (
-                source_id, tuple(scrolled_target), after,
-            )
+            assert (tuple(actual_target), actual_after) == (tuple(scrolled_target), after)
+        if multiple:
+            if kind == "function":
+                assert set(actual_source) == {("spectrum", source_id), ("second spectrum", extra_id)}
+            else:
+                assert set(map(tuple, actual_source)) == {source_id, extra_id}
+        else:
+            assert (actual_source if kind == "function" else tuple(actual_source)) == source_id
         assert view._row_drop is None
     finally:
         view.close()

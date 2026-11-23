@@ -480,7 +480,9 @@ and **State** columns.
 - Right-click one or more selected spectra and choose **Move to series…**. Choose an
   existing series or enter a name for a new one. Spectra can come from several series.
 - Right-click selected spectra and choose **Move selected up/down** to change their order inside a series. Multiple adjacent spectra move as a stable group.
-- Right-click a series and choose **Merge series into** to append all its spectra to another series and remove the source series.
+- Right-click a selected series and choose **Merge series into** or **Merge selected series into**.
+  Choose the destination series to keep. CurveMole appends the selected source spectra
+  in tree order and removes the source series in one undoable step.
 - Moving, merging, creating, and reordering series are all Undo/Redo operations and do not invalidate fitted parameters.
 - Use the visibility checkbox to include or exclude it from Overlay and Waterfall
   displays. The equally sized coloured square beside the checkbox shows that
@@ -763,6 +765,13 @@ presentation. It does not change plot data, exported numeric values, or fitting.
 Drop a `.fitproj` file onto the window to open it. Drop any other local file to begin
 content-aware data import, regardless of its extension. If a drop contains both a
 project and data files, the first project is opened.
+
+Within the app, drag a selected spectrum, series, or model function to move the
+selected rows together in their original order. Dragging spectra between series
+keeps their fits. Dragging functions changes their display order within their
+respective spectra. In the grouped view, the drop position sets the insertion
+row for each selected group. The mouse wheel scrolls the list while you hold
+the selection.
 
 ## 6. Importing data
 

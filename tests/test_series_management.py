@@ -161,6 +161,58 @@ def test_drag_series_and_spectra_uses_visible_insertions_and_supports_undo() -> 
     app.processEvents()
 
 
+def test_move_spectrum_block_across_series_preserves_tree_order_and_results() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, first, second, curves = _project()
+    third = Series("C", [Curve("c1", [0., 1.], [4., 5.]), Curve("c2", [0., 1.], [5., 6.])])
+    project.add_series(third)
+    target, retained = third.curves
+    expected_models = dict(project.models)
+    project.results[curves[3].id] = {"pressure": 1.0}
+    window = MainWindow(project)
+    try:
+        # Producer order is independent of selection order. The anchor may move too.
+        sources = (("curve", curves[3].id), ("curve", target.id), ("curve", curves[0].id))
+        window.move_data_row(sources, ("curve", target.id), True)
+        assert first.curves == curves[1:3]
+        assert not second.curves
+        assert third.curves == [curves[0], curves[3], target, retained]
+        assert window.undo_stack.count() == 1
+        assert all(project.models[identity] is model for identity, model in expected_models.items())
+        assert project.results[curves[3].id] == {"pressure": 1.0}
+        assert curves[0].state == CurveState.FITTED
+        window.undo_stack.undo()
+        assert first.curves == curves[:3] and second.curves == curves[3:]
+        assert third.curves == [target, retained]
+        window.undo_stack.redo()
+        assert third.curves == [curves[0], curves[3], target, retained]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
+def test_drag_series_block_preserves_ids_and_order_with_duplicate_names() -> None:
+    app = QApplication.instance() or QApplication([])
+    project = Project()
+    groups = [Series("Same name", [Curve("Scan", [0., 1.], [i, i + 1.])]) for i in range(4)]
+    for group in groups:
+        project.add_series(group)
+    window = MainWindow(project)
+    try:
+        sources = (("series", groups[2].id), ("series", groups[0].id))
+        window.move_data_row(sources, ("series", groups[3].id), True)
+        assert [series.id for series in project.dataset.series] == [groups[i].id for i in (1, 3, 0, 2)]
+        window.undo_stack.undo()
+        assert [series.id for series in project.dataset.series] == [series.id for series in groups]
+        window.undo_stack.redo()
+        assert [series.id for series in project.dataset.series] == [groups[i].id for i in (1, 3, 0, 2)]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
 def test_active_spectrum_marker_follows_selection_focus_and_scrolling() -> None:
     app = QApplication.instance() or QApplication([])
     project = Project()

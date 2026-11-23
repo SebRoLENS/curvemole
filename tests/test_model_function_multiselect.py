@@ -305,3 +305,32 @@ def test_drag_functions_in_grouped_view_updates_only_display_order() -> None:
     project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_drag_selected_functions_as_a_block_without_changing_the_calculation() -> None:
+    app = QApplication.instance() or QApplication([])
+    project, first, second = _project_with_functions()
+    model = project.model_for(first.id)
+    for function in ("constant", "linear", "gaussian"):
+        model.add(Component.create(function))
+    ids = [component.id for component in model.display_components]
+    window = MainWindow(project)
+    try:
+        other_model = project.model_for(second.id)
+        other_ids = [component.id for component in other_model.display_components]
+        sources = ((first.id, ids[3]), (first.id, ids[0]), (second.id, other_ids[0]))
+        window.move_function_row(first.id, sources, ids[4], True)
+        assert model.display_order == [ids[1], ids[2], ids[4], ids[0], ids[3]]
+        assert other_model.display_order == other_ids[::-1]
+        assert [component.id for component in model.components] == ids
+        assert window.undo_stack.count() == 1
+        window.undo_stack.undo()
+        assert model.display_order == []
+        assert other_model.display_order == []
+        window.undo_stack.redo()
+        assert model.display_order == [ids[1], ids[2], ids[4], ids[0], ids[3]]
+        assert other_model.display_order == other_ids[::-1]
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()

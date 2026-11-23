@@ -194,6 +194,52 @@ def test_remove_selected_series_confirms_once_and_restores_the_group(monkeypatch
         app.processEvents()
 
 
+@pytest.mark.parametrize("selected_target", [False, True])
+def test_merge_menu_combines_all_selected_series_in_one_undo(monkeypatch, selected_target):
+    app = QApplication.instance() or QApplication([])
+    project, first, second, a1, a2 = _project()
+    b1 = Curve("b1", [0., 1.], [3., 4.])
+    c1 = Curve("c1", [0., 1.], [4., 5.])
+    target_curve = Curve("target", [0., 1.], [5., 6.])
+    project.add_curve(b1, second)
+    third = Series("Third", [c1])
+    outside = Series("Destination", [target_curve])
+    project.add_series(third)
+    project.add_series(outside)
+    window = MainWindow(project)
+    window.show()
+    app.processEvents()
+    tree = window.curve_tree
+    tree.clearSelection()
+    for index in (2, 0, 1):
+        tree.topLevelItem(index).setSelected(True)
+    target = second if selected_target else outside
+    expected = [b1, a1, a2, c1] if selected_target else [target_curve, a1, a2, b1, c1]
+
+    class NonBlockingMenu(QMenu):
+        def exec(self, *_args):
+            submenu = next(action.menu() for action in self.actions() if action.text() == "Merge selected series into")
+            next(action for action in submenu.actions() if action.text() == target.name).trigger()
+
+    monkeypatch.setattr("curvemole.gui.data_series_management.QMenu", NonBlockingMenu)
+    try:
+        clicked = tree.topLevelItem(2)
+        tree._show_context_menu(tree.visualItemRect(clicked).center())
+        assert project.dataset.series == ([second, outside] if selected_target else [outside])
+        assert target.curves == expected
+        assert window.undo_stack.count() == 1
+        assert project.results[a1.id] == {"fit": "first"}
+        window.undo_stack.undo()
+        assert project.dataset.series == [first, second, third, outside]
+        assert first.curves == [a1, a2] and second.curves == [b1] and third.curves == [c1]
+        window.undo_stack.redo()
+        assert target.curves == expected
+    finally:
+        project.dirty = False
+        window.close()
+        app.processEvents()
+
+
 @pytest.mark.parametrize("create", [False, True])
 def test_move_dialog_moves_selection_across_series_in_one_undo(monkeypatch, create):
     from curvemole.gui.data_series_management import MoveToSeriesDialog

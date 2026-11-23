@@ -371,16 +371,7 @@ def _show_context_menu(tree: CurveTree, position: Any) -> None:
             description_action.triggered.connect(
                 lambda checked=False, series_id=series_id: tree.seriesDescriptionRequested.emit(series_id)
             )
-            merge_menu = menu.addMenu(tree.tr("Merge series into"))
-            targets = [series for series in project.dataset.series if series.id != series_id]
-            merge_menu.setEnabled(bool(targets))
-            for target in targets:
-                action = merge_menu.addAction(target.name)
-                action.triggered.connect(
-                    lambda checked=False, source_id=series_id, target_id=target.id: (
-                        tree.seriesMergeRequested.emit(source_id, target_id)
-                    )
-                )
+            tree._add_series_merge_menu(menu, series_id)
             palette_menu = menu.addMenu(tree.tr("Series palette"))
             for palette_name in SERIES_PALETTES:
                 action = palette_menu.addAction(palette_name)

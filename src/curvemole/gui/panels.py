@@ -58,7 +58,7 @@ COMPONENT_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 
 
 class FunctionList(RowDragMixin, QListWidget):
-    rowMoveRequested = Signal(str, str, str, bool)
+    rowMoveRequested = Signal(str, object, str, bool)
 
     def __init__(self):
         super().__init__()
@@ -79,10 +79,12 @@ class FunctionList(RowDragMixin, QListWidget):
         after = position.y() >= rect.center().y()
         return RowDrop(target, after, 3, rect.bottom() + 1 if after else rect.top())
 
-    def _request_row_move(self, source, drop):
+    def _request_row_move(self, source, drop, sources=()):
+        refs = tuple((index.data(COMPONENT_CURVE_ROLE), index.data(Qt.ItemDataRole.UserRole))
+                     for index in (sources or (source,)))
         self.rowMoveRequested.emit(
             source.data(COMPONENT_CURVE_ROLE),
-            source.data(Qt.ItemDataRole.UserRole),
+            refs[0][1] if len(refs) == 1 else refs,
             drop.target.data(Qt.ItemDataRole.UserRole),
             drop.after,
         )

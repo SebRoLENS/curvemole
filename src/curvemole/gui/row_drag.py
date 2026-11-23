@@ -13,10 +13,21 @@ class RowDrop(NamedTuple):
     y: int
 
 
+def row_block_order(order: list[str], moved: list[str], gap: int) -> list[str]:
+    """Insert an ordered block at a gap in the original list."""
+    moving = set(moved)
+    index = sum(identity not in moving for identity in order[:gap])
+    remaining = [identity for identity in order if identity not in moving]
+    remaining[index:index] = moved
+    return remaining
+
+
 class RowDragMixin:
     def setup_row_drag(self):
         self._pressed_row = QPersistentModelIndex()
+        self._pressed_rows = ()
         self._dragged_row = None
+        self._dragged_rows = ()
         self._row_drop = None
         self._drag_position = None
         self._edge_scroll_steps = 0
@@ -29,8 +40,15 @@ class RowDragMixin:
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._pressed_row = QPersistentModelIndex(self.indexAt(event.position().toPoint()))
+            source = self.indexAt(event.position().toPoint())
+            self._pressed_row = QPersistentModelIndex(source)
+            self._pressed_rows = tuple(QPersistentModelIndex(index) for index in self._row_drag_sources(source))
         super().mousePressEvent(event)
+
+    def _row_drag_sources(self, source):
+        if source.isValid() and self.selectionModel().isSelected(source):
+            return tuple(index for index in self.selectedIndexes() if index.flags() & Qt.ItemFlag.ItemIsDragEnabled)
+        return (source,) if source.isValid() else ()
 
     def startDrag(self, supported_actions):
         source = QModelIndex(self._pressed_row)
@@ -39,7 +57,9 @@ class RowDragMixin:
         # The native drag loop can consume wheel input. Keep reordering inside
         # the view so its ordinary wheel handling works while a row is held.
         self._dragged_row = self._pressed_row
+        self._dragged_rows = self._pressed_rows
         self._pressed_row = QPersistentModelIndex()
+        self._pressed_rows = ()
         self.viewport().setCursor(Qt.CursorShape.DragMoveCursor)
 
     def mouseMoveEvent(self, event):
@@ -86,13 +106,14 @@ class RowDragMixin:
             super().mouseReleaseEvent(event)
             return
         source = QModelIndex(self._dragged_row)
+        sources = tuple(QModelIndex(index) for index in self._dragged_rows)
         position = event.position().toPoint()
         drop = None
-        if source.isValid() and self.viewport().rect().contains(position):
+        if source.isValid() and all(index.isValid() for index in sources) and self.viewport().rect().contains(position):
             drop = self._row_drop_at(source, position)
         self._end_row_drag()
         if drop is not None:
-            self._request_row_move(source, drop)
+            self._request_row_move(source, drop, sources)
         event.accept()
 
     def keyPressEvent(self, event):
@@ -111,6 +132,7 @@ class RowDragMixin:
         if self._dragged_row is None:
             return
         self._dragged_row = None
+        self._dragged_rows = ()
         self._drag_position = None
         self._stop_edge_scroll()
         self.viewport().unsetCursor()
