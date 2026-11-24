@@ -471,7 +471,6 @@ def test_reusable_workflows_have_no_cycles_and_development_docs_cannot_upload_re
     docs = (ROOT / ".github/workflows/documentation.yml").read_text()
     assert "gh release" not in docs and "contents: read" in docs
     assert "push" not in workflows["automatic-release.yml"]["on"]
-    assert "push" not in workflows["community-plugins.yml"]["on"]
     assert "pull_request_target" not in workflows["ci.yml"]["on"]
 
 
@@ -533,12 +532,47 @@ def test_workflow_writers_share_resource_locks_and_release_jobs_do_not_duplicate
     assert set(release["jobs"]["plugins"]["needs"]) == {"commit", "packages"}
     plugins = workflows["community-plugins"]
     assert plugins["on"]["workflow_call"]["inputs"]["publish_stable"]["default"] == "false"
-    assert "inputs" not in (plugins["on"]["workflow_dispatch"] or {})
+    assert set(plugins["on"]["workflow_dispatch"]["inputs"]) == {"plugin"}
+    assert plugins["on"]["push"] == {"branches": ["testing"], "paths": ["custom_plugins/**"]}
+    prepare_update = plugins["jobs"]["prepare-update"]
+    assert "github.ref == 'refs/heads/testing'" in prepare_update["if"]
+    assert "github.event.head_commit.message, '[publish plugin:'" in prepare_update["if"]
+    assert plugins["permissions"] == {"contents": "read"}
+    publisher = plugins["jobs"]["publish-downloads"]
+    assert publisher["permissions"] == {"contents": "write"}
+    assert publisher["concurrency"]["group"] == "community-plugin-downloads"
+    assert all(step.get("uses") != "actions/checkout@v6" for step in publisher["steps"])
     # Every actual runner gets a bounded execution time; callers inherit the callee's limits.
     for workflow in workflows.values():
         for job in workflow["jobs"].values():
             if "runs-on" in job:
                 assert "timeout-minutes" in job
+
+
+def test_independent_plugin_publication_checks_version_and_preserves_public_entries(tmp_path):
+    publication = load("plugin_publication")
+    ruby = {"identifier": "example.ruby", "folder": "ruby", "category": "by_main_developer",
+            "version": "1.1.0", "sha256": "old"}
+    other = {"identifier": "example.other", "folder": "other", "category": "by_community",
+             "version": "2.0.0", "sha256": "same"}
+    previous = tmp_path / "previous.json"
+    previous.write_text(json.dumps({"plugins": [ruby, other]}))
+    candidate = tmp_path / "candidate.json"
+
+    def write_candidate(selected, unrelated):
+        candidate.write_text(json.dumps({"plugins": [selected, unrelated]}))
+
+    updated = {**ruby, "version": "1.1.1", "sha256": "new"}
+    write_candidate(updated, other)
+    publication.check_update(previous, candidate, "ruby")
+
+    write_candidate({**updated, "version": "1.1.0"}, other)
+    with pytest.raises(ValueError, match="Bump the version"):
+        publication.check_update(previous, candidate, "ruby")
+
+    write_candidate(updated, {**other, "version": "2.1.0"})
+    with pytest.raises(ValueError, match="changed another plugin"):
+        publication.check_update(previous, candidate, "ruby")
 
 
 @pytest.mark.parametrize("source,is_release", [

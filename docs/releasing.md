@@ -227,6 +227,32 @@ A Developer ID certificate suitable for public distribution requires membership 
 Apple's Developer Program. Without a Developer ID identity, macOS cannot provide the
 same Gatekeeper-clean first-launch experience to downloaded third-party builds.
 
+## Publish a plugin update independently
+
+Update the plugin on `testing` and bump the version in its manifest. To publish
+with that push, include both markers in the final commit message. Use the plugin's
+folder name in the publication marker.
+
+```text
+Fix full pressure uncertainty in the Ruby calculator [skip release] [publish plugin: ruby_fluo_pressure_monitor]
+```
+
+To publish a plugin already on `testing`, run **Community plugins** with
+`testing` selected and enter the folder in the `plugin` input. The same command
+is available from GitHub CLI.
+
+```bash
+gh workflow run community-plugins.yml --ref testing -f plugin=ruby_fluo_pressure_monitor
+```
+
+The workflow overlays the selected plugin onto the public catalog sources and
+tests the result with the latest stable CurveMole on Linux, Windows and macOS.
+It checks that the other catalog entries are identical and that an updated
+plugin has a higher version before replacing the files in
+`community-plugins-latest`. The in-app Plugin updates screen reads this same
+catalog. A stable application release also refreshes the catalog and checks it
+for plugin downgrades.
+
 ## Documentation-only updates
 
 `docs/manual.md` is the sole hand-edited manual source. Run:

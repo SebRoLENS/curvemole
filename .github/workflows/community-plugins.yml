@@ -10,14 +10,69 @@ on:
         description: Publish the source already committed by the stable release pipeline
         type: boolean
         default: false
+  push:
+    branches: [testing]
+    paths: ['custom_plugins/**']
   workflow_dispatch:
+    inputs:
+      plugin:
+        description: Plugin folder to publish from testing (required on testing)
+        type: string
 
 # Community code never receives secrets or a writable repository token.
 permissions:
   contents: read
 
 jobs:
+  prepare-update:
+    if: >-
+      github.ref == 'refs/heads/testing' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.plugin != '') ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[publish plugin:')))
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    outputs:
+      plugin: ${{ steps.prepare.outputs.folder }}
+      stable_ref: ${{ steps.prepare.outputs.stable_ref }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prepare the published catalog with the selected plugin
+        id: prepare
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PLUGIN: ${{ inputs.plugin }}
+        run: |
+          set -euo pipefail
+          selection=$(python .github/scripts/plugin_publication.py select)
+          folder=${selection#folder=}
+          stable_ref=$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name')
+          [[ "$stable_ref" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          mkdir -p published tracked
+          gh release download community-plugins-latest --dir published \
+            --pattern validated-community-plugins.zip --pattern catalog.json
+          git archive HEAD custom_plugins | tar -x -C tracked
+          python .github/scripts/plugin_publication.py prepare \
+            published/validated-community-plugins.zip published/catalog.json \
+            tracked/custom_plugins prepared "$folder"
+          mv prepared/catalog.json prepared/previous-catalog.json
+          printf 'folder=%s\nstable_ref=%s\n' "$folder" "$stable_ref" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: prepared-plugin-update
+          path: prepared
+          if-no-files-found: error
+          retention-days: 14
+
   validate:
+    needs: prepare-update
+    if: >-
+      !cancelled() &&
+      (needs.prepare-update.result == 'success' ||
+       (needs.prepare-update.result == 'skipped' &&
+        (github.event_name != 'push' || github.ref != 'refs/heads/testing' || inputs.source_ref != '')))
     name: Validate plugins / ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -30,8 +85,23 @@ jobs:
         run: git config --global core.autocrlf false
       - uses: actions/checkout@v6
         with:
-          ref: ${{ inputs.source_ref || github.sha }}
+          ref: ${{ needs.prepare-update.outputs.stable_ref || inputs.source_ref || github.sha }}
           persist-credentials: false
+      - uses: actions/download-artifact@v7
+        if: needs.prepare-update.result == 'success'
+        with:
+          name: prepared-plugin-update
+          path: prepared
+      - name: Select catalog source
+        id: source
+        shell: bash
+        run: |
+          if [ -d prepared/custom_plugins ]; then
+            mkdir -p prepared/custom_plugins/{by_main_developer,by_community}
+            echo 'root=prepared/custom_plugins' >> "$GITHUB_OUTPUT"
+          else
+            echo 'root=custom_plugins' >> "$GITHUB_OUTPUT"
+          fi
       - name: Linux Qt libraries
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
@@ -44,7 +114,7 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
-        run: uv run --no-sync python scripts/validate_community_plugins.py
+        run: uv run --no-sync python scripts/validate_community_plugins.py --root "${{ steps.source.outputs.root }}"
       - uses: actions/upload-artifact@v7
         with:
           name: plugin-check-${{ matrix.os }}
@@ -54,10 +124,12 @@ jobs:
 
   catalog:
     name: Validated community catalog
-    needs: validate
-    # PR artifacts are test reports only. The public install bundle is built
-    # exclusively from main, after every supported platform passes.
-    if: (github.ref == 'refs/heads/main' || inputs.publish_stable) && github.event_name != 'pull_request'
+    needs: [prepare-update, validate]
+    # PR artifacts are test reports only.
+    if: >-
+      !cancelled() && needs.validate.result == 'success' &&
+      (needs.prepare-update.result == 'success' ||
+       ((github.ref == 'refs/heads/main' || inputs.publish_stable) && github.event_name != 'pull_request'))
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
@@ -69,26 +141,38 @@ jobs:
         with:
           pattern: plugin-check-*
           path: reports
+      - uses: actions/download-artifact@v7
+        if: needs.prepare-update.result == 'success'
+        with:
+          name: prepared-plugin-update
+          path: prepared
       - name: Verify platform agreement and package the tested sources
         shell: python
+        env:
+          PLUGIN: ${{ needs.prepare-update.outputs.plugin }}
         run: |
-          import hashlib, json, pathlib, shutil
+          import json, os, pathlib, shutil, subprocess, sys
+          from runpy import run_path
+          plugin = os.environ['PLUGIN']
+          root = pathlib.Path('prepared/custom_plugins' if plugin else 'custom_plugins')
           reports = sorted(pathlib.Path('reports').glob('*/community-catalog.json'))
           assert len(reports) == 3, 'Missing platform report'
           content = reports[0].read_bytes()
           assert all(p.read_bytes() == content for p in reports), 'Platform catalogs differ'
+          if plugin:
+              subprocess.run([sys.executable, '.github/scripts/plugin_publication.py', 'check',
+                              'prepared/previous-catalog.json', str(reports[0]), plugin], check=True)
+          fingerprint = run_path('src/curvemole/plugin_fingerprint.py')['fingerprint']
           destination = pathlib.Path('build/validated-community-plugins')
           destination.mkdir(parents=True)
           (destination / 'catalog.json').write_bytes(content)
-          (destination / 'README.md').write_bytes(pathlib.Path('custom_plugins/README.md').read_bytes())
+          (destination / 'README.md').write_bytes((root / 'README.md').read_bytes())
           for plugin in json.loads(content)['plugins']:
               folder = plugin['folder']
               category = plugin['category']
               assert pathlib.Path(folder).name == folder and folder not in ('.', '..')
               assert category in ('by_main_developer', 'by_community')
-              source = pathlib.Path('custom_plugins') / category / folder
-              from runpy import run_path
-              fingerprint = run_path('src/curvemole/plugin_fingerprint.py')['fingerprint']
+              source = root / category / folder
               assert fingerprint(source) == plugin['sha256'], 'Untested source change'
               shutil.copytree(source, destination / category / folder)
       - uses: actions/upload-artifact@v7
@@ -116,6 +200,8 @@ jobs:
           (output / 'SHA256SUMS.txt').write_text(''.join(
               f'{hashlib.sha256(path.read_bytes()).hexdigest()}  {path.name}\n'
               for path in sorted(output.glob('*.zip'))), encoding='utf-8')
+          if pathlib.Path('prepared/previous-catalog.json').is_file():
+              shutil.copy2('prepared/previous-catalog.json', output / 'previous-catalog.json')
       - uses: actions/upload-artifact@v7
         with:
           name: community-plugin-downloads
@@ -126,8 +212,8 @@ jobs:
 
   publish-downloads:
     name: Publish stable plugin downloads
-    needs: catalog
-    if: (github.ref == 'refs/heads/main' || inputs.publish_stable) && github.event_name != 'pull_request'
+    needs: [prepare-update, catalog]
+    if: "!cancelled() && needs.catalog.result == 'success'"
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     permissions:
@@ -147,11 +233,21 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TESTED_SHA: ${{ inputs.source_ref || github.sha }}
+          PLUGIN: ${{ needs.prepare-update.outputs.plugin }}
+          STABLE_REF: ${{ needs.prepare-update.outputs.stable_ref }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
-          current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
-          if [ "$current_main" != "$TESTED_SHA" ]; then
+          if [ -n "$PLUGIN" ]; then
+            current_stable=$(gh api "repos/$GH_REPO/releases/latest" --jq '.tag_name')
+            if [ "$current_stable" != "$STABLE_REF" ]; then
+              echo "A newer CurveMole stable release is available. Run all plugin jobs again." >&2
+              exit 1
+            fi
+          else
+            current_main=$(gh api "repos/$GH_REPO/git/ref/heads/main" --jq '.object.sha')
+          fi
+          if [ -z "$PLUGIN" ] && [ "$current_main" != "$TESTED_SHA" ]; then
             relevant_changes=$(gh api "repos/$GH_REPO/compare/$TESTED_SHA...$current_main" \
               --jq '[.files[].filename | select(startswith("custom_plugins/") or startswith("src/curvemole/core/") or . == "src/curvemole/__init__.py" or . == "src/curvemole/plugin_fingerprint.py" or . == "pyproject.toml" or . == "uv.lock" or . == "scripts/validate_community_plugins.py" or . == ".github/workflows/community-plugins.yml")] | length')
             if [ "$relevant_changes" != "0" ]; then
@@ -168,19 +264,47 @@ jobs:
               echo 'Validated plugin fingerprints are unchanged; retaining existing downloads and tag.'
               exit 0
             fi
+            if [ -n "$PLUGIN" ]; then
+              if ! cmp -s downloads/previous-catalog.json previous/catalog.json; then
+                echo "The public plugin catalog changed. Run all plugin jobs again." >&2
+                exit 1
+              fi
+            else
+              python - <<'PYTHON'
+          import json
+          from pathlib import Path
+          def versions(path):
+              return {p['identifier']: tuple(map(int, p['version'].split('.')))
+                      for p in json.loads(Path(path).read_text())['plugins']}
+          previous = versions('previous/catalog.json')
+          for identifier, candidate in versions('downloads/catalog.json').items():
+              if candidate < previous.get(identifier, ()):
+                  raise SystemExit(f"Catalog would downgrade {identifier}. Include the published version first.")
+          PYTHON
+            fi
+          elif [ -n "$PLUGIN" ]; then
+            echo "The public plugin catalog is missing. Run all plugin jobs again." >&2
+            exit 1
           fi
           cat > /tmp/plugin-release-notes.md <<EOF
           Download the complete bundle or an individual plugin ZIP below. No GitHub login is required.
 
           Extract the ZIP, then choose its plugin folder in CurveMole: File > Plugin manager > Choose plugin folder.
 
-          Tested on Linux, Windows and macOS. Tested source: $TESTED_SHA.
+          Tested on Linux, Windows and macOS. Source commit: $TESTED_SHA.
+          ${PLUGIN:+Updated plugin: $PLUGIN (tested against CurveMole $STABLE_REF).}
           Validation: $RUN_URL
           This rolling plugin catalog is separate from the latest CurveMole application release.
           EOF
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh api "repos/$GH_REPO/git/refs/tags/$tag" -X PATCH -f sha="$TESTED_SHA" -F force=true
-            gh release upload "$tag" downloads/* --clobber
+            gh release upload "$tag" downloads/*.zip downloads/SHA256SUMS.txt --clobber
+            if ! gh release upload "$tag" downloads/catalog.json --clobber; then
+              gh release upload "$tag" previous/catalog.json
+              exit 1
+            fi
+            if [ -z "$PLUGIN" ]; then
+              gh api "repos/$GH_REPO/git/refs/tags/$tag" -X PATCH -f sha="$TESTED_SHA" -F force=true
+            fi
             gh release edit "$tag" --title "Validated plugins — latest downloads" \
               --notes-file /tmp/plugin-release-notes.md --prerelease --latest=false
           else
