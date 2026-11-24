@@ -177,8 +177,13 @@ def test_both_publication_paths_refresh_tutorial_before_upload():
         refresh = next(i for i, step in enumerate(steps)
                        if "quick_start_publication.py" in step.get("run", "") and " refresh " in step["run"])
         upload = next(i for i, step in enumerate(steps) if "upload-pages-artifact" in step.get("uses", ""))
+        wait = next(i for i, step in enumerate(steps) if "wait_for_pages_artifact.sh" in step.get("run", ""))
         guard = next(i for i, step in enumerate(steps) if step.get("name", "").startswith("Reject a superseded"))
-        assert refresh < guard < upload
+        deploy = next(i for i, step in enumerate(steps) if "deploy-pages" in step.get("uses", ""))
+        assert refresh < upload < wait < guard < deploy
+        assert steps[wait]["env"]["ARTIFACT_ID"] == "${{ steps.pages.outputs.artifact_id }}"
+        assert steps[upload]["with"]["name"] == steps[deploy]["with"]["artifact_name"] == "${{ env.PAGES_ARTIFACT }}"
+        assert "github.run_attempt" in workflow["env"]["PAGES_ARTIFACT"]
         assert "refresh_website_showcase.py" in steps[refresh]["run"]
     if "release-news" not in jobs:
         return

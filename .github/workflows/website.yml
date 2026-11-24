@@ -32,6 +32,9 @@ concurrency:
   group: github-pages
   cancel-in-progress: false
 
+env:
+  PAGES_ARTIFACT: github-pages-${{ github.run_attempt }}
+
 jobs:
   release-news:
     # Published betas have already passed the app matrix. Website-only runs
@@ -85,16 +88,25 @@ jobs:
           uv sync --project "$STABLE_TUTORIAL" --locked --no-default-groups --group screenshots
           uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL" --renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"
           uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/refresh_website_showcase.py --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v5
+        id: pages
+        with:
+          name: ${{ env.PAGES_ARTIFACT }}
+          path: ${{ runner.temp }}/curvemole-website-news
+      - name: Wait for the uploaded Pages artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.pages.outputs.artifact_id }}
+        run: bash .github/scripts/wait_for_pages_artifact.sh "$ARTIFACT_ID" "$PAGES_ARTIFACT"
       - name: Reject a superseded source
         run: |
           git fetch origin main testing
           python .github/scripts/website_news.py --check-current --output "$RUNNER_TEMP/curvemole-website-news"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: ${{ runner.temp }}/curvemole-website-news
-      - uses: actions/deploy-pages@v4
+      - uses: actions/deploy-pages@v5.0.1
         id: deployment
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}
 
   deploy:
     if: >-
@@ -164,20 +176,31 @@ jobs:
             flags+=(--renderer "$PUBLICATION_SOURCE/website/scripts/render_quick_start_screenshots.py")
           fi
           uv run --no-sync python "$PUBLICATION_SOURCE/.github/scripts/quick_start_publication.py" refresh --snapshot website/dist --checkout . "${flags[@]}"
-      - name: Reject a superseded snapshot
-        if: steps.readiness.outputs.ready == 'true'
-        run: |
-          git fetch origin main
-          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
       - name: Configure Pages
         if: steps.readiness.outputs.ready == 'true'
         uses: actions/configure-pages@v5
       - name: Upload complete website snapshot
         if: steps.readiness.outputs.ready == 'true'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
+        id: pages
         with:
+          name: ${{ env.PAGES_ARTIFACT }}
           path: website/dist
+      - name: Wait for the uploaded Pages artifact
+        if: steps.readiness.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ steps.pages.outputs.artifact_id }}
+          PUBLICATION_SOURCE: ${{ github.ref == 'refs/heads/testing' && 'publication-checks' || '.' }}
+        run: bash "$PUBLICATION_SOURCE/.github/scripts/wait_for_pages_artifact.sh" "$ARTIFACT_ID" "$PAGES_ARTIFACT"
+      - name: Reject a superseded snapshot
+        if: steps.readiness.outputs.ready == 'true'
+        run: |
+          git fetch origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
       - name: Deploy website
         if: steps.readiness.outputs.ready == 'true'
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.1
+        with:
+          artifact_name: ${{ env.PAGES_ARTIFACT }}
