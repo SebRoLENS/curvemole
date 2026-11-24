@@ -116,7 +116,10 @@ def test_run_dialog_and_saved_background_result(button_label, mode, note, tmp_pa
     original_exec = QMessageBox.exec
 
     def choose(dialog):
-        assert dialog.windowTitle() == "Background uncertainty"
+        assert dialog.text() == "An estimated background was subtracted from Raman."
+        # The regression clicks a Qt widget. Native message boxes handle clicks
+        # through the platform instead and macOS omits the window title.
+        dialog.setOption(QMessageBox.Option.DontUseNativeDialog)
         button = next(item for item in dialog.buttons() if item.text() == button_label)
         assert button.isEnabled()
         QTimer.singleShot(0, button.click)
