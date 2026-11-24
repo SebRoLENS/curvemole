@@ -52,17 +52,19 @@ Quick start buttons and documentation card open the illustrated tutorial directl
 
 ## Assets and scientific examples
 
-Real GUI screenshots are generated in the publishing job from the same checkout
-as the website, after readiness checks and before the Pages artifact is uploaded. Animations support pause
-and reduced-motion preferences.
+Every website publication renders the GUI screenshots from the verified stable
+application before uploading the Pages artifact. The capture record at
+`assets/showcase-manifest.json` identifies the app version and source SHA and
+records each screenshot's SHA-256. Animations support pause and reduced motion.
 
-The downloadable scientific examples use synthetic data fitted with CurveMole
-0.46.0 (commit `2e71f82b8e679003908f231b674bf020a9b3acb9`). Static figures were
-rendered using Matplotlib with website-specific styling; the hero animation
-renders saved fit results in browser SVG. Neither is an application screenshot
-or experimental validation.
+The publishing job also repeats the three synthetic fits with the stable
+CurveMole Python engine and updates the version displayed beside their figures.
+Matplotlib renders those figures with website styling, and the hero animation
+uses the computed fits as its data. The experimental workspace screenshot opens
+the saved project and preserves its recorded fits.
 
-With that CurveMole version and Matplotlib installed, reproduce the examples:
+With the version shown in the published fit reports and Matplotlib installed,
+reproduce the synthetic examples:
 
 ```sh
 python website/dist/examples/generate_scientific_examples.py --output website/dist/examples
@@ -217,15 +219,15 @@ processing: verify the report's status and discovered-page count separately.
 
 ## Release-news publication
 
-The reusable website workflow is called only after testing validation succeeds and
-a beta publishes, or for an explicit `[website only]` push. It overlays only
-`news.html`, the archive index template and `style.css` on a fresh `origin/main`
-snapshot. The stable release must still have complete published packages/manual
-and matching DOI metadata. Citations, downloads, manual links and existing screenshots
-remain pinned to stable source; the illustrated quick-start assets and practice
-files are regenerated from that verified stable app before uploading.
-`publication.json` records both the stable
-`source_sha` and tested `news_source_sha`. No software release is created.
+When a beta publishes, the reusable workflow refreshes the website from a
+fresh `origin/main` snapshot. An explicit `[skip release] [website only]` push
+uses a separate queue and runs the Linux website tests before publication. The
+overlay contains the release news and the validated quick-start materials.
+The stable release must have complete published packages and manual and a
+matching DOI. The publishing job regenerates the showcase screenshots, synthetic
+examples, tutorial captures and practice files with that verified stable app.
+`publication.json` records the stable `source_sha` and the website edits'
+`news_source_sha`.
 
 Both publication paths share the Pages lock. A changed stable source or any newer
 unvalidated testing work blocks deployment; later bot-only changelog ledger writes

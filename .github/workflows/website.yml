@@ -39,8 +39,6 @@ jobs:
     if: inputs.news_only && github.ref == 'refs/heads/testing' && inputs.source_ref == github.sha
     runs-on: ubuntu-22.04
     timeout-minutes: 20
-    env:
-      REFRESH_QUICK_START: ${{ inputs.website_only }}
     permissions:
       contents: read
       actions: read
@@ -57,10 +55,7 @@ jobs:
       - name: Assemble published news over the stable website
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          flags=()
-          if [[ "$REFRESH_QUICK_START" == true ]]; then flags+=(--refresh-quick-start); fi
-          python .github/scripts/website_news.py --output "$RUNNER_TEMP/curvemole-website-news" "${flags[@]}"
+        run: python .github/scripts/website_news.py --output "$RUNNER_TEMP/curvemole-website-news" --refresh-quick-start
       - name: Prepare the stable quick-start app and renderer
         id: quickstart
         run: >-
@@ -88,11 +83,8 @@ jobs:
           STABLE_TUTORIAL: ${{ steps.quickstart.outputs.checkout }}
         run: |
           uv sync --project "$STABLE_TUTORIAL" --locked --no-default-groups --group screenshots
-          flags=()
-          if [[ "$REFRESH_QUICK_START" == true ]]; then
-            flags+=(--renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py")
-          fi
-          uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL" "${flags[@]}"
+          uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL" --renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"
+          uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/refresh_website_showcase.py --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL"
       - name: Reject a superseded source
         run: |
           git fetch origin main testing
@@ -148,7 +140,7 @@ jobs:
         with:
           enable-cache: false
           python-version: '3.12'
-      - name: Checkout updated publication tests for stable recovery
+      - name: Checkout updated publication tooling for stable recovery
         if: steps.readiness.outputs.ready == 'true' && github.ref == 'refs/heads/testing'
         uses: actions/checkout@v6
         with:
@@ -161,13 +153,17 @@ jobs:
           QT_QPA_PLATFORM: offscreen
           PYTHONPATH: src
           PUBLICATION_TESTS: ${{ github.ref == 'refs/heads/testing' && 'publication-checks/tests/test_website_publication.py' || 'tests/test_website_publication.py' }}
+          PUBLICATION_SOURCE: ${{ github.ref == 'refs/heads/testing' && 'publication-checks' || '.' }}
         run: |
           uv sync --locked --no-default-groups --group screenshots --group test
           uv run --no-sync pytest -q "$PUBLICATION_TESTS"
-          uv run --no-sync python website/scripts/render_demo_screenshots.py
-          uv run --no-sync python website/scripts/render_project_screenshots.py
-          uv run --no-sync python website/scripts/render_customization_screenshots.py
-          uv run --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot website/dist --checkout .
+          uv run --no-sync python "$PUBLICATION_SOURCE/.github/scripts/refresh_website_showcase.py" --snapshot website/dist --checkout .
+          flags=()
+          if [[ "$PUBLICATION_SOURCE" == publication-checks ]]; then
+            cp "$PUBLICATION_SOURCE/website/dist/quick-start.html" website/dist/quick-start.html
+            flags+=(--renderer "$PUBLICATION_SOURCE/website/scripts/render_quick_start_screenshots.py")
+          fi
+          uv run --no-sync python "$PUBLICATION_SOURCE/.github/scripts/quick_start_publication.py" refresh --snapshot website/dist --checkout . "${flags[@]}"
       - name: Reject a superseded snapshot
         if: steps.readiness.outputs.ready == 'true'
         run: |

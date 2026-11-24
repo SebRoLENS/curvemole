@@ -174,10 +174,12 @@ def test_both_publication_paths_refresh_tutorial_before_upload():
         if name not in jobs:
             continue
         steps = workflow["jobs"][name]["steps"]
-        refresh = next(i for i, step in enumerate(steps) if "quick_start_publication.py refresh" in step.get("run", ""))
+        refresh = next(i for i, step in enumerate(steps)
+                       if "quick_start_publication.py" in step.get("run", "") and " refresh " in step["run"])
         upload = next(i for i, step in enumerate(steps) if "upload-pages-artifact" in step.get("uses", ""))
         guard = next(i for i, step in enumerate(steps) if step.get("name", "").startswith("Reject a superseded"))
         assert refresh < guard < upload
+        assert "refresh_website_showcase.py" in steps[refresh]["run"]
     if "release-news" not in jobs:
         return
     steps = jobs["release-news"]["steps"]
@@ -187,5 +189,4 @@ def test_both_publication_paths_refresh_tutorial_before_upload():
     assert refresh["if"] == "steps.quickstart.outputs.required == 'true'"
     assert 'uv sync --project "$STABLE_TUTORIAL" --locked' in refresh["run"]
     assert '--checkout "$STABLE_TUTORIAL"' in refresh["run"]
-    assert jobs["release-news"]["env"]["REFRESH_QUICK_START"] == "${{ inputs.website_only }}"
     assert '--renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"' in refresh["run"]

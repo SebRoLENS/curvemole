@@ -376,10 +376,10 @@ The existing release/DOI/readiness gates still apply. A separate release-news
 path runs after validated beta publication, or a validated `[website only]` push
 on testing. It overlays the release-news templates and styles on the stable
 website snapshot. An explicit `[skip release] [website only]` push uses a
-separate queue and runs the website tests on Linux. It overlays the quick-start
-page and uses its renderer from testing, with the verified stable app for all
-tutorial captures. The cross-platform application matrix runs for beta builds
-and stable promotions. See
+separate queue and runs the website tests on Linux. Both publication paths
+regenerate the GUI screenshots, tutorial and worked scientific examples using
+the verified stable app. The cross-platform application matrix runs for beta
+builds and stable promotions. See
 [website publication](../website/README.md#release-news-publication).
 
 See the [detailed workflow audit of 3 November 2026](github-workflows-audit-2026-11-03.md)

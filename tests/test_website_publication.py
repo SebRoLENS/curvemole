@@ -195,7 +195,7 @@ def test_deploy_cannot_race_screenshots_or_bypass_readiness():
     assert "github.event.workflow_run.path == '.github/workflows/automatic-release.yml'" in condition
     assert 'workflow_run.name' not in condition
     steps = workflow['jobs']['deploy']['steps']
-    render = next(i for i, s in enumerate(steps) if 'render_demo_screenshots.py' in s.get('run', ''))
+    render = next(i for i, s in enumerate(steps) if 'refresh_website_showcase.py' in s.get('run', ''))
     deploy = next(i for i, s in enumerate(steps) if s.get('id') == 'deployment')
     assert render < deploy
     for step in steps[render:]:

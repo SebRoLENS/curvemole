@@ -1,5 +1,5 @@
 """Generate website figures with the real CurveMole Python engine.
-Run with CurveMole 0.46.0 installed: python scripts/generate_scientific_examples.py
+Use the CurveMole version listed in the accompanying fit reports.
 Synthetic data; independent Gaussian noise; supplied sigma_y; absolute_sigma=True.
 """
 from pathlib import Path
