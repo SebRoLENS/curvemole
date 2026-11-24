@@ -359,6 +359,7 @@ class ModelPanel(QWidget):
                 display_method,
                 recorded_analysis_error,
             )
+            from curvemole.core.background_uncertainty import background_uncertainty_note
 
             chosen = display_method(self.project)
             report = self.project.results.get("uncertainty_reports_by_curve", {}).get(
@@ -370,6 +371,7 @@ class ModelPanel(QWidget):
             baseline = report.get("baseline", {})
             if hasattr(baseline, "to_dict"):
                 baseline = baseline.to_dict(arrays=False)
+            background_note = background_uncertainty_note(baseline)
             outdated = self.project.dataset.curve(self.curve_id).state != CurveState.FITTED
             provenance = DISPLAY_METHODS[chosen] if chosen else self.tr("No analysis selected")
             if confidence is not None:
@@ -407,6 +409,9 @@ class ModelPanel(QWidget):
                         "Historical result around recorded fit value {value}. Data/model have changed; "
                         "these are not uncertainties of the current fit. Refit and rerun the analysis."
                     ).format(value=f"{recorded_value:.12g}"))
+                if background_note:
+                    analysis_item.setToolTip(background_note + "\n" + self.tr(
+                        "Open Uncertainty to see the separate fit values and intervals."))
                 self.parameters.setItem(row, 3, analysis_item)
                 equality_linked = bool(parameter.link and parameter.link_relation == "equal")
                 fixed_value = parameter.fixed and not equality_linked

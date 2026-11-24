@@ -2,6 +2,8 @@
 
 
 def uncertainty_warning(project, curve_id, method):
+    from curvemole.core.background_uncertainty import background_uncertainty_note
+
     method = "parametric_monte_carlo" if method == "monte_carlo" else method
     failures = project.results.get("uncertainty_failures_by_curve", {}).get(curve_id, {})
     reports = project.results.get("uncertainty_reports_by_curve", {}).get(curve_id, {})
@@ -14,11 +16,13 @@ def uncertainty_warning(project, curve_id, method):
             return ("Timeout: the new uncertainty analysis was stopped. "
                     "Any previous completed result has been retained.")
         return "Uncertainty analysis failed: " + failure.get("message", "Unknown reason.")
-    analysis = reports.get(method, {}).get("analysis", {})
+    report = reports.get(method, {})
+    analysis = report.get("analysis", {})
     if hasattr(analysis, "to_dict"):
         analysis = analysis.to_dict()
     adaptive = analysis.get("configuration", {}).get("adaptive")
-    warnings = []
+    note = background_uncertainty_note(report.get("baseline", {}))
+    warnings = [note] if note else []
     if adaptive and (adaptive.get("converged") is False or adaptive.get("stop_reason") == "maximum_attempts"):
         attempts = adaptive.get("attempted", "?")
         maximum = adaptive.get("maximum_attempts", "?")

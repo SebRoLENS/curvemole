@@ -155,6 +155,11 @@ class Transformation:
     operand: np.ndarray | None = field(default=None, repr=False)
     operand_errors: np.ndarray | None = field(default=None, repr=False)
 
+    @property
+    def is_estimated_background(self) -> bool:
+        return self.operation == "background_subtract" and bool(self.parameters.get(
+            "estimated_background", str(self.parameters.get("method", "")).startswith("model")))
+
     def target_y_derivative(self):
         op = self.operation
         if op == "y_multiply":
@@ -852,8 +857,7 @@ class Curve:
                         xy_covariance *= x_factor
                 if xy_covariance is not None:
                     xy_covariance = xy_covariance * factor
-                if op == "background_subtract":
-                    correlated |= p.get("estimated_background", str(p.get("method", "")).startswith("model"))
+                correlated |= transformation.is_estimated_background
                 if transformation.operand_errors is not None:
                     if transformation.operand_errors.shape != (2, len(y)):
                         raise DataValidationError("Aligned operand uncertainties do not match the curve.")

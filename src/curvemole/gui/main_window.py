@@ -83,7 +83,7 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
-from curvemole.core.errors import ConstraintError, FitCancelled
+from curvemole.core.errors import ConstraintError, FitCancelled, FitError
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
@@ -358,10 +358,20 @@ def _curve_state_presentation(
         if curve.state == CurveState.FITTED
         else "Uncertainty analysis outdated"
     )
+    from curvemole.core.background_uncertainty import (
+        background_uncertainty_is_current,
+        background_uncertainty_record,
+    )
+
+    report = reports.get(selected_method or methods[-1], {})
+    treatment = background_uncertainty_record(report.get("baseline", {}))
+    if treatment:
+        analysis_state = ("Separate uncertainty analysis" if background_uncertainty_is_current(project, treatment)
+                          else "Uncertainty analysis outdated")
     warning = uncertainty_warning(project, curve.id, uncertainty_method)
     if warning:
-        analysis_state = ("⚠ Uncertainty warning"
-                          if curve.state == CurveState.FITTED else analysis_state + "  ·  ⚠ Uncertainty warning")
+        analysis_state = ("⚠ Uncertainty warning" if analysis_state == "Uncertainty analysed"
+                          else analysis_state + "  ·  ⚠ Uncertainty warning")
         tooltip = warning + "\n" + tooltip
     return f"{curve.state.value}  ·  {analysis_state}", tooltip
 
@@ -3480,6 +3490,37 @@ class MainWindow(QMainWindow):
             return None
         return baseline_for_curve(latest, curve_id), individual_plan(plan, curve_id)
 
+    def _choose_background_uncertainty(self, curves: list[Curve]) -> str | None:
+        from curvemole.core.background_uncertainty import joint_background_components
+
+        unavailable = []
+        for curve in curves:
+            try:
+                joint_background_components(curve, self.project.model_for(curve.id))
+            except FitError as exc:
+                unavailable.append(str(exc))
+        with transient_widget(QMessageBox(self)) as dialog:
+            dialog.setWindowTitle(self.tr("Background uncertainty"))
+            dialog.setTextFormat(Qt.TextFormat.PlainText)
+            dialog.setText(self.tr("An estimated background was subtracted from {spectra}.")
+                           .format(spectra=", ".join(curve.name for curve in curves)))
+            explanation = self.tr(
+                "Keep the corrected data and report intervals conditional on the subtracted background, "
+                "or fit the signal and background together on the data before subtraction. "
+                "For a spline, the joint fit can adjust node heights while keeping their X positions fixed. "
+                "Both choices create a separate analysis without changing the workspace fit."
+            )
+            if unavailable:
+                explanation += "\n\n" + self.tr("Joint fitting is unavailable.") + "\n" + "\n".join(unavailable)
+            dialog.setInformativeText(explanation)
+            fixed = dialog.addButton(self.tr("Ignore background uncertainty"), QMessageBox.ButtonRole.ActionRole)
+            joint = dialog.addButton(self.tr("Refit with background"), QMessageBox.ButtonRole.ActionRole)
+            joint.setEnabled(not unavailable)
+            cancel = dialog.addButton(QMessageBox.StandardButton.Cancel)
+            dialog.setDefaultButton(joint if joint.isEnabled() else cancel)
+            dialog.exec()
+            return {fixed: "fixed", joint: "joint"}.get(dialog.clickedButton())
+
     def start_uncertainty(self, method: str, replicates: int, option: Any,
                           scope: str = "active", workers: int = 1,
                           adaptive: AdaptiveReplicateSettings | None = None,
@@ -3508,34 +3549,40 @@ class MainWindow(QMainWindow):
         if method == "profile_likelihood" and len(ids) != 1:
             self._notify(self.tr("Profile likelihood requires one active spectrum and parameter."), warning=True)
             return
+        available = {curve.id: curve for curve in self.project.curves}
+        subtracted = {cid for cid, curve in available.items()
+                      if any(step.is_estimated_background for step in curve.transformations)}
         jobs = []
         missing = []
+        background_ids = set()
         for curve_id in ids:
             record = self._fit_for_uncertainty(curve_id)
-            if record is None:
+            if record is not None and all(cid in available for cid in record[1].curve_ids):
+                baseline, plan = record
+            elif curve_id in subtracted:
+                baseline, plan = None, FitPlan([curve_id], settings=copy.deepcopy(self.fit_settings))
+            else:
                 missing.append(curve_id)
                 continue
-            baseline, plan = record
-            if not baseline.success or any(
-                self.project.dataset.curve(cid).state != CurveState.FITTED
+            plan_backgrounds = subtracted.intersection(plan.curve_ids)
+            if not plan_backgrounds and (baseline is None or not baseline.success or any(
+                available[cid].state != CurveState.FITTED
                 for cid in plan.curve_ids
-            ):
+            )):
                 missing.append(curve_id)
                 continue
-            if method == "profile_likelihood" and len(baseline.curve_outputs) != 1:
+            if method == "profile_likelihood" and len(plan.curve_ids) != 1:
                 self._notify(self.tr("Profile likelihood requires an independent single-spectrum fit."), warning=True)
                 return
-            if method == "monte_carlo" and any(
-                self.project.dataset.curve(cid).y_error_scales(
+            if method == "monte_carlo" and not plan_backgrounds and any(
+                available[cid].y_error_scales(
                     include_inverse_variance=plan.settings.absolute_sigma is not False) is None
                 for cid in plan.curve_ids
             ):
                 missing.append(curve_id)
                 continue
             plan.settings.confidence_level = self.uncertainty_panel.confidence.value() / 100
-            if (method in {"monte_carlo", "residual_bootstrap", "block_bootstrap"}
-                    and self.uncertainty_panel.replica_global_search.isChecked()):
-                plan.settings.solver = "differential_evolution"
+            background_ids.update(plan_backgrounds)
             jobs.append((curve_id, baseline, plan))
         if not jobs:
             self._notify(self.tr("No usable saved fit for the requested spectra. Refit them first."), warning=True)
@@ -3543,7 +3590,11 @@ class MainWindow(QMainWindow):
         if missing:
             self._notify(self.tr("Skipped {count} spectra without a usable baseline or required noise data.")
                          .format(count=len(missing)), warning=True)
-        if method == "covariance":
+        treatment = self._choose_background_uncertainty(
+            [curve for cid, curve in available.items() if cid in background_ids]) if background_ids else None
+        if background_ids and treatment is None:
+            return
+        if method == "covariance" and not background_ids:
             self._uncertainty_finished([(curve_id, baseline, baseline)
                                         for curve_id, baseline, _ in jobs])
             return
@@ -3556,7 +3607,8 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Profile limits must be numeric, or blank for automatic."), warning=True)
                 return
             profile_lower = profile_upper = None
-        analyzer = UncertaintyAnalyzer(Fitter(self.registry),
+        fitter = Fitter(self.registry)
+        analyzer = UncertaintyAnalyzer(fitter,
                                        replica_timeout_seconds=replica_timeout_seconds)
         needed_ids = {cid for _, _, plan in jobs for cid in plan.curve_ids}
         curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
@@ -3568,7 +3620,7 @@ class MainWindow(QMainWindow):
         grouped: dict[tuple[Any, ...], list[str]] = {}
         unique_jobs = []
         for curve_id, baseline, plan in jobs:
-            key = (("global", baseline.timestamp, tuple(plan.curve_ids))
+            key = (("global", baseline.timestamp if baseline else None, tuple(plan.curve_ids))
                    if plan.mode == FitMode.GLOBAL else ("individual", curve_id))
             if key not in grouped:
                 unique_jobs.append((curve_id, baseline, plan, key))
@@ -3579,38 +3631,57 @@ class MainWindow(QMainWindow):
             "method": "parametric_monte_carlo" if method == "monte_carlo" else method,
             "curve_ids": {cid for cid, _, _ in jobs},
             "completed": set(),
+            "background_treatment": treatment,
         }
+        replica_global_search = self.uncertainty_panel.replica_global_search.isChecked()
+
+        def prepare_inputs(baseline, plan):
+            from curvemole.core.background_uncertainty import fit_background_uncertainty
+
+            curves = {cid: curve_map[cid] for cid in plan.curve_ids}
+            analysis_models = {cid: models[cid] for cid in plan.curve_ids}
+            if background_ids.intersection(plan.curve_ids):
+                baseline, curves, analysis_models = fit_background_uncertainty(
+                    fitter, plan, curves, analysis_models, treatment, cancellation)
+            if method in {"monte_carlo", "residual_bootstrap", "block_bootstrap"} and replica_global_search:
+                plan = copy.deepcopy(plan)
+                plan.settings.solver = "differential_evolution"
+            return baseline, plan, curves, analysis_models
 
         def operation(progress: Callable[[float | None, str], None], publish=None) -> Any:
             completed = []
-            if method != "profile_likelihood" and workers > 1 and len(unique_jobs) > 1:
-                batch = []
-                for _, baseline, plan, _ in unique_jobs:
-                    batch.append((baseline, plan,
-                                  {cid: curve_map[cid] for cid in plan.curve_ids},
-                                  {cid: models[cid] for cid in plan.curve_ids}))
+            if method not in {"profile_likelihood", "covariance"} and workers > 1 and len(unique_jobs) > 1:
+                batch = [prepare_inputs(baseline, plan) for _, baseline, plan, _ in unique_jobs]
                 results = analyzer.resampling_batch(
                     method, batch, replicates=replicates, option=option, adaptive=adaptive,
                     workers=workers, cancellation=cancellation,
                     progress=lambda count: progress(count / len(unique_jobs),
                                                     f"{method}: {count}/{len(unique_jobs)} spectra"),
                     on_result=(lambda index, result: publish([
-                        (selected_id, unique_jobs[index][1], result)
+                        (selected_id, batch[index][0], result)
                         for selected_id in grouped[unique_jobs[index][3]]
                     ])) if publish else None,
                 )
-                for (_, baseline, _, key), result in zip(unique_jobs, results, strict=True):
+                for (_, _, _, key), (baseline, _, _, _), result in zip(unique_jobs, batch, results, strict=True):
                     completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
                 return completed
             for index, (curve_id, baseline, plan, key) in enumerate(unique_jobs):
                 cancellation.raise_if_cancelled()
                 def step(value, message, index=index):
                     progress((index + (value or 0.0)) / len(unique_jobs), message)
-                if method == "profile_likelihood":
+                if background_ids.intersection(plan.curve_ids):
+                    step(None, f"Fitting {curve_map[curve_id].name} for uncertainty analysis…")
+                baseline, plan, curves, analysis_models = prepare_inputs(baseline, plan)
+                if method == "covariance":
+                    if not any(p.ci_low is not None and p.ci_high is not None
+                               for p in baseline.parameters.values()):
+                        raise FitError(" ".join(baseline.warnings) or "No parameter confidence intervals are available.")
+                    result = baseline
+                elif method == "profile_likelihood":
                     if not option:
                         raise RuntimeError("Choose a profile parameter.")
                     result = analyzer.profile_parameter(
-                        baseline, curve_map[curve_id], models[curve_id],
+                        baseline, curves[curve_id], analysis_models[curve_id],
                         str(option), confidence_level=plan.settings.confidence_level,
                         points=profile_points, lower=profile_lower, upper=profile_upper,
                         spectrum_weight=plan.spectrum_weights.get(curve_id, 1.0),
@@ -3619,8 +3690,8 @@ class MainWindow(QMainWindow):
                         cancellation=cancellation, progress=step)
                 else:
                     arguments = dict(
-                        baseline=baseline, plan=plan, curves=curve_map,
-                        models=models, replicates=replicates, adaptive=adaptive,
+                        baseline=baseline, plan=plan, curves=curves,
+                        models=analysis_models, replicates=replicates, adaptive=adaptive,
                         workers=workers,
                         cancellation=cancellation, progress=step)
                     if method == "monte_carlo":
@@ -4896,10 +4967,13 @@ class MainWindow(QMainWindow):
         self.plot_workspace._live_parameter_values = None
         self._log(details)
         task = getattr(self, "_uncertainty_task", None)
-        if task and message.startswith("Uncertainty replica timeout:"):
+        timeout = message.startswith("Uncertainty replica timeout:")
+        if task and (timeout or (task.get("background_treatment") and "cancelled" not in message.lower())):
             failures = self.project.results.setdefault("uncertainty_failures_by_curve", {})
             for curve_id in task["curve_ids"] - task["completed"]:
-                failures.setdefault(curve_id, {})[task["method"]] = {"message": message, "reason": "timeout"}
+                failures.setdefault(curve_id, {})[task["method"]] = {
+                    "message": message, "reason": "timeout" if timeout else "background_analysis",
+                }
             self.project.touch()
         if "cancelled" in message.lower():
             self._notify(self.tr("Task cancelled; the previous valid result was retained."), warning=True)

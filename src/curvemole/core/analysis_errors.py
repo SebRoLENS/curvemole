@@ -86,12 +86,16 @@ def analysis_error(project, curve_id: str, path: str) -> tuple[float, float] | N
 
 def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, float] | None:
     """Recorded errors around the recorded fit value, including historical fits."""
+    from curvemole.core.background_uncertainty import background_uncertainty_record
+
     method = selected_method(project, curve_id)
     if method is None:
         return None
     record = project.results["uncertainty_reports_by_curve"][curve_id][method]
     analysis = record.get("analysis", {})
     baseline = record.get("baseline", {})
+    if background_uncertainty_record(baseline):
+        return None  # This analysis has its own fit values in the uncertainty report.
     if hasattr(analysis, "to_dict"):
         analysis = analysis.to_dict()
     if hasattr(baseline, "to_dict"):

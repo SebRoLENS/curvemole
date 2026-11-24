@@ -6,6 +6,12 @@ import re
 
 import numpy as np
 
+from curvemole.core.background_uncertainty import (
+    background_uncertainty_is_current,
+    background_uncertainty_note,
+    background_uncertainty_record,
+)
+
 METHOD_LABELS = {
     "covariance": "Fit covariance", "parametric_monte_carlo": "Parametric Monte Carlo",
     "residual_bootstrap": "Residual bootstrap", "block_bootstrap": "Block bootstrap",
@@ -51,6 +57,10 @@ def summarize(project, baseline, analysis, method):
     """
     baseline = baseline.to_dict(arrays=False) if hasattr(baseline, "to_dict") else baseline
     analysis = analysis.to_dict() if hasattr(analysis, "to_dict") else analysis
+    background_treatment = background_uncertainty_record(baseline)
+    background_note = background_uncertainty_note(baseline)
+    background_is_current = (not background_treatment
+                             or background_uncertainty_is_current(project, background_treatment))
     estimates = baseline.get("parameters", {})
     if method == "covariance":
         intervals = {path: (e.get("ci_low"), e.get("ci_high")) for path, e in estimates.items()}
@@ -85,7 +95,7 @@ def summarize(project, baseline, analysis, method):
             curve_id, component_id, parameter_name = path.split(".", 2)
             curve = project.dataset.curve(curve_id)
             project.models[curve_id].component(component_id).parameters[parameter_name]
-            if curve.state.value == "Modified/outdated":
+            if (not background_is_current if background_treatment else curve.state.value == "Modified/outdated"):
                 flag(1, "Recorded result: data/model have changed since this fit; refit and rerun analysis.")
         except (KeyError, ValueError):
             flag(2, "The original spectrum/function no longer exists.")
@@ -167,10 +177,12 @@ def summarize(project, baseline, analysis, method):
                   "Fixed" if fixed else "OK")
         if status == "OK":
             reasons.append("No diagnostic issue was flagged by these checks; practical adequacy is not assessed.")
+        if background_note:
+            reasons.insert(0, background_note)
         curve, component, name = parameter_label(project, path)
         rows.append(dict(path=path, spectrum=curve, function=component, parameter=name,
                          value=value, lower=low, upper=high,
                          status=status, reasons=" ".join(reasons), reason_items=reasons,
-                         method=method,
+                         method=method, background_treatment=background_treatment.get("mode", ""),
                          confidence_level=analysis.get("confidence_level", baseline.get("settings", {}).get("confidence_level", .95))))
     return rows

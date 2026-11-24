@@ -2320,15 +2320,30 @@ or data treatment deserves review.
 
 ## 12. Explicit uncertainty analyses
 
-Open **Fit > Uncertainty Analysis** only after a successful fit. These calculations
-run in the background, can be cancelled, and may be substantially slower than the
-baseline fit. **Fit covariance** displays the uncertainty already calculated by
+Open **Fit > Uncertainty Analysis** after a successful fit, or after a recorded
+subtraction of an estimated background. These calculations run in the background,
+can be cancelled, and may be substantially slower than the baseline fit. For an
+ordinary fit, **Fit covariance** displays the uncertainty already calculated by
 the fit without running replicas. Monte Carlo, residual bootstrap and block bootstrap
 default to **Adaptive - stop when intervals stabilize**. **Fixed count** remains
 available with an initial count of **200 replicates** (not optimizer iterations).
 Selecting it shows a notice: fixed count does not check interval stability. Prefer
 Adaptive; use fixed count for tests or when a quick analysis is needed.
 The optimizer's default evaluation budget is unchanged.
+
+When an estimated background was subtracted, choose a treatment when running the analysis.
+
+- **Ignore background uncertainty** fits the corrected spectrum and reports intervals
+  conditional on the background used for subtraction. The report identifies this assumption.
+- **Refit with background** uses the spectrum before subtraction and fits the signal
+  and the recovered background components together. Bounds and parameter links apply.
+  For a hand-drawn spline, the fit can adjust node heights at the chosen x positions.
+  The resulting intervals are conditional on the number and positions of the nodes.
+
+Both choices store the fit values and intervals in the **Uncertainty Analysis** report.
+The workspace spectrum and its fit keep their previous state. If a background function
+is missing or a later data operation prevents automatic reconstruction, set up the
+joint fit manually. Other sources of correlated errors still require a suitable noise model.
 
 **Replica timeout (seconds)** limits each Monte Carlo or bootstrap replica to
 **60 seconds** by default and can be changed before running an analysis. The timer
