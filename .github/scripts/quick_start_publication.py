@@ -119,7 +119,7 @@ def verify(snapshot):
     return manifest
 
 
-def refresh(snapshot, checkout):
+def refresh(snapshot, checkout, renderer=None):
     if not guide_enabled(snapshot):
         return False
     metadata = metadata_for(snapshot)
@@ -137,10 +137,10 @@ def refresh(snapshot, checkout):
         PYTHONPATH=str(checkout / "src"),
         CURVEMOLE_SCREENSHOT_SOURCE_SHA=metadata["source_sha"],
     )
-    subprocess.run(
-        [sys.executable, str(checkout / RENDERER), "--output", str(snapshot)],
-        cwd=checkout, env=env, check=True,
-    )
+    command = [sys.executable, str(renderer or checkout / RENDERER), "--output", str(snapshot)]
+    if renderer is not None:
+        command.extend(("--app-source", str(checkout)))
+    subprocess.run(command, cwd=checkout, env=env, check=True)
     verify(snapshot)
     return True
 
@@ -150,6 +150,7 @@ def main():
     parser.add_argument("command", choices=("prepare", "refresh", "verify"))
     parser.add_argument("--snapshot", type=Path, required=True, help="Assembled website/dist")
     parser.add_argument("--checkout", type=Path, help="Verified stable app checkout")
+    parser.add_argument("--renderer", type=Path, help="Validated website-only tutorial renderer")
     args = parser.parse_args()
     snapshot = args.snapshot.resolve()
     if args.command == "verify":
@@ -164,7 +165,7 @@ def main():
             with Path(output).open("a", encoding="utf-8") as stream:
                 stream.write(f"required={str(required).lower()}\ncheckout={checkout}\n")
     else:
-        refresh(snapshot, checkout)
+        refresh(snapshot, checkout, args.renderer.resolve() if args.renderer else None)
 
 
 if __name__ == "__main__":

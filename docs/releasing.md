@@ -356,8 +356,7 @@ prepare competing stable versions concurrently. Generated `main` writes retain
 `curvemole-testing-write`, acquired only for the jobs that write `testing`.
 These writers use non-cancelling maximum queues; Git checks still reject stale
 or conflicting human pushes. PR CI cancels superseded runs as a whole; main CI
-keeps a non-cancelling maximum queue. Normal testing builds retain the current
-run and newest pending run.
+keeps a non-cancelling maximum queue. Testing builds also preserve queued runs.
 
 Packaging resolves its source ref once to a commit SHA. Only an exact
 `vMAJOR.MINOR.PATCH` input enters stable asset publication; branch names beginning
@@ -375,8 +374,11 @@ The website accepts automatic notifications from successful main push CI and
 manual Automatic release runs only. PR completion cannot request a deployment.
 The existing release/DOI/readiness gates still apply. A separate release-news
 path runs after validated beta publication, or a validated `[website only]` push
-on testing. It overlays only release-news templates/styles on the stable main
-website snapshot; it neither promotes software nor writes main. See
+on testing. It overlays the release-news templates and styles on the stable
+website snapshot. An explicit `[skip release] [website only]` push also uses
+the validated quick-start page and renderer from testing, with the verified
+stable app for all tutorial captures. This publishes the website independently
+of the desktop release. See
 [website publication](../website/README.md#release-news-publication).
 
 See the [detailed workflow audit of 3 November 2026](github-workflows-audit-2026-11-03.md)

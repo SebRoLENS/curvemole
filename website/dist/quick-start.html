@@ -178,34 +178,38 @@
       <section class="qs-step" id="correlation" aria-labelledby="correlation-title">
         <div class="qs-step-heading"><span class="qs-step-number">07</span><div><span class="eyebrow">LOCAL PARAMETER UNCERTAINTY</span><h2 id="correlation-title">Inspect the covariance intervals.</h2></div></div>
         <ol class="qs-instructions">
+          <li>For the uncertainty exercise, start with a separate raw copy of the Raman spectrum. Reapply the 894–906 cm<sup>−1</sup> mask, reuse the three Gaussian bands and enable the quadratic background. Clear <strong>Fixed</strong> for <strong>c0, c1 and c2</strong>.</li>
+          <li>Run <strong>Quick Fit</strong> on the raw copy with the supplied σ<sub>y</sub> values. This fit uses 794 observations and 12 free parameters.</li>
           <li>Choose <strong>Fit → Uncertainty Analysis</strong>.</li>
           <li>Select <strong>Fit covariance</strong> and <strong>Active spectrum</strong>, then press <strong>Run explicit uncertainty analysis</strong>. This displays the local covariance estimate already available from the fit.</li>
           <li>Read the fitted value and lower/upper confidence limits for each free parameter. Keep the original <strong>±1σ</strong> fit errors distinct from later explicit-analysis intervals.</li>
         </ol>
         <p>These confidence intervals use a local covariance approximation around the fitted solution. The next step uses Monte Carlo samples to examine uncertainty and the coupling between overlapping-band areas.</p>
         <figure class="qs-shot"><a href="assets/quick-start/11-uncertainty-covariance.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/11-uncertainty-covariance.png" data-qs-screenshot loading="lazy" alt="Actual Fit covariance results showing fitted values and local confidence intervals in the CurveMole uncertainty panel"/></a><figcaption><span>LOCAL INTERVALS</span> An OK assessment means that these displayed checks flagged no issue; it does not establish model validity or rule out parameter coupling.</figcaption></figure>
-        <p class="qs-note">The polynomial background was estimated from three observed points, held fixed and subtracted. Its estimation uncertainty is not propagated into these band intervals. The reported errors are conditional on that chosen background.</p>
+        <p class="qs-note">Estimating and subtracting a background from the same observations induces correlations between the corrected rows. The joint fit uses the original measurements and estimates the background and peak parameters together.</p>
       </section>
 
       <section class="qs-step" id="monte-carlo" aria-labelledby="monte-carlo-title">
         <div class="qs-step-heading"><span class="qs-step-number">08</span><div><span class="eyebrow">EXPLICIT ERROR ANALYSIS AND CORRELATION</span><h2 id="monte-carlo-title">Resample and inspect the overlapping bands.</h2></div></div>
         <ol class="qs-instructions">
-          <li>In the same panel, select <strong>Parametric Monte Carlo</strong> and <strong>Active spectrum</strong>.</li>
+          <li>With the joint fit on the raw copy active, open <strong>Uncertainty Analysis</strong> and select <strong>Parametric Monte Carlo</strong> and <strong>Active spectrum</strong>.</li>
           <li>For this short exercise choose <strong>Fixed count</strong>, <strong>200</strong> replicates and <strong>95%</strong> confidence. Set <strong>CPU processes</strong> to <strong>1</strong> to match this reference run, and leave the per-replica timeout at its default.</li>
           <li>Press <strong>Run explicit uncertainty analysis</strong>. CurveMole generates data from the fitted model and the imported noise scale, then refits each replica.</li>
           <li>Inspect the completed/failed counts, interval bounds and assessment reasons. Select the displayed uncertainty method in the model panel if you want the Monte Carlo minus/plus errors shown beside each fitted value.</li>
           <li>With <strong>Parametric Monte Carlo</strong> still selected, find the <strong>area</strong> row for <strong>Overlap A</strong>. Click its <strong>Attention</strong> assessment to read the correlation with <strong>Overlap B area</strong>.</li>
         </ol>
         <div class="qs-shot-grid"><figure class="qs-shot"><a href="assets/quick-start/13-monte-carlo-setup.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/13-monte-carlo-setup.png" data-qs-screenshot loading="lazy" alt="Real Monte Carlo settings with 200 fixed replicates and the software's interval-stability notice visible"/></a><figcaption><span>QUICK EXERCISE</span> The fixed-count notice is part of the real interface.</figcaption></figure><figure class="qs-shot"><a href="assets/quick-start/14-monte-carlo-results.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/14-monte-carlo-results.png" data-qs-screenshot loading="lazy" alt="Actual completed Monte Carlo confidence intervals, replicate counts and parameter assessments"/></a><figcaption><span>INSPECT THE RESULT</span> Retain the replicate counts and any warnings with the intervals.</figcaption></figure></div>
-        <p>The reference Monte Carlo samples show a strong negative area correlation: <strong data-mc-overlap-correlation>r ≈ −0.97</strong>. One overlapping area can increase while the other decreases, with relatively little change in their sum. This is an empirical correlation across the refitted replicas; the local covariance of the original fit gives a separate estimate, <strong data-overlap-correlation>r ≈ −0.97</strong>.</p>
+        <p>The joint fit's Monte Carlo samples show a strong negative area correlation, <strong data-mc-overlap-correlation>r ≈ −0.95</strong>. One overlapping area can increase while the other decreases, with relatively little change in their sum. The local covariance of the joint fit gives a separate estimate, <strong data-overlap-correlation>r ≈ −0.95</strong>.</p>
         <figure class="qs-shot"><a href="assets/quick-start/12-overlap-correlation.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/12-overlap-correlation.png" data-qs-screenshot loading="lazy" alt="The real Monte Carlo Assessment details dialog identifying strong negative empirical correlation between the areas of Overlap A and Overlap B"/></a><figcaption><span>READ THE CORRELATION REASON</span> This assessment belongs to the selected Monte Carlo analysis and identifies which parameters compensate each other.</figcaption></figure>
         <p>This is a correlation between <strong>parameter estimates</strong> in the chosen model. It does not by itself establish a physical relationship between the Raman bands.</p>
-        <p class="qs-note"><strong>200 fixed replicates illustrate the procedure; they do not establish interval stability.</strong> For intervals you intend to report, prefer <strong>Adaptive - stop when intervals stabilize</strong> and inspect its stopping reason and failed fits. In both covariance and Monte Carlo here, the estimated, subtracted background is held fixed: its uncertainty is not propagated into the band parameters.</p>
+        <p class="qs-note"><strong>Use the original measurements for this Monte Carlo exercise.</strong> The imported errors are independent. Subtracting a background estimated from these measurements induces correlations between rows. Fitting the background and peaks together lets the background vary in each replica. Use 200 fixed replicas to practise, and check interval stability for results you intend to report.</p>
+        <div class="qs-file-links"><a href="quick-start-data/monte-carlo-analysis.fitproj" download>Completed joint-fit Monte Carlo project ↓</a></div>
       </section>
 
       <section class="qs-step" id="export-curves" aria-labelledby="export-curves-title">
         <div class="qs-step-heading"><span class="qs-step-number">09</span><div><span class="eyebrow">NUMERICAL RESULTS FOR REPLOTTING</span><h2 id="export-curves-title">Export the observations and fitted traces.</h2></div></div>
         <ol class="qs-instructions">
+          <li>Return to the background-subtracted fit for the reference spectra and parameter tables below.</li>
           <li>Choose <strong>File → Quick export: spectra and fit curves…</strong> (Ctrl+T), select this spectrum and choose an output folder.</li>
           <li>Include <strong>Individual fit functions/components</strong>, <strong>Total fit</strong> and <strong>Residuals (data - total fit)</strong>.</li>
           <li>Leave <strong>Export spectrum with fitted background subtracted</strong> unchecked: the processing step already subtracted our polynomial.</li>
@@ -222,7 +226,7 @@
         <div class="qs-step-heading"><span class="qs-step-number">10</span><div><span class="eyebrow">PARAMETER VALUES, ERRORS AND MATRICES</span><h2 id="export-parameters-title">Export every function parameter.</h2></div></div>
         <ol class="qs-instructions">
           <li>Choose <strong>File → Quick export: function parameters…</strong> and save the CSV in your results folder.</li>
-          <li>Check <strong>Also export covariance matrices</strong> if you want the labelled fit covariance and, when available, a separate covariance from the selected Monte Carlo samples.</li>
+          <li>Open the separate Monte Carlo project to export uncertainty matrices. Select its Monte Carlo results and check <strong>Also export covariance matrices</strong> for the labelled local and empirical covariance matrices.</li>
           <li>Open the table in a spreadsheet or analysis program. The first two header rows identify the functions and their parameters; each spectrum occupies one data row.</li>
         </ol>
         <figure class="qs-shot"><a href="assets/quick-start/16-export-parameters.png" data-qs-screenshot-link target="_blank" rel="noopener"><img src="assets/quick-start/16-export-parameters.png" data-qs-screenshot loading="lazy" alt="Real function-parameter export dialog with Also export covariance matrices enabled"/></a><figcaption><span>EXPORT PARAMETERS</span> Values, fit errors and selected-analysis minus/plus errors remain distinguishable.</figcaption></figure>

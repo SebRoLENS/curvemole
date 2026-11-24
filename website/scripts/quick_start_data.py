@@ -23,10 +23,10 @@ BANDS = (
     {"name": "Overlap B", "area": 11000.0, "center": 1260.0, "sigma": 30.0},
 )
 BASELINE_CAVEAT = (
-    "The quadratic background is estimated from three observed control points, "
-    "then held fixed and subtracted. Fit and resampling uncertainties are "
-    "conditional on this chosen background; its estimation uncertainty is not "
-    "propagated into the band parameters."
+    "The background-subtracted project demonstrates the fitted peak shapes. The "
+    "separate uncertainty project uses the original measurements, fits the "
+    "quadratic background alongside the three bands and refits both in every "
+    "Monte Carlo replica."
 )
 
 

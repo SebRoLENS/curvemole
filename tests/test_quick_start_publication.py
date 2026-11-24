@@ -52,7 +52,12 @@ def repository(tmp_path):
 from pathlib import Path
 p = argparse.ArgumentParser()
 p.add_argument('--output', type=Path)
-out = p.parse_args().output
+p.add_argument('--app-source', type=Path)
+args = p.parse_args()
+out = args.output
+if args.app_source is not None:
+    assert args.app_source.resolve() == Path.cwd()
+    assert os.environ['PYTHONPATH'] == str(Path.cwd() / 'src')
 d = out / 'assets/quick-start'
 d.mkdir(parents=True)
 (d / '01-import.png').write_bytes(b'\\x89PNG\\r\\n\\x1a\\nfresh')
@@ -110,7 +115,8 @@ def test_wrong_or_incomplete_stable_checkout_fails_before_render(publisher, repo
     assert old.read_bytes() == b"old capture"
 
 
-def test_refresh_removes_old_artifacts_and_validates_new_manifest(publisher, repository, tmp_path):
+@pytest.mark.parametrize("website_only", [False, True])
+def test_refresh_removes_old_artifacts_and_validates_new_manifest(publisher, repository, tmp_path, website_only):
     stable = git(repository, "rev-parse", "HEAD")
     dist = snapshot(tmp_path / "dist", stable)
     old = dist / "assets/quick-start/old.png"
@@ -120,9 +126,16 @@ def test_refresh_removes_old_artifacts_and_validates_new_manifest(publisher, rep
     old_data.parent.mkdir()
     old_data.write_text("old data")
 
-    assert publisher.refresh(dist, repository)
+    renderer = None
+    if website_only:
+        renderer = tmp_path / "tested-renderer.py"
+        stable_renderer = repository / publisher.RENDERER
+        renderer.write_text(stable_renderer.read_text(encoding="utf-8")
+                            .replace("100,1", "200,2"), encoding="utf-8")
+    assert publisher.refresh(dist, repository, renderer)
     assert not old.exists() and not old_data.exists()
-    assert (dist / "quick-start-data/raman.csv").is_file()
+    expected_rows = "x,y\n200,2\n" if website_only else "x,y\n100,1\n"
+    assert (dist / "quick-start-data/raman.csv").read_text(encoding="utf-8") == expected_rows
     assert publisher.verify(dist)["source_sha"] == stable
 
 
@@ -174,3 +187,5 @@ def test_both_publication_paths_refresh_tutorial_before_upload():
     assert refresh["if"] == "steps.quickstart.outputs.required == 'true'"
     assert 'uv sync --project "$STABLE_TUTORIAL" --locked' in refresh["run"]
     assert '--checkout "$STABLE_TUTORIAL"' in refresh["run"]
+    assert '[website only]' in jobs["release-news"]["env"]["REFRESH_QUICK_START"]
+    assert '--renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"' in refresh["run"]

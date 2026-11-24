@@ -254,44 +254,76 @@ def render(output: Path, app_source: Path | None = None) -> dict:
     view(window)
     capture(window, "10-first-fit.png")
 
-    window._show_uncertainty_analysis()
-    dock, panel = window.uncertainty_dock, window.uncertainty_panel
-    dock.setFloating(True)
-    dock.resize(1140, 1040)
-    panel.method.setCurrentIndex(panel.method.findData("covariance"))
-    window.start_uncertainty("covariance", 200, None)
-    dock.show()
-    panel.scroll.verticalScrollBar().setValue(panel.scroll.verticalScrollBar().maximum())
-    capture(dock, "11-uncertainty-covariance.png")
-    area_path = model.parameter_path(curve.id, model.components[2].id, "area")
-    result_table = panel.results.table
-    row = next(i for i in range(result_table.rowCount())
-               if result_table.item(i, 0) is not None
-               and result_table.item(i, 0).data(Qt.ItemDataRole.UserRole) == area_path)
-    panel.method.setCurrentIndex(panel.method.findData("monte_carlo"))
-    panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("fixed"))
-    panel.replicates.setValue(200)
-    panel.workers.setValue(1)
-    panel.confidence.setValue(95)
-    panel.scroll.verticalScrollBar().setValue(0)
-    capture(dock, "13-monte-carlo-setup.png")
-    window.start_uncertainty("monte_carlo", 200, None, workers=1)
-    wait_for_task(window)
-    mc = window.project.results.get("uncertainty_by_curve", {}).get(curve.id, {}).get(
+    # Refitting the raw observations preserves the supplied independent noise
+    # scales. Fit the background in the same model as the three bands.
+    mc_project = Project("Raman quick start — Monte Carlo on raw data")
+    mc_curve = curve.duplicate("Raman spectrum — raw", raw=True)
+    mc_project.add_curve(mc_curve)
+    mc_model = model.clone()
+    mc_background = mc_model.components[0]
+    mc_background.enabled = True
+    for param in mc_background.parameters.values():
+        param.fixed = False
+    mc_project.models[mc_curve.id] = mc_model
+    mc_window = new_window(mc_project)
+    mc_window.mask_range(*MASK_INTERVAL)
+    np.testing.assert_array_equal(mc_curve.effective_mask, curve.effective_mask)
+    np.testing.assert_array_equal(mc_curve.y, original)
+    mc_window.fit_settings.use_data_errors = True
+    mc_window.quick_fit()
+    wait_for_task(mc_window)
+    joint_fit = mc_window._last_fit_result()
+    if joint_fit is None or not joint_fit.success or joint_fit.statistics["degrees_of_freedom"] != 782:
+        raise RuntimeError(f"The tutorial joint fit did not converge with twelve free parameters: "
+                           f"{mc_window.log.toPlainText()}")
+    mc_model = mc_project.model_for(mc_curve.id)
+    mc_area_paths = [mc_model.parameter_path(mc_curve.id, c.id, "area") for c in mc_model.components[2:4]]
+
+    mc_window._show_uncertainty_analysis()
+    mc_dock, mc_panel = mc_window.uncertainty_dock, mc_window.uncertainty_panel
+    mc_dock.setFloating(True)
+    mc_dock.resize(1140, 1040)
+    mc_dock.show()
+    mc_panel.method.setCurrentIndex(mc_panel.method.findData("covariance"))
+    mc_window.start_uncertainty("covariance", 200, None)
+    mc_panel.scroll.verticalScrollBar().setValue(mc_panel.scroll.verticalScrollBar().maximum())
+    capture(mc_dock, "11-uncertainty-covariance.png")
+    mc_panel.method.setCurrentIndex(mc_panel.method.findData("monte_carlo"))
+    mc_panel.replica_mode.setCurrentIndex(mc_panel.replica_mode.findData("fixed"))
+    mc_panel.replicates.setValue(200)
+    mc_panel.workers.setValue(1)
+    mc_panel.confidence.setValue(95)
+    mc_panel.scroll.verticalScrollBar().setValue(0)
+    capture(mc_dock, "13-monte-carlo-setup.png")
+    mc_window.start_uncertainty("monte_carlo", 200, None, workers=1)
+    wait_for_task(mc_window)
+    mc = mc_project.results.get("uncertainty_by_curve", {}).get(mc_curve.id, {}).get(
         "parametric_monte_carlo")
     if mc is None or mc.completed != 200:
-        raise RuntimeError("All 200 tutorial Monte Carlo replicas must complete")
-    window._select_uncertainty_display("parametric_monte_carlo")
-    panel.scroll.verticalScrollBar().setValue(panel.scroll.verticalScrollBar().maximum())
-    capture(dock, "14-monte-carlo-results.png")
+        detail = mc_window.log.toPlainText() if mc is None else mc.failure_messages
+        raise RuntimeError(f"All 200 tutorial Monte Carlo replicas must complete: {detail}")
+    mc_window._select_uncertainty_display("parametric_monte_carlo")
+    mc_panel.scroll.verticalScrollBar().setValue(mc_panel.scroll.verticalScrollBar().maximum())
+    capture(mc_dock, "14-monte-carlo-results.png")
+    result_table = mc_panel.results.table
     row = next(i for i in range(result_table.rowCount())
                if result_table.item(i, 0) is not None
-               and result_table.item(i, 0).data(Qt.ItemDataRole.UserRole) == area_path)
+               and result_table.item(i, 0).data(Qt.ItemDataRole.UserRole) == mc_area_paths[0])
     if result_table.item(row, 4).text() != "Attention":
         raise RuntimeError("The actual Monte Carlo table must flag the overlapping area")
     with shown_dialog(QMessageBox, "12-overlap-correlation.png"):
-        panel.results._cell_clicked(row, 4)
-    dock.hide()
+        mc_panel.results._cell_clicked(row, 4)
+    mc_dock.hide()
+    mc_project.notebook.notes = (
+        "Parametric Monte Carlo on the original masked spectrum, with a quadratic background "
+        "and three Gaussian bands refitted together using absolute sigma_y=2."
+    )
+    save_project(mc_project, downloads / "monte-carlo-analysis.fitproj", portable=True, update_project_path=False)
+    mc_restored = load_project(downloads / "monte-carlo-analysis.fitproj")
+    assert "parametric_monte_carlo" in mc_restored.results["uncertainty_reports_by_curve"][mc_curve.id]
+    mc_project.dirty = False
+    mc_window.close()
+    settle()
 
     export_directory = downloads / "exported-spectra"
     def configure_spectra(dialog):
@@ -335,14 +367,12 @@ def render(output: Path, app_source: Path | None = None) -> dict:
     restored = load_project(downloads / "completed-analysis.fitproj")
     np.testing.assert_array_equal(restored.curves[0].effective_mask, curve.effective_mask)
     np.testing.assert_allclose(restored.curves[0].y, curve.y)
-    assert "parametric_monte_carlo" in restored.results["uncertainty_reports_by_curve"][curve.id]
-
-    a, b = model.components[2:4]
-    indices = [baseline.free_parameter_paths.index(model.parameter_path(curve.id, c.id, "area"))
-               for c in (a, b)]
-    rho = float(np.asarray(baseline.correlation)[indices[0], indices[1]])
+    indices = [joint_fit.free_parameter_paths.index(path) for path in mc_area_paths]
+    rho = float(np.asarray(joint_fit.correlation)[indices[0], indices[1]])
     if not -1 < rho < -0.95:
         raise RuntimeError("The overlap correlation demonstration is no longer valid")
+    mc_indices = [mc.parameter_paths.index(path) for path in mc_area_paths]
+    mc_rho = float(np.corrcoef(np.asarray(mc.samples)[:, mc_indices], rowvar=False)[0, 1])
     fit_report = {
         "statistics": baseline.statistics, "overlap_area_correlation": rho,
         "background_coefficients": {k: p.value for k, p in background.parameters.items()},
@@ -350,11 +380,9 @@ def render(output: Path, app_source: Path | None = None) -> dict:
                                           "ci_low": p.ci_low, "ci_high": p.ci_high}
                                      for k, p in c.parameters.items()}} for c in model.components[1:]],
         "monte_carlo": {"replicates": mc.completed, "seed": mc.seed, "confidence_level": .95,
-                        "overlap_area_correlation": float(np.corrcoef(
-                            np.asarray(mc.samples)[:, indices[0]],
-                            np.asarray(mc.samples)[:, indices[1]])[0, 1])},
-        "monte_carlo_overlap_area_correlation": float(np.corrcoef(
-            np.asarray(mc.samples)[:, indices[0]], np.asarray(mc.samples)[:, indices[1]])[0, 1]),
+                        "fit": "raw spectrum with jointly fitted quadratic background",
+                        "overlap_area_correlation": mc_rho},
+        "monte_carlo_overlap_area_correlation": mc_rho,
         "uncertainty_caveat": BASELINE_CAVEAT,
     }
     np.savetxt(downloads / "background-reference.csv", np.column_stack((

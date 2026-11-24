@@ -35,7 +35,7 @@ def check_current(metadata):
             raise ValueError('News source advanced beyond the validated snapshot')
 
 
-def assemble(destination):
+def assemble(destination, *, refresh_quick_start=False):
     stable_sha, news_sha = git('rev-parse', 'origin/main'), git('rev-parse', 'HEAD')
     with tempfile.TemporaryDirectory(prefix='curvemole-stable-news-') as directory:
         snapshot = Path(directory)
@@ -47,6 +47,8 @@ def assemble(destination):
             bundle.extractall(snapshot, filter='data')
         for name in OVERLAY:
             shutil.copyfile(ROOT / 'website/dist' / name, snapshot / 'website/dist' / name)
+        if refresh_quick_start:
+            shutil.copyfile(ROOT / 'website/dist/quick-start.html', snapshot / 'website/dist/quick-start.html')
         original = website.ROOT
         try:
             website.ROOT = snapshot
@@ -66,11 +68,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True, help='New directory for the complete stable snapshot')
     parser.add_argument('--check-current', action='store_true')
+    parser.add_argument('--refresh-quick-start', action='store_true', help='Overlay the validated tutorial page')
     args = parser.parse_args()
     if args.check_current:
         check_current(json.loads((args.output / 'publication.json').read_text(encoding='utf-8')))
         return
-    metadata = assemble(args.output)
+    metadata = assemble(args.output, refresh_quick_start=args.refresh_quick_start)
     with Path(os.environ['GITHUB_STEP_SUMMARY']).open('a', encoding='utf-8') as summary:
         summary.write(f'Release news refreshed; stable site remains pinned to {metadata["tag"]} '
                       f'({metadata["source_sha"]}). No software release or main write.\n')
