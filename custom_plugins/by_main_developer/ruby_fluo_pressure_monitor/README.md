@@ -4,7 +4,7 @@
 
 Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
 
-Version 0.6.1. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 1.1.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
@@ -58,12 +58,14 @@ in the field and shows its own pressure prominently:
 - **Green:** the saved calculation matches this spectrum's current inputs.
 - **Amber + warning:** settings, data, masks or model changed. The previous value
   remains visible, with its original calculation temperature, until recalculated.
-- **Recalculate:** evaluates pressure from the current R1 center and displayed
-  temperature/calibration, and saves the updated result for this spectrum only.
+- **Recalculate** evaluates pressure from the current R1 center and displayed
+  temperature and pressure scale. With **Calculate full pressure uncertainty**
+  checked, it also calculates the uncertainty components in the background.
+  The result is saved for this spectrum only.
 
 Run CurveMole's normal **Fit** after changing masks/model parameters if you want a
-new optimized fit. Recalculate does not rerun peak detection, reinstall a mask or
-perform a fit. It can also evaluate a manually adjusted center; in that case fit
+new optimized fit. Recalculate keeps the workspace's peak detection, masks and
+fitted model. It can also evaluate a manually adjusted center. In that case fit
 uncertainty is unavailable until a fresh fit. A temperature-only change needs no
 spectral refit. Even after a manual Fit, pressure remains flagged until Recalculate.
 
@@ -129,6 +131,28 @@ edits, the saved pressure and uncertainty remain visible with a stale warning.
 Recalculate after a fresh fit updates both; without a refit, the new pressure
 can be evaluated but no fit uncertainty is claimed.
 
+**Calculate full pressure uncertainty** is off by default. Enable it for
+subsequent acquisitions, or select an existing ruby spectrum, enable it and
+click **Recalculate**. The calculation uses the existing fit and recorded
+background region. It adds the following contributions when available.
+
+- For a fixed background, 200 moving-block residual draws resample the recorded
+  background regions without crossing masked gaps. Each replica perturbs the
+  fixed line coefficients and refits the peaks on unchanged peak intensities.
+  The pressure spread estimates the uncertainty of the separately fitted line.
+  When both line coefficients are fitted with the peaks, the fit covariance
+  already includes that contribution.
+- The published pressure scale accuracy is ±5% for Mao–Xu–Bell as assessed by
+  Hemley et al. (2005), and ±2.5% for IPPS Ruby2020. Within each scale's pressure
+  range and with its published coefficients, the plugin treats these bounds as
+  rectangular Type B uncertainties and divides by √3. It combines the fit,
+  background and scale terms in quadrature, assuming independence. The scale
+  term is shared by measurements using the same calibration.
+
+The panel and exports retain the individual contributions and give the reason
+when an uncertainty cannot be calculated. This calculation excludes the
+instrument's wavelength calibration, temperature and reference wavelength uncertainties.
+
 Unresolved doublets or failed fits retain the raw acquisition and an error without
 a pressure. Strong overlap, parameters at bounds and solver diagnostics are flagged
 for inspection. No imported spectrum is used to determine a reference calibration
@@ -188,6 +212,7 @@ Sources:
 
 - Mao, Xu & Bell (1986), [doi:10.1029/JB091iB05p04673](https://doi.org/10.1029/JB091iB05p04673).
 - Shen et al. (2020), IPPS Ruby2020, [doi:10.1080/08957959.2020.1791107](https://doi.org/10.1080/08957959.2020.1791107).
+- Hemley, Mao & Struzhkin (2005), [ruby pressure scale accuracy](https://journals.iucr.org/s/issues/2005/02/00/xg5001/index.html).
 - Ragan, Gustavsen & Schiferl (1992), [doi:10.1063/1.351951](https://doi.org/10.1063/1.351951), Eq. (3).
 - Datchi et al. (2007), [doi:10.1080/08957950701659593](https://doi.org/10.1080/08957950701659593), Eqs. (1)–(4).
 

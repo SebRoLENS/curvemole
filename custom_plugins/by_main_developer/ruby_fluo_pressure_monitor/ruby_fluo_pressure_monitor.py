@@ -10,11 +10,16 @@ import copy
 import csv
 import hashlib
 import json
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import numpy as np
 
 OWNER = "org.curvemole.community.ruby_fluo_pressure_monitor"
+INSTRUMENT_CALIBRATION_NOTE = "Pressure uncertainty excludes the instrument's wavelength calibration uncertainty."
+BACKGROUND_REPLICATES = 200
+BACKGROUND_SEED = 1729
+PRESSURE_WORKER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ruby-pressure")
 DEFAULTS = {
     "filename_contains": "ruby",
     "temperature_K": 296.0,
@@ -38,6 +43,7 @@ DEFAULTS = {
     "region_margin_nm": 3.0,
     "prominence_fraction": 0.03,
     "background_fixed": True,
+    "full_pressure_uncertainty": False,
     "ragan_coefficients_cm1": [14423.0, 4.49e-2, -4.81e-4, 3.71e-7],
     "datchi_cold_plateau_nm": -0.887,
     "datchi_cold_coefficients_nm": [0.0, 0.00664, 6.76e-6, -2.33e-8],
@@ -53,6 +59,10 @@ PRESSURE_SCALES = {
         "IPPS Ruby2020 — room temperature, up to 150 GPa",
         "https://doi.org/10.1080/08957959.2020.1791107",
     ),
+}
+SCALE_ACCURACY = {
+    "mao_1986": (5.0, 80.0, ("A_GPa", "B"), "https://journals.iucr.org/s/issues/2005/02/00/xg5001/index.html"),
+    "ruby2020": (2.5, 150.0, ("ruby2020_A_GPa", "ruby2020_B"), PRESSURE_SCALES["ruby2020"][1]),
 }
 THERMAL_MODELS = {
     "ragan": (
@@ -98,6 +108,8 @@ def validate(s):
         raise ValueError("Unknown temperature correction.")
     if s["pressure_scale"] not in PRESSURE_SCALES:
         raise ValueError("Unknown pressure scale.")
+    if not isinstance(s.get("full_pressure_uncertainty", False), bool):
+        raise ValueError("Full pressure uncertainty must be on or off.")
     if not 0 <= s["eta"] <= 1 or not 0 < s["width_min_nm"] < s["width_max_nm"]:
         raise ValueError("Require 0 ≤ eta ≤ 1 and positive, ordered width limits.")
     if (
@@ -216,7 +228,8 @@ def pressure_scale_metadata(value, s):
         "scale_uncertainty_GPa": None,
         "scale_uncertainty_note": None,
     }
-    if s["pressure_scale"] == "ruby2020":
+    if (s["pressure_scale"] == "ruby2020" and 0 <= value <= 150
+            and all(s[key] == DEFAULTS[key] for key in SCALE_ACCURACY["ruby2020"][2])):
         output.update(
             scale_uncertainty_percent=2.5,
             scale_uncertainty_GPa=abs(float(value)) * 0.025,
@@ -235,6 +248,9 @@ def pressure_text(meta):
         text = f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
     else:
         text = f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
+    total = meta.get("pressure_combined_std_GPa")
+    if total is not None:
+        text += f"\nCombined uncertainty: {total:.2g} GPa (1σ)"
     if meta.get("scale_uncertainty_percent") is not None:
         text += f"\nScale: ±{meta['scale_uncertainty_percent']:g}% maximum"
     return text
@@ -253,6 +269,162 @@ def pressure_warnings(value, s):
             "Above 20 GPa: pressure/temperature shift separability is not guaranteed; cross terms may matter."
         )
     return warnings
+
+
+def background_pressure_bootstrap(curve, model, r1, meta, fit_settings, cancellation):
+    """Resample the first-stage line and refit peaks at fixed observed band intensities."""
+    from curvemole.core.diagnostics import contiguous_residual_segments
+    from curvemole.core.errors import CurveMoleError, FitCancelled
+    from curvemole.core.expressions import SafeExpression
+    from curvemole.core.fitting import Fitter
+    from curvemole.core.uncertainty import _sample_residual_blocks
+
+    backgrounds = [component for component in model.components if component.enabled and component.is_background]
+    if (len(backgrounds) != 1 or backgrounds[0].function_id != "linear"
+            or any(component.enabled and component.operator != "add" for component in model.components)):
+        raise ValueError("Background bootstrap requires the additive ruby model with a single linear background.")
+    background = backgrounds[0]
+    if any(reference.split(".", 1)[0] != curve.id
+           for parameter in model.parameter_map(curve.id).values() if parameter.link
+           for reference in SafeExpression.compile(parameter.link).references):
+        raise ValueError("Background bootstrap requires a fit without links to other spectra.")
+    fixed = [name for name in ("intercept", "slope")
+             if background.parameters[name].fixed and not background.parameters[name].link]
+    if not fixed:
+        return {"pressure_background_std_GPa": 0.0, "background_bootstrap_note":
+                "The line is fitted with the peaks, so its uncertainty is already included in fit covariance."}
+    if curve.has_correlated_y_errors or (fit_settings.use_data_errors and curve.current_error_y_minus is not None):
+        raise ValueError("Background bootstrap requires working data without unknown preprocessing correlations "
+                         "and symmetric Y errors if weighted.")
+
+    search = meta.get("background_search_nm")
+    if search is None:
+        # Older acquisitions recorded the band geometry and settings, but no dedicated search limits.
+        acquisition = settings(meta.get("calculated_result", meta).get("settings"))
+        search = [acquisition["search_min_nm"], acquisition["search_max_nm"]]
+    intervals = meta.get("background_excluded_intervals_nm")
+    region = meta.get("fit_region_nm")
+    if not intervals or not region:
+        raise ValueError("This acquisition has no recorded background region.")
+    x = curve.x
+    band = np.zeros(len(x), dtype=bool)
+    for low, high in intervals:
+        band |= (x >= low) & (x <= high)
+    band &= (x >= region[0]) & (x <= region[1])
+    side = copy.deepcopy(curve)
+    mask_id = meta.get("local_fit_mask_id")
+    for name, mask in list(side.masks.items()):
+        if (mask_id and mask.id == mask_id) or (not mask_id and name == "Ruby local fit region"):
+            del side.masks[name]
+    side_rows = side.fit_arrays(use_data_errors=fit_settings.use_data_errors)[3]
+    peak_rows = curve.fit_arrays(use_data_errors=fit_settings.use_data_errors)[3]
+    eligible = ~band & (x >= search[0]) & (x <= search[1])
+    eligible[peak_rows] = False
+    rows = side_rows[eligible[side_rows]]
+    if len(rows) < 8:
+        raise ValueError("Fewer than eight usable background points outside the current peak fit.")
+    xx, yy = x[rows], curve.y[rows]
+    segments = contiguous_residual_segments(curve.row_indices[rows], xx)
+    if max(segment.stop - segment.start for segment in segments) < 4:
+        raise ValueError("There are too few contiguous background points for block resampling.")
+    origin = float(np.mean(xx))
+    precision = curve.residual_scale(yy, rows, use_data_errors=fit_settings.use_data_errors)
+    if precision is None:
+        precision = np.ones(len(rows))
+    design = np.column_stack((np.ones(len(rows)), xx - origin)) * precision[:, None]
+    coefficients, _, rank, _ = np.linalg.lstsq(design, yy * precision, rcond=None)
+    if rank < 2:
+        raise ValueError("The background line cannot be identified from its available points.")
+    residual = yy * precision - design @ coefficients
+    residual -= np.mean(residual)
+    estimate_delta = np.linalg.pinv(design)
+    block = max(2, round(len(rows) ** (1 / 3)))
+    segment_lengths = [min(block, max(1, (segment.stop - segment.start) // 2)) for segment in segments]
+    rng = np.random.default_rng(BACKGROUND_SEED)
+    fitter = Fitter(_compute_inference=False)
+    trial_settings = copy.deepcopy(fit_settings)
+    trial_settings.solver = "local"
+    trial_settings.workers = 1
+    trial_curve = copy.deepcopy(curve)
+    s = settings(meta.get("settings"))
+    pressures = []
+    for _ in range(BACKGROUND_REPLICATES):
+        if cancellation is not None:
+            cancellation.raise_if_cancelled()
+        sample = np.concatenate([_sample_residual_blocks(rng, residual[segment], length, circular=False)
+                                 for segment, length in zip(segments, segment_lengths, strict=True)])
+        at_origin, slope = estimate_delta @ sample
+        delta = {"intercept": at_origin - slope * origin, "slope": slope}
+        trial_model = model.clone()
+        line = trial_model.component(background.id)
+        if any(not (p.minimum <= p.value + delta[name] <= p.maximum)
+               for name in fixed for p in (line.parameters[name],)):
+            continue
+        for name in fixed:
+            line.parameters[name].value += delta[name]
+        try:
+            result = fitter.fit_single(trial_curve, trial_model, trial_settings, cancellation=cancellation)
+            if result.success:
+                center = trial_model.component(r1.id).parameters["center"].value
+                pressures.append(pressure(center, s)[0])
+        except FitCancelled:
+            raise
+        except (CurveMoleError, ValueError):
+            continue
+    if len(pressures) < 0.9 * BACKGROUND_REPLICATES:
+        raise ValueError(f"Only {len(pressures)} of {BACKGROUND_REPLICATES} background bootstrap fits succeeded.")
+    return {
+        "pressure_background_std_GPa": float(np.std(pressures, ddof=1)),
+        "background_bootstrap_completed": len(pressures),
+        "background_bootstrap_requested": BACKGROUND_REPLICATES,
+        "background_bootstrap_block_length": max(segment_lengths),
+        "background_bootstrap_seed": BACKGROUND_SEED,
+        "background_bootstrap_note": (
+            "Contiguous blocks of background residuals were resampled. Peak intensities were held fixed "
+            "during each replica to avoid counting peak-fit noise twice."
+        ),
+    }
+
+
+def complete_pressure_uncertainty(context, curve, model, r1, meta, s, cancellation=None):
+    from curvemole.core.data import CurveState
+    from curvemole.core.errors import CurveMoleError, FitCancelled
+    from curvemole.core.fitting import FitSettings
+
+    percent, limit, coefficients, source = SCALE_ACCURACY[s["pressure_scale"]]
+    value = meta["pressure_GPa"]
+    meta["pressure_scale_uncertainty_source"] = source
+    if 0 <= value <= limit and all(s[key] == DEFAULTS[key] for key in coefficients):
+        meta["pressure_scale_std_GPa"] = value * percent / (100 * np.sqrt(3))
+        meta["pressure_scale_component_note"] = (f"Published ±{percent:g}% accuracy treated as a rectangular "
+                                                 "Type B bound to estimate a standard uncertainty.")
+    else:
+        meta["pressure_scale_component_note"] = (
+            "Published accuracy applies within the pressure range and with the published scale coefficients."
+        )
+    if curve.state != CurveState.FITTED or meta.get("pressure_std_GPa") is None:
+        meta["full_uncertainty_note"] = "A current fit with an available R1 covariance is required."
+        return
+    record = context.project.results.get("fit_by_curve", {}).get(curve.id, {}).get("plan", {})
+    fit_settings = FitSettings(**record.get("settings", {"max_nfev": 2000}))
+    if fit_settings.loss != "linear":
+        meta["full_uncertainty_note"] = "Full uncertainty requires the linear least-squares loss for the background refit."
+        return
+    try:
+        meta.update(background_pressure_bootstrap(curve, model, r1, meta, fit_settings, cancellation))
+    except FitCancelled:
+        raise
+    except (CurveMoleError, ValueError, np.linalg.LinAlgError) as exc:
+        meta["full_uncertainty_note"] = f"Background bootstrap unavailable. {exc}"
+        return
+    parts = [meta.get(key) for key in ("pressure_std_GPa", "pressure_background_std_GPa", "pressure_scale_std_GPa")]
+    if all(part is not None and np.isfinite(part) for part in parts):
+        meta["pressure_combined_std_GPa"] = float(np.hypot.reduce(parts))
+        meta["full_uncertainty_note"] = ("Fit, background and pressure-scale standard uncertainties combined in "
+                                         "quadrature assuming independent contributions. Temperature and reference "
+                                         "wavelength uncertainties are excluded.")
+    else:
+        meta["full_uncertainty_note"] = "Combined uncertainty unavailable because a pressure-scale contribution is missing."
 
 
 def analyse_curve(curve, s, cancellation=None):
@@ -406,6 +578,9 @@ def analyse_curve(curve, s, cancellation=None):
         ],
         "fit_region_nm": [float(lo), float(hi)],
         "original_masked_points": int(original_excluded.sum()),
+        "background_search_nm": [s["search_min_nm"], s["search_max_nm"]],
+        "local_fit_mask_id": local.id,
+        "instrument_calibration_note": INSTRUMENT_CALIBRATION_NOTE,
         "thermal_reference": THERMAL_MODELS[s["thermal_model"]][3],
     }
     if P is not None:
@@ -449,7 +624,7 @@ def process(context):
             }
             context.project.results["last_fit"] = result
             if meta["pressure_GPa"] is not None:
-                recalculate_curve(context, curve)
+                meta = recalculate_curve(context, curve, getattr(context, "cancellation", None))
             value = (
                 pressure_text(meta)
                 if meta["pressure_GPa"] is not None
@@ -547,6 +722,10 @@ def configure_dialog(context):
     fixed = QCheckBox("Fix the background after its initial fit (otherwise refine with the peaks)")
     fixed.setChecked(s["background_fixed"])
     form.addRow(fixed)
+    full = QCheckBox("Calculate full pressure uncertainty")
+    full.setChecked(s["full_pressure_uncertainty"])
+    full.setToolTip("Combine fit, background and pressure-scale uncertainties. " + INSTRUMENT_CALIBRATION_NOTE)
+    form.addRow(full)
     info = QLabel(
         "η = 0: Gaussian; η = 1: Lorentzian. Default 0.5, fixed during fitting.\n"
         "Ragan: 15–600 K. Piecewise Datchi: 15–50 K plateau, 50–296 K cubic, 296–600 K linear.\n"
@@ -568,6 +747,7 @@ def configure_dialog(context):
             thermal_model=combos.currentData(),
             pressure_scale=pressure_scale.currentData(),
             background_fixed=fixed.isChecked(),
+            full_pressure_uncertainty=full.isChecked(),
         )
         return current
 
@@ -585,6 +765,7 @@ def configure_dialog(context):
                 combos.setCurrentIndex(combos.findData(current["thermal_model"]))
                 pressure_scale.setCurrentIndex(pressure_scale.findData(current["pressure_scale"]))
                 fixed.setChecked(current["background_fixed"])
+                full.setChecked(current["full_pressure_uncertainty"])
             previous_tab[0] = index
         except Exception as exc:
             QMessageBox.warning(dialog, "Configuration", str(exc))
@@ -640,15 +821,20 @@ def configure(context):
             context.services.set_follow(False)
 
 
-def calculate_result(context, curve):
+def calculate_result(context, curve, cancellation=None):
     """Derive output from the current fit, retaining this acquisition's temperature."""
     from curvemole.core.data import CurveState
 
     meta = copy.deepcopy(curve.metadata.get("ruby_monitor", {}))
+    previous = meta.get("calculated_result", {})
     meta.pop("calculated_result", None)
     meta.pop("calculation_fingerprint", None)
     if not meta:
         return None
+    meta["instrument_calibration_note"] = INSTRUMENT_CALIBRATION_NOTE
+    if "background_search_nm" not in meta:
+        acquisition = settings(previous.get("settings", meta.get("settings")))
+        meta["background_search_nm"] = [acquisition["search_min_nm"], acquisition["search_max_nm"]]
     meta.update(pressure_GPa=None, thermal_shift_nm=None, pressure_std_GPa=None, R1_std_nm=None)
     if curve.state == CurveState.RUNNING:
         meta["pressure_error"] = "Wait for the fit to finish."
@@ -687,6 +873,8 @@ def calculate_result(context, curve):
                 if np.isfinite(span) and min(value - param.minimum, param.maximum - value) < span * 1e-4:
                     warnings.append(f"{peak.name}: {key} is at its bound; review the fit.")
         meta["warnings"] = warnings
+        if s["full_pressure_uncertainty"]:
+            complete_pressure_uncertainty(context, curve, model, peaks[1], meta, s, cancellation)
         meta["result_source"] = "Current model; acquisition-specific temperature and calibration"
     except (ValueError, KeyError) as exc:
         meta["pressure_error"] = str(exc)
@@ -697,10 +885,13 @@ def calculation_fingerprint(context, curve):
     """Track all inputs, so reviewing spectra never silently recalculates pressure."""
     model = context.project.models.get(curve.id)
     values = context.project.resolved_parameter_values()
+    configuration = settings(curve.metadata["ruby_monitor"].get("settings"))
+    if not configuration["full_pressure_uncertainty"]:
+        configuration.pop("full_pressure_uncertainty")  # Preserve fingerprints of existing fit-only calculations.
     payload = {
         "model": model.to_dict() if model else None,
         "resolved": {k: values[k] for k in model.parameter_map(curve.id)} if model else {},
-        "settings": settings(curve.metadata["ruby_monitor"].get("settings")),
+        "settings": configuration,
         "state": str(curve.state), "fit_ranges": curve.fit_ranges,
     }
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode())
@@ -708,11 +899,12 @@ def calculation_fingerprint(context, curve):
     return digest.hexdigest()
 
 
-def recalculate_curve(context, curve):
-    result = calculate_result(context, curve)
+def recalculate_curve(context, curve, cancellation=None):
+    result = calculate_result(context, curve, cancellation)
     if not result or result.get("pressure_GPa") is None:
         raise ValueError((result or {}).get("pressure_error", "No ruby pressure is available."))
     meta = curve.metadata["ruby_monitor"]
+    meta.setdefault("background_search_nm", result["background_search_nm"])
     meta["calculated_result"] = result
     meta["calculation_fingerprint"] = calculation_fingerprint(context, curve)
     return result
@@ -726,6 +918,7 @@ def current_result(context, curve):
     result = copy.deepcopy(meta.get("calculated_result", meta))
     result.pop("calculated_result", None)
     result.pop("calculation_fingerprint", None)
+    result.setdefault("instrument_calibration_note", INSTRUMENT_CALIBRATION_NOTE)
     try:
         stale = meta.get("calculation_fingerprint") != calculation_fingerprint(context, curve)
     except (ValueError, KeyError):
@@ -766,6 +959,7 @@ def monitor_panel(context):
             self.loaded_settings = None
             self.show_first = False
             self.temperature_pending = False
+            self.pending_calculation = None
             self.setMinimumWidth(300)
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -789,6 +983,12 @@ def monitor_panel(context):
             form = QFormLayout()
             form.addRow("Sample temperature", self.temperature)
             layout.addLayout(form)
+            self.full_uncertainty = QCheckBox("Calculate full pressure uncertainty")
+            self.full_uncertainty.setObjectName("full_pressure_uncertainty")
+            self.full_uncertainty.setToolTip("Combine fit, background and pressure-scale uncertainties. "
+                                             + INSTRUMENT_CALIBRATION_NOTE)
+            self.full_uncertainty.toggled.connect(lambda *_: self.guard(self.save))
+            layout.addWidget(self.full_uncertainty)
             self.recalculate = QPushButton("Recalculate")
             self.recalculate.setObjectName("recalculate_pressure")
             self.recalculate.clicked.connect(lambda: self.guard(self.recalculate_pressure))
@@ -831,7 +1031,8 @@ def monitor_panel(context):
             row.addWidget(self.start)
             row.addWidget(self.stop)
             layout.addLayout(row)
-            help_text = QLabel("Edit this spectrum, run Fit if needed, then Recalculate. Monitoring continues. Each spectrum keeps its edits. ± is 1σ fit precision; temperature and calibration errors are excluded.")
+            help_text = QLabel("Edit this spectrum, run Fit if needed, then Recalculate. Monitoring continues. "
+                               + INSTRUMENT_CALIBRATION_NOTE)
             help_text.setWordWrap(True)
             layout.addWidget(help_text)
             self.temperature.valueChanged.connect(lambda *_: self.guard(self.save))
@@ -841,6 +1042,9 @@ def monitor_panel(context):
             self.timer.setInterval(300)
             self.timer.timeout.connect(self.refresh)
             self.timer.start()
+            self.calculation_timer = QTimer(self)
+            self.calculation_timer.setInterval(150)
+            self.calculation_timer.timeout.connect(self.finish_recalculation)
             self.refresh()
 
         def guard(self, callback):
@@ -882,6 +1086,7 @@ def monitor_panel(context):
             data = copy.deepcopy(snapshot.data)
             s = settings(curve.metadata["ruby_monitor"].get("settings") if curve else data)
             s["temperature_K"] = self.temperature.value()
+            s["full_pressure_uncertainty"] = self.full_uncertainty.isChecked()
             validate(s)
             data.update(s, filename_contains=self.contains.text().strip(), monitor_folder=self.folder.text())
             updates = {}
@@ -905,9 +1110,41 @@ def monitor_panel(context):
             curve = self.displayed_curve(snapshot)
             if curve is None:
                 raise ValueError("Select a ruby spectrum first.")
+            if settings(curve.metadata["ruby_monitor"].get("settings"))["full_pressure_uncertainty"]:
+                snapshot = services.snapshot()  # The saved fit plan supplies weighting and solver settings.
+                curve = snapshot.project.dataset.curve(curve.id)
+                fingerprint = calculation_fingerprint(snapshot, curve)
+                self.pending_calculation = (
+                    PRESSURE_WORKER.submit(recalculate_curve, snapshot, curve), snapshot.project.id, curve.id,
+                    fingerprint, curve,
+                )
+                self.calculation_timer.start()
+                return
             recalculate_curve(snapshot, curve)
             services.save_settings(snapshot.data, metadata_key="ruby_monitor",
                                    curve_metadata={curve.id: curve.metadata["ruby_monitor"]})
+
+        def finish_recalculation(self):
+            future, project_id, curve_id, fingerprint, calculated_curve = self.pending_calculation
+            if not future.done():
+                return
+            self.calculation_timer.stop()
+            self.pending_calculation = None
+
+            def apply_result():
+                future.result()
+                snapshot = self.snapshot()
+                if snapshot.project.id != project_id:
+                    return
+                if snapshot.active_curve_id != curve_id:
+                    snapshot = services.snapshot()
+                current = snapshot.project.dataset.curve(curve_id)
+                if calculation_fingerprint(snapshot, current) != fingerprint:
+                    raise ValueError("The ruby inputs changed during calculation. Recalculate to use the new inputs.")
+                services.save_settings(snapshot.data, metadata_key="ruby_monitor",
+                                       curve_metadata={curve_id: calculated_curve.metadata["ruby_monitor"]})
+
+            self.guard(apply_result)
 
         def start_monitor(self):
             self.temperature.interpretText()
@@ -947,6 +1184,9 @@ def monitor_panel(context):
                     self.temperature.blockSignals(True)
                     self.temperature.setValue(s["temperature_K"])
                     self.temperature.blockSignals(False)
+                    self.full_uncertainty.blockSignals(True)
+                    self.full_uncertainty.setChecked(s["full_pressure_uncertainty"])
+                    self.full_uncertainty.blockSignals(False)
                 running = status["running"]
                 self.status.setText("Running — new spectra are fitted automatically" if running else
                                     "Another automatic import is running" if status["other_running"] else
@@ -961,7 +1201,8 @@ def monitor_panel(context):
                     self.follow.blockSignals(True)
                     self.follow.setChecked(status["follow"])
                     self.follow.blockSignals(False)
-                self.recalculate.setEnabled(curve is not None)
+                self.recalculate.setEnabled(curve is not None and self.pending_calculation is None)
+                self.recalculate.setText("Calculating uncertainty…" if self.pending_calculation else "Recalculate")
                 meta = current_result(snapshot, curve) if curve else None
                 self.spectrum.setText(curve.name if curve else "No ruby spectrum selected")
                 stale = bool(meta and (meta["needs_recalculation"] or self.temperature_pending))
@@ -980,6 +1221,15 @@ def monitor_panel(context):
                         notes.append(meta["uncertainty_note"])
                     if meta.get("scale_uncertainty_note"):
                         notes.append(meta["scale_uncertainty_note"])
+                    if meta.get("settings", {}).get("full_pressure_uncertainty"):
+                        if meta.get("pressure_background_std_GPa") is not None:
+                            notes.append(f"Background 1σ = {meta['pressure_background_std_GPa']:.3g} GPa")
+                        if meta.get("pressure_scale_std_GPa") is not None:
+                            notes.append(f"Pressure scale 1σ = {meta['pressure_scale_std_GPa']:.3g} GPa")
+                        for key in ("background_bootstrap_note", "pressure_scale_component_note", "full_uncertainty_note"):
+                            if meta.get(key):
+                                notes.append(meta[key])
+                    notes.append(meta["instrument_calibration_note"])
                     self.details.setText(
                         f"Last calculation: T = {meta['temperature_K']:.3f} K; "
                         f"R1 = {meta['R1_nm']:.6f} nm.\n{scale_label}\n" + "\n".join(notes)
@@ -1020,6 +1270,18 @@ def export(context):
         "needs_recalculation",
         "pending_temperature_K",
         "pressure_std_GPa",
+        "pressure_background_std_GPa",
+        "pressure_scale_std_GPa",
+        "pressure_combined_std_GPa",
+        "pressure_scale_uncertainty_source",
+        "pressure_scale_component_note",
+        "background_bootstrap_completed",
+        "background_bootstrap_requested",
+        "background_bootstrap_block_length",
+        "background_bootstrap_seed",
+        "background_bootstrap_note",
+        "full_uncertainty_note",
+        "instrument_calibration_note",
         "pressure_scale",
         "scale_uncertainty_percent",
         "scale_uncertainty_GPa",

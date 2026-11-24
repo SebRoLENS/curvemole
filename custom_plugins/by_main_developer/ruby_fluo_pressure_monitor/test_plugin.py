@@ -437,6 +437,64 @@ def test_pressure_uncertainty_matches_numerical_derivative(scale):
     assert ruby.pressure_uncertainty(center, parameter, s)["pressure_std_GPa"] is None
 
 
+@pytest.mark.parametrize("new_measurement, scale, percent", [(True, "mao_1986", 5.0), (False, "ruby2020", 2.5)])
+def test_full_uncertainty_on_new_and_previously_fitted_ruby(new_measurement, scale, percent, tmp_path, monkeypatch):
+    import csv
+    import json
+
+    monkeypatch.setattr(ruby, "BACKGROUND_REPLICATES", 24)
+    project = Project()
+    curve = synthetic_curve()
+    project.add_curve(curve)
+    context = PluginContext(project, curve.id, (), ruby.OWNER)
+    assert ruby.settings()["full_pressure_uncertainty"] is False
+    context.data.update(ruby.settings({"full_pressure_uncertainty": new_measurement, "pressure_scale": scale}))
+    ruby.process(context)
+    meta = curve.metadata["ruby_monitor"]
+    if not new_measurement:
+        assert meta["calculated_result"].get("pressure_combined_std_GPa") is None
+        # Exercise fallback to the legacy recorded band geometry and mask name.
+        meta.pop("background_search_nm")
+        meta.pop("local_fit_mask_id")
+        meta["settings"]["full_pressure_uncertainty"] = True
+        ruby.recalculate_curve(context, curve)
+    output = ruby.current_result(context, curve)
+    assert output["background_bootstrap_completed"] == 24
+    assert output["background_bootstrap_block_length"] >= 2
+    assert output["pressure_background_std_GPa"] > 0
+    assert output["pressure_std_GPa"] > 0
+    assert output["pressure_scale_std_GPa"] == pytest.approx(output["pressure_GPa"] * percent / (100 * np.sqrt(3)))
+    assert output["pressure_combined_std_GPa"] == pytest.approx(np.linalg.norm([
+        output[key] for key in ("pressure_std_GPa", "pressure_background_std_GPa", "pressure_scale_std_GPa")
+    ]))
+    assert "wavelength calibration" in json.loads(ruby.report(context))[0]["instrument_calibration_note"]
+    context.path = str(tmp_path / "full.csv")
+    ruby.export(context)
+    with open(context.path, newline="", encoding="utf-8") as stream:
+        row = next(csv.DictReader(stream))
+    assert "wavelength calibration" in row["instrument_calibration_note"]
+    assert float(row["pressure_combined_std_GPa"]) == pytest.approx(output["pressure_combined_std_GPa"])
+    assert not output["needs_recalculation"]
+
+
+def test_combined_uncertainty_does_not_reuse_a_custom_scale_or_double_count_joint_background():
+    project = Project()
+    curve = synthetic_curve()
+    project.add_curve(curve)
+    context = PluginContext(project, curve.id, (), ruby.OWNER)
+    context.data.update(ruby.settings({"background_fixed": False, "full_pressure_uncertainty": True}))
+    ruby.process(context)
+    output = ruby.current_result(context, curve)
+    assert output["pressure_background_std_GPa"] == 0
+    assert "already included" in output["background_bootstrap_note"]
+    assert output["pressure_combined_std_GPa"] > 0
+    curve.metadata["ruby_monitor"]["settings"]["A_GPa"] = 1950.0
+    output = ruby.recalculate_curve(context, curve)
+    assert output.get("pressure_scale_std_GPa") is None
+    assert output.get("pressure_combined_std_GPa") is None
+    assert output["pressure_std_GPa"] > 0
+
+
 def test_exact_background_mask_inversion_and_gui_unmask_undo(monkeypatch, tmp_path):
     from curvemole.core.fitting import Fitter
 
@@ -527,8 +585,9 @@ def test_auto_docked_panel_and_temperature_autosave(tmp_path):
 
 def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
     import copy
+    import time
 
-    from PySide6.QtWidgets import QPushButton
+    from PySide6.QtWidgets import QApplication, QPushButton
 
     from curvemole.core.data import CurveState
 
@@ -555,6 +614,23 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         assert "Apply temperature" not in labels
         assert not any("Edit fit mask" in label for label in labels)
         assert panel.temperature.value() == 296
+        assert not panel.full_uncertainty.isChecked()
+        monkeypatch.setattr(ruby, "BACKGROUND_REPLICATES", 24)
+        panel.full_uncertainty.click()
+        assert first.metadata["ruby_monitor"]["settings"]["full_pressure_uncertainty"]
+        panel.recalculate.click()
+        deadline = time.monotonic() + 5
+        while panel.pending_calculation and time.monotonic() < deadline:
+            QApplication.processEvents()
+            time.sleep(.01)
+        assert panel.pending_calculation is None
+        extended = first.metadata["ruby_monitor"]["calculated_result"]
+        assert extended["background_bootstrap_completed"] == 24
+        assert extended["pressure_combined_std_GPa"] > 0
+        assert "instrument's wavelength calibration" in panel.details.text()
+        panel.full_uncertainty.click()
+        panel.recalculate.click()
+        assert first.metadata["ruby_monitor"]["calculated_result"].get("pressure_combined_std_GPa") is None
         saved = copy.deepcopy(first.metadata["ruby_monitor"]["calculated_result"])
         panel.temperature.setValue(320)
         panel.refresh()
