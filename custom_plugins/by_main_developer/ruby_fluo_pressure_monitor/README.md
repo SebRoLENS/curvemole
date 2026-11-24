@@ -132,11 +132,17 @@ Recalculate after a fresh fit updates both; without a refit, the new pressure
 can be evaluated but no fit uncertainty is claimed.
 
 **Calculate full pressure uncertainty** is off by default. Enable it for
-subsequent acquisitions. Changing the checkbox with an existing ruby spectrum
-selected also recalculates that spectrum. The panel shows how many bootstrap
-replicas completed or explains why a combined uncertainty is unavailable.
-The calculation uses the existing fit and recorded background region. It adds
-the following contributions when available.
+new acquisitions or for a previously fitted ruby. The pressure appears as soon
+as the fit is ready, with `± ?` while uncertainty runs in the background. The
+panel then shows the combined uncertainty and how many bootstrap replicas
+completed, or explains why the result is unavailable.
+
+**Configure uncertainty** saves the settings in the current project. It controls
+the number of replicas (500 by default), block length (automatic or set in
+samples), random seed, minimum percentage of successful replicas, and maximum
+fit evaluations per replica. Leaving the evaluation limit at its default reuses
+the original fit's limit. The settings apply to new acquisitions and when
+recalculating existing spectra.
 
 - For a fixed background, 200 moving-block residual draws resample the recorded
   background regions without crossing masked gaps. Each replica perturbs the
@@ -226,8 +232,9 @@ the report; **File > Exporters > Ruby fluorescence: export pressures as CSV** ex
 the table. Results describe the last automatic or explicitly requested pressure calculation.
 Later edits are flagged until Recalculate is pressed.
 
-CurveMole supports calibrated, one-dimensional, single-ROI WinSpec **SPE 2.x**
-files. SPE 3.x/XML and CCD images require export to calibrated X/Y text first.
+CurveMole 1.4.2 and later support calibrated, one-dimensional, single-region
+WinSpec **SPE 2.x** and LightField **SPE 3.0** files. Export CCD images and
+uncalibrated data to a calibrated X/Y spectrum first.
 In multi-frame SPE files each frame is a Y column; choose the desired frame in
 the automatic import dialog.
 

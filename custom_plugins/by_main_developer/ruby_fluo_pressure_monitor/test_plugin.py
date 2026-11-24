@@ -588,7 +588,8 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
     import copy
     import time
 
-    from PySide6.QtWidgets import QApplication, QPushButton
+    from PySide6.QtCore import QTimer
+    from PySide6.QtWidgets import QApplication, QDialogButtonBox, QPushButton, QSpinBox
 
     from curvemole.core.data import CurveState
 
@@ -616,12 +617,22 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         assert not any("Edit fit mask" in label for label in labels)
         assert panel.temperature.value() == 296
         assert not panel.full_uncertainty.isChecked()
-        monkeypatch.setattr(ruby, "BACKGROUND_REPLICATES", 24)
+        def save_dialog():
+            dialog = QApplication.activeModalWidget()
+            dialog.findChild(QSpinBox, "replicates").setValue(24)
+            dialog.findChild(QSpinBox, "block_length").setValue(4)
+            dialog.findChild(QSpinBox, "seed").setValue(42)
+            dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.StandardButton.Save).click()
+
+        QTimer.singleShot(0, save_dialog)
+        panel.configure_uncertainty_button.click()
+        assert window.project.ui_state["plugin_data"][ruby.OWNER]["uncertainty"]["replicates"] == 24
         panel.full_uncertainty.click()
         assert first.metadata["ruby_monitor"]["settings"]["full_pressure_uncertainty"]
         assert window.project.ui_state["plugin_data"][ruby.OWNER]["full_pressure_uncertainty"]
         assert panel.pending_calculation is not None
         assert panel.recalculate.text() == "Calculating uncertainty…"
+        assert "± ? GPa" in panel.result.text()
         deadline = time.monotonic() + 5
         while panel.pending_calculation and time.monotonic() < deadline:
             QApplication.processEvents()
@@ -629,6 +640,8 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         assert panel.pending_calculation is None
         extended = first.metadata["ruby_monitor"]["calculated_result"]
         assert extended["background_bootstrap_completed"] == 24
+        assert extended["background_bootstrap_seed"] == 42
+        assert extended["background_bootstrap_block_length"] == 4
         assert extended["pressure_combined_std_GPa"] > 0
         assert "combined 1σ" in panel.result.text()
         assert "24/24 replicas completed" in panel.details.text()
@@ -703,3 +716,66 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         window.project.dirty = False
         window.close()
         extensions.entries.pop(identifier, None)
+
+
+def test_automatic_import_shows_pressure_before_uncertainty(tmp_path, monkeypatch):
+    import time
+    from threading import Event
+
+    from PySide6.QtWidgets import QApplication
+
+    processor_id = ruby.OWNER + ":automatic"
+    window = CurveMoleMainWindow(Project())
+    extensions.entries[processor_id] = Contribution(
+        ruby.OWNER, processor_id, "Ruby", "import_processors", ruby.process,
+    )
+    release_bootstrap = Event()
+    original = ruby.background_pressure_bootstrap
+
+    def bootstrap(*args, **kwargs):
+        if not release_bootstrap.wait(8):
+            raise ValueError("test did not release bootstrap")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(ruby, "background_pressure_bootstrap", bootstrap)
+    window.project.ui_state["plugin_data"] = {
+        ruby.OWNER: ruby.settings({"full_pressure_uncertainty": True,
+                                   "uncertainty": {"replicates": 12}}),
+    }
+    panel = ruby.monitor_panel(window.plugin_host.context(ruby.OWNER, with_services=True))
+    curve = synthetic_curve()
+    path = tmp_path / "ruby_acquisition.txt"
+    np.savetxt(path, np.column_stack((curve.x, curve.y)))
+
+    def wait_until(condition):
+        deadline = time.monotonic() + 10
+        while not condition() and time.monotonic() < deadline:
+            QApplication.processEvents()
+            time.sleep(.01)
+        assert condition()
+
+    try:
+        window.folder_import.start(tmp_path, "ruby", processor=processor_id,
+                                   include_existing=True, follow=True, settle=0.05)
+        wait_until(lambda: bool(window.project.curves))
+        imported = window.project.curves[0]
+        output = imported.metadata["ruby_monitor"]["calculated_result"]
+        assert output["pressure_GPa"] > 0
+        assert output["uncertainty_pending"]
+        panel.refresh()
+        assert "± ? GPa" in panel.result.text()
+        wait_until(lambda: panel.pending_calculation is not None)
+        assert "± ? GPa" in panel.result.text()
+        release_bootstrap.set()
+        wait_until(lambda: "combined 1σ" in panel.result.text())
+        output = imported.metadata["ruby_monitor"]["calculated_result"]
+        assert output["background_bootstrap_completed"] == 12
+        assert not output.get("uncertainty_pending")
+    finally:
+        release_bootstrap.set()
+        panel.cancel_uncertainty()
+        panel.deleteLater()
+        window.folder_import.stop()
+        extensions.entries.pop(processor_id, None)
+        window.project.dirty = False
+        window.close()

@@ -12,14 +12,16 @@ import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from queue import Empty, SimpleQueue
 
 import numpy as np
 
 OWNER = "org.curvemole.community.ruby_fluo_pressure_monitor"
 INSTRUMENT_CALIBRATION_NOTE = "Pressure uncertainty excludes the instrument's wavelength calibration uncertainty."
-BACKGROUND_REPLICATES = 200
+BACKGROUND_REPLICATES = 500
 BACKGROUND_SEED = 1729
 PRESSURE_WORKER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ruby-pressure")
+PENDING_ACQUISITIONS = SimpleQueue()
 DEFAULTS = {
     "filename_contains": "ruby",
     "temperature_K": 296.0,
@@ -86,9 +88,32 @@ THERMAL_MODELS = {
 }
 
 
+def uncertainty_settings(data=None):
+    defaults = {
+        "replicates": BACKGROUND_REPLICATES,
+        "block_length": 0,
+        "seed": BACKGROUND_SEED,
+        "min_success_percent": 90,
+        "refit_max_evaluations": 0,
+    }
+    if data is not None and not isinstance(data, dict):
+        raise ValueError("Uncertainty settings must be a mapping.")
+    values = {**defaults, **(data or {})}
+    limits = {"replicates": (2, 100_000), "block_length": (0, 100_000),
+              "seed": (0, 2**31 - 1), "min_success_percent": (1, 100),
+              "refit_max_evaluations": (0, 1_000_000)}
+    if set(values) != set(defaults) or any(
+        type(values[key]) is not int or not low <= values[key] <= high
+        for key, (low, high) in limits.items()
+    ):
+        raise ValueError("Invalid Ruby uncertainty settings.")
+    return values
+
+
 def settings(data=None):
     result = copy.deepcopy(DEFAULTS)
     result.update(data or {})
+    result["uncertainty"] = uncertainty_settings(result.get("uncertainty"))
     if "temperature_confirmed" in result:
         # Upgrade the old automatic workflow to fit the line first and hold it.
         result.pop("temperature_confirmed")
@@ -245,7 +270,9 @@ def pressure_text(meta):
     value = meta["pressure_GPa"]
     error = meta.get("pressure_std_GPa")
     total = meta.get("pressure_combined_std_GPa")
-    if total is not None:
+    if meta.get("uncertainty_pending"):
+        text = f"Pressure: {value:.6g} ± ? GPa (calculating uncertainty…)"
+    elif total is not None:
         text = f"Pressure: {value:.6g} ± {total:.2g} GPa (combined 1σ)"
         if error is not None:
             text += f"\nFit only: {error:.2g} GPa (1σ)"
@@ -253,7 +280,7 @@ def pressure_text(meta):
         text = f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
     else:
         text = f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
-    if total is None and meta.get("settings", {}).get("full_pressure_uncertainty"):
+    if total is None and not meta.get("uncertainty_pending") and meta.get("settings", {}).get("full_pressure_uncertainty"):
         text += "\nCombined uncertainty unavailable"
     if meta.get("scale_uncertainty_percent") is not None:
         text += f"\nScale: ±{meta['scale_uncertainty_percent']:g}% maximum"
@@ -342,17 +369,21 @@ def background_pressure_bootstrap(curve, model, r1, meta, fit_settings, cancella
     residual = yy * precision - design @ coefficients
     residual -= np.mean(residual)
     estimate_delta = np.linalg.pinv(design)
-    block = max(2, round(len(rows) ** (1 / 3)))
+    s = settings(meta.get("settings"))
+    config = s["uncertainty"]
+    requested = config["replicates"]
+    block = config["block_length"] or max(2, round(len(rows) ** (1 / 3)))
     segment_lengths = [min(block, max(1, (segment.stop - segment.start) // 2)) for segment in segments]
-    rng = np.random.default_rng(BACKGROUND_SEED)
+    rng = np.random.default_rng(config["seed"])
     fitter = Fitter(_compute_inference=False)
     trial_settings = copy.deepcopy(fit_settings)
     trial_settings.solver = "local"
     trial_settings.workers = 1
+    if config["refit_max_evaluations"]:
+        trial_settings.max_nfev = config["refit_max_evaluations"]
     trial_curve = copy.deepcopy(curve)
-    s = settings(meta.get("settings"))
     pressures = []
-    for _ in range(BACKGROUND_REPLICATES):
+    for _ in range(requested):
         if cancellation is not None:
             cancellation.raise_if_cancelled()
         sample = np.concatenate([_sample_residual_blocks(rng, residual[segment], length, circular=False)
@@ -375,14 +406,16 @@ def background_pressure_bootstrap(curve, model, r1, meta, fit_settings, cancella
             raise
         except (CurveMoleError, ValueError):
             continue
-    if len(pressures) < 0.9 * BACKGROUND_REPLICATES:
-        raise ValueError(f"Only {len(pressures)} of {BACKGROUND_REPLICATES} background bootstrap fits succeeded.")
+    required = max(2, (requested * config["min_success_percent"] + 99) // 100)
+    if len(pressures) < required:
+        raise ValueError(f"Only {len(pressures)} of {requested} background bootstrap fits succeeded "
+                         f"({required} required).")
     return {
         "pressure_background_std_GPa": float(np.std(pressures, ddof=1)),
         "background_bootstrap_completed": len(pressures),
-        "background_bootstrap_requested": BACKGROUND_REPLICATES,
+        "background_bootstrap_requested": requested,
         "background_bootstrap_block_length": max(segment_lengths),
-        "background_bootstrap_seed": BACKGROUND_SEED,
+        "background_bootstrap_seed": config["seed"],
         "background_bootstrap_note": (
             "Contiguous blocks of background residuals were resampled. Peak intensities were held fixed "
             "during each replica to avoid counting peak-fit noise twice."
@@ -602,7 +635,8 @@ def process(context):
 
     s = settings(context.data)
     set_destination = getattr(context, "set_series_destination", None)
-    if callable(set_destination):
+    automatic = callable(set_destination)
+    if automatic:
         for series in context.project.dataset.series:
             set_destination(series.id, name="Ruby fluorescence")
     summaries = []
@@ -629,7 +663,10 @@ def process(context):
             }
             context.project.results["last_fit"] = result
             if meta["pressure_GPa"] is not None:
-                meta = recalculate_curve(context, curve, getattr(context, "cancellation", None))
+                meta = recalculate_curve(context, curve, getattr(context, "cancellation", None),
+                                         defer_uncertainty=automatic)
+                if meta.get("uncertainty_pending"):
+                    PENDING_ACQUISITIONS.put(curve.id)
             value = (
                 pressure_text(meta)
                 if meta["pressure_GPa"] is not None
@@ -811,7 +848,7 @@ def configure(context):
     curve = next((c for c in context.project.curves
                   if c.id == context.active_curve_id and "ruby_monitor" in c.metadata), None)
     if curve:
-        context.data.update(settings(curve.metadata["ruby_monitor"].get("settings")))
+        context.data.update(curve_settings(context, curve))
     if not configure_dialog(context):
         context.data.clear()
         context.data.update(original)
@@ -826,7 +863,14 @@ def configure(context):
             context.services.set_follow(False)
 
 
-def calculate_result(context, curve, cancellation=None):
+def curve_settings(context, curve):
+    s = settings(curve.metadata["ruby_monitor"].get("settings"))
+    if "uncertainty" in context.data:
+        s["uncertainty"] = uncertainty_settings(context.data["uncertainty"])
+    return s
+
+
+def calculate_result(context, curve, cancellation=None, *, defer_uncertainty=False):
     """Derive output from the current fit, retaining this acquisition's temperature."""
     from curvemole.core.data import CurveState
 
@@ -855,7 +899,8 @@ def calculate_result(context, curve, cancellation=None):
         for peak, label in zip(peaks, ("R2", "R1"), strict=True):
             meta[label + "_nm"] = values[model.parameter_path(curve.id, peak.id, "center")]
             meta["FWHM_" + label + "_nm"] = values[model.parameter_path(curve.id, peak.id, "fwhm")]
-        s = settings(meta.get("settings"))
+        s = curve_settings(context, curve)
+        meta["settings"] = s
         meta["temperature_K"] = s["temperature_K"]
         if meta["R1_nm"] <= meta["R2_nm"]:
             raise ValueError("Invalid R2/R1 peak order.")
@@ -879,7 +924,10 @@ def calculate_result(context, curve, cancellation=None):
                     warnings.append(f"{peak.name}: {key} is at its bound; review the fit.")
         meta["warnings"] = warnings
         if s["full_pressure_uncertainty"]:
-            complete_pressure_uncertainty(context, curve, model, peaks[1], meta, s, cancellation)
+            if defer_uncertainty:
+                meta["uncertainty_pending"] = True
+            else:
+                complete_pressure_uncertainty(context, curve, model, peaks[1], meta, s, cancellation)
         meta["result_source"] = "Current model; acquisition-specific temperature and calibration"
     except (ValueError, KeyError) as exc:
         meta["pressure_error"] = str(exc)
@@ -890,8 +938,9 @@ def calculation_fingerprint(context, curve):
     """Track all inputs, so reviewing spectra never silently recalculates pressure."""
     model = context.project.models.get(curve.id)
     values = context.project.resolved_parameter_values()
-    configuration = settings(curve.metadata["ruby_monitor"].get("settings"))
+    configuration = curve_settings(context, curve)
     if not configuration["full_pressure_uncertainty"]:
+        configuration.pop("uncertainty")
         configuration.pop("full_pressure_uncertainty")  # Preserve fingerprints of existing fit-only calculations.
     payload = {
         "model": model.to_dict() if model else None,
@@ -904,8 +953,8 @@ def calculation_fingerprint(context, curve):
     return digest.hexdigest()
 
 
-def recalculate_curve(context, curve, cancellation=None):
-    result = calculate_result(context, curve, cancellation)
+def recalculate_curve(context, curve, cancellation=None, *, defer_uncertainty=False):
+    result = calculate_result(context, curve, cancellation, defer_uncertainty=defer_uncertainty)
     if not result or result.get("pressure_GPa") is None:
         raise ValueError((result or {}).get("pressure_error", "No ruby pressure is available."))
     meta = curve.metadata["ruby_monitor"]
@@ -933,10 +982,47 @@ def current_result(context, curve):
     return result
 
 
+def uncertainty_dialog(parent, configuration):
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLabel, QSpinBox
+
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Ruby pressure uncertainty")
+    form = QFormLayout(dialog)
+    controls = {}
+    for key, label, minimum, maximum, special in (
+        ("replicates", "Bootstrap replicas", 2, 100_000, None),
+        ("block_length", "Block length (samples)", 0, 100_000, "Automatic"),
+        ("seed", "Random seed", 0, 2**31 - 1, None),
+        ("min_success_percent", "Minimum successful replicas (%)", 1, 100, None),
+        ("refit_max_evaluations", "Maximum evaluations per refit", 0, 1_000_000, "Use original fit limit"),
+    ):
+        control = QSpinBox()
+        control.setObjectName(key)
+        control.setRange(minimum, maximum)
+        if special:
+            control.setSpecialValueText(special)
+        control.setValue(configuration[key])
+        controls[key] = control
+        form.addRow(label, control)
+    note = QLabel("Block length is capped within each uninterrupted background region. "
+                  "The combined 1σ uses the fit, background and published pressure-scale uncertainties. "
+                  + INSTRUMENT_CALIBRATION_NOTE)
+    note.setWordWrap(True)
+    form.addRow(note)
+    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
+    buttons.accepted.connect(dialog.accept)
+    buttons.rejected.connect(dialog.reject)
+    form.addRow(buttons)
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        return uncertainty_settings({key: control.value() for key, control in controls.items()})
+    return None
+
+
 def monitor_panel(context):
     """Per-spectrum controls; acquisition keeps running independently."""
     from PySide6.QtCore import QSignalBlocker, Qt, QTimer
     from PySide6.QtWidgets import (
+        QApplication,
         QCheckBox,
         QDoubleSpinBox,
         QFileDialog,
@@ -965,6 +1051,7 @@ def monitor_panel(context):
             self.show_first = False
             self.temperature_pending = False
             self.pending_calculation = None
+            self.waiting_acquisitions = {}
             self.setMinimumWidth(300)
             layout = QVBoxLayout(self)
             layout.setAlignment(Qt.AlignmentFlag.AlignTop)
@@ -993,7 +1080,13 @@ def monitor_panel(context):
             self.full_uncertainty.setToolTip("Apply to the selected ruby and to new acquisitions. "
                                              + INSTRUMENT_CALIBRATION_NOTE)
             self.full_uncertainty.toggled.connect(lambda checked: self.guard(lambda: self.toggle_uncertainty(checked)))
-            layout.addWidget(self.full_uncertainty)
+            uncertainty_row = QHBoxLayout()
+            uncertainty_row.addWidget(self.full_uncertainty)
+            self.configure_uncertainty_button = QPushButton("Configure uncertainty")
+            self.configure_uncertainty_button.setObjectName("configure_uncertainty")
+            self.configure_uncertainty_button.clicked.connect(lambda: self.guard(self.configure_uncertainty))
+            uncertainty_row.addWidget(self.configure_uncertainty_button)
+            layout.addLayout(uncertainty_row)
             self.recalculate = QPushButton("Recalculate")
             self.recalculate.setObjectName("recalculate_pressure")
             self.recalculate.clicked.connect(lambda: self.guard(self.recalculate_pressure))
@@ -1049,7 +1142,9 @@ def monitor_panel(context):
             self.timer.start()
             self.calculation_timer = QTimer(self)
             self.calculation_timer.setInterval(150)
-            self.calculation_timer.timeout.connect(self.finish_recalculation)
+            self.calculation_timer.timeout.connect(self.poll_uncertainty_safely)
+            self.calculation_timer.start()
+            QApplication.instance().aboutToQuit.connect(self.cancel_uncertainty)
             self.refresh()
 
         def guard(self, callback):
@@ -1089,7 +1184,7 @@ def monitor_panel(context):
                 return
             curve = self.displayed_curve(snapshot)
             data = copy.deepcopy(snapshot.data)
-            s = settings(curve.metadata["ruby_monitor"].get("settings") if curve else data)
+            s = curve_settings(snapshot, curve) if curve else settings(data)
             s["temperature_K"] = self.temperature.value()
             s["full_pressure_uncertainty"] = self.full_uncertainty.isChecked()
             validate(s)
@@ -1131,41 +1226,97 @@ def monitor_panel(context):
             curve = self.displayed_curve(snapshot)
             if curve is None:
                 raise ValueError("Select a ruby spectrum first.")
-            if settings(curve.metadata["ruby_monitor"].get("settings"))["full_pressure_uncertainty"]:
-                snapshot = services.snapshot()  # The saved fit plan supplies weighting and solver settings.
-                curve = snapshot.project.dataset.curve(curve.id)
-                fingerprint = calculation_fingerprint(snapshot, curve)
-                self.pending_calculation = (
-                    PRESSURE_WORKER.submit(recalculate_curve, snapshot, curve), snapshot.project.id, curve.id,
-                    fingerprint, curve,
-                )
-                self.calculation_timer.start()
+            if curve_settings(snapshot, curve)["full_pressure_uncertainty"]:
+                snapshot = services.snapshot()  # Preserve the saved fit's weighting and fit limits.
+                self.start_uncertainty(snapshot, snapshot.project.dataset.curve(curve.id))
                 return
             recalculate_curve(snapshot, curve)
             services.save_settings(snapshot.data, metadata_key="ruby_monitor",
                                    curve_metadata={curve.id: curve.metadata["ruby_monitor"]})
 
-        def finish_recalculation(self):
-            future, project_id, curve_id, fingerprint, calculated_curve = self.pending_calculation
-            if not future.done():
+        def configure_uncertainty(self):
+            data = services.settings()
+            configuration = uncertainty_dialog(self, uncertainty_settings(data.get("uncertainty")))
+            if configuration is None or configuration == uncertainty_settings(data.get("uncertainty")):
                 return
-            self.calculation_timer.stop()
-            self.pending_calculation = None
+            data["uncertainty"] = configuration
+            services.save_settings(data)
+            self.loaded_settings = None
+            self.refresh()
+            if self.curve_id is not None and self.full_uncertainty.isChecked():
+                if self.pending_calculation is None:
+                    self.recalculate_saved_pressure()
+                else:
+                    self.waiting_acquisitions[self.curve_id] = None
 
-            def apply_result():
-                future.result()
-                snapshot = self.snapshot()
-                if snapshot.project.id != project_id:
-                    return
-                if snapshot.active_curve_id != curve_id:
+        def start_uncertainty(self, snapshot, curve):
+            from curvemole.core.fitting import CancellationToken
+
+            preview = recalculate_curve(snapshot, curve, defer_uncertainty=True)
+            fingerprint = curve.metadata["ruby_monitor"]["calculation_fingerprint"]
+            cancellation = CancellationToken()
+            future = PRESSURE_WORKER.submit(recalculate_curve, snapshot, curve, cancellation)
+            self.pending_calculation = (future, snapshot.project_id, curve.id, fingerprint,
+                                        curve, preview, cancellation)
+            self.refresh()
+
+        def cancel_uncertainty(self):
+            if self.pending_calculation is not None:
+                self.pending_calculation[-1].cancel()
+
+        def poll_uncertainty_safely(self):
+            try:
+                self.poll_uncertainty()
+            except (ValueError, KeyError) as exc:
+                self.status.setText(str(exc))
+
+        def poll_uncertainty(self):
+            from curvemole.core.data import CurveState
+
+            try:
+                while True:
+                    self.waiting_acquisitions[PENDING_ACQUISITIONS.get_nowait()] = None
+            except Empty:
+                pass
+            if self.pending_calculation is not None:
+                future, project_id, curve_id, fingerprint, curve, preview, cancellation = self.pending_calculation
+                if services.active_spectrum_state()[0] != project_id:
+                    cancellation.cancel()
+                    self.pending_calculation = None
+                elif future.done():
                     snapshot = services.snapshot()
-                current = snapshot.project.dataset.curve(curve_id)
-                if calculation_fingerprint(snapshot, current) != fingerprint:
-                    raise ValueError("The ruby inputs changed during calculation. Recalculate to use the new inputs.")
-                services.save_settings(snapshot.data, metadata_key="ruby_monitor",
-                                       curve_metadata={curve_id: calculated_curve.metadata["ruby_monitor"]})
-
-            self.guard(apply_result)
+                    project = snapshot.project
+                    if any(item.state == CurveState.RUNNING for item in project.curves):
+                        return  # Wait for the host to accept a metadata write.
+                    self.pending_calculation = None
+                    current = next((item for item in project.curves if item.id == curve_id), None)
+                    if (current and not project.read_only and "ruby_monitor" in current.metadata
+                            and calculation_fingerprint(snapshot, current) == fingerprint):
+                        try:
+                            future.result()
+                            output = curve.metadata["ruby_monitor"]
+                        except Exception as exc:
+                            output = copy.deepcopy(current.metadata["ruby_monitor"])
+                            failed = {key: value for key, value in preview.items() if key != "uncertainty_pending"}
+                            failed["full_uncertainty_note"] = str(exc)
+                            output.update(calculated_result=failed, calculation_fingerprint=fingerprint)
+                        services.save_settings(snapshot.data, metadata_key="ruby_monitor",
+                                               curve_metadata={curve_id: output})
+                    self.refresh()
+            if self.pending_calculation is not None or not self.waiting_acquisitions:
+                return
+            if services.monitor_status()["busy"]:
+                return  # The acquisition must be committed before taking its fit snapshot.
+            snapshot = services.snapshot()
+            curves = {curve.id: curve for curve in snapshot.project.curves}
+            for curve_id in tuple(self.waiting_acquisitions):
+                self.waiting_acquisitions.pop(curve_id)
+                curve = curves.get(curve_id)
+                if (curve is not None and "ruby_monitor" in curve.metadata and not snapshot.project.read_only
+                        and curve.state != CurveState.RUNNING
+                        and curve_settings(snapshot, curve)["full_pressure_uncertainty"]):
+                    self.start_uncertainty(snapshot, curve)
+                    break
 
         def start_monitor(self):
             self.temperature.interpretText()
@@ -1200,7 +1351,7 @@ def monitor_panel(context):
                     services.set_follow(False)
                     self.show_first = False
                     status["follow"] = False
-                s = settings(curve.metadata["ruby_monitor"].get("settings") if curve else snapshot.data)
+                s = curve_settings(snapshot, curve) if curve else settings(snapshot.data)
                 curve_id = curve.id if curve else None
                 if self.curve_id != curve_id or self.loaded_settings != s:
                     self.curve_id = curve_id
@@ -1230,6 +1381,15 @@ def monitor_panel(context):
                 self.recalculate.setText("Calculating uncertainty…" if self.pending_calculation else "Recalculate")
                 self.full_uncertainty.setEnabled(self.pending_calculation is None)
                 meta = current_result(snapshot, curve) if curve else None
+                active_calculation = (
+                    self.pending_calculation is not None
+                    and self.pending_calculation[1:3] == (self.project_id, self.curve_id)
+                )
+                if active_calculation:
+                    meta = {**self.pending_calculation[5], "needs_recalculation": False}
+                elif (meta and meta.get("uncertainty_pending") and not meta["needs_recalculation"]
+                      and not snapshot.project.read_only):
+                    self.waiting_acquisitions[self.curve_id] = None
                 self.spectrum.setText(curve.name if curve else "No ruby spectrum selected")
                 stale = bool(meta and (meta["needs_recalculation"] or self.temperature_pending))
                 colour = "background:#fff0bf;color:#654000;" if stale else "background:#155e4b;color:#ffffff;"
@@ -1304,6 +1464,7 @@ def export(context):
         "pressure_combined_std_GPa",
         "pressure_scale_uncertainty_source",
         "pressure_scale_component_note",
+        "uncertainty_pending",
         "background_bootstrap_completed",
         "background_bootstrap_requested",
         "background_bootstrap_block_length",

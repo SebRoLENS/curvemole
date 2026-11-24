@@ -3,7 +3,7 @@
   "name": "ruby_fluo_pressure_monitor",
   "description": "Fit ruby fluorescence spectra and calculate pressure with optional background bootstrap and published scale uncertainty.",
   "author": "CurveMole contributors",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "api_compatibility": "1",
   "licence": "GPL-3.0-or-later",
   "capabilities": [
