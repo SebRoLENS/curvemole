@@ -5,6 +5,22 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-11-24
+
+### Added
+
+- Add optional fit, background and scale uncertainty to ruby pressure. ([`34c767a8`](https://github.com/SebRoLENS/curvemole/commit/34c767a8500ecbd29a2f5b4b87fd19635ee2c89b))
+
+### Changed
+
+- Offer conditional and joint uncertainty analysis after background subtraction. ([`76ac31ff`](https://github.com/SebRoLENS/curvemole/commit/76ac31ff22c66980606aa6cfd85924d90e76f981))
+- Show background uncertainty intervals in the model panel. ([`930916d2`](https://github.com/SebRoLENS/curvemole/commit/930916d2e62ef09eaf7f8b59e198733896d0bfcb))
+- Verify the background uncertainty dialog on macOS. ([`088c29c3`](https://github.com/SebRoLENS/curvemole/commit/088c29c3091eee16fca8daa73893e21858d60c14))
+
+### Fixed
+
+- Preserve known Y rescaling in joint background uncertainty fits. ([`3588d287`](https://github.com/SebRoLENS/curvemole/commit/3588d287445c8cc469d077ff15ee8141833a428d))
+
 ## [1.4.0] - 2026-11-24
 
 ### Added
