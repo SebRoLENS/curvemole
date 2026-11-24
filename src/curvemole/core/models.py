@@ -31,6 +31,7 @@ class Component:
     group: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     id: str = field(default_factory=lambda: _identifier("component"))
+    output_scale: float = 1.0
 
     @classmethod
     def create(
@@ -54,8 +55,12 @@ class Component:
             metadata=meta,
         )
 
+    def evaluate(self, x: np.ndarray, parameters: Mapping[str, float], registry: FunctionRegistry) -> np.ndarray:
+        result = registry.get(self.function_id).evaluate(x, parameters, self.metadata)
+        return result if self.output_scale == 1.0 else self.output_scale * result
+
     def to_dict(self) -> dict[str, Any]:
-        return {
+        record = {
             "id": self.id,
             "function_id": self.function_id,
             "name": self.name,
@@ -66,6 +71,9 @@ class Component:
             "metadata": self.metadata,
             "parameters": {name: parameter.to_dict() for name, parameter in self.parameters.items()},
         }
+        if self.output_scale != 1.0:
+            record["output_scale"] = self.output_scale
+        return record
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> Component:
@@ -82,6 +90,7 @@ class Component:
                 str(name): Parameter.from_dict(parameter)
                 for name, parameter in dict(value["parameters"]).items()
             },
+            output_scale=float(value.get("output_scale", 1.0)),
         )
 
 
@@ -207,12 +216,11 @@ class Model:
                 continue
             if component.operator not in {"add", "subtract", "multiply", "divide", "convolve"}:
                 raise DataValidationError(f"Unknown component operator: {component.operator}")
-            definition = registry.get(component.function_id)
             parameters = {
                 name: float(values.get(self.parameter_path(prefix, component.id, name), parameter.value))
                 for name, parameter in component.parameters.items()
             }
-            evaluated = definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata)
+            evaluated = component.evaluate(np.asarray(x, dtype=float), parameters, registry)
             component_values[component.id] = evaluated
         total = self._evaluate_global(np.asarray(x, dtype=float), component_values,
                                       self._convolution_samples(x, prefix, values, registry))
@@ -245,8 +253,7 @@ class Model:
             if component.enabled and component.operator == "convolve":
                 parameters = {name: float(values.get(self.parameter_path(prefix, component.id, name), p.value))
                               for name, p in component.parameters.items()}
-                kernels[component.id] = registry.get(component.function_id).evaluate(
-                    grid, parameters, component.metadata)
+                kernels[component.id] = component.evaluate(grid, parameters, registry)
         return kernels
 
     @property
@@ -355,13 +362,12 @@ class Model:
                 raise DataValidationError(
                     f"Background component '{component.name}' must use add or subtract composition."
                 )
-            definition = registry.get(component.function_id)
             parameters = {
                 name: values.get(self.parameter_path(prefix, component.id, name), parameter.value)
                 for name, parameter in component.parameters.items()
             }
             evaluated = (evaluated_components[component.id] if evaluated_components is not None
-                         else definition.evaluate(np.asarray(x, dtype=float), parameters, component.metadata))
+                         else component.evaluate(np.asarray(x, dtype=float), parameters, registry))
             background_terms.append(evaluated if component.operator == "add" else -evaluated)
             included.add(component.id)
         if included and any(
@@ -389,6 +395,8 @@ class Model:
             values = resolve_parameter_values(self.parameter_map(prefix))
         result: dict[str, dict[str, float | None]] = {}
         for component in self.components:
+            if not math.isfinite(component.output_scale) or component.output_scale == 0.0:
+                raise DataValidationError(f"'{component.name}' requires a finite, nonzero output scale.")
             definition = registry.get(component.function_id)
             local = {
                 name: values.get(self.parameter_path(prefix, component.id, name), parameter.value)
@@ -442,12 +450,13 @@ def component_height(
     *,
     registry: FunctionRegistry | None = None,
 ) -> float | None:
-    definition = (registry or default_registry()).get(component.function_id)
+    registry = registry or default_registry()
+    definition = registry.get(component.function_id)
     if definition.kind != "peak" or "center" not in component.parameters:
         return None
     center = component.parameters["center"].value
     values = {name: parameter.value for name, parameter in component.parameters.items()}
-    return float(definition.evaluate(np.array([center]), values, component.metadata)[0])
+    return float(component.evaluate(np.array([center]), values, registry)[0])
 
 
 def area_for_height(
@@ -458,11 +467,10 @@ def area_for_height(
 ) -> float:
     if "area" not in component.parameters:
         raise DataValidationError(f"Component '{component.name}' has no area parameter.")
-    definition = (registry or default_registry()).get(component.function_id)
     values = {name: parameter.value for name, parameter in component.parameters.items()}
     values["area"] = 1.0
     center = values.get("center", 0.0)
-    unit_height = float(definition.evaluate(np.array([center]), values, component.metadata)[0])
+    unit_height = float(component.evaluate(np.array([center]), values, registry or default_registry())[0])
     if not math.isfinite(unit_height) or unit_height == 0:
         raise DataValidationError(f"Cannot derive area from height for '{component.name}'.")
     return float(height) / unit_height

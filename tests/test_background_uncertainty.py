@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from curvemole import Component, Curve, Fitter, Project
+from curvemole import Component, Curve, Fitter, Model, Project
 from curvemole.core.background_uncertainty import (
     background_uncertainty_is_current,
     background_uncertainty_record,
@@ -38,9 +38,19 @@ def spline_project():
     return project, curve, spline, peak
 
 
-@pytest.mark.parametrize("mode", ["fixed", "joint"])
-def test_background_uncertainty_uses_a_separate_reproducible_fit(mode):
+@pytest.mark.parametrize("mode,scalings,factor", [
+    ("fixed", [], 1.0),
+    ("joint", [], 1.0),
+    ("fixed", [("y_multiply", 2.0)], 2.0),
+    ("joint", [("y_multiply", 5.0), ("y_divide", 2.0)], 2.5),
+    ("joint", [("y_divide", -2.0)], -0.5),
+])
+def test_background_uncertainty_uses_a_separate_reproducible_fit(mode, scalings, factor):
     project, curve, spline, peak = spline_project()
+    spline.parameters["y1"].minimum = 1.5
+    spline.parameters["y1"].maximum = 2.5
+    for operation, value in scalings:
+        apply_scalar(curve, operation, value)
     plan = FitPlan([curve.id])
     fitter = Fitter()
     baseline, curves, models = fit_background_uncertainty(
@@ -49,14 +59,25 @@ def test_background_uncertainty_uses_a_separate_reproducible_fit(mode):
         baseline, plan, curves, models, replicates=12, seed=81)
     assert analysis.completed == 12
     assert not curves[curve.id].has_correlated_y_errors
-    assert models[curve.id].component(spline.id).metadata["x_nodes"] == [-5., 0., 5.]
+    restored_spline = models[curve.id].component(spline.id)
+    assert restored_spline.metadata["x_nodes"] == [-5., 0., 5.]
+    np.testing.assert_allclose(curves[curve.id].current_sigma_y, 0.1 * abs(factor))
     if mode == "fixed":
         np.testing.assert_array_equal(curves[curve.id].y, curve.y)
         assert not any(path.startswith(f"{curve.id}.{spline.id}.") for path in analysis.parameter_paths)
     else:
-        np.testing.assert_array_equal(curves[curve.id].y, curve.original_y)
-        assert f"{curve.id}.{spline.id}.y1" in analysis.parameter_paths
-        assert baseline.parameters[f"{curve.id}.{spline.id}.y1"].value == pytest.approx(2., abs=.08)
+        np.testing.assert_allclose(curves[curve.id].y, factor * curve.original_y)
+        node_path = f"{curve.id}.{spline.id}.y1"
+        assert node_path in analysis.parameter_paths
+        assert restored_spline.output_scale == factor
+        assert baseline.parameters[node_path].value == pytest.approx(2., abs=.08)
+        assert models[curve.id].background(np.array([0.]), curve_id=curve.id)[0] == pytest.approx(
+            factor * baseline.parameters[node_path].value)
+        saved_model = Model.from_dict(baseline.provenance["initial_models"][curve.id])
+        fitted_values = {path: estimate.value for path, estimate in baseline.parameters.items()}
+        output = baseline.curve_outputs[curve.id]
+        np.testing.assert_allclose(saved_model.evaluate(output.x, curve_id=curve.id, values=fitted_values),
+                                   output.fitted)
     assert curve.has_correlated_y_errors and not spline.enabled
     assert all(parameter.fixed for parameter in spline.parameters.values())
     assert peak.parameters["area"].value == 12.
@@ -66,10 +87,11 @@ def test_background_uncertainty_uses_a_separate_reproducible_fit(mode):
     assert not background_uncertainty_is_current(project, record)
 
 
-def test_background_analysis_refuses_unmodelled_correlations_or_later_operations():
+@pytest.mark.parametrize("operation", ["normalize_max", "normalize_area"])
+def test_background_analysis_refuses_normalization_after_subtraction(operation):
     project, curve, _, _ = spline_project()
-    apply_scalar(curve, "normalize_max")
-    with pytest.raises(FitError, match="later data operation"):
+    apply_scalar(curve, operation)
+    with pytest.raises(FitError, match="factor estimated from its data"):
         joint_background_components(curve, project.model_for(curve.id))
     with pytest.raises(FitError, match="other data operations"):
         fit_background_uncertainty(Fitter(), FitPlan([curve.id]), {curve.id: curve}, project.models, "fixed", None)
@@ -89,6 +111,7 @@ def test_run_dialog_and_saved_background_result(button_label, mode, note, tmp_pa
 
     app = QApplication.instance() or QApplication([])
     project, curve, spline, _ = spline_project()
+    apply_scalar(curve, "y_multiply", 2.0)
     window = CurveMoleMainWindow(project)
     original_exec = QMessageBox.exec
 
@@ -114,6 +137,9 @@ def test_run_dialog_and_saved_background_result(button_label, mode, note, tmp_pa
     report = restored.results["uncertainty_reports_by_curve"][curve.id]["covariance"]
     record = background_uncertainty_record(report["baseline"])
     assert record["mode"] == mode
+    if mode == "joint":
+        assert record["scaled_backgrounds"] == {curve.id: {spline.id: 2.0}}
+        assert "working Y scale" in uncertainty_warning(restored, curve.id, "covariance")
     assert background_uncertainty_is_current(restored, record)
     assert note in uncertainty_warning(restored, curve.id, "covariance")
     project.dirty = False

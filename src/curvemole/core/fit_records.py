@@ -83,6 +83,7 @@ def fit_model_matches(result: FitResult, curve_id: str, model, values) -> bool:
             }
             components[component["id"]] = (
                 component["function_id"], component["enabled"], component["operator"],
+                component.get("output_scale", 1.0),
                 parameters, {k: v for k, v in component.get("metadata", {}).items() if k != "custom_name"},
             )
         return components, snapshot.get("operation_order", [])

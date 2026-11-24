@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 from dataclasses import replace
 
 from curvemole.core.background_status import background_component_ids
@@ -12,17 +13,26 @@ from curvemole.core.errors import FitError
 
 
 def joint_background_components(curve, model):
-    """Identify the model functions that can explain the recorded subtraction."""
-    indices = [i for i, step in enumerate(curve.transformations) if step.is_estimated_background]
-    if not indices:
+    """Identify the removed functions and their factors in the current Y units."""
+    first = next((i for i, step in enumerate(curve.transformations) if step.is_estimated_background), None)
+    if first is None:
         return []
-    if len(curve.transformations) - indices[0] != len(indices):
-        raise FitError(f"'{curve.name}' has a later data operation. Undo the subtraction and set up the joint fit manually.")
     if any(item.enabled and item.operator not in {"add", "subtract"} for item in model.components):
         raise FitError(f"'{curve.name}' requires manual setup of the joint fit for its model composition.")
 
     components = {}
-    for step in curve.transformations[indices[0]:]:
+    scale = 1.0
+    for step in reversed(curve.transformations[first:]):
+        if step.operation in {"y_multiply", "y_divide"}:
+            scale *= step.target_y_derivative()
+            if not math.isfinite(scale) or scale == 0.0:
+                raise FitError(f"'{curve.name}' requires a finite, nonzero Y scaling factor for joint fitting.")
+            continue
+        if step.operation in {"normalize_max", "normalize_area"}:
+            raise FitError(f"'{curve.name}' was normalized after subtraction using a factor estimated from its data. "
+                           "Analyze before normalization or supply a noise model for it.")
+        if not step.is_estimated_background:
+            raise FitError(f"'{curve.name}' has a later data operation. Undo the subtraction and set up the joint fit manually.")
         identities = step.parameters.get("component_ids", ())
         if not identities:
             raise FitError(f"The subtracted functions are missing from the history of '{curve.name}'.")
@@ -38,9 +48,9 @@ def joint_background_components(curve, model):
                 raise FitError(f"'{curve.name}' includes repeated subtractions of '{component.name}'.")
             if component.operator not in {"add", "subtract"}:
                 raise FitError(f"'{curve.name}' requires manual setup of the joint fit for its model composition.")
-            components[component.id] = component
+            components[component.id] = (component, scale)
     if not any(parameter.link or parameter.minimum < parameter.maximum
-               for component in components.values() for parameter in component.parameters.values()):
+               for component, _ in components.values() for parameter in component.parameters.values()):
         raise FitError(f"The background of '{curve.name}' has no parameter that can vary within its bounds.")
     return list(components.values())
 
@@ -54,15 +64,19 @@ def fit_background_uncertainty(fitter, plan, curves, models, mode, cancellation)
     models = {cid: models[cid].clone() for cid in plan.curve_ids}
     affected = []
     spline = False
+    scaled_backgrounds = {}
     for cid, curve in curves.items():
         if not any(step.is_estimated_background for step in curve.transformations):
             continue
         affected.append(cid)
         if mode == "joint":
-            for component in joint_background_components(curve, models[cid]):
+            for component, scale in joint_background_components(curve, models[cid]):
                 spline |= component.function_id == "cubic_spline"
                 component.enabled = True
                 component.is_background = True
+                component.output_scale *= scale
+                if scale != 1.0:
+                    scaled_backgrounds.setdefault(cid, {})[component.id] = scale
                 for parameter in component.parameters.values():
                     if parameter.minimum < parameter.maximum and (not parameter.link or parameter.link_relation != "equal"):
                         parameter.fixed = False
@@ -79,6 +93,7 @@ def fit_background_uncertainty(fitter, plan, curves, models, mode, cancellation)
         raise FitError(baseline.message)
     baseline.provenance["background_uncertainty"] = {
         "mode": mode, "curve_ids": affected, "fixed_spline_positions": spline, "source_inputs": source_inputs,
+        "scaled_backgrounds": scaled_backgrounds,
     }
     return baseline, curves, models
 
@@ -113,5 +128,8 @@ def background_uncertainty_note(baseline):
         note = "Separate joint fit of signal and background on the data before subtraction."
         if treatment.get("fixed_spline_positions"):
             note += " Free spline heights were fitted. Node positions and the choice of nodes were held fixed."
+        if treatment.get("scaled_backgrounds"):
+            note += (" The fit uses the working Y scale. Parameters of rescaled background functions "
+                     "are reported in their units at subtraction.")
         return note
     return None

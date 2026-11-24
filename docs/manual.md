@@ -2339,11 +2339,16 @@ When an estimated background was subtracted, choose a treatment when running the
   and the recovered background components together. Bounds and parameter links apply.
   For a hand-drawn spline, the fit can adjust node heights at the chosen x positions.
   The resulting intervals are conditional on the number and positions of the nodes.
+  Multiplication or division of Y by a known, nonzero constant after subtraction
+  carries through to the fitted data and restored backgrounds. Parameters of a restored
+  background retain their units at subtraction, so its bounds and links stay valid.
 
 Both choices store the fit values and intervals in the **Uncertainty Analysis** report.
 The workspace spectrum and its fit keep their previous state. If a background function
 is missing or a later data operation prevents automatic reconstruction, set up the
 joint fit manually. Other sources of correlated errors still require a suitable noise model.
+Maximum and area normalization use a factor estimated from the data and introduce
+correlations of their own.
 
 **Replica timeout (seconds)** limits each Monte Carlo or bootstrap replica to
 **60 seconds** by default and can be changed before running an analysis. The timer
