@@ -156,7 +156,7 @@
 
 \clearpairofpagestyles
 \ihead{\textcolor{CurveMoleTeal}{CurveMole User Manual}}
-\ohead{Version 1.3.2}
+\ohead{Version 1.4.0}
 \cfoot{\pagemark}
 \renewcommand*{\chapterpagestyle}{scrheadings}
 
@@ -175,7 +175,7 @@
     \vspace{1.5cm}
     {\sffamily\bfseries\fontsize{30}{35}\selectfont\color{CurveMoleTeal}\@title\par}
     \vspace{0.45cm}
-    {\sffamily\Large\color{CurveMoleGrey}Version 1.3.2\par}
+    {\sffamily\Large\color{CurveMoleGrey}Version 1.4.0\par}
     \vspace{0.55cm}
     {\color{CurveMoleGold}\rule{0.58\textwidth}{1.5pt}\par}
     \vfill
@@ -200,9 +200,9 @@
   \apptocmd{\@title}{\par {\large #1 \par}}{}{}
 }
 \makeatother
-\subtitle{Version 1.3.2}
+\subtitle{Version 1.4.0}
 \author{Sebastiano Romi}
-\date{Updated for CurveMole 1.3.2}
+\date{Updated for CurveMole 1.4.0}
 
 \begin{document}
 \maketitle
@@ -215,12 +215,12 @@
 }
 CurveMole is a desktop-first, scriptable application for fitting
 one-dimensional scientific curves. The stable API baseline is CurveMole
-1.3.2 Stable. This release edition documents the released scientific
+1.4.0 Stable. This release edition documents the released scientific
 engine and application. The Markdown file is the authoritative source.
 The LaTeX source and PDF edition are generated automatically from it and
 must carry the same version number.
 
-\textbf{Stable edition for CurveMole 1.3.2.} This release includes the
+\textbf{Stable edition for CurveMole 1.4.0.} This release includes the
 workflow features documented in Appendices F/G and the scientific and
 data-integrity corrections summarized in Appendices I/J. Earlier
 executables can differ; keep the matching manual and automation
@@ -567,8 +567,8 @@ In a terminal opened in the download directory:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.3.2{-}linux{-}x86\_64.AppImage}
-\ExtensionTok{./CurveMole{-}1.3.2{-}linux{-}x86\_64.AppImage}
+\FunctionTok{chmod}\NormalTok{ +x CurveMole{-}1.4.0{-}linux{-}x86\_64.AppImage}
+\ExtensionTok{./CurveMole{-}1.4.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -576,7 +576,7 @@ If the system cannot mount AppImages through FUSE, use extraction mode:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.3.2{-}linux{-}x86\_64.AppImage}
+\VariableTok{APPIMAGE\_EXTRACT\_AND\_RUN=}\NormalTok{1 }\ExtensionTok{./CurveMole{-}1.4.0{-}linux{-}x86\_64.AppImage}
 \end{Highlighting}
 \end{Shaded}
 
@@ -620,7 +620,7 @@ On macOS:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.3.2{-}macos{-}arm64.dmg}
+\ExtensionTok{shasum}\NormalTok{ {-}a 256 CurveMole{-}1.4.0{-}macos{-}arm64.dmg}
 \end{Highlighting}
 \end{Shaded}
 
@@ -628,7 +628,7 @@ On Windows PowerShell:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{3}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
+\NormalTok{Get{-}FileHash .\textbackslash{}CurveMole{-}1.}\FunctionTok{4}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}windows{-}x86\_64{-}setup.}\FunctionTok{exe}\NormalTok{ {-}Algorithm SHA256}
 \end{Highlighting}
 \end{Shaded}
 
@@ -645,7 +645,7 @@ Use an isolated environment. From a downloaded wheel:
 \begin{Highlighting}[]
 \ExtensionTok{python3}\NormalTok{ {-}m venv \textasciitilde{}/.venv/curvemole}
 \BuiltInTok{source}\NormalTok{ \textasciitilde{}/.venv/curvemole/bin/activate}
-\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.3.2{-}py3{-}none{-}any.whl}
+\ExtensionTok{python}\NormalTok{ {-}m pip install ./curvemole{-}1.4.0{-}py3{-}none{-}any.whl}
 \ExtensionTok{curvemole}\NormalTok{ gui}
 \end{Highlighting}
 \end{Shaded}
@@ -656,7 +656,7 @@ On Windows PowerShell, activation is:
 \begin{Highlighting}[]
 \NormalTok{py {-}m venv }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole}
 \NormalTok{\& }\VariableTok{$env}\NormalTok{:USERPROFILE\textbackslash{}.}\FunctionTok{venv}\NormalTok{\textbackslash{}curvemole\textbackslash{}Scripts\textbackslash{}Activate.}\FunctionTok{ps1}
-\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{3}\NormalTok{.}\FunctionTok{2}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
+\NormalTok{python {-}m pip install .\textbackslash{}curvemole{-}1.}\FunctionTok{4}\NormalTok{.}\FunctionTok{0}\NormalTok{{-}py3{-}none{-}any.}\FunctionTok{whl}
 \NormalTok{curvemole gui}
 \end{Highlighting}
 \end{Shaded}
@@ -969,28 +969,43 @@ The left dock contains a search field and a tree with \textbf{Visible},
   Use Ctrl-click or Shift-click for a multi-selection, or use
   \textbf{Select all} and \textbf{Deselect all} above the tree.
 \item
+  A coloured bar and a bold name identify the active spectrum. Its name
+  appears above the search field when its row is out of view. In a
+  multi-selection, click another selected spectrum to make it active
+  while keeping the selection. Click the active spectrum to select it
+  alone. Rapid clicks that start in a multi-selection follow the same
+  rules.
+\item
   Use \textbf{Remove selected} to delete one or more accidentally
   imported curves. Removal is undoable.
 \item
   Use \textbf{New series} to create an empty named series. Empty series
   are retained when the project is saved.
 \item
-  Right-click one or more selected spectra and choose \textbf{Move
-  selected to series} to reorganize them.
+  Right-click one or more selected spectra and choose \textbf{Move to
+  series\ldots{}}. Choose an existing series or enter a name for a new
+  one. Spectra can come from several series.
 \item
   Right-click selected spectra and choose \textbf{Move selected up/down}
   to change their order inside a series. Multiple adjacent spectra move
   as a stable group.
 \item
-  Right-click a series and choose \textbf{Merge series into} to append
-  all its spectra to another series and remove the source series.
+  Right-click a selected series and choose \textbf{Merge series into} or
+  \textbf{Merge selected series into}. Choose the destination series to
+  keep. CurveMole appends the selected source spectra in tree order and
+  removes the source series in one undoable step.
 \item
   Moving, merging, creating, and reordering series are all Undo/Redo
   operations and do not invalidate fitted parameters.
 \item
   Use the visibility checkbox to include or exclude it from Overlay and
-  Waterfall displays. Hover over the checkbox for an explanation. Hiding
-  a spectrum retains its data and fit; hidden spectra are excluded from
+  Waterfall displays. The equally sized coloured square beside the
+  checkbox shows that spectrum's current colour (a native tree icon,
+  beside the checkbox). Click the colour square to open the spectrum
+  colour picker directly; this is separate from the visibility checkbox
+  and supports Undo/Redo. The square also updates when colours or
+  palettes change. Hover over the checkbox for an explanation. Hiding a
+  spectrum retains its data and fit; hidden spectra are excluded from
   fit plans. Highlighting rows separately selects spectra for
   operations. Hidden spectrum names appear muted; Up/Down navigation
   skips them. Click a hidden spectrum to inspect it, or check its
@@ -1000,18 +1015,36 @@ The left dock contains a search field and a tree with \textbf{Visible},
   \textbf{Rename data\ldots{}} or \textbf{Rename series\ldots{}}. Series
   names must remain unique.
 \item
-  Right-click a series and choose \textbf{Delete series\ldots{}} to
-  remove it together with all its curves, models and results. A
-  populated series requires confirmation; Undo restores the complete
-  series. Original files on disk are retained.
+  Select one or more series headers and choose \textbf{Delete
+  series\ldots{}} or \textbf{Delete selected series\ldots{}}. If any
+  selected series contains data, one confirmation covers the entire
+  selection. Undo restores the series, curves, models and results.
+\item
+  \textbf{Duplicate data\ldots{}} inserts a copy below each selected
+  spectrum in its own series. \textbf{Duplicate series\ldots{}} copies a
+  selected series and its spectra into a new series. Choose the original
+  RAW data or the processed data with applied operations. Each copy has
+  a new identity and starts with an empty fit model.
 \item
   Right-click a \textbf{curve} and choose \textbf{Choose data
-  colour\ldots{}} to set its colour. Red is reserved for the fitted
-  Model sum and cannot be assigned to a spectrum.
+  colour\ldots{}} to set its colour. The picker allows reds and rejects
+  colours almost identical to the current Model sum.
 \item
   Right-click a \textbf{series} and choose \textbf{Series palette} to
-  recolour the complete series with one of the built-in non-red
-  palettes. Palette and individual colours are saved in the project.
+  recolour the complete series with a built-in palette. \textbf{Neon} is
+  the initial default and offers 12 colours for black backgrounds.
+  Applying a series or selected spectra palette makes it the default for
+  new series and imports, including after you restart. The colour
+  palettes include a red accent, except \textbf{Colourblind}.
+  \textbf{Grayscale} uses neutral shades. Automatic assignments leave
+  more separation from the current Model sum than individual colour
+  choices. Palette and individual colours are saved in the project.
+\item
+  Select at least two spectra (Ctrl-click, or Shift-click for a range),
+  then right-click one of the selected spectra and choose
+  \textbf{Selected spectra palette}. The colours follow tree order even
+  across series; only selected spectra change, without changing series
+  palettes. The operation is a single Undo/Redo step.
 \item
   Use the search field to filter curves by name without removing them.
 \end{itemize}
@@ -1061,7 +1094,7 @@ Controls above it provide:
   \textbf{Display:} Single, Overlay, or Waterfall;
 \item
   \textbf{All series / Active series / Selected:} one-click scope for
-  Overlay and Waterfall;
+  Overlay and Waterfall (Selected by default);
 \item
   \textbf{X offset} and \textbf{Y offset:} display-only spacing, shown
   only in Waterfall;
@@ -1093,9 +1126,10 @@ all} and \textbf{View unmasked} explicitly frame the corresponding
 experimental points; model extrapolations, labels and handles do not
 affect these limits.
 
-The main toolbar contains the graphical \textbf{Mask} button. Its scope
-is chosen on entry in Overlay/Waterfall; mouse buttons determine the
-operation.
+The main toolbar contains the graphical \textbf{Mask} button. In
+Overlay/Waterfall, its scope is chosen on entry only when multiple
+spectra are displayed; otherwise it acts directly on the sole displayed
+spectrum. Mouse buttons determine the operation.
 
 Offsets never modify data and are removed when converting pointer
 positions back to scientific coordinates. Fitting and numeric data
@@ -1128,9 +1162,8 @@ when necessary to avoid overlap. Right-click the main plot and toggle
 \textbf{Show component labels} to hide or show these labels. After every
 completed fit, CurveMole explicitly applies the returned optimized
 parameters to the displayed model and redraws the plot while preserving
-the current zoom. The \textbf{Model sum is always red}; imported spectra
-and selectable series palettes exclude red so a data curve can never be
-confused with the fitted sum.
+the current zoom. The \textbf{Model sum} is red by default. Automatic
+spectrum colours skip shades close to the current model-sum colour.
 
 \hypertarget{navigation-and-axes}{%
 \section{5.3 Navigation and axes}\label{navigation-and-axes}}
@@ -1396,6 +1429,13 @@ local file to begin content-aware data import, regardless of its
 extension. If a drop contains both a project and data files, the first
 project is opened.
 
+Within the app, drag a selected spectrum, series, or model function to
+move the selected rows together in their original order. Dragging
+spectra between series keeps their fits. Dragging functions changes
+their display order within their respective spectra. In the grouped
+view, the drop position sets the insertion row for each selected group.
+The mouse wheel scrolls the list while you hold the selection.
+
 \hypertarget{importing-data}{%
 \chapter{6. Importing data}\label{importing-data}}
 
@@ -1546,7 +1586,7 @@ Only one of \texttt{sigma\_y}, confidence-interval errors, generic
 weight, variance, or inverse variance can be selected for a given
 spectrum. Variance is converted to \texttt{sigma\_y} by square root.
 \texttt{sigma\_x} is stored in the project but is not used by the
-version 1.3.2 optimizer.
+version 1.4.0 optimizer.
 
 For confidence intervals, choose \textbf{Y error (confidence interval)}
 and one symmetric half-width column, or check \textbf{Asymmetric error}
@@ -1624,6 +1664,11 @@ seconds by default). Monitoring starts only when you press
   import processor. Configure the plugin first; processing runs on the
   new acquisition in the background before it is added to the live
   project.
+\item
+  An import processor can declare named, reusable series destinations.
+  For example, the updated \textbf{Ruby fluorescence pressure monitor}
+  requests one series per project. Later acquisitions use the same
+  series after it is renamed.
 \end{itemize}
 
 Only files directly in the folder are scanned. Symlinks,
@@ -1757,8 +1802,9 @@ All visible & Changes every currently visible curve\tabularnewline
 \end{longtable}
 
 Single view always uses the active spectrum. Overlay and Waterfall
-prompt for Active or All visible when entering Mask mode; cancelling
-leaves masking off.
+prompt for Active or All visible only when multiple spectra are
+displayed. With one displayed spectrum, Mask acts on it directly;
+cancelling a prompt leaves masking off.
 
 For interval masks, the same numeric x interval is applied to every
 target. For a single-point mask transferred from the active curve,
@@ -1890,16 +1936,18 @@ also reflected in their mapped columns. Calculations are local to each
 spectrum, even when spectra originated in the same file. In a
 multi-spectrum batch \texttt{cN} always means position N in each file;
 check that the files have compatible layouts. Formulas updating X or Y
-propagate supplied uncertainty using the local derivative with respect
-to that target axis; inverse-variance Y weights follow the same rule.
-This does not jointly propagate errors in other columns or correlations
-between inputs. Changing an auxiliary uncertainty column does not remap
-the error arrays originally selected for fitting. Nonlinear formula
-derivatives use local, scale-aware perturbations and Richardson
-extrapolation. For \texttt{z=y**3}, the audited tiny-value example now
-agrees with \texttt{sigma\_z=abs(3*y**2)*sigma\_y}. Propagation remains
-a first-order local approximation; input correlations and uncertainties
-in other columns are not jointly propagated.
+use the local partial derivatives with respect to both axes. The
+propagated covariance between X and Y is used by subsequent axis
+formulas. Input X and Y errors are assumed independent before
+processing. Uncertainty that passes through an auxiliary column can be
+incomplete and prevents independent-error inference. Changing an
+auxiliary uncertainty column does not remap the error arrays originally
+selected for fitting. Nonlinear formula derivatives use local,
+scale-aware perturbations and Richardson extrapolation. For
+\texttt{z=y**3}, the audited tiny-value example now agrees with
+\texttt{sigma\_z=abs(3*y**2)*sigma\_y}. Propagation remains a
+first-order local approximation; input correlations and uncertainties in
+other columns are not jointly propagated.
 
 \textbf{Load formula} and \textbf{Save formula} appear side by side
 below the expression. \textbf{Save formula} is always available in
@@ -3424,11 +3472,10 @@ its current value. By default, the search extends 50\% of the absolute
 current value below and 50\% above it. At zero, a scale based on the
 plotted data is used. Edit the separate \textbf{Below} and
 \textbf{Above} percentages in the Fit dialog; existing explicit bounds
-always take precedence. These temporary search limits do not change the
-parameter table or the saved model. Inspect them conceptually before
-interpreting the result: a global search cannot discover a solution
-outside its search interval. It is usually much slower than a
-well-initialized local fit.
+always take precedence. Automatic limits apply only to the population
+search. The local refinement uses the physical model bounds, and the fit
+record lists the search and refinement bounds separately. A population
+search is usually much slower than a well-initialized local fit.
 
 \hypertarget{cancellation-and-failed-fits}{%
 \section{10.7 Cancellation and failed
@@ -3506,20 +3553,76 @@ independent free parameters. CurveMole reports:
 
 \begin{longtable}[]{@{}ll@{}}
 \toprule
-Statistic & Definition or interpretation\tabularnewline
+\begin{minipage}[b]{0.47\columnwidth}\raggedright
+Statistic\strut
+\end{minipage} & \begin{minipage}[b]{0.47\columnwidth}\raggedright
+Definition or interpretation\strut
+\end{minipage}\tabularnewline
 \midrule
 \endhead
-Degrees of freedom & \(N-k\)\tabularnewline
-RSS & \(\sum_i(y_i-f_i)^2\) without point weighting\tabularnewline
-RMSE & \(\sqrt{\mathrm{RSS}/N}\)\tabularnewline
-Chi-square & Sum of squared weighted residuals\tabularnewline
-Reduced chi-square & Chi-square divided by \(N-k\) when
-positive\tabularnewline
-Descriptive \(R^2\) & \(1-\mathrm{RSS}/\mathrm{TSS}\)\tabularnewline
-AIC & \(-2\log L_{max}+2K\) for a supported Gaussian noise
-model\tabularnewline
-AICc & \(AIC+2K(K+1)/(N-K-1)\) when \(N>K+1\)\tabularnewline
-BIC & \(-2\log L_{max}+K\log N\)\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Degrees of freedom\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(N-k\)\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+RSS\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(\sum_i(y_i-f_i)^2\) without point weighting\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+RMSE\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(\sqrt{\mathrm{RSS}/N}\)\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Solver objective\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Loss evaluated at the final parameters in the recorded residual
+units\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Weighted residual sum of squares\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Sum of squared weighted residuals before applying a robust loss\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Chi-square\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Weighted residual sum of squares for a supported converged Gaussian
+fit\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Reduced chi-square\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Chi-square divided by positive \(N-k\) with an absolute noise
+scale\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Descriptive \(R^2\)\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(1-\mathrm{RSS}/\mathrm{TSS}\)\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+Within-spectrum \(R^2\)\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+Uses a separate mean for each spectrum in the denominator\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+AIC\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(-2\log L_{max}+2K\) for a supported Gaussian noise model\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+AICc\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(AIC+2K(K+1)/(N-K-1)\) when \(N>K+1\)\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+BIC\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+\(-2\log L_{max}+K\log N\)\strut
+\end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
 
@@ -3575,11 +3678,12 @@ these conditional limits. A parameter at a bound is flagged because its
 true uncertainty is generally asymmetric and not adequately summarized
 by a symmetric covariance interval.
 
-These are local normal intervals, not exact Student-t intervals for a
-small linear sample with an estimated variance. Linked errors use
-scale-aware gradients; bound diagnostics use local parameter scales and
-floating-point spacing. See Appendix J.1/J.3 for the audited regression
-cases.
+Intervals use a Student-t quantile for linear loss with an estimated
+noise scale and a normal quantile for known scale or robust loss.
+Nonlinear and constrained intervals remain local approximations. Linked
+errors use scale-aware gradients; bound diagnostics use local parameter
+scales and floating-point spacing. See Appendix J.1/J.3 for the audited
+regression cases.
 
 \hypertarget{residual-diagnostics}{%
 \section{11.5 Residual diagnostics}\label{residual-diagnostics}}
@@ -3893,12 +3997,13 @@ is disabled; they must be positive and finite on fitted rows.
 \hypertarget{block-bootstrap}{%
 \section{12.3 Block bootstrap}\label{block-bootstrap}}
 
-The block bootstrap resamples contiguous circular residual blocks. With
-Y errors it resamples standardized residuals and restores the
-destination row's noise scale, as in residual bootstrap. Enter a block
-length or choose Automatic. The automatic estimate uses the first lag at
-which the absolute residual autocorrelation falls below \(e^{-1}\),
-subject to practical limits.
+The block bootstrap resamples overlapping residual blocks within
+contiguous regularly spaced segments. Blocks never cross masked rows,
+grid discontinuities, or spectrum endpoints. With Y errors it resamples
+standardized residuals and restores the destination row's noise scale,
+as in residual bootstrap. Enter a block length or choose Automatic. The
+automatic estimate uses the first lag at which the absolute residual
+autocorrelation falls below \(e^{-1}\), subject to practical limits.
 
 Block resampling is often preferable for spectra or kinetic traces with
 local correlation, but the block length remains a scientific modeling
@@ -3927,23 +4032,27 @@ approximately three covariance standard errors on either side, or a
 fallback span when no standard error is available, while respecting
 bounds.
 
-The default uses 31 grid points and a one-parameter chi-square
-threshold. The grid size, confidence level and lower/upper scan limits
-can be changed in the panel; blank limits select the automatic range,
-and explicit limits must respect parameter bounds. Failed grid points
-are counted. The desktop profile currently requires a single-spectrum
-baseline; it does not profile a global multi-spectrum fit. Profile
-threshold crossings are refined by bracketed refits.
-\texttt{confidence\_regions} contains every connected region detected by
-the scan. The calibrated \texttt{interval} uses the region containing
-the fitted estimate. An endpoint remains unavailable when its threshold
-crossing lies beyond the scan or next to a failed refit. A known
-physical bound can close a region. Disconnected sets are marked
-\textbf{Critical}. \texttt{warnings} reports incomplete scans or
-unrefined endpoints; inspect every region and extend the scan where
-needed. A finite grid can still miss a narrow remote mode. The default
-Gaussian-location example now agrees with the analytic 95\% interval,
-approximately +/-1.959964 standard errors.
+The default uses 31 grid points. With unknown noise the cutoff uses the
+finite-sample F reference that is exact for an unconstrained linear
+model. Bounds and nonlinear models can change coverage. A refit that
+materially improves the baseline invalidates the profile and prompts the
+user to refit. At an active parameter bound the scan shows exploratory
+regions and leaves calibrated confidence limits unavailable. The grid
+size, confidence level and lower/upper scan limits can be changed in the
+panel; blank limits select the automatic range, and explicit limits must
+respect parameter bounds. Failed grid points are counted. The desktop
+profile currently requires a single-spectrum baseline; it does not
+profile a global multi-spectrum fit. Profile threshold crossings are
+refined by bracketed refits. \texttt{confidence\_regions} contains every
+connected region detected by the scan. The calibrated \texttt{interval}
+uses the region containing the fitted estimate. An endpoint remains
+unavailable when its threshold crossing lies beyond the scan or next to
+a failed refit. A known physical bound can close a region. Disconnected
+sets are marked \textbf{Critical}. \texttt{warnings} reports incomplete
+scans or unrefined endpoints; inspect every region and extend the scan
+where needed. A finite grid can still miss a narrow remote mode. The
+default Gaussian-location example now agrees with the analytic 95\%
+interval, approximately +/-1.959964 standard errors.
 
 \hypertarget{reproducibility-and-failed-replicates}{%
 \section{12.5 Reproducibility and failed
@@ -5262,8 +5371,9 @@ panels}\label{acquisition-processors-and-interactive-plugin-panels}}
 Plugins can register \texttt{import\_processors} for Automatic folder
 import (Section 6.4). A processor receives only the detached new
 acquisition and its settings, runs in a background thread, and returns
-spectra/models/results to be added as one Undo operation. Enabling a
-plugin does not start acquisition monitoring.
+spectra/models/results to be added as one Undo operation. It can declare
+a persistent series destination for each series it creates in the
+acquisition. Enabling a plugin does not start monitoring.
 
 Plugin panels join the shared dock/tab workspace and can be reopened
 without losing their current widget state. Supported panel services
@@ -5583,12 +5693,15 @@ expectations; trust only reviewed plugin code.
 CurveMole}\label{research-using-curvemole}}
 
 Cite the exact software version used in your bibliography. This manual
-describes \textbf{CurveMole 1.3.2}, whose reference is:
+describes \textbf{CurveMole 1.4.0}, whose reference is:
+
+Zenodo archival is pending; use this version's GitHub release until its
+DOI is available.
 
 \begin{quote}
 Romi, S. (2026). CurveMole: Modular Scientific Curve Fitting (Version
-1.3.2) {[}Computer software{]}. Zenodo.
-https://doi.org/10.5281/zenodo.24363543
+1.4.0) {[}Computer software{]}. GitHub.
+https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.0
 \end{quote}
 
 If you used another release, including a beta, use that release's own
@@ -5603,7 +5716,7 @@ Use the software name, exact version and version-independent SciCrunch
 RRID:
 
 \begin{quote}
-Data were analysed with CurveMole version 1.3.2 (RRID:SCR\_029214).
+Data were analysed with CurveMole version 1.4.0 (RRID:SCR\_029214).
 \end{quote}
 
 \href{https://scicrunch.org/resolver/RRID:SCR_029214}{RRID:SCR\_029214}
@@ -5917,9 +6030,9 @@ macOS disk image\strut
 \bottomrule
 \end{longtable}
 
-\hypertarget{appendix-d.-version-1.3.2-limitations}{%
-\chapter{Appendix D. Version 1.3.2
-limitations}\label{appendix-d.-version-1.3.2-limitations}}
+\hypertarget{appendix-d.-version-1.4.0-limitations}{%
+\chapter{Appendix D. Version 1.4.0
+limitations}\label{appendix-d.-version-1.4.0-limitations}}
 
 The following boundaries apply to this release:
 
@@ -5995,7 +6108,7 @@ contracts.
 \chapter{Appendix F. Python scripting
 reference}\label{appendix-f.-python-scripting-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.3.2.} \textbf{Current release
+\textbf{Stable API baseline: CurveMole 1.4.0.} \textbf{Current release
 behavior.} This edition includes the November 2026 scientific and
 data-integrity corrections. Use the documents matching your installed
 release; these corrections are not implied for older executables.
@@ -6017,7 +6130,7 @@ corrections do not apply retroactively to earlier executables.
 \hypertarget{installation-and-imports}{%
 \section{1. Installation and imports}\label{installation-and-imports}}
 
-Install the 1.3.2 wheel in a Python environment, or run
+Install the 1.4.0 wheel in a Python environment, or run
 \texttt{python\ -m\ pip\ install\ -e\ .} from a source checkout. A
 desktop executable is not a general Python interpreter. Run scripts with
 \texttt{python\ analysis.py}; no Qt event loop or open CurveMole window
@@ -7242,8 +7355,17 @@ An import processor instead receives a fresh acquisition project, owner
 settings and \texttt{context.cancellation}; pass that token to fits. It
 must not access Qt or shared GUI objects. The host merges completed
 acquisition series/models/results; acquisition UI state/notebook changes
-are not merged. Plugin loading does not start folder monitoring or
-execute a workflow automatically.
+are not merged. In automatic import,
+\texttt{context.set\_series\_destination(series\_id,\ name="Beamline\ scans",\ key="scans")}
+declares a destination for a series in that acquisition. Use the same
+key to append subsequent acquisitions and distinct keys for independent
+destinations. The key defaults to \texttt{default} and is scoped to the
+registered processor and project. The name is used on creation.
+CurveMole resolves name collisions, retains user renames and commits the
+placement with the import's Undo/Redo. Source series without a
+declaration are added individually. Several source series can share a
+key if their proposed names agree. Plugin loading does not start folder
+monitoring or execute a workflow automatically.
 
 Solver request fields: \texttt{initial}, \texttt{bounds} (lower/upper
 arrays), \texttt{residual(vector)}, \texttt{jacobian(vector)}, copied
@@ -7495,8 +7617,9 @@ Strictly between 0 and 1\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{None}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Automatic covariance error scaling; \texttt{True}/\texttt{False}
-overrides\strut
+Imported Y errors and inverse variance are absolute by default;
+\texttt{False} estimates a common scale and \texttt{True} declares a
+known scale\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{use\_data\_errors}\strut
@@ -8300,7 +8423,7 @@ analysis.
 \chapter{Appendix G. YAML workflow
 reference}\label{appendix-g.-yaml-workflow-reference}}
 
-\textbf{Stable API baseline: CurveMole 1.3.2.} \textbf{Workflow schema:
+\textbf{Stable API baseline: CurveMole 1.4.0.} \textbf{Workflow schema:
 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.} This
 reference documents CurveMole 1.2.0, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output
@@ -8368,7 +8491,10 @@ analyses, or graphical interaction. Loading a plugin registers its
 extensions; it does not automatically invoke a plugin command,
 transformation, import processor, or workflow. Use the Python API for
 operations outside this contract. A plugin can register a fit solver
-usable through \texttt{fit.settings.solver}.
+usable through \texttt{fit.settings.solver}. Persistent destinations for
+the desktop's Automatic folder import are declared by a Python import
+processor through \texttt{context.set\_series\_destination(...)}. Use
+the workflow's existing import options for batch imports.
 
 \hypertarget{w2.-run-validate-and-inspect}{%
 \section{W2. Run, validate, and

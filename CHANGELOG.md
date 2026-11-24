@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.4.0] - 2026-11-24
+
 ### Added
 
 - Add bright spectrum palettes with reds distinct from the fitted curve. ([`eb1e185d`](https://github.com/SebRoLENS/curvemole/commit/eb1e185d02c2df05aa1d17850caaac45a7b7a800))
@@ -59,7 +60,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 - Document direct colour picker access from spectrum swatches. ([`d9425aad`](https://github.com/SebRoLENS/curvemole/commit/d9425aadb31ce51ebcb8bc78b84919aaca3a0c80))
 - Clarify clickable colour-swatch tooltip. ([`ab2d12b4`](https://github.com/SebRoLENS/curvemole/commit/ab2d12b4ee5feeb2b5822bc14adfe7b69d89e126))
-<!-- END AUTOMATED CHANGES -->
 
 ## [1.3.2] - 2026-11-19
 
