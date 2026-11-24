@@ -4,7 +4,7 @@
 
 Extract the ZIP and select the enclosed plugin folder in CurveMole’s Plugin Manager.
 
-Version 1.1.0. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
+Version 1.1.1. Fits ruby fluorescence spectra with **two pseudo-Voigt peaks,
 independent free FWHM values and a fixed mixing parameter η = 0.5**. It estimates
 a linear background, refines the doublet and calculates pressure from R1, the
 peak at the longer wavelength. All processing is local.
@@ -132,9 +132,11 @@ Recalculate after a fresh fit updates both; without a refit, the new pressure
 can be evaluated but no fit uncertainty is claimed.
 
 **Calculate full pressure uncertainty** is off by default. Enable it for
-subsequent acquisitions, or select an existing ruby spectrum, enable it and
-click **Recalculate**. The calculation uses the existing fit and recorded
-background region. It adds the following contributions when available.
+subsequent acquisitions. Changing the checkbox with an existing ruby spectrum
+selected also recalculates that spectrum. The panel shows how many bootstrap
+replicas completed or explains why a combined uncertainty is unavailable.
+The calculation uses the existing fit and recorded background region. It adds
+the following contributions when available.
 
 - For a fixed background, 200 moving-block residual draws resample the recorded
   background regions without crossing masked gaps. Each replica perturbs the

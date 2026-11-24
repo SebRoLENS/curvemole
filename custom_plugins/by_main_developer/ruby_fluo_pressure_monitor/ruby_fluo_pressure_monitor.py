@@ -244,13 +244,17 @@ def pressure_scale_metadata(value, s):
 def pressure_text(meta):
     value = meta["pressure_GPa"]
     error = meta.get("pressure_std_GPa")
-    if error is None:
+    total = meta.get("pressure_combined_std_GPa")
+    if total is not None:
+        text = f"Pressure: {value:.6g} ± {total:.2g} GPa (combined 1σ)"
+        if error is not None:
+            text += f"\nFit only: {error:.2g} GPa (1σ)"
+    elif error is None:
         text = f"Pressure: {value:.6g} GPa (fit uncertainty unavailable)"
     else:
         text = f"Pressure: {value:.6g} ± {error:.2g} GPa (1σ, fit only)"
-    total = meta.get("pressure_combined_std_GPa")
-    if total is not None:
-        text += f"\nCombined uncertainty: {total:.2g} GPa (1σ)"
+    if total is None and meta.get("settings", {}).get("full_pressure_uncertainty"):
+        text += "\nCombined uncertainty unavailable"
     if meta.get("scale_uncertainty_percent") is not None:
         text += f"\nScale: ±{meta['scale_uncertainty_percent']:g}% maximum"
     return text
@@ -403,7 +407,8 @@ def complete_pressure_uncertainty(context, curve, model, r1, meta, s, cancellati
             "Published accuracy applies within the pressure range and with the published scale coefficients."
         )
     if curve.state != CurveState.FITTED or meta.get("pressure_std_GPa") is None:
-        meta["full_uncertainty_note"] = "A current fit with an available R1 covariance is required."
+        meta["full_uncertainty_note"] = ("A current fit with an available R1 covariance is required. "
+                                         "Check that R1 is free, refit the spectrum and press Recalculate.")
         return
     record = context.project.results.get("fit_by_curve", {}).get(curve.id, {}).get("plan", {})
     fit_settings = FitSettings(**record.get("settings", {"max_nfev": 2000}))
@@ -930,7 +935,7 @@ def current_result(context, curve):
 
 def monitor_panel(context):
     """Per-spectrum controls; acquisition keeps running independently."""
-    from PySide6.QtCore import Qt, QTimer
+    from PySide6.QtCore import QSignalBlocker, Qt, QTimer
     from PySide6.QtWidgets import (
         QCheckBox,
         QDoubleSpinBox,
@@ -985,9 +990,9 @@ def monitor_panel(context):
             layout.addLayout(form)
             self.full_uncertainty = QCheckBox("Calculate full pressure uncertainty")
             self.full_uncertainty.setObjectName("full_pressure_uncertainty")
-            self.full_uncertainty.setToolTip("Combine fit, background and pressure-scale uncertainties. "
+            self.full_uncertainty.setToolTip("Apply to the selected ruby and to new acquisitions. "
                                              + INSTRUMENT_CALIBRATION_NOTE)
-            self.full_uncertainty.toggled.connect(lambda *_: self.guard(self.save))
+            self.full_uncertainty.toggled.connect(lambda checked: self.guard(lambda: self.toggle_uncertainty(checked)))
             layout.addWidget(self.full_uncertainty)
             self.recalculate = QPushButton("Recalculate")
             self.recalculate.setObjectName("recalculate_pressure")
@@ -1106,6 +1111,22 @@ def monitor_panel(context):
             # Commit any spin-box text before reading this spectrum's settings.
             self.temperature.interpretText()
             self.save()
+            self.recalculate_saved_pressure()
+
+        def toggle_uncertainty(self, checked):
+            snapshot = self.snapshot()
+            if snapshot.project.id != self.project_id or snapshot.active_curve_id != self.curve_id:
+                self.refresh()
+                with QSignalBlocker(self.full_uncertainty):
+                    self.full_uncertainty.setChecked(checked)
+            self.temperature.interpretText()
+            self.save()
+            if self.curve_id is not None:
+                self.recalculate_saved_pressure()
+
+        def recalculate_saved_pressure(self):
+            if self.pending_calculation is not None:
+                return
             snapshot = self.snapshot()
             curve = self.displayed_curve(snapshot)
             if curve is None:
@@ -1156,8 +1177,12 @@ def monitor_panel(context):
 
         def configure(self):
             snapshot = self.snapshot()
+            before = self.full_uncertainty.isChecked()
             configure(snapshot)
             self.loaded_settings = None
+            self.refresh()
+            if self.curve_id is not None and before != self.full_uncertainty.isChecked():
+                self.recalculate_saved_pressure()
 
         def refresh(self):
             try:
@@ -1203,6 +1228,7 @@ def monitor_panel(context):
                     self.follow.blockSignals(False)
                 self.recalculate.setEnabled(curve is not None and self.pending_calculation is None)
                 self.recalculate.setText("Calculating uncertainty…" if self.pending_calculation else "Recalculate")
+                self.full_uncertainty.setEnabled(self.pending_calculation is None)
                 meta = current_result(snapshot, curve) if curve else None
                 self.spectrum.setText(curve.name if curve else "No ruby spectrum selected")
                 stale = bool(meta and (meta["needs_recalculation"] or self.temperature_pending))
@@ -1222,6 +1248,9 @@ def monitor_panel(context):
                     if meta.get("scale_uncertainty_note"):
                         notes.append(meta["scale_uncertainty_note"])
                     if meta.get("settings", {}).get("full_pressure_uncertainty"):
+                        if meta.get("background_bootstrap_completed") is not None:
+                            notes.append(f"Background block bootstrap: {meta['background_bootstrap_completed']}/"
+                                         f"{meta['background_bootstrap_requested']} replicas completed")
                         if meta.get("pressure_background_std_GPa") is not None:
                             notes.append(f"Background 1σ = {meta['pressure_background_std_GPa']:.3g} GPa")
                         if meta.get("pressure_scale_std_GPa") is not None:

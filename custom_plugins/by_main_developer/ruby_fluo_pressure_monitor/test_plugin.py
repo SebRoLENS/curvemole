@@ -493,6 +493,7 @@ def test_combined_uncertainty_does_not_reuse_a_custom_scale_or_double_count_join
     assert output.get("pressure_scale_std_GPa") is None
     assert output.get("pressure_combined_std_GPa") is None
     assert output["pressure_std_GPa"] > 0
+    assert "Combined uncertainty unavailable" in ruby.pressure_text(output)
 
 
 def test_exact_background_mask_inversion_and_gui_unmask_undo(monkeypatch, tmp_path):
@@ -618,7 +619,9 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         monkeypatch.setattr(ruby, "BACKGROUND_REPLICATES", 24)
         panel.full_uncertainty.click()
         assert first.metadata["ruby_monitor"]["settings"]["full_pressure_uncertainty"]
-        panel.recalculate.click()
+        assert window.project.ui_state["plugin_data"][ruby.OWNER]["full_pressure_uncertainty"]
+        assert panel.pending_calculation is not None
+        assert panel.recalculate.text() == "Calculating uncertainty…"
         deadline = time.monotonic() + 5
         while panel.pending_calculation and time.monotonic() < deadline:
             QApplication.processEvents()
@@ -627,9 +630,10 @@ def test_per_spectrum_review_recalculate_and_persistence(tmp_path, monkeypatch):
         extended = first.metadata["ruby_monitor"]["calculated_result"]
         assert extended["background_bootstrap_completed"] == 24
         assert extended["pressure_combined_std_GPa"] > 0
+        assert "combined 1σ" in panel.result.text()
+        assert "24/24 replicas completed" in panel.details.text()
         assert "instrument's wavelength calibration" in panel.details.text()
         panel.full_uncertainty.click()
-        panel.recalculate.click()
         assert first.metadata["ruby_monitor"]["calculated_result"].get("pressure_combined_std_GPa") is None
         saved = copy.deepcopy(first.metadata["ruby_monitor"]["calculated_result"])
         panel.temperature.setValue(320)
