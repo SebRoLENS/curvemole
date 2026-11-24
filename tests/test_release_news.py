@@ -163,11 +163,16 @@ def test_news_pipeline_requires_validation_and_keeps_stable_release_separate():
         return yaml.load((ROOT / '.github/workflows' / name).read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
     testing, website = load('testing.yml'), load('website.yml')
     caller = testing['jobs']['website-news']
-    assert set(caller['needs']) == {'validate', 'publish'}
+    assert set(caller['needs']) == {'plan', 'validate', 'publish'}
     assert "needs.validate.result == 'success'" in caller['if']
     assert "needs.publish.result == 'success'" in caller['if']
-    assert '[website only]' in caller['if']
-    assert caller['with'] == {'source_ref': '${{ github.sha }}', 'news_only': 'true'}
+    assert "needs.plan.outputs.website_only == 'true'" in caller['if']
+    assert caller['with'] == {'source_ref': '${{ github.sha }}', 'news_only': 'true',
+                             'website_only': "${{ needs.plan.outputs.website_only == 'true' }}"}
+    website_only = testing['jobs']['plan']['outputs']['website_only']
+    assert '[website only]' in website_only and '[skip release]' in website_only
+    assert testing['jobs']['validate']['if'] == "needs.plan.outputs.website_only != 'true'"
+    assert 'testing-website-' in testing['concurrency']['group']
     job = website['jobs']['release-news']
     assert "github.ref == 'refs/heads/testing'" in job['if']
     assert 'inputs.source_ref == github.sha' in job['if']
@@ -175,6 +180,7 @@ def test_news_pipeline_requires_validation_and_keeps_stable_release_separate():
     commands = '\n'.join(step.get('run', '') for step in job['steps'])
     assert 'website_news.py --output' in commands
     assert 'website_news.py --check-current' in commands
+    assert 'pytest -q tests/test_website_publication.py' in commands
     assert 'promote_testing' not in commands and 'git push' not in commands
     assert website['concurrency']['group'] == 'github-pages'
 

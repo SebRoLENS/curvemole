@@ -187,5 +187,5 @@ def test_both_publication_paths_refresh_tutorial_before_upload():
     assert refresh["if"] == "steps.quickstart.outputs.required == 'true'"
     assert 'uv sync --project "$STABLE_TUTORIAL" --locked' in refresh["run"]
     assert '--checkout "$STABLE_TUTORIAL"' in refresh["run"]
-    assert '[website only]' in jobs["release-news"]["env"]["REFRESH_QUICK_START"]
+    assert jobs["release-news"]["env"]["REFRESH_QUICK_START"] == "${{ inputs.website_only }}"
     assert '--renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"' in refresh["run"]

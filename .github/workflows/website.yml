@@ -9,6 +9,9 @@ on:
       news_only:
         type: boolean
         default: false
+      website_only:
+        type: boolean
+        default: false
   workflow_run:
     workflows: [CI, Automatic release]
     types: [completed]
@@ -31,13 +34,13 @@ concurrency:
 
 jobs:
   release-news:
-    # The caller validates this exact testing SHA before overlaying release news
-    # or a requested tutorial correction on the verified stable snapshot.
+    # Published betas have already passed the app matrix. Website-only runs
+    # validate site tooling on Linux and use the verified stable app.
     if: inputs.news_only && github.ref == 'refs/heads/testing' && inputs.source_ref == github.sha
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     env:
-      REFRESH_QUICK_START: ${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[website only]') }}
+      REFRESH_QUICK_START: ${{ inputs.website_only }}
     permissions:
       contents: read
       actions: read
@@ -65,13 +68,20 @@ jobs:
           --snapshot "$RUNNER_TEMP/curvemole-website-news"
           --checkout "$RUNNER_TEMP/curvemole-stable-tutorial"
       - name: Install stable tutorial GUI libraries
-        if: steps.quickstart.outputs.required == 'true'
+        if: inputs.website_only || steps.quickstart.outputs.required == 'true'
         run: bash .github/scripts/install_ubuntu_packages.sh fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        if: steps.quickstart.outputs.required == 'true'
+        if: inputs.website_only || steps.quickstart.outputs.required == 'true'
         with:
           enable-cache: false
           python-version: '3.12'
+      - name: Validate website tooling
+        if: inputs.website_only
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          uv sync --locked --no-default-groups --group test
+          uv run --no-sync pytest -q tests/test_website_publication.py tests/test_quick_start_publication.py tests/test_quick_start_data.py tests/test_release_news.py
       - name: Refresh the tutorial from the verified stable app
         if: steps.quickstart.outputs.required == 'true'
         env:

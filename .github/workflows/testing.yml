@@ -14,7 +14,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: testing-${{ github.ref }}
+  group: >-
+    ${{ github.event_name == 'push' &&
+      contains(github.event.head_commit.message, '[skip release]') &&
+      contains(github.event.head_commit.message, '[website only]') &&
+      format('testing-website-{0}', github.ref) || format('testing-{0}', github.ref) }}
   cancel-in-progress: false
   queue: max
 
@@ -25,6 +29,10 @@ jobs:
     timeout-minutes: 5
     outputs:
       version: ${{ steps.plan.outputs.version }}
+      website_only: >-
+        ${{ github.event_name == 'push' &&
+          contains(github.event.head_commit.message, '[skip release]') &&
+          contains(github.event.head_commit.message, '[website only]') }}
     steps:
       - uses: actions/checkout@v6
       - id: plan
@@ -32,6 +40,7 @@ jobs:
 
   validate:
     needs: plan
+    if: needs.plan.outputs.website_only != 'true'
     uses: ./.github/workflows/validate.yml
     with:
       source_ref: ${{ github.sha }}
@@ -145,11 +154,11 @@ jobs:
         run: python .github/scripts/withdraw_beta.py --replacement "$BETA_VERSION"
 
   website-news:
-    needs: [validate, publish]
+    needs: [plan, validate, publish]
     if: >-
-      always() && !cancelled() && needs.validate.result == 'success' &&
-      (needs.publish.result == 'success' ||
-       (github.event_name == 'push' && contains(github.event.head_commit.message, '[website only]')))
+      always() && !cancelled() &&
+      ((needs.validate.result == 'success' && needs.publish.result == 'success') ||
+       (needs.plan.result == 'success' && needs.plan.outputs.website_only == 'true'))
     permissions:
       contents: read
       actions: read
@@ -159,6 +168,7 @@ jobs:
     with:
       source_ref: ${{ github.sha }}
       news_only: true
+      website_only: ${{ needs.plan.outputs.website_only == 'true' }}
 
   doi:
     needs: [plan, validate, publish]
