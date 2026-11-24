@@ -5,7 +5,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
-<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+## [1.4.2] - 2026-11-24
+
 ### Changed
 
 - Use detector pixels for block bootstrap on calibrated SPE spectra. ([`8a2971fd`](https://github.com/SebRoLENS/curvemole/commit/8a2971fd01987cb7a82c84d0dab1132b6f9dd330))
@@ -14,7 +15,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Configure Ruby pressure uncertainty and show pressure during bootstrap. ([`10fc7acf`](https://github.com/SebRoLENS/curvemole/commit/10fc7acfc27b9d66b787ff5b9c79a946be724daa))
 - Publish plugin fixes independently from CurveMole releases [publish plugin: ruby_fluo_pressure_monitor]. ([`01ec16b0`](https://github.com/SebRoLENS/curvemole/commit/01ec16b0fa509feef69d1ed367640bc61d1cb576))
 - Keep the SPE 3.0 manual and automation references in sync. ([`e561495f`](https://github.com/SebRoLENS/curvemole/commit/e561495f06f37113b07c118468283b459d8f4ff6))
-<!-- END AUTOMATED CHANGES -->
 
 ## [1.4.1] - 2026-11-24
 
