@@ -110,7 +110,7 @@ def test_run_dialog_and_saved_background_result(button_label, mode, note, tmp_pa
     from curvemole.gui.app import CurveMoleMainWindow
 
     app = QApplication.instance() or QApplication([])
-    project, curve, spline, _ = spline_project()
+    project, curve, spline, peak = spline_project()
     apply_scalar(curve, "y_multiply", 2.0)
     window = CurveMoleMainWindow(project)
     original_exec = QMessageBox.exec
@@ -129,6 +129,16 @@ def test_run_dialog_and_saved_background_result(button_label, mode, note, tmp_pa
     monkeypatch.setattr(window, "_run_background", run_now)
     window.start_uncertainty("covariance", 10, None)
     assert note in window.uncertainty_panel.results.warning.text()
+    window._set_component_on_curve(curve.id, peak.id)
+    window._select_uncertainty_display("covariance")
+    table = window.model_panel.parameters
+    area_row = next(row for row in range(table.rowCount()) if table.item(row, 0).text() == "area")
+    cell = table.item(area_row, 3)
+    report = project.results["uncertainty_reports_by_curve"][curve.id]["covariance"]
+    estimate = report["baseline"]["parameters"][f"{curve.id}.{peak.id}.area"]
+    assert f'{estimate["value"]:.8g}  −' in cell.text()
+    assert note in cell.toolTip()
+    assert "separate fit value" in cell.toolTip()
     assert "Separate uncertainty analysis" in window.curve_tree.topLevelItem(0).child(0).text(2)
     assert not spline.enabled and curve.has_correlated_y_errors
     path = tmp_path / "spline.fitproj"

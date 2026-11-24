@@ -358,8 +358,13 @@ class ModelPanel(QWidget):
                 DISPLAY_METHODS,
                 display_method,
                 recorded_analysis_error,
+                recorded_analysis_interval,
             )
-            from curvemole.core.background_uncertainty import background_uncertainty_note
+            from curvemole.core.background_uncertainty import (
+                background_uncertainty_is_current,
+                background_uncertainty_note,
+                background_uncertainty_record,
+            )
 
             chosen = display_method(self.project)
             report = self.project.results.get("uncertainty_reports_by_curve", {}).get(
@@ -372,7 +377,9 @@ class ModelPanel(QWidget):
             if hasattr(baseline, "to_dict"):
                 baseline = baseline.to_dict(arrays=False)
             background_note = background_uncertainty_note(baseline)
-            outdated = self.project.dataset.curve(self.curve_id).state != CurveState.FITTED
+            treatment = background_uncertainty_record(baseline)
+            outdated = (not background_uncertainty_is_current(self.project, treatment) if treatment
+                        else self.project.dataset.curve(self.curve_id).state != CurveState.FITTED)
             provenance = DISPLAY_METHODS[chosen] if chosen else self.tr("No analysis selected")
             if confidence is not None:
                 provenance += f" ({confidence:.1%} confidence)"
@@ -393,6 +400,15 @@ class ModelPanel(QWidget):
                 text = f"−{offsets[0]:.5g} / +{offsets[1]:.5g}" if offsets else "—"
                 if offsets and outdated:
                     text = self.tr("Recorded: ") + text
+                separate_interval = recorded_analysis_interval(report, chosen, path) if treatment else None
+                if separate_interval:
+                    center, lower, upper = separate_interval
+                    if lower <= center <= upper:
+                        text = f"{center:.8g}  −{center - lower:.5g} / +{upper - center:.5g}"
+                    else:
+                        text = f"{center:.8g}  [{lower:.8g}, {upper:.8g}]"
+                    if outdated:
+                        text = self.tr("Recorded: ") + text
                 analysis_item = QTableWidgetItem(
                     text)
                 analysis_item.setFlags(analysis_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
@@ -411,7 +427,11 @@ class ModelPanel(QWidget):
                     ).format(value=f"{recorded_value:.12g}"))
                 if background_note:
                     analysis_item.setToolTip(background_note + "\n" + self.tr(
-                        "Open Uncertainty to see the separate fit values and intervals."))
+                        "This column shows the separate fit value and its interval. "
+                        "Open Uncertainty for the full report."))
+                    if separate_interval and outdated:
+                        analysis_item.setToolTip(analysis_item.toolTip() + "\n" + self.tr(
+                            "Historical result. The spectrum or model has changed since this analysis."))
                 self.parameters.setItem(row, 3, analysis_item)
                 equality_linked = bool(parameter.link and parameter.link_relation == "equal")
                 fixed_value = parameter.fixed and not equality_linked

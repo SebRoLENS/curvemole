@@ -92,10 +92,22 @@ def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, f
     if method is None:
         return None
     record = project.results["uncertainty_reports_by_curve"][curve_id][method]
-    analysis = record.get("analysis", {})
     baseline = record.get("baseline", {})
     if background_uncertainty_record(baseline):
-        return None  # This analysis has its own fit values in the uncertainty report.
+        return None  # These offsets must not be exported beside a different fit value.
+    interval = recorded_analysis_interval(record, method, path)
+    if interval is None:
+        return None
+    value, low, high = interval
+    if not low <= value <= high:
+        return None
+    return value - low, high - value
+
+
+def recorded_analysis_interval(record, method, path: str) -> tuple[float, float, float] | None:
+    """Return the saved center and bounds, each on the analysis fit's parameter scale."""
+    analysis = record.get("analysis", {})
+    baseline = record.get("baseline", {})
     if hasattr(analysis, "to_dict"):
         analysis = analysis.to_dict()
     if hasattr(baseline, "to_dict"):
@@ -117,8 +129,6 @@ def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, f
     low, high = interval
     if low is None or high is None or not all(math.isfinite(v) for v in (low, high, value)):
         return None
-    # A confidence interval excluding the original estimate must not be
-    # presented as a conventional negative/positive error around that estimate.
-    if not low <= value <= high:
+    if low > high:
         return None
-    return float(value - low), float(high - value)
+    return float(value), float(low), float(high)

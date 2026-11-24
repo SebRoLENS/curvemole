@@ -2459,6 +2459,9 @@ The menu is attached directly to the error-column heading;
 the uncertainty panel's **Method** control chooses the same method to show, inspect
 or run. Changing either control updates the other and all spectrum tags. Selection
 does not run an analysis: use **Run explicit uncertainty analysis** to calculate it.
+For a separate background analysis, the **Analysis − / +** column shows the
+analysis fit value together with its uncertainty. Hover over the result to see
+which background treatment was used. The **Value** column shows the workspace fit.
 If the chosen method has no recorded result, errors remain blank. The header menu
 marks it as **no recorded result** when other saved methods are available; it does
 not silently substitute another method. Available saved methods can still be selected.
