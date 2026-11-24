@@ -193,7 +193,8 @@ variables such as `$HOME` are not expanded. The legacy `path` remains a literal
 single-file path: put wildcard expressions in the `glob` field or use
 `directory`/`pattern`. Quote Windows paths with single quotes or use forward
 slashes. Extensions alone do not determine whether the text importer can read a
-file; supported calibrated WinSpec SPE 2.x spectra also use the importer.
+file. The importer also reads calibrated SPE 2.x and SPE 3.0 spectra
+with one region of interest.
 
 The validator rejects unknown keys in supported workflow blocks instead of
 silently accepting typos. Function-specific initial-parameter and constraint names

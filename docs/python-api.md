@@ -157,8 +157,8 @@ curves = import_file(
 
 Import validity depends on contents, not only suffix. Inspect metadata/warnings,
 `curve.invalid`, and `curve.effective_mask`. SPE support covers calibrated,
-one-dimensional, single-ROI WinSpec SPE 2.x, not arbitrary binary/multidimensional
-SPE data. Imported numeric columns are retained for column formulas.
+one-dimensional WinSpec SPE 2.x and LightField SPE 3.0 spectra with one region
+of interest. Imported numeric columns are retained for column formulas.
 
 ## 4. Curves, masks, and transformations
 

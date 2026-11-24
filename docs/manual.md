@@ -4092,7 +4092,8 @@ curves = import_file(
 
 Import validity depends on contents, not only suffix. Inspect metadata/warnings,
 `curve.invalid`, and `curve.effective_mask`. SPE support covers calibrated,
-one-dimensional, single-ROI WinSpec SPE 2.x and LightField SPE 3.0 spectra. Imported numeric columns are retained for column formulas.
+one-dimensional WinSpec SPE 2.x and LightField SPE 3.0 spectra with one region
+of interest. Imported numeric columns are retained for column formulas.
 
 ### 4. Curves, masks, and transformations
 
@@ -5356,7 +5357,8 @@ variables such as `$HOME` are not expanded. The legacy `path` remains a literal
 single-file path: put wildcard expressions in the `glob` field or use
 `directory`/`pattern`. Quote Windows paths with single quotes or use forward
 slashes. Extensions alone do not determine whether the text importer can read a
-file. The same importer reads supported calibrated SPE 2.x and SPE 3.0 spectra.
+file. The importer also reads calibrated SPE 2.x and SPE 3.0 spectra
+with one region of interest.
 
 The validator rejects unknown keys in supported workflow blocks instead of
 silently accepting typos. Function-specific initial-parameter and constraint names
