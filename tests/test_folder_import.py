@@ -22,7 +22,7 @@ from curvemole.core.folder_import import (
 )
 from curvemole.core.importers import ColumnMapping, import_file, inspect_file
 from curvemole.core.serialization import load_project, save_project
-from curvemole.core.spe import read_spe_frame
+from curvemole.core.spe import is_spe, read_spe_frame
 from curvemole.core.uncertainty import UncertaintyAnalyzer
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.colours import SERIES_PALETTES
@@ -49,6 +49,85 @@ def spe_bytes(*, nx=100, frames=1):
     return bytes(header) + np.arange(nx * frames, dtype="<u2").tobytes()
 
 
+def spe3_bytes(*, nx=100, frames=1, binning=1, sensor_start=2,
+               dtype="<u2", pixel_format="MonochromeUnsigned16", orientation="Normal"):
+    header = bytearray(4100)
+    frame_size = nx * np.dtype(dtype).itemsize
+    stride = frame_size + 8  # Eight bytes of per-frame metadata.
+    struct.pack_into("<f", header, 1992, 3.0)
+    struct.pack_into("<Q", header, 678, len(header) + stride * frames)
+    data = b"".join(
+        np.arange(i * nx, (i + 1) * nx, dtype=dtype).tobytes() + b"metadata"
+        for i in range(frames)
+    )
+    sensor_width = sensor_start + nx * binning + 3
+    wavelengths = ",".join(
+        str(690 + .01 * x + 1e-6 * x**2) for x in range(sensor_width)
+    )
+    footer = f"""<SpeFormat version="3.0" xmlns="http://www.princetoninstruments.com/spe/2009">
+      <DataFormat>
+        <DataBlock type="Frame" count="{frames}" pixelFormat="{pixel_format}" size="{frame_size}"
+                   stride="{stride}" calibrations="1">
+          <DataBlock type="Region" count="1" width="{nx}" height="1" size="{frame_size}"
+                     stride="{frame_size}" calibrations="2,3"/>
+        </DataBlock>
+      </DataFormat>
+      <Calibrations>
+        <WavelengthMapping id="1"><Wavelength>{wavelengths}</Wavelength></WavelengthMapping>
+        <SensorInformation id="2" width="{sensor_width}" height="4" orientation="{orientation}"/>
+        <SensorMapping id="3" x="{sensor_start}" y="0" width="{nx*binning}" height="4"
+                       xBinning="{binning}" yBinning="4"/>
+      </Calibrations>
+    </SpeFormat>"""
+    return bytes(header) + data + footer.encode()
+
+
+@pytest.mark.parametrize(("dtype", "pixel_format"), [
+    ("<u2", "MonochromeUnsigned16"),
+    ("<u4", "MonochromeUnsigned32"),
+    ("<f4", "MonochromeFloating32"),
+])
+def test_spe3_calibrated_roi_with_binning_and_frame_stride(tmp_path, dtype, pixel_format):
+    path = tmp_path / "spectrum.0"
+    path.write_bytes(spe3_bytes(nx=8, frames=3, binning=2, dtype=dtype, pixel_format=pixel_format))
+    assert is_spe(path)  # This SPE 3.0 file has no legacy WinSpec magic.
+    frame = read_spe_frame(path, nrows=3)
+    assert frame.shape == (3, 4)
+    x = np.arange(2, 8, 2)
+    def calibration(pixels):
+        return 690 + .01 * pixels + 1e-6 * pixels**2
+
+    np.testing.assert_allclose(frame.iloc[:, 0], (calibration(x) + calibration(x + 1)) / 2)
+    np.testing.assert_array_equal(frame.iloc[:, 3], [16, 17, 18])
+    assert frame.attrs["sample_grid"] == "spe_detector"
+
+
+def test_spe3_horizontal_sensor_orientation(tmp_path):
+    path = tmp_path / "spectrum.spe"
+    path.write_bytes(spe3_bytes(nx=8, orientation="FlippedHorizontally"))
+    frame = read_spe_frame(path)
+    pixels = np.arange(10, 2, -1)
+    np.testing.assert_allclose(frame.iloc[:, 0], 690 + .01 * pixels + 1e-6 * pixels**2)
+    np.testing.assert_array_equal(frame.iloc[:, 1], np.arange(8))
+
+
+@pytest.mark.parametrize(("old", "new", "message"), [
+    (b'width="100" height="1"', b'width="100" height="2"', "single-region 1D"),
+    (b'stride="208"', b'stride="199"', "binary layout"),
+    (b'calibrations="1"', b'calibrations="9"', "no wavelength calibration"),
+    (b'xBinning="1"', b'xBinning="2"', "sensor mapping"),
+    (b"<SpeFormat", b"<!DOCTYPE SpeFormat><SpeFormat", "document type declaration"),
+    (b"</SpeFormat>", b"", "incomplete SPE 3.0 XML footer"),
+])
+def test_spe3_rejects_inconsistent_or_unsupported_files(tmp_path, old, new, message):
+    path = tmp_path / "spectrum.spe"
+    original = spe3_bytes()
+    assert old in original
+    path.write_bytes(original.replace(old, new, 1))
+    with pytest.raises(DataValidationError, match=message):
+        import_file(path, ColumnMapping(x=0, y=[1]))
+
+
 def test_spe_calibration_and_multiframe(tmp_path):
     path = tmp_path / "ruby.0"
     path.write_bytes(spe_bytes(frames=2))
@@ -63,9 +142,10 @@ def test_spe_calibration_and_multiframe(tmp_path):
     assert "[nm]" in curves[0].x_label
 
 
-def test_spe_block_bootstrap_uses_detector_grid_and_preserves_mask_gaps(tmp_path):
+@pytest.mark.parametrize("make_spe", [spe_bytes, spe3_bytes])
+def test_spe_block_bootstrap_uses_detector_grid_and_preserves_mask_gaps(tmp_path, make_spe):
     source = tmp_path / "ruby.0"
-    source.write_bytes(spe_bytes())
+    source.write_bytes(make_spe())
     curve, = import_file(source, ColumnMapping(x=0, y=[1]))
     assert curve.metadata["import"].pop("sample_grid") == "spe_detector"
 
@@ -98,9 +178,10 @@ def test_spe_block_bootstrap_uses_detector_grid_and_preserves_mask_gaps(tmp_path
     assert analysis.configuration["contiguous_segments"] == {curve.id: 2}
 
 
-def test_automatic_spe_import_keeps_every_frame(tmp_path):
+@pytest.mark.parametrize("make_spe", [spe_bytes, spe3_bytes])
+def test_automatic_spe_import_keeps_every_frame(tmp_path, make_spe):
     path = tmp_path / "ruby.0"
-    path.write_bytes(spe_bytes(frames=3))
+    path.write_bytes(make_spe(frames=3))
     stat = path.stat()
     acquisition, _, summary, destinations = prepare_file(
         path, (stat.st_size, stat.st_mtime_ns), 0, 1, None, {}, CancellationToken(),

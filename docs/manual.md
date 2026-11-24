@@ -908,13 +908,16 @@ own file. Ordinary batch mappings continue to use the selected column names.
 Files are imported in natural filename order: `scan_2` precedes `scan_10`, regardless
 of the order returned by the file chooser.
 
-#### Calibrated WinSpec SPE files
+#### Calibrated SPE files
 
-CurveMole also reads binary WinSpec SPE 2.x files containing calibrated
-one-dimensional acquisitions. The first column is wavelength in nm, followed by
-one intensity column per frame. Select the frame through the Y-column mapping.
-SPE 3.x, uncalibrated axes, images and multiple-ROI acquisitions are unsupported;
-export those acquisitions to calibrated x-y text before importing.
+CurveMole reads binary **WinSpec SPE 2.x** and **LightField SPE 3.0** files
+containing one-dimensional spectra from a single region of interest. The first
+column is wavelength in nm, followed by one intensity column per frame. Select
+the frame through the Y-column mapping. For SPE 3.0, CurveMole reads the XML
+wavelength calibration and the binary frame layout, including per-frame
+metadata offsets and the detector region and binning when available.
+For images, multiple regions or uncalibrated files, export a calibrated x-y
+spectrum before importing.
 
 #### Automatic folder import
 
@@ -2555,8 +2558,10 @@ data-error weighting is disabled; they must be positive and finite on fitted row
 ### 12.3 Block bootstrap
 
 The block bootstrap resamples overlapping residual blocks within contiguous
-regularly spaced segments. Blocks never cross masked rows, grid discontinuities,
-or spectrum endpoints. With Y errors it resamples standardized residuals and
+regularly spaced segments. With a verified SPE detector grid, blocks follow the
+detector samples and the fit uses the calibrated wavelengths. Blocks never
+cross masked rows, grid discontinuities, or spectrum endpoints. Fixed-count
+block bootstrap defaults to 500 replicas. With Y errors it resamples standardized residuals and
 restores the destination row's noise scale, as in residual bootstrap. Enter a
 block length or choose Automatic. The automatic estimate uses the first lag at which the
 absolute residual autocorrelation falls below $e^{-1}$, subject to practical limits.
@@ -4087,8 +4092,7 @@ curves = import_file(
 
 Import validity depends on contents, not only suffix. Inspect metadata/warnings,
 `curve.invalid`, and `curve.effective_mask`. SPE support covers calibrated,
-one-dimensional, single-ROI WinSpec SPE 2.x, not arbitrary binary/multidimensional
-SPE data. Imported numeric columns are retained for column formulas.
+one-dimensional, single-ROI WinSpec SPE 2.x and LightField SPE 3.0 spectra. Imported numeric columns are retained for column formulas.
 
 ### 4. Curves, masks, and transformations
 
@@ -5352,7 +5356,7 @@ variables such as `$HOME` are not expanded. The legacy `path` remains a literal
 single-file path: put wildcard expressions in the `glob` field or use
 `directory`/`pattern`. Quote Windows paths with single quotes or use forward
 slashes. Extensions alone do not determine whether the text importer can read a
-file; supported calibrated WinSpec SPE 2.x spectra also use the importer.
+file. The same importer reads supported calibrated SPE 2.x and SPE 3.0 spectra.
 
 The validator rejects unknown keys in supported workflow blocks instead of
 silently accepting typos. Function-specific initial-parameter and constraint names
