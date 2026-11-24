@@ -318,6 +318,9 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                 sigma_y = np.sqrt(variance)
         if spectrum.inverse_variance is not None:
             weights = numeric(spectrum.inverse_variance)
+        sample_grid = (
+            frame.attrs.get("sample_grid") if x_name == "Wavelength [nm]" and y_name != x_name else None
+        )
         curve = Curve(
             name=(str(y_name) if selected.header else f"Y — column {frame.columns.get_loc(y_name) + 1}")
             if mapping.as_separated_files or mapping.spectra else source.stem,
@@ -338,6 +341,7 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
             source=str(source.resolve()),
             metadata={
                 "import": {
+                    **({"sample_grid": sample_grid} if sample_grid else {}),
                     "config": asdict(selected),
                     "columns": asdict(spectrum),
                     "file_name": source.name,

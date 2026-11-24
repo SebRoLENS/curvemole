@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from curvemole.core.data import Curve, ImmutableColumns
+from curvemole.core.data import Curve, DetectorPixelRows, ImmutableColumns
 from curvemole.core.diagnostics import contiguous_residual_segments, estimate_block_length
 from curvemole.core.errors import (
     ConstraintError,
@@ -41,6 +41,8 @@ from curvemole.core.models import Model
 from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.process_pool import bounded_results, managed_process_pool
 from curvemole.core.worker_functions import registry_from_worker_formulas, worker_formula_specs
+
+DEFAULT_BLOCK_BOOTSTRAP_REPLICATES = 500
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,8 +317,11 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
             # Stored residuals are observed minus fitted. A positive residual
             # puts the fitted value on the lower side of the measurement.
             residual = residual / np.where(residual >= 0, minus[output.indices], plus[output.indices])
-        segments = contiguous_residual_segments(curve.row_indices[output.indices], output.x)
-        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns), segments)
+        rows = curve.row_indices[output.indices]
+        detector_grid = isinstance(rows, DetectorPixelRows)
+        segments = contiguous_residual_segments(rows, output.x)
+        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns),
+                         segments, detector_grid)
     return prepared
 
 
@@ -376,7 +381,7 @@ def _resample_trial_body(
         trial.column_axes = dict(curve.column_axes)
         trial.column_labels = dict(curve.column_labels)
         output = baseline.curve_outputs[curve_id]
-        full_fit, scales, residual, columns, segments = prepared[curve_id]
+        full_fit, scales, residual, columns, segments, _ = prepared[curve_id]
         if method == "parametric_monte_carlo":
             minus, plus = scales
             synthetic = full_fit.copy()
@@ -663,7 +668,7 @@ class UncertaintyAnalyzer:
         curves: Mapping[str, Curve] | Sequence[Curve],
         models: Mapping[str, Model],
         *,
-        replicates: int = 200,
+        replicates: int = DEFAULT_BLOCK_BOOTSTRAP_REPLICATES,
         adaptive: AdaptiveReplicateSettings | None = None,
         block_length: int | None = None,
         seed: int | None = None,
@@ -935,12 +940,16 @@ class UncertaintyAnalyzer:
                        for curve_id, values in prepared.items()}
             extra_configuration["block_lengths"] = dict(lengths)
             extra_configuration["blocks_cross_gaps"] = False
+            extra_configuration["block_grid"] = {
+                curve_id: "detector_pixels" if values[5] else "x"
+                for curve_id, values in prepared.items()
+            }
             extra_configuration["contiguous_segments"] = {
                 curve_id: len(values[4]) for curve_id, values in prepared.items()
             }
             if any(not any(segment.stop - segment.start > 1 for segment in values[4])
                    for values in prepared.values()):
-                raise FitError("Block bootstrap requires adjacent fitted rows on a regular X grid.")
+                raise FitError("Block bootstrap requires adjacent fitted samples on a regular X or detector grid.")
         lengths["_prepared"] = prepared
         from curvemole.core.provenance import analysis_record
         provenance = analysis_record(method, baseline, trial_plan, curves, models, self.fitter.registry,

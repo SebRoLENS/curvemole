@@ -8,11 +8,12 @@ import pytest
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
-from curvemole import Curve, Project
+from curvemole import Component, Curve, Fitter, Model, Project
 from curvemole.core.data import Series
+from curvemole.core.diagnostics import contiguous_residual_segments
 from curvemole.core.errors import DataValidationError
 from curvemole.core.extensions import Contribution
-from curvemole.core.fitting import CancellationToken
+from curvemole.core.fitting import CancellationToken, FitPlan
 from curvemole.core.folder_import import (
     IMPORT_DESTINATION_KEY,
     IMPORT_PROCESSOR_KEY,
@@ -20,7 +21,9 @@ from curvemole.core.folder_import import (
     ImportSeriesDestination,
 )
 from curvemole.core.importers import ColumnMapping, import_file, inspect_file
+from curvemole.core.serialization import load_project, save_project
 from curvemole.core.spe import read_spe_frame
+from curvemole.core.uncertainty import UncertaintyAnalyzer
 from curvemole.gui.app import CurveMoleMainWindow
 from curvemole.gui.colours import SERIES_PALETTES
 from curvemole.gui.folder_import import prepare_file
@@ -58,6 +61,41 @@ def test_spe_calibration_and_multiframe(tmp_path):
     curves = import_file(path, ColumnMapping(x=0, y=[1, 2]))
     assert len(curves) == 2
     assert "[nm]" in curves[0].x_label
+
+
+def test_spe_block_bootstrap_uses_detector_grid_and_preserves_mask_gaps(tmp_path):
+    source = tmp_path / "ruby.0"
+    source.write_bytes(spe_bytes())
+    curve, = import_file(source, ColumnMapping(x=0, y=[1]))
+    assert curve.metadata["import"].pop("sample_grid") == "spe_detector"
+
+    project = Project()
+    project.add_curve(curve)
+    path = tmp_path / "legacy.fitproj"
+    save_project(project, path)
+    project = load_project(path)
+    assert project.curves[0].metadata["import"]["sample_grid"] == "spe_detector"
+
+    source.unlink()
+    path = tmp_path / "portable.fitproj"
+    save_project(project, path)
+    curve = load_project(path).curves[0]
+    mask = curve.add_mask("Detector gap")
+    mask.excluded[40:50] = True
+    selected = ~curve.effective_mask
+    segments = contiguous_residual_segments(curve.row_indices[selected], curve.x[selected])
+    assert segments == (slice(0, 40), slice(40, 90))
+
+    model = Model(components=[Component.create("linear")])
+    result = Fitter().fit_single(curve, model)
+    assert result.success
+    plan = FitPlan([curve.id], settings=result.settings)
+    analysis = UncertaintyAnalyzer().block_bootstrap(
+        result, plan, [curve], {curve.id: model}, replicates=12, seed=1,
+    )
+    assert analysis.completed == 12
+    assert analysis.configuration["block_grid"] == {curve.id: "detector_pixels"}
+    assert analysis.configuration["contiguous_segments"] == {curve.id: 2}
 
 
 def test_automatic_spe_import_keeps_every_frame(tmp_path):

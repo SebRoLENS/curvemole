@@ -8,7 +8,7 @@ import re
 from typing import Any
 
 import numpy as np
-from PySide6.QtCore import QEvent, QPoint, Qt, Signal
+from PySide6.QtCore import QEvent, QPoint, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -47,7 +47,7 @@ from curvemole.core.functions import formula_definition
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
-from curvemole.core.uncertainty import AdaptiveReplicateSettings
+from curvemole.core.uncertainty import DEFAULT_BLOCK_BOOTSTRAP_REPLICATES, AdaptiveReplicateSettings
 from curvemole.gui.background_role import BackgroundSwitch
 from curvemole.gui.calculator_columns import ColumnSelector, choose_column
 from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_bound
@@ -1243,7 +1243,9 @@ class UncertaintyPanel(QWidget):
         self.scope.addItem(self.tr("All fitted spectra"), "all")
         self.replicates = QSpinBox()
         self.replicates.setRange(10, 1_000_000)
+        self._replicates_edited = False
         self.replicates.setValue(200)
+        self.replicates.valueChanged.connect(self._mark_replicates_edited)
         self.replica_timeout = QSpinBox()
         self.replica_timeout.setRange(1, 86_400)
         self.replica_timeout.setValue(60)
@@ -1366,8 +1368,14 @@ class UncertaintyPanel(QWidget):
         index = self.parameter.findData(current)
         self.parameter.setCurrentIndex(max(0, index))
 
+    def _mark_replicates_edited(self) -> None:
+        self._replicates_edited = True
+
     def _update_controls(self) -> None:
         method = self.method.currentData()
+        if not self._replicates_edited:
+            with QSignalBlocker(self.replicates):
+                self.replicates.setValue(DEFAULT_BLOCK_BOOTSTRAP_REPLICATES if method == "block_bootstrap" else 200)
         resampling = method not in {"profile_likelihood", "covariance"}
         adaptive = resampling and self.replica_mode.currentData() == "adaptive"
         self.replica_mode.setEnabled(resampling)

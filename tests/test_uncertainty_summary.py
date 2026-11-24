@@ -189,6 +189,14 @@ def test_default_replicates_and_method_controls():
     assert not panel.replicates.isEnabled()
     panel.replica_mode.setCurrentIndex(panel.replica_mode.findData("fixed"))
     assert panel.replicates.isEnabled()
+    panel.method.setCurrentIndex(panel.method.findData("block_bootstrap"))
+    assert panel.replicates.value() == 500
+    panel.method.setCurrentIndex(panel.method.findData("residual_bootstrap"))
+    assert panel.replicates.value() == 200
+    panel.replicates.setValue(500)
+    panel.method.setCurrentIndex(panel.method.findData("block_bootstrap"))
+    panel.method.setCurrentIndex(panel.method.findData("residual_bootstrap"))
+    assert panel.replicates.value() == 500
     panel.close()
     app.processEvents()
 

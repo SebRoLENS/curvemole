@@ -52,6 +52,10 @@ class ImmutableColumns(dict):
         return ImmutableColumns(self)
 
 
+class DetectorPixelRows(np.ndarray):
+    """Original row indices for a spectrum sampled at a constant detector pitch."""
+
+
 class CurveState(StrEnum):
     NOT_FITTED = "Not fitted"
     READY = "Ready"
@@ -352,6 +356,10 @@ class Curve:
                     expanded = self.original_mask(mask)
                     if len(expanded) == len(self.original_x):
                         mask.excluded = expanded
+        else:
+            from curvemole.core.spe import restore_spe_detector_grid
+
+            restore_spe_detector_grid(self)
         self._row_indices = np.arange(len(self.original_x))
         self._mask_original_excluded = {}
         if not self.masks:
@@ -385,8 +393,10 @@ class Curve:
 
     @property
     def row_indices(self) -> np.ndarray:
-        """Original row identities of the current points, including after deletions."""
-        view = self._row_indices.view()
+        """Original row identities, with detector sampling provenance retained on slicing."""
+        imported = self.metadata.get("import")
+        detector_grid = isinstance(imported, dict) and imported.get("sample_grid") == "spe_detector"
+        view = self._row_indices.view(DetectorPixelRows) if detector_grid else self._row_indices.view()
         view.setflags(write=False)
         return view
 

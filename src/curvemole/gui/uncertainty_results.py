@@ -60,7 +60,7 @@ class UncertaintyResults(QWidget):
             "click the assessment for its reasons. Thresholds: |r| ≥0.95; "
             "interval ≥80% of bounded range. These are diagnostic heuristics, not scientific validation. "
             "Alternative minima are not tested automatically. "
-            "200 fixed replicates give a quick estimate. Adaptive mode checks interval endpoint "
+            "A fixed number of replicates gives a quick estimate. Adaptive mode checks interval endpoint "
             "stability; it does not validate the model or guarantee interval accuracy.")
         legend.setWordWrap(True)
         layout.addWidget(legend)

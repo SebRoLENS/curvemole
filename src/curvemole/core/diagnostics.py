@@ -8,6 +8,8 @@ from typing import Any
 
 import numpy as np
 
+from curvemole.core.data import DetectorPixelRows
+
 
 @dataclass(slots=True)
 class ResidualDiagnostics:
@@ -54,16 +56,17 @@ def _lag_limit(size, max_lag=None):
 
 
 def contiguous_residual_segments(indices, x):
-    """Split fitted rows at original-row gaps or changes in the X spacing."""
+    """Split residuals at original-row gaps and, for other data, changes in X spacing."""
     rows = np.asarray(indices)
-    steps = np.diff(np.asarray(x, dtype=float))
     neighbours = np.diff(rows) == 1
-    eligible = neighbours & np.isfinite(steps) & (steps != 0)
-    if np.any(eligible):
-        step = float(np.median(steps[eligible]))
-        neighbours &= np.isclose(steps, step, rtol=1e-5, atol=0) & eligible
-    else:
-        neighbours[:] = False
+    if not isinstance(indices, DetectorPixelRows):
+        steps = np.diff(np.asarray(x, dtype=float))
+        eligible = neighbours & np.isfinite(steps) & (steps != 0)
+        if np.any(eligible):
+            step = float(np.median(steps[eligible]))
+            neighbours &= np.isclose(steps, step, rtol=1e-5, atol=0) & eligible
+        else:
+            neighbours[:] = False
     starts = np.r_[0, np.flatnonzero(~neighbours) + 1, len(rows)]
     return tuple(slice(int(start), int(stop)) for start, stop in zip(starts[:-1], starts[1:], strict=True))
 
@@ -114,7 +117,7 @@ def residual_diagnostics(
     theoretical = ndtri(probabilities)
     segments = None
     if x is not None or indices is not None or len(finite_indices) != input_count:
-        rows = finite_indices if indices is None else np.asarray(indices)[finite_indices]
+        rows = finite_indices if indices is None else np.asanyarray(indices)[finite_indices]
         coordinates = rows if x is None else np.asarray(x)[finite_indices]
         segments = contiguous_residual_segments(rows, coordinates)
     lengths = [len(values)] if segments is None else [segment.stop - segment.start for segment in segments]
@@ -126,7 +129,10 @@ def residual_diagnostics(
     total = float(np.dot(scaled, scaled))
     durbin_watson = sum(float(np.dot(part, part)) for part in differences) / total if total and differences else None
     if len(parts) > 1:
-        warnings.append("Lag statistics skip gaps and changes in X spacing.")
+        if isinstance(indices, DetectorPixelRows):
+            warnings.append("Lag statistics skip gaps in the detector grid.")
+        else:
+            warnings.append("Lag statistics skip gaps and changes in X spacing.")
     outlier_local = np.flatnonzero(np.abs(standardised) >= 3)
     outlier_indices = finite_indices[outlier_local]
     if len(outlier_indices):
