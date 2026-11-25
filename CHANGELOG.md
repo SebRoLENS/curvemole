@@ -5,6 +5,12 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+<!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Changed
+
+- Show full spectra, masks and fitted peaks in the Fityk importer [publish plugin: fityk_importer]. ([`fae7789c`](https://github.com/SebRoLENS/curvemole/commit/fae7789cda268c53a23dcde1894577b4e7422a61))
+<!-- END AUTOMATED CHANGES -->
+
 ## [1.4.2] - 2026-11-24
 
 ### Changed
