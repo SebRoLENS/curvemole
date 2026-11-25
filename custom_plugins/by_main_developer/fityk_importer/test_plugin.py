@@ -36,7 +36,9 @@ def test_saved_state_import_and_undoable_snapshot(tmp_path):
     assert len(context.project.curves) == 2
     a, b = context.project.curves
     assert a.masks["Default"].excluded.tolist() == [False, True, False]
+    assert a.masks["Default"].ranges == [(1., 1.)]
     assert not b.masks["Default"].excluded.any()
+    assert not b.masks["Default"].ranges
     ca = context.project.model_for(a.id).components[0]
     cb = context.project.model_for(b.id).components[0]
     assert ca.id != cb.id
@@ -45,6 +47,34 @@ def test_saved_state_import_and_undoable_snapshot(tmp_path):
         0.3 * math.pi / (0.7 * math.sqrt(math.pi / math.log(2)) + 0.3 * math.pi))
     assert np.isfinite(context.project.model_for(a.id).evaluate(a.x)).all()
     assert context.data["last_import"]["spectra"] == 2
+
+
+def test_dense_spectrum_keeps_data_and_mask_boundaries_after_reopening(tmp_path):
+    from curvemole.core.serialization import load_project, save_project
+
+    source = tmp_path / "masked.fit"
+    x = np.arange(4101)
+    active = (x >= 100) & (x <= 3000) & (x != 500)
+    source.write_text("# Fityk 1.3.2\nuse @0\n" + "".join(
+        f"X[{i}]={i}, Y[{i}]={i}, S[{i}]=2, A[{i}]={int(active[i])}\n"
+        for i in x) + "%v = VoigtA(~10, ~1000, ~20, 0.5)\n@0: F = %v\n")
+    project = Project()
+    plugin.import_fityk(SimpleNamespace(path=source, project=project, data={}))
+    destination = tmp_path / "model.fitproj"
+    save_project(project, destination)
+    restored = load_project(destination)
+    curve, = restored.curves
+    np.testing.assert_array_equal(curve.x, x)
+    np.testing.assert_array_equal(curve.y, x)
+    np.testing.assert_array_equal(curve.sigma_y, np.full(len(x), 2.))
+    np.testing.assert_array_equal(curve.effective_mask, ~active)
+    assert [tuple(r) for r in curve.masks[curve.active_mask].ranges] == [
+        (0., 99.), (500., 500.), (3001., 4100.)]
+    assert restored.ui_state["show_error_bars"] is False
+    assert restored.ui_state["autoscale_mode"] == "all"
+    model = restored.model_for(curve.id)
+    assert [component.function_id for component in model.components] == ["voigt"]
+    assert model.evaluate(curve.x, curve_id=curve.id).max() > 0
 
 
 def test_untrusted_commands_never_execute(tmp_path):

@@ -5,6 +5,12 @@ project saved with **Save state** / `info state > project.fit`. The import adds
 one CurveMole series containing the saved spectra. It does not run the Fityk
 script or modify the original file. Import is one CurveMole undo step.
 
+A new project opens in **Autoscale → All points**. Excluded samples stay visible
+in grey, with boundaries at the ends of each excluded interval. Select a
+spectrum to see its saved components and their sum. **View unmasked** zooms
+to the active data. The importer keeps the point uncertainties and initially
+hides error bars on new projects and on dense imports.
+
 The importer reads embedded X/Y points, positive point standard deviations,
 the Fityk active-point flag (as a CurveMole mask), titles and supported models:
 Gaussian, Lorentzian, PseudoVoigt and Voigt (including their area variants),
