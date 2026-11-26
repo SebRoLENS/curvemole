@@ -42,7 +42,7 @@ def test_benchmark_measures_enabled_plugins(tmp_path):
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    source = root / "custom_plugins/by_community/tsv_exporter"
+    source = root / "tests/fixtures/plugins/minimal_exporter"
     result = subprocess.run([sys.executable, str(root / "scripts/benchmark_startup.py"),
                              "--plugins", str(source), "--runs", "1"],
                             check=True, capture_output=True, text=True, timeout=60)

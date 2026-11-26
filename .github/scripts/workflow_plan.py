@@ -33,7 +33,6 @@ PLUGIN_PATHS = (
 # Plugin folders that the application's own test suite does not read. The TSV
 # exporter is excluded: tests/test_startup_imports.py benchmarks it.
 PLUGIN_ONLY_PATHS = ("custom_plugins/by_community/", "custom_plugins/by_main_developer/")
-SOURCE_TEST_PLUGIN_PATHS = ("custom_plugins/by_community/tsv_exporter/",)
 
 
 def touches(paths: list[str], patterns: tuple[str, ...]) -> bool:
@@ -43,10 +42,7 @@ def touches(paths: list[str], patterns: tuple[str, ...]) -> bool:
 
 def plugins_only(paths: list[str]) -> bool:
     """True when a change touches only plugin folders, so source tests cannot change."""
-    return bool(paths) and all(
-        touches([path], PLUGIN_ONLY_PATHS) and not touches([path], SOURCE_TEST_PLUGIN_PATHS)
-        for path in paths
-    )
+    return bool(paths) and all(touches([path], PLUGIN_ONLY_PATHS) for path in paths)
 
 
 def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bool]:

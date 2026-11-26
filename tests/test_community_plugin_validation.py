@@ -11,7 +11,7 @@ spec.loader.exec_module(validator)
 
 
 def test_rejects_invalid_manifest_and_paths(tmp_path):
-    source = ROOT / "custom_plugins/by_community/tsv_exporter/tsv_exporter.curvemole-plugin.json"
+    source = ROOT / "tests/fixtures/plugins/minimal_exporter/minimal_exporter.curvemole-plugin.json"
     data = json.loads(source.read_text())
     for key, value in (("module", "../outside.py"), ("capabilities", ["invented"]),
                        ("version", "bad"), ("author", "")):
@@ -35,7 +35,7 @@ def test_failed_validation_removes_stale_catalog(tmp_path):
 
 
 def test_example_manifest_and_fingerprint():
-    folder = ROOT / "custom_plugins/by_community/tsv_exporter"
+    folder = ROOT / "tests/fixtures/plugins/minimal_exporter"
     data = validator.inspect_manifest(next(folder.glob("*.curvemole-plugin.json")))
     assert data["capabilities"] == ["exporters"]
     assert len(validator.fingerprint(folder)) == 64
