@@ -162,11 +162,14 @@ def test_dropping_a_project_with_data_reports_the_ignored_files(tmp_path, monkey
         def acceptProposedAction(self):
             self.accepted = True
 
-    event = Drop([project, data])
-    window.dropEvent(event)
-    assert opened == [str(project)] and imported == [] and event.accepted
-    assert notices and notices[0][1] and "ignored 1" in notices[0][0]
-    window.dropEvent(Drop([data]))
-    assert imported == [[str(data)]]
-    window.close()
-    app.processEvents()
+    try:
+        event = Drop([project, data])
+        window.dropEvent(event)
+        # Qt returns dropped paths with forward slashes on Windows too.
+        assert [Path(path) for path in opened] == [project] and imported == [] and event.accepted
+        assert notices and notices[0][1] and "ignored 1" in notices[0][0]
+        window.dropEvent(Drop([data]))
+        assert [[Path(path) for path in batch] for batch in imported] == [[data]]
+    finally:
+        window.close()
+        app.processEvents()
