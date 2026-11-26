@@ -267,3 +267,50 @@ def test_quick_export_keeps_literal_and_generated_component_names(tmp_path):
         labels, columns, data = list(csv.reader(stream))
     assert len(set(zip(labels, columns, strict=True))) == len(labels)
     assert list(map(float, data[1:])) == [1., .1, 2., .2, 3., .3]
+
+
+def test_peak_search_estimates_noise_and_height_above_a_sloping_background():
+    rng = np.random.default_rng(3)
+    x = np.linspace(0, 100, 1001)
+
+    def band(centre, height, width):
+        return height * np.exp(-.5 * ((x - centre) / width)**2)
+
+    y = .05 * x + band(20, 10, 1.5) + band(50, 8, 2) + band(75, .6, 1.2) + rng.normal(0, .05, x.size)
+    from curvemole.core.initialization import noise_level, point_noise
+
+    assert point_noise(y) == pytest.approx(.05, rel=.4)
+    assert noise_level(y) == pytest.approx(.05, rel=.4)
+    peaks = sorted(find_peak_suggestions(Curve("Sloping", x, y)), key=lambda peak: peak.x)
+    assert [peak.x for peak in peaks] == pytest.approx([20, 50, 75], abs=1)
+    for peak, height in zip(peaks, [10, 8, .6], strict=True):
+        assert peak.height == pytest.approx(height, rel=.15)
+
+
+def test_negative_peak_height_keeps_its_sign():
+    x = np.linspace(-5, 5, 401)
+    y = 3 - 2 * np.exp(-.5 * (x / .5)**2)
+    [peak] = find_peak_suggestions(Curve("Dip", x, y), sign="negative")
+    assert peak.sign == -1
+    assert peak.height == pytest.approx(-2, rel=.01)
+
+
+def test_peak_search_ignores_correlated_noise_from_smoothed_spectra():
+    """Smoothing correlates noise over a few samples; it must not lower the threshold."""
+    from scipy.ndimage import gaussian_filter1d
+
+    from curvemole.core.initialization import noise_level
+
+    rng = np.random.default_rng(11)
+    for points in (300, 2000):
+        x = np.linspace(0, 100, points)
+        for smoothing in (1, 2, 4, 8):
+            spurious = 0
+            for _ in range(10):
+                noise = gaussian_filter1d(rng.normal(0, 1, points), smoothing)
+                noise /= noise.std()
+                y = .05 * x + 20 * np.exp(-.5 * ((x - 50) / 2)**2) + noise
+                assert .5 < noise_level(y) < 2  # never far below the true sigma of 1
+                peaks = find_peak_suggestions(Curve("Smoothed", x, y))
+                spurious += sum(abs(peak.x - 50) > 3 for peak in peaks)
+            assert spurious == 0, (points, smoothing, spurious)

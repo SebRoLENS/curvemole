@@ -39,6 +39,42 @@ class PeakSuggestion:
     sign: int
 
 
+def point_noise(y: np.ndarray, lag: int = 1) -> float:
+    """Robust noise standard deviation from differences between samples.
+
+    Differences between samples ``lag`` points apart cancel smooth backgrounds
+    and broad peaks, which a spread of the whole signal would count as noise.
+    For noise independent at that separation, MAD(diff) * 1.4826 / sqrt(2)
+    estimates sigma.
+    """
+    values = np.asarray(y, dtype=float)
+    differences = values[lag:] - values[:-lag]
+    differences = differences[np.isfinite(differences)]
+    if not len(differences):
+        return 0.0
+    spread = np.median(np.abs(differences - np.median(differences)))
+    return float(spread * 1.4826 / math.sqrt(2))
+
+
+def noise_level(y: np.ndarray) -> float:
+    """Noise standard deviation that also holds for correlated noise.
+
+    Smoothed, interpolated or oversampled spectra have noise correlated over
+    a few samples, so neighbouring differences understate it. Differences over
+    growing separations (1, 2, 4, ... samples) rise while the noise is still
+    correlated and level off once it is not; signal leakage instead makes them
+    keep rising only slowly. The estimate at the first plateau (less than 10%
+    growth on doubling) is kept, limited to separations of a tenth of the data.
+    """
+    lag, current = 1, point_noise(y)
+    while 2 * lag <= len(y) // 10:
+        following = point_noise(y, 2 * lag)
+        if following < 1.1 * current:
+            break
+        lag, current = 2 * lag, following
+    return current
+
+
 def find_peak_suggestions(
     curve: Curve,
     *,
@@ -62,8 +98,11 @@ def find_peak_suggestions(
     from scipy.signal import find_peaks, peak_widths
     baseline = float(np.nanmedian(y))
     centred = y - baseline
-    noise = float(np.nanmedian(np.abs(centred - np.nanmedian(centred))) * 1.4826)
-    selected_prominence = prominence if prominence is not None else max(noise * 3, np.ptp(y) * 0.01)
+    # Noise alone produces local maxima whose prominence grows slowly with the
+    # number of samples; 2*sqrt(2 ln n) sigma bounds them (a universal threshold
+    # on each side of a maximum) while keeping weak but genuine bands.
+    noise = noise_level(y) * 2 * math.sqrt(2 * math.log(len(y)))
+    selected_prominence = prominence if prominence is not None else max(noise, np.ptp(y) * 0.01)
     suggestions: list[PeakSuggestion] = []
     signs = (1,) if sign == "positive" else (-1,) if sign == "negative" else (1, -1)
     for selected_sign in signs:
@@ -78,10 +117,12 @@ def find_peak_suggestions(
             positions = np.arange(len(x))
             widths = np.interp(right, positions, x) - np.interp(left, positions, x)
             for local, index in enumerate(indices):
+                # Prominence is the height above the local base on either side,
+                # so a sloping or offset background does not bias the estimate.
                 suggestions.append(
                     PeakSuggestion(
                         x=float(x[index]),
-                        height=float(centred[index]),
+                        height=float(selected_sign * properties["prominences"][local]),
                         fwhm=max(float(widths[local]), np.finfo(float).tiny),
                         prominence=float(properties["prominences"][local]),
                         sign=selected_sign,
