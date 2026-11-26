@@ -209,7 +209,8 @@ def test_bootstrap_preserves_noise_scale_and_excludes_masked_outlier(method):
     _resample_trial(123, method, baseline, plan, {curve.id: curve},
                         {curve.id: model}, {curve.id: 3}, CapturingFitter(), CancellationToken())
     actual = captured["curve"]
-    np.testing.assert_allclose(np.abs(actual.y[:-1] / widths), 1, atol=1e-9)
+    # Residuals are inflated by sqrt(n / (n - p)) for the fitted degrees of freedom.
+    np.testing.assert_allclose(np.abs(actual.y[:-1] / widths), np.sqrt(20 / 19), atol=1e-9)
     assert actual.y[-1] == pytest.approx(0., abs=1e-9)
     assert actual.effective_mask[-1]
 
@@ -258,7 +259,9 @@ def test_bootstrap_uses_fit_side_for_observation_minus_prediction(method):
     models = {curve.id: model}
     baseline = fitter.fit(plan, [curve], models)
     output = baseline.curve_outputs[curve.id]
-    residual = output.weighted_residual - np.mean(output.weighted_residual)
+    from curvemole.core.uncertainty import residual_inflation
+    inflation = residual_inflation(baseline, [curve.id])[curve.id]
+    residual = (output.weighted_residual - np.mean(output.weighted_residual)) * inflation
     rng = np.random.default_rng(341)
     if method == "residual_bootstrap":
         drawn = rng.choice(residual, size=len(curve))

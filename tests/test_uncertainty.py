@@ -88,3 +88,46 @@ def test_profile_grid_matches_across_process_counts(gaussian_curve) -> None:
     serial = analyzer.profile_parameter(baseline, gaussian_curve, model, center, points=5, workers=1)
     parallel = analyzer.profile_parameter(baseline, gaussian_curve, model, center, points=5, workers=2)
     np.testing.assert_allclose(parallel.delta_chi_square, serial.delta_chi_square, rtol=0, atol=0)
+
+
+def test_residual_inflation_corrects_fitted_residual_shrinkage() -> None:
+    """Few points and several parameters: bootstrap must not understate errors."""
+    from curvemole import Curve
+    from curvemole.core.uncertainty import _prepare_resampling, residual_inflation
+
+    x = np.linspace(-3, 3, 12)
+    rng = np.random.default_rng(5)
+    y = 0.5 + 3 * np.exp(-0.5 * ((x - 0.2) / 0.8) ** 2) / (0.8 * np.sqrt(2 * np.pi))
+    curve = Curve("small", x, y + rng.normal(0, 0.05, x.size))
+    model = Model(components=[
+        Component.create("constant", initial={"offset": 0.4}),
+        Component.create("gaussian", initial={"area": 2.5, "center": 0.0, "sigma": 1.0}),
+    ])
+    plan = FitPlan([curve.id])
+    fitter = Fitter()
+    baseline = fitter.fit(plan, [curve], {curve.id: model})
+    factors = residual_inflation(baseline, [curve.id])
+    assert factors[curve.id] == pytest.approx(np.sqrt(12 / 8))
+
+    prepared = _prepare_resampling(baseline, plan, {curve.id: curve}, {curve.id: model}, fitter)
+    residual = np.asarray(baseline.curve_outputs[curve.id].residual)
+    np.testing.assert_allclose(prepared[curve.id][2], (residual - residual.mean()) * np.sqrt(1.5))
+
+
+def test_residual_inflation_uses_each_independent_spectrum() -> None:
+    from types import SimpleNamespace
+
+    from curvemole.core.uncertainty import residual_inflation
+
+    baseline = SimpleNamespace(
+        mode=FitMode.INDEPENDENT,
+        curve_outputs={"a": SimpleNamespace(residual=np.zeros(10)),
+                       "b": SimpleNamespace(residual=np.zeros(100))},
+        free_parameter_paths=["a.c.x", "a.c.y", "b.c.x", "b.c.y"],
+    )
+    factors = residual_inflation(baseline, ["a", "b"])
+    assert factors["a"] == pytest.approx(np.sqrt(10 / 8))
+    assert factors["b"] == pytest.approx(np.sqrt(100 / 98))
+    baseline.mode = FitMode.GLOBAL
+    assert residual_inflation(baseline, ["a", "b"]) == {
+        "a": pytest.approx(np.sqrt(110 / 106)), "b": pytest.approx(np.sqrt(110 / 106))}

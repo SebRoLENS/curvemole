@@ -290,9 +290,34 @@ def _parametric_noise(rng, minus, plus, *, weighted):
     return noise
 
 
+def residual_inflation(baseline: FitResult, curve_ids: Sequence[str]) -> dict[str, float]:
+    """Degrees-of-freedom correction for resampled least-squares residuals.
+
+    Fitted residuals are smaller than the noise they estimate: their mean square
+    is about (n - p) / n of the error variance. Resampling them unchanged makes
+    bootstrap intervals too narrow when few points support many parameters, so
+    each residual is inflated by sqrt(n / (n - p)) (Davison & Hinkley, 1997).
+    Global fits share one count; independent fits use each spectrum's own.
+    """
+    counts = {cid: len(baseline.curve_outputs[cid].residual) for cid in curve_ids}
+    paths = list(baseline.free_parameter_paths)
+    if baseline.mode == FitMode.GLOBAL or len(curve_ids) == 1:
+        n, p = sum(counts.values()), len(paths)
+        factor = math.sqrt(n / (n - p)) if n > p else 1.0
+        return dict.fromkeys(curve_ids, factor)
+    factors = {}
+    for cid in curve_ids:
+        n = counts[cid]
+        p = sum(1 for path in paths if path.startswith(f"{cid}."))
+        factors[cid] = math.sqrt(n / (n - p)) if n > p else 1.0
+    return factors
+
+
 def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="residual_bootstrap"):
     resolved = resolve_parameter_values({path: parameter for cid, model in models.items()
                                         for path, parameter in model.parameter_map(cid).items()})
+    inflation = (residual_inflation(baseline, plan.curve_ids)
+                 if method != "parametric_monte_carlo" else {})
     prepared = {}
     for cid in plan.curve_ids:
         curve = curves[cid]
@@ -320,7 +345,8 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
         rows = curve.row_indices[output.indices]
         detector_grid = isinstance(rows, DetectorPixelRows)
         segments = contiguous_residual_segments(rows, output.x)
-        prepared[cid] = (full_fit, scales, residual - np.mean(residual), ImmutableColumns(curve.columns),
+        centred = (residual - np.mean(residual)) * inflation.get(cid, 1.0)
+        prepared[cid] = (full_fit, scales, centred, ImmutableColumns(curve.columns),
                          segments, detector_grid)
     return prepared
 
@@ -908,6 +934,8 @@ class UncertaintyAnalyzer:
                 "input_confidence_level": (curves[curve_id].error_confidence_level
                     if curves[curve_id].current_error_y_minus is not None else None),
             } for curve_id in plan.curve_ids},
+            "residual_inflation": (residual_inflation(baseline, plan.curve_ids)
+                                   if method != "parametric_monte_carlo" else None),
             "residual_standardization": method != "parametric_monte_carlo" and any(
                 _resampling_scales(curves[curve_id], method) is not None
                 for curve_id in plan.curve_ids),
