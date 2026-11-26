@@ -65,13 +65,6 @@ def matrix_payload(value):
     return value.to_dict() if isinstance(value, BlockDiagonalMatrix) else value.tolist()
 
 
-def save_matrix(path, matrix, delimiter):
-    """Write rows without materialising an aggregate dense covariance."""
-    with path.open("w", encoding="utf-8") as stream:
-        for row in matrix:
-            np.savetxt(stream, np.asarray(row)[None, :], delimiter=delimiter)
-
-
 def covariance_statistics(covariance):
     """Shared marginal errors/correlation, with the historical zero-variance policy."""
     errors = np.sqrt(np.clip(np.diag(covariance), 0, np.inf))

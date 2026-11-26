@@ -239,18 +239,10 @@ def _install_parameter_copy() -> None:
         panel._parameter_copy_all_parameters = False
         panel._update_copy_parameter_button()
 
-    def update_button(panel: ModelPanel) -> None:
-        from curvemole.gui.parameter_copy_redesign import _update_button
-        _update_button(panel)
-
-    def copy_selected(panel: ModelPanel) -> None:
-        from curvemole.gui.parameter_copy_redesign import _copy_selected
-        _copy_selected(panel)
-
+    # The button state and copy action are installed by parameter_copy_redesign,
+    # which the curvemole.gui package always imports together with this module.
     ModelPanel.__init__ = init
     ModelPanel._remember_parameter_copy_source = remember_source
-    ModelPanel._update_copy_parameter_button = update_button
-    ModelPanel._copy_parameter_to_selected = copy_selected
     ModelPanel._curvemole_parameter_copy = True
 
 

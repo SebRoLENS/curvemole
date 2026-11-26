@@ -468,7 +468,3 @@ def _fit_sequential_propagating(
     merged = _merge_results(results, FitMode.SEQUENTIAL, plan.settings)
     merged.message = f"Sequential propagation completed {len(results)} spectrum fit(s)."
     return merged
-
-
-def install_sequential_fit_support() -> None:
-    """Compatibility entry point; Fitter now delegates explicitly to this module."""

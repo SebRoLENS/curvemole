@@ -376,8 +376,7 @@ def _copy_selected(panel: ModelPanel) -> None:
 
 
 def _install() -> None:
-    # Keep the established import path working for tests/plugins.
-    _legacy.CopyParameterDialog = CopyParameterDialog
+    # parameter_copy.CopyParameterDialog resolves lazily through its __getattr__.
     ModelPanel._update_copy_parameter_button = _update_button
     ModelPanel._copy_parameter_to_selected = _copy_selected
 

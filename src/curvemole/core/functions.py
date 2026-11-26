@@ -396,27 +396,3 @@ def formula_definition(
             "derived_formulas": dict(derived_formulas or {}),
         },
     )
-
-
-def numerical_peak_quantities(
-    definition: FunctionDefinition,
-    parameters: Mapping[str, float],
-    metadata: Mapping[str, Any],
-    x: np.ndarray,
-) -> dict[str, float | None]:
-    """Numerically estimate signed area and FWHM where they are meaningful."""
-
-    if len(x) < 3 or definition.kind != "peak":
-        return {"area": None, "FWHM": None}
-    order = np.argsort(x)
-    xs = np.asarray(x)[order]
-    ys = definition.evaluate(xs, parameters, metadata)
-    area = float(np.trapezoid(ys, xs))
-    absolute = np.abs(ys)
-    if not np.any(np.isfinite(absolute)):
-        return {"area": area, "FWHM": None}
-    peak_index = int(np.nanargmax(absolute))
-    half = absolute[peak_index] / 2
-    above = np.flatnonzero(absolute >= half)
-    fwhm_value = float(xs[above[-1]] - xs[above[0]]) if len(above) >= 2 else None
-    return {"area": area, "FWHM": fwhm_value}

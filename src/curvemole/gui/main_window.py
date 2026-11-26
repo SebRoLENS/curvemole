@@ -3011,33 +3011,6 @@ class MainWindow(QMainWindow):
                 self.tr("Background subtracted. Selected background functions were disabled to avoid double-counting.")
             )
 
-    def _apply_background_array(
-        self,
-        curve: Curve,
-        background: np.ndarray,
-        *,
-        method: str,
-        description: str,
-        parameters: dict[str, Any] | None = None,
-    ) -> None:
-        curve_id = curve.id
-        transformation = apply_background_subtraction(
-            curve,
-            background,
-            method=method,
-            description=description,
-            parameters=parameters,
-        )
-        curve.undo_transformation()
-
-        def redo() -> None:
-            redo_transformation(self.project.dataset.curve(curve_id), transformation)
-
-        def undo() -> None:
-            undo_transformation(self.project.dataset.curve(curve_id), transformation)
-
-        self._push_change(self.tr("Subtract background"), redo, undo)
-
     def find_peaks(self) -> None:
         if not self._ensure_editable():
             return

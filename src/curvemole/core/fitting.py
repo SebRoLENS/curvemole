@@ -1481,18 +1481,6 @@ def _information_criteria(result, deviance: float, parameter_count: int, n: int)
     result["BIC"] = deviance + parameter_count * math.log(n)
 
 
-def _copy_matching_values(source: Model, target: Model) -> None:
-    for source_component, target_component in zip(source.components, target.components, strict=False):
-        if source_component.function_id != target_component.function_id:
-            continue
-        for name, source_parameter in source_component.parameters.items():
-            if name not in target_component.parameters:
-                continue
-            parameter = target_component.parameters[name]
-            if parameter.is_free:
-                parameter.value = min(max(source_parameter.value, parameter.minimum), parameter.maximum)
-
-
 def _merge_results(results: Sequence[FitResult], mode: FitMode, settings: FitSettings, *, infer=True) -> FitResult:
     if not results:
         return FitResult(

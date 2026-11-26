@@ -611,8 +611,3 @@ def _install_live_manual_points() -> None:
     PlotWorkspace._curvemole_live_manual_points = True
     MainWindow._graphical_spline_placed = finished
     MainWindow._curvemole_live_manual_points = True
-
-
-def install_manual_point_support_with_live_controls() -> None:
-    """Compatibility entry point for the canonical manual-point installer."""
-    manual_points.install_manual_point_support()

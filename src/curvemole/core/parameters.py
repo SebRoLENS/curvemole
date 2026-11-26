@@ -266,18 +266,6 @@ def resolve_parameter_values(
     return resolved
 
 
-def validate_parameter_graph(parameters: Mapping[str, Parameter]) -> None:
-    resolve_parameter_values(parameters)
-
-
-def copy_parameter_values(source: Iterable[Parameter], target: Iterable[Parameter]) -> None:
-    source_by_name = {parameter.name: parameter for parameter in source}
-    for parameter in target:
-        if parameter.name in source_by_name:
-            value = source_by_name[parameter.name].value
-            parameter.value = min(max(value, parameter.minimum), parameter.maximum)
-
-
 class EqualityParameterResolver:
     """Prepared dependency order for a fit whose links are equalities.
 
