@@ -18,6 +18,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Remove unused and shadowed code. ([`40b73a3e`](https://github.com/SebRoLENS/curvemole/commit/40b73a3e1d75d936b1c3fe8bf4b521c012bb4fd1))
 - Compare dropped paths independently of the Windows separator. ([`a7d22c09`](https://github.com/SebRoLENS/curvemole/commit/a7d22c09a09b21047e599bca7ec8cec35f22a5eb))
 - Read promoted documents as UTF-8 and route plugin PRs to testing in the manual. ([`63968ea1`](https://github.com/SebRoLENS/curvemole/commit/63968ea156ffb40f0d6f721c2512cb218b7a8c9d))
+- Address review of Vertical markers plugin. ([`177b93be`](https://github.com/SebRoLENS/curvemole/commit/177b93be27f1c38be61f30b1ebc5b2327d7d719f))
 
 ### Fixed
 
