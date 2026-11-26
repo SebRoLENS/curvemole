@@ -86,6 +86,10 @@ def test_add_rename_remove_and_formatting():
     assert vm.rename_index(markers, 1, " B ")[1]["label"] == "B"
     assert vm.remove_index(markers, 0) == [markers[1]]
     assert vm.parse_x(" 532,25 ") == 532.25 and vm.parse_x("abc") is None
+    # tabs and newlines would break the TSV: labels are single-line everywhere
+    assert vm.add_marker([], 1.0, " a\tb\n c ")[0]["label"] == "a b c"
+    assert vm.rename_index(markers, 0, "x\ty")[0]["label"] == "x y"
+    assert vm.normalise_markers([{"x": 1, "label": "p\r\nq"}])[0]["label"] == "p q"
     assert vm.marker_text({"x": 532.25, "label": ""}, "nm") == "x = 532.25 nm"
     assert vm.marker_text({"x": 532.25, "label": "Raman"}, "nm") == "Raman — x = 532.25 nm"
 
@@ -139,6 +143,18 @@ def test_analysis_lists_markers_of_active_and_selected_spectra():
         assert "Spectrum A" in text and "x = 2.5 nm  Peak A" in text
         assert "Spectrum B" in text and "(no markers)" in text
         assert "Spectrum A\t2.5\tPeak A" in text
+    finally:
+        manager.disable(owner)
+
+
+def test_tsv_rows_stay_single_line_with_tab_in_stored_label():
+    manager, owner = _load()
+    try:
+        project, curve = _project_with_curve()
+        curve.metadata[vm.meta_key(owner)] = {"version": 1, "markers": [{"x": 2.5, "label": "A\tB\nC"}]}
+        text = extensions.entries[owner + ":markers_list"].callback(PluginContext(project, curve.id, (), owner))
+        tsv = text.split("TSV (spectrum, x, label):\n", 1)[1].splitlines()
+        assert tsv == ["Spectrum A\t2.5\tA B C"]
     finally:
         manager.disable(owner)
 
@@ -213,8 +229,8 @@ class FakeServices:
         if self.curve_id is None:
             return ("p", None, None, None)
         curve = self.project.dataset.curve(self.curve_id)
-        markers = json.dumps(curve.metadata.get(vm.meta_key(OWNER)), sort_keys=True)
-        return ("p", curve.id, markers, curve.name)
+        # As in the host: content_hash does not include curve.metadata.
+        return ("p", curve.id, curve.content_hash, curve.name)
 
     def spectrum_snapshot(self, **_):
         self._check()
@@ -343,9 +359,13 @@ def test_failures_are_reported_not_raised(env):
 def test_undo_in_host_is_picked_up_and_disabled_plugin_stops_polling(env):
     panel = env.panel
     panel.insert_marker(2.0)
+    state = env.services.active_spectrum_state()
     env.curve.metadata[vm.meta_key(env.owner)] = vm.stored_value([])  # simulated Undo
-    panel.poll_now()
+    assert env.services.active_spectrum_state() == state  # metadata is not in content_hash
+    for _ in range(panel.RESYNC_TICKS):                  # picked up by the periodic resync
+        panel.poll_now()
     assert panel.markers == []
+    assert panel._list.count() == 0
     env.services.disabled = True
     panel.poll_now()  # must not raise
     assert "unavailable" in panel._status.text()
@@ -356,6 +376,16 @@ def test_hiding_the_panel_closes_the_session(env):
     session = _session(env)
     env.panel.hide()
     assert session.closed
+
+
+def test_spectrum_name_is_escaped_in_panel_title(env):
+    from PySide6.QtCore import Qt
+
+    env.curve.name = "Fe <2> & Co"
+    env.panel._state = None  # force a reload
+    env.panel.poll_now()
+    assert env.panel._title.text() == "<b>Fe &lt;2&gt; &amp; Co</b>"
+    assert env.panel._title.textFormat() != Qt.TextFormat.PlainText
 
 
 def test_main_graph_controls_disabled_without_plot_session(request):

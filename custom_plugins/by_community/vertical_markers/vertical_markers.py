@@ -18,6 +18,7 @@ Qt is imported only when the panel is created.
 from __future__ import annotations
 
 import contextlib
+import html
 import math
 import re
 
@@ -60,6 +61,14 @@ def same_x(a, b):
     return abs(a - b) <= 1e-12 * max(1.0, abs(a), abs(b))
 
 
+def clean_label(label):
+    """Single-line label: tabs, newlines and repeated spaces collapse to one space."""
+    if label is None:
+        return ""
+    text = label if isinstance(label, str) else str(label)
+    return " ".join(text.split())[:MAX_LABEL_LENGTH]
+
+
 def _free_colour(markers):
     used = {m["colour"] for m in markers}
     for colour in PALETTE:
@@ -85,8 +94,7 @@ def normalise_markers(raw):
         x = finite_float(item.get("x"))
         if x is None or any(same_x(x, m["x"]) for m in markers):
             continue
-        label = item.get("label", "")
-        label = (label if isinstance(label, str) else str(label)).strip()[:MAX_LABEL_LENGTH]
+        label = clean_label(item.get("label", ""))
         colour = item.get("colour")
         if not (isinstance(colour, str) and _COLOUR_RE.match(colour)):
             colour = _free_colour(markers)
@@ -112,8 +120,7 @@ def add_marker(markers, x, label="", colour=None):
         return None
     if not (isinstance(colour, str) and _COLOUR_RE.match(colour)):
         colour = _free_colour(markers)
-    label = (label or "").strip()[:MAX_LABEL_LENGTH]
-    return normalise_markers([*markers, {"x": x, "label": label, "colour": colour}])
+    return normalise_markers([*markers, {"x": x, "label": clean_label(label), "colour": colour}])
 
 
 def index_at(markers, x):
@@ -132,7 +139,7 @@ def rename_index(markers, index, label):
     if not 0 <= index < len(markers):
         return None
     updated = [dict(m) for m in markers]
-    updated[index]["label"] = (label or "").strip()[:MAX_LABEL_LENGTH]
+    updated[index]["label"] = clean_label(label)
     return updated
 
 
@@ -287,7 +294,9 @@ def _build_panel_class():  # noqa: C901 - Qt class built lazily
 
     class MarkerPanel(QWidget):
         POLL_MS = 500
-        RESYNC_TICKS = 4  # re-read the metadata every 2 s (Undo/Redo)
+        # content_hash ignores curve.metadata, so Undo/Redo of a marker does not
+        # change active_spectrum_state(): the metadata is re-read every 2 s.
+        RESYNC_TICKS = 4
         PICK_INSTRUCTION = ("Marker mode: click a sample to insert a marker, click a marked "
                             f"sample to remove it. Esc or {MARKER_MODE_SHORTCUT} ends.")
 
@@ -459,7 +468,7 @@ def _build_panel_class():  # noqa: C901 - Qt class built lazily
                 self._unit = getattr(curve, "x_unit", "") or ""
                 self._x = np.asarray(curve.x, dtype=float)
                 self._y = np.asarray(curve.y, dtype=float)
-                self._title.setText(f"<b>{curve.name}</b>")
+                self._title.setText(f"<b>{html.escape(curve.name)}</b>")
                 self._markers = markers_of(curve, self._owner)
             if previous != self._curve_id:
                 self._close_session()
@@ -664,9 +673,12 @@ def _build_panel_class():  # noqa: C901 - Qt class built lazily
             session = self._session
 
             def user_stopped():
-                # Esc pressed by the user: the session is still alive. If it has
-                # expired instead (e.g. after saving a marker) it is recreated
-                # and marker mode stays on.
+                # Esc pressed by the user: the session is still alive, so marker
+                # mode is switched off. If the host invalidated the session
+                # instead (active spectrum, visibility or data changed), the
+                # invalidated handler recreates it and marker mode stays on.
+                # Saving markers only changes metadata, which does not
+                # invalidate the session.
                 if (session is not None and self._session is session
                         and not getattr(session, "closed", False) and self._mode_button.isChecked()):
                     self._uncheck_mode()
