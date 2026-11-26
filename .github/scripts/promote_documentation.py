@@ -6,6 +6,7 @@ from pathlib import Path
 
 FILES = ('README.md', 'docs/manual.md', 'docs/quick-start.md', 'docs/python-api.md',
          'docs/workflows.md', 'docs/ai-python-audit.md', 'docs/ai-yaml-audit.md',
+         'docs/ai-plugin-audit.md',
          'docs/releasing.md', 'examples/folder_workflow.yml')
 
 
@@ -50,6 +51,21 @@ def stable_text(text: str, version: str) -> str:
                   text, flags=re.S)
     text = text.replace('https://raw.githubusercontent.com/SebRoLENS/curvemole/testing/docs/',
                         f'https://raw.githubusercontent.com/SebRoLENS/curvemole/v{version}/docs/')
+    # Editions pinned by an earlier promotion must follow the new release tag too.
+    text = re.sub(r'https://raw\.githubusercontent\.com/SebRoLENS/curvemole/v\d+\.\d+\.\d+/docs/',
+                  f'https://raw.githubusercontent.com/SebRoLENS/curvemole/v{version}/docs/', text)
+    text = re.sub(r'This reference documents CurveMole \d+\.\d+\.\d+,',
+                  f'This reference documents CurveMole {version},', text)
+    text = re.sub(r'the current operations install the `\d+\.\d+\.\d+` wheel',
+                  f'the current operations install the `{version}` wheel', text)
+    text = re.sub(r'Using the attached CurveMole \d+\.\d+\.\d+ Python audit',
+                  f'Using the attached CurveMole {version} Python audit', text)
+    text = re.sub(r'(> CurveMole )\d+\.\d+\.\d+(\. Create one schema-3 workflow)',
+                  rf'\g<1>{version}\g<2>', text)
+    text = re.sub(r'(Use the attached audit for CurveMole )\d+\.\d+\.\d+(\.)',
+                  rf'\g<1>{version}\g<2>', text)
+    text = re.sub(r'(interface reference for CurveMole\n)\d+\.\d+\.\d+(\. Write a complete runnable script)',
+                  rf'\g<1>{version}\g<2>', text)
     text = text.replace('Use the stable baseline only for Stable 1.1.0;\n'
                         '  testing-only additions and corrected behavior require the matching testing/beta build.',
                         f'Target the documented Stable {version} release; earlier versions may lack\n'

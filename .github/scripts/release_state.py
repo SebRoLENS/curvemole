@@ -15,6 +15,7 @@ FILES = (
     "docs/manual.md", "docs/CurveMole_User_Manual.tex", "docs/CurveMole_User_Manual.pdf",
     "docs/citing.md", "docs/citation.bib", "docs/concept-citation.bib",
     "docs/python-api.md", "docs/workflows.md", "docs/ai-python-audit.md", "docs/ai-yaml-audit.md",
+    "docs/ai-plugin-audit.md",
     "docs/quick-start.md", "docs/releasing.md", "examples/folder_workflow.yml",
     "website/dist/index.html", "website/dist/contact.html",
     "website/dist/citation.bib", "website/dist/concept-citation.bib",

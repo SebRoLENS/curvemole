@@ -1,6 +1,7 @@
 # CurveMole plugin API audit for AI-assisted plugin development
 
-**Stable API baseline: CurveMole 1.4.2, plugin API `"1"`.**
+**Stable API baseline: CurveMole 1.4.2.**
+**Plugin API version: `"1"`.**
 **Audit date: 2026-11-26.**
 
 Download this Markdown file and attach it directly to an AI conversation. It is
@@ -39,7 +40,7 @@ When using this document to generate a plugin:
 Suggested user prompt:
 
 > Use only this attached CurveMole plugin audit to write a complete plugin.
-> My installed CurveMole version is [1.4.2], installed as [desktop build / Python
+> My installed CurveMole version is [for example 1.4.2], installed as [desktop build / Python
 > package]. The plugin should [feature], appear as [exporter / analysis / panel /
 > fit solver / model function / import processor ...], work on [active spectrum /
 > selected spectra / all series], with inputs [...], units [...], and outputs
