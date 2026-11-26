@@ -3520,7 +3520,7 @@ extract the chosen plugin and review/load its manifest in the manager. These dir
 downloads do not require a GitHub account and are separate from application releases.
 A source folder or an open PR alone does not indicate validation. Tests demonstrate tested behavior, not complete
 safety; Python plugins still run with the user's privileges. See the submission
-guide for required branch protection settings and the limits of validation.
+guide for the repository's check and protection settings and the limits of validation.
 
 ### 18.8 Acquisition processors and interactive plugin panels
 

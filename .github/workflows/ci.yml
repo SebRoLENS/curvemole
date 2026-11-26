@@ -23,6 +23,7 @@ jobs:
       screenshots: ${{ steps.plan.outputs.screenshots }}
       plugins: ${{ steps.plan.outputs.plugins }}
       candidate: ${{ steps.plan.outputs.candidate }}
+      plugins_only: ${{ steps.plan.outputs.plugins_only }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -36,6 +37,9 @@ jobs:
     uses: ./.github/workflows/validate.yml
     with:
       source_ref: ${{ github.sha }}
+      # Plugin-only changes cannot affect the source tests; lint still runs and
+      # the plugins job validates the submission on Linux, Windows and macOS.
+      run_tests: ${{ needs.plan.outputs.plugins_only != 'true' }}
 
   release:
     needs: plan
@@ -80,3 +84,26 @@ jobs:
     uses: ./.github/workflows/test-linux-candidate.yml
     with:
       source_ref: ${{ github.sha }}
+
+  # Single required status check for branch rulesets: the job names above vary
+  # with the planned work, while this one always reports.
+  result:
+    name: CI result
+    needs: [plan, validate, release, documentation, plugins, candidate]
+    if: ${{ always() }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every planned job to succeed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json, os, sys
+          results = {name: job["result"] for name, job in json.loads(os.environ["NEEDS"]).items()}
+          print(json.dumps(results, indent=2))
+          failed = [name for name, result in results.items()
+                    if result not in ("success", "skipped") or (name == "plan" and result != "success")]
+          if failed:
+              sys.exit(f"Failed or cancelled: {', '.join(failed)}")
+          PY

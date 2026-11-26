@@ -6,6 +6,10 @@ on:
       source_ref:
         required: true
         type: string
+      run_tests:
+        description: Run the source test matrix (false only for plugin-only pull requests)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -38,6 +42,7 @@ jobs:
 
   core:
     name: Python ${{ matrix.python }} / ${{ matrix.os }}
+    if: ${{ inputs.run_tests }}
     strategy:
       fail-fast: false
       matrix:
