@@ -80,6 +80,7 @@ dev = [
 lint = [
   "ruff>=0.6",
   "PyYAML>=6.0",
+  "zizmor>=1.33",
 ]
 test = [
   "pytest>=8.2",

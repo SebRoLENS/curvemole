@@ -15,6 +15,7 @@ on:
   workflow_run:
     workflows: [CI, Automatic release]
     types: [completed]
+    # Promotions run Automatic release from testing; only main pushes deploy otherwise.
     branches: [main, testing]
   workflow_dispatch:
     inputs:
@@ -51,7 +52,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.source_ref }}
           fetch-depth: 0
@@ -88,8 +89,8 @@ jobs:
           uv sync --project "$STABLE_TUTORIAL" --locked --no-default-groups --group screenshots
           uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/quick_start_publication.py refresh --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL" --renderer "$GITHUB_WORKSPACE/website/scripts/render_quick_start_screenshots.py"
           uv run --project "$STABLE_TUTORIAL" --no-sync python .github/scripts/refresh_website_showcase.py --snapshot "$RUNNER_TEMP/curvemole-website-news" --checkout "$STABLE_TUTORIAL"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v5
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         id: pages
         with:
           name: ${{ env.PAGES_ARTIFACT }}
@@ -103,7 +104,7 @@ jobs:
         run: |
           git fetch origin main testing
           python .github/scripts/website_news.py --check-current --output "$RUNNER_TEMP/curvemole-website-news"
-      - uses: actions/deploy-pages@v5.0.1
+      - uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
         id: deployment
         with:
           artifact_name: ${{ env.PAGES_ARTIFACT }}
@@ -132,7 +133,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout current main
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: main
           fetch-depth: 0
@@ -145,8 +146,7 @@ jobs:
       - name: Install GUI libraries
         if: steps.readiness.outputs.ready == 'true'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+          bash .github/scripts/install_ubuntu_packages.sh fonts-dejavu-core libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         if: steps.readiness.outputs.ready == 'true'
         with:
@@ -154,7 +154,7 @@ jobs:
           python-version: '3.12'
       - name: Checkout updated publication tooling for stable recovery
         if: steps.readiness.outputs.ready == 'true' && github.ref == 'refs/heads/testing'
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
           path: publication-checks
@@ -178,10 +178,10 @@ jobs:
           uv run --no-sync python "$PUBLICATION_SOURCE/.github/scripts/quick_start_publication.py" refresh --snapshot website/dist --checkout . "${flags[@]}"
       - name: Configure Pages
         if: steps.readiness.outputs.ready == 'true'
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
       - name: Upload complete website snapshot
         if: steps.readiness.outputs.ready == 'true'
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         id: pages
         with:
           name: ${{ env.PAGES_ARTIFACT }}
@@ -201,6 +201,6 @@ jobs:
       - name: Deploy website
         if: steps.readiness.outputs.ready == 'true'
         id: deployment
-        uses: actions/deploy-pages@v5.0.1
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
         with:
           artifact_name: ${{ env.PAGES_ARTIFACT }}

@@ -35,7 +35,7 @@ jobs:
       plugin: ${{ steps.prepare.outputs.folder }}
       stable_ref: ${{ steps.prepare.outputs.stable_ref }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           persist-credentials: false
       - name: Prepare the published catalog with the selected plugin
@@ -59,7 +59,7 @@ jobs:
             tracked/custom_plugins prepared "$folder"
           mv prepared/catalog.json prepared/previous-catalog.json
           printf 'folder=%s\nstable_ref=%s\n' "$folder" "$stable_ref" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: prepared-plugin-update
           path: prepared
@@ -77,17 +77,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-2022, macos-15]
+        os: [ubuntu-22.04, windows-2025, macos-15]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
       - name: Preserve source line endings for cross-platform fingerprints
         run: git config --global core.autocrlf false
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.prepare-update.outputs.stable_ref || inputs.source_ref || github.sha }}
           persist-credentials: false
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.prepare-update.result == 'success'
         with:
           name: prepared-plugin-update
@@ -104,18 +104,18 @@ jobs:
           fi
       - name: Linux Qt libraries
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
+        run: bash .github/scripts/install_ubuntu_packages.sh libegl1 libgl1 libxkbcommon-x11-0 libxcb-cursor0
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
           python-version: '3.12'
-          enable-cache: false
+          enable-cache: true
       - run: uv sync --locked --no-default-groups --group test
       - name: Manifest, registration, removal and functional tests
         env:
           QT_QPA_PLATFORM: offscreen
           MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
         run: uv run --no-sync python scripts/validate_community_plugins.py --root "${{ steps.source.outputs.root }}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: plugin-check-${{ matrix.os }}
           path: build/community-catalog.json
@@ -133,15 +133,15 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.source_ref || github.sha }}
           persist-credentials: false
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: plugin-check-*
           path: reports
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         if: needs.prepare-update.result == 'success'
         with:
           name: prepared-plugin-update
@@ -175,7 +175,7 @@ jobs:
               source = root / category / folder
               assert fingerprint(source) == plugin['sha256'], 'Untested source change'
               shutil.copytree(source, destination / category / folder)
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: validated-community-plugins
           path: build/validated-community-plugins
@@ -202,7 +202,7 @@ jobs:
               for path in sorted(output.glob('*.zip'))), encoding='utf-8')
           if pathlib.Path('prepared/previous-catalog.json').is_file():
               shutil.copy2('prepared/previous-catalog.json', output / 'previous-catalog.json')
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: community-plugin-downloads
           path: build/plugin-downloads
@@ -224,7 +224,7 @@ jobs:
       queue: max
     steps:
       # This privileged job never checks out, imports or executes plugin code.
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: community-plugin-downloads
           path: downloads

@@ -10,6 +10,18 @@ on:
         required: false
         type: string
         default: ""
+    # Only the macOS signing and notarization step reads these.
+    secrets:
+      MACOS_CERTIFICATE:
+        required: false
+      MACOS_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_APP_SPECIFIC_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
   workflow_dispatch:
     inputs:
       source_ref:
@@ -39,7 +51,7 @@ jobs:
       release: ${{ steps.check.outputs.release }}
       source_sha: ${{ steps.source.outputs.source_sha }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           # Use the caller's tools even when an older tag predates these checks.
           ref: ${{ github.sha }}
@@ -72,8 +84,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.source_sha }}
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
@@ -112,7 +125,7 @@ jobs:
               print(path)
           PY
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-icons
           path: generated-icons/curvemole.*
@@ -127,30 +140,25 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.source_sha }}
-      - uses: actions/download-artifact@v7
-        if: inputs.beta_version != ''
+      - name: Load build helpers from the calling workflow revision
+        # Tagged rebuilds may predate the shared action; use the caller's copy.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          name: release-documentation
-          path: beta-documentation
-      - name: Bundle the generated beta manual and audits
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
-      - name: Stamp beta package version
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py stamp
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+          ref: ${{ github.sha }}
+          path: .ci-tools
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - uses: ./.ci-tools/.github/actions/prepare-build-source
         with:
-          enable-cache: true
+          beta-version: ${{ inputs.beta_version }}
           python-version: ${{ env.PYTHON_VERSION }}
+          icons: "false"
       - run: uv build
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-python
           path: |
@@ -170,31 +178,20 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ needs.preflight.outputs.source_sha }}
-      - uses: actions/download-artifact@v7
-        if: inputs.beta_version != ''
+      - name: Load build helpers from the calling workflow revision
+        # Tagged rebuilds may predate the shared action; use the caller's copy.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          name: release-documentation
-          path: beta-documentation
-      - name: Bundle the generated beta manual and audits
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
-      - name: Stamp beta package version
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py stamp
-      - uses: actions/download-artifact@v7
+          ref: ${{ github.sha }}
+          path: .ci-tools
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - uses: ./.ci-tools/.github/actions/prepare-build-source
         with:
-          name: build-icons
-          path: generated-icons
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          enable-cache: true
+          beta-version: ${{ inputs.beta_version }}
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Install build dependencies
@@ -224,7 +221,7 @@ jobs:
 
       - name: Sign and attest Linux AppImage with Sigstore
         id: attest
-        uses: actions/attest@v4
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: ${{ steps.appimage.outputs.path }}
 
@@ -235,7 +232,7 @@ jobs:
           cp "${{ steps.attest.outputs.bundle-path }}" "$SIGNATURE"
           echo "path=$SIGNATURE" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: needs.preflight.outputs.release != 'true'
         with:
           name: release-linux-x86_64
@@ -263,31 +260,21 @@ jobs:
     runs-on: windows-2025
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.source_sha }}
-      - uses: actions/download-artifact@v7
-        if: inputs.beta_version != ''
+      - name: Load build helpers from the calling workflow revision
+        # Tagged rebuilds may predate the shared action; use the caller's copy.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          name: release-documentation
-          path: beta-documentation
-      - name: Bundle the generated beta manual and audits
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
-      - name: Stamp beta package version
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py stamp
-      - uses: actions/download-artifact@v7
+          ref: ${{ github.sha }}
+          path: .ci-tools
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - uses: ./.ci-tools/.github/actions/prepare-build-source
         with:
-          name: build-icons
-          path: generated-icons
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          enable-cache: true
+          beta-version: ${{ inputs.beta_version }}
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --locked --no-default-groups --group packaging
 
@@ -364,7 +351,7 @@ jobs:
           Copy-Item $source "portable\CurveMole.exe"
           Compress-Archive -Path "portable\CurveMole.exe" -DestinationPath "CurveMole-$env:VERSION-windows-x86_64-portable.zip"
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-windows-x86_64
           path: |
@@ -388,38 +375,29 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ github.sha }}
       - name: Keep current macOS build checks before selecting source
         run: cp scripts/build_desktop.py "$RUNNER_TEMP/build_desktop.py"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ needs.preflight.outputs.source_sha }}
       - name: Use current build checks with the selected application source
         run: cp "$RUNNER_TEMP/build_desktop.py" scripts/build_desktop.py
-      - uses: actions/download-artifact@v7
-        if: inputs.beta_version != ''
+      - name: Load build helpers from the calling workflow revision
+        # Tagged rebuilds may predate the shared action; use the caller's copy.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
-          name: release-documentation
-          path: beta-documentation
-      - name: Bundle the generated beta manual and audits
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
-      - name: Stamp beta package version
-        if: inputs.beta_version != ''
-        env:
-          BETA_VERSION: ${{ inputs.beta_version }}
-        run: python .github/scripts/beta_release.py stamp
-      - uses: actions/download-artifact@v7
+          ref: ${{ github.sha }}
+          path: .ci-tools
+          sparse-checkout: .github/actions
+          persist-credentials: false
+      - uses: ./.ci-tools/.github/actions/prepare-build-source
         with:
-          name: build-icons
-          path: generated-icons
-      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
-        with:
-          enable-cache: true
+          beta-version: ${{ inputs.beta_version }}
           python-version: ${{ env.PYTHON_VERSION }}
       - run: uv sync --locked --no-default-groups --group packaging
 
@@ -455,7 +433,7 @@ jobs:
           Path('macos-signing-${{ matrix.arch }}.json').write_text(json.dumps({'signed': all(os.environ.get(key) for key in keys)}))
           STATUS
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-macos-${{ matrix.arch }}
           path: |
@@ -469,21 +447,21 @@ jobs:
     name: Attach packages to tagged release
     if: needs.preflight.outputs.release == 'true'
     needs: [preflight, python-packages, linux, windows, macos]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 10
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ github.sha }}
       - name: Keep current publication tools before selecting tagged source
         run: cp .github/scripts/release_assets.py "$RUNNER_TEMP/release_assets.py"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.source_ref }}
 
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           pattern: release-*
           path: release-assets

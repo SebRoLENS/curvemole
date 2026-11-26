@@ -343,13 +343,22 @@ def test_beta_bundles_use_the_exact_published_documents(tmp_path):
     with pytest.raises(ValueError, match="Invalid beta documentation"):
         beta.install_documents("1.2.1b5", assets, root)
 
+    action = yaml.load((ROOT / ".github/actions/prepare-build-source/action.yml").read_text(),
+                       Loader=yaml.BaseLoader)
+    steps = action["runs"]["steps"]
+    bundle = next(i for i, step in enumerate(steps) if "install-documents" in step.get("run", ""))
+    stamp = next(i for i, step in enumerate(steps) if step.get("run", "").endswith("beta_release.py stamp"))
+    assert bundle < stamp
+    assert steps[bundle - 1]["with"]["name"] == "release-documentation"
     desktop = yaml.load((ROOT / ".github/workflows/build-desktop.yml").read_text(), Loader=yaml.BaseLoader)
     for name in ("python-packages", "linux", "windows", "macos"):
-        steps = desktop["jobs"][name]["steps"]
-        bundle = next(i for i, step in enumerate(steps) if "install-documents" in step.get("run", ""))
-        stamp = next(i for i, step in enumerate(steps) if step.get("run", "").endswith("beta_release.py stamp"))
-        assert bundle < stamp
-        assert steps[bundle - 1]["with"]["name"] == "release-documentation"
+        job_steps = desktop["jobs"][name]["steps"]
+        shared = [step for step in job_steps if step.get("uses", "").endswith("actions/prepare-build-source")]
+        assert len(shared) == 1
+        assert shared[0]["with"]["beta-version"] == "${{ inputs.beta_version }}"
+        # The shared action must come from the calling revision, not an older tag.
+        helper = job_steps[job_steps.index(shared[0]) - 1]
+        assert helper["with"]["ref"] == "${{ github.sha }}" and helper["with"]["path"] == ".ci-tools"
 
 
 def test_beta_plan_runs_before_installing_project_dependencies(tmp_path, monkeypatch):

@@ -1,0 +1,47 @@
+name: Prepare build source
+description: >-
+  Bundle beta documents and stamp the beta version when requested, fetch the
+  generated icons, and set up uv. Shared by every desktop and Python package job.
+
+inputs:
+  beta-version:
+    description: Beta version to stamp; empty for stable and manual builds
+    required: false
+    default: ""
+  icons:
+    description: Download the generated application icons into generated-icons/
+    required: false
+    default: "true"
+  python-version:
+    description: Python version for uv
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      if: inputs.beta-version != ''
+      with:
+        name: release-documentation
+        path: beta-documentation
+    - name: Bundle the generated beta manual and audits
+      if: inputs.beta-version != ''
+      shell: bash
+      env:
+        BETA_VERSION: ${{ inputs.beta-version }}
+      run: python .github/scripts/beta_release.py install-documents --directory beta-documentation
+    - name: Stamp beta package version
+      if: inputs.beta-version != ''
+      shell: bash
+      env:
+        BETA_VERSION: ${{ inputs.beta-version }}
+      run: python .github/scripts/beta_release.py stamp
+    - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+      if: inputs.icons == 'true'
+      with:
+        name: build-icons
+        path: generated-icons
+    - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+      with:
+        enable-cache: true
+        python-version: ${{ inputs.python-version }}

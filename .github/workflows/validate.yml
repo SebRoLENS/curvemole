@@ -15,12 +15,13 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ inputs.source_ref }}
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
         with:
-          enable-cache: false
+          enable-cache: true
           python-version: "3.12"
       - run: uv sync --locked --only-group lint
       - run: uv run --no-sync ruff check .
@@ -31,13 +32,16 @@ jobs:
           echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  $RUNNER_TEMP/actionlint.tar.gz" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/actionlint.tar.gz" -C "$RUNNER_TEMP" actionlint
           uv run --no-sync python .github/scripts/lint_workflows.py "$RUNNER_TEMP/actionlint"
+      - name: Audit workflow security
+        # Low-confidence credential-persistence notes cover jobs that must push.
+        run: uv run --no-sync zizmor --offline --min-severity medium --min-confidence medium .github/workflows .github/actions
 
   core:
     name: Python ${{ matrix.python }} / ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-2022, macos-15]
+        os: [ubuntu-22.04, windows-2025, macos-15]
         python: ["3.12"]
         include:
           - os: ubuntu-22.04
@@ -52,8 +56,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          persist-credentials: false
           ref: ${{ inputs.source_ref }}
       - name: Install Linux GUI libraries
         if: runner.os == 'Linux'
@@ -80,7 +85,7 @@ jobs:
             coverage+=(--cov=curvemole --cov-report=term-missing --cov-report=xml:coverage.xml)
           fi
           uv run --no-sync python scripts/run_ci_tests.py -q -o faulthandler_timeout=60 "${coverage[@]}"
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: runner.os == 'Linux' && matrix.python == '3.12'
         with:
           name: source-coverage

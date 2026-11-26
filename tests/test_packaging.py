@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import re
 from pathlib import Path
 
 import pytest
@@ -25,7 +26,7 @@ def test_linux_release_includes_a_detached_sigstore_signature() -> None:
     )
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "actions/attest@v4" in workflow
+    assert re.search(r"actions/attest@[0-9a-f]{40} # v4\.", workflow)
     assert "steps.attest.outputs.bundle-path" in workflow
     assert ".sigstore.json" in workflow
     assert "[**Download CurveMole**](https://github.com/SebRoLENS/curvemole/releases/latest)" in readme

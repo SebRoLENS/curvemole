@@ -21,10 +21,10 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Keep the current restoration tool before selecting historical source
         run: cp .github/scripts/release_assets.py "$RUNNER_TEMP/release_assets.py"
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
           ref: ${{ inputs.tag }}
       - name: Restore only original tagged manuals and their checksum entries

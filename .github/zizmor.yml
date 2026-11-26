@@ -1,0 +1,7 @@
+# Workflow security audit, run by the lint job in validate.yml.
+rules:
+  dangerous-triggers:
+    ignore:
+      # The deploy job accepts workflow_run events only from this repository,
+      # checks out main (never the triggering head) and runs no artifact code.
+      - website.yml
