@@ -322,7 +322,8 @@ Follow [custom_plugins/README.md](../custom_plugins/README.md). A submission nee
 its own folder, clear manifest, README, licence and functional pytest tests.
 The manifest's `author` must match the GitHub username opening a new community
 plugin pull request. The TSV exporter is a complete minimal example. Run
-`python scripts/validate_community_plugins.py` before opening a PR.
+`python scripts/validate_community_plugins.py` and `ruff check` on the plugin
+folder before opening a PR; lint errors also fail the pull request.
 GitHub runs validation on Linux, Windows and macOS. A successful main run publishes
 a downloadable validated catalog bundle; failed checks cannot publish it.
 See the contribution guide for installation, manifest fields, review requirements,

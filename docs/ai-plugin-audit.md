@@ -372,6 +372,7 @@ is not undoable. Write to a temporary file in the same directory and
 ```python
 import numpy as np
 
+
 def export_tsv(context):
     if context.active_curve_id is None:
         return "No active spectrum to export."
@@ -392,8 +393,11 @@ curves to the snapshot; they are committed as one Undo step.
 
 ```python
 from pathlib import Path
+
 import numpy as np
+
 from curvemole import Curve, Series
+
 
 def import_lab(context):
     values = np.loadtxt(context.path, delimiter=",", skiprows=1, ndmin=2)
@@ -455,6 +459,7 @@ is hidden. Parent all Qt objects to the panel so they are destroyed with it.
 ```python
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QWidget
+
 
 def create_panel(context):
     services = context.services
@@ -532,6 +537,7 @@ plugin. Respect `settings.max_nfev` and document settings you cannot honour.
 ```python
 from scipy.optimize import least_squares
 
+
 def solve(request):
     request.cancellation.raise_if_cancelled()
     s = request.settings
@@ -551,7 +557,9 @@ a recorded fit fails if the solver plugin changed or is missing.
 
 ```python
 import numpy as np
+
 from curvemole.core.functions import FunctionDefinition, ParameterSpec, formula_definition
+
 
 def _asym_lorentz(x, p, metadata):
     width = p["width"] * (1 + p["asym"] * np.sign(x - p["center"]))
@@ -726,11 +734,13 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
+
 from curvemole import Curve
 from curvemole.core.extensions import extensions
 from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
 from curvemole.gui.plugin_host import PluginContext
+
 
 def _load():
     manager = PluginManager()
@@ -807,6 +817,29 @@ kinds with `capabilities`, disable and verify all contributions are gone
 fingerprint must be identical before and after. GitHub runs this on Linux,
 Windows and macOS.
 
+### 12.4 Lint (community plugins)
+
+Pull requests also run `ruff check .` over the whole repository, plugins included,
+with the rules in `pyproject.toml` (`E`, `F`, `I`, `UP`, `B`, `SIM`; line length
+100). A lint failure blocks the pull request even when the validator passes.
+From the repository root:
+
+```bash
+ruff check custom_plugins/by_community/your_plugin
+ruff check --fix custom_plugins/by_community/your_plugin   # safe automatic fixes
+```
+
+Frequent findings in generated plugins:
+
+- `I001`: sort imports in three groups separated by a blank line: standard
+  library, third-party (`numpy`, `scipy`, `pytest`, `PySide6` ...), then
+  `curvemole`. Names inside one `from ... import (...)` are sorted too. This also
+  applies to imports inside functions (for example lazy PySide6 imports).
+- `SIM105`: write `with contextlib.suppress(Exception): ...` instead of
+  `try: ... except Exception: pass`.
+- `B`/`F`: unused imports or variables, mutable default arguments, `raise ... from`
+  inside `except`.
+
 ## 13. Installing, sharing and updating
 
 ### 13.1 Private/local use
@@ -839,7 +872,7 @@ YAML: list manifest paths under `plugins:` and trust identifiers on the CLI
 runner requires the plugin to be enabled in Plugin Manager. Python scripts:
 
 ```python
-from curvemole import FunctionRegistry, Fitter
+from curvemole import Fitter, FunctionRegistry
 from curvemole.core.functions import builtin_definitions
 from curvemole.core.plugins import PluginManager
 
@@ -881,4 +914,6 @@ fitter = Fitter(registry)
       inputs/outputs, how to cite the plugin; LICENSE included.
 - [ ] Functional, deterministic, offline pytest tests that disable the plugin
       in `finally`; validator passes.
+- [ ] `ruff check` passes on the plugin folder (Section 12.4): imports sorted
+      stdlib / third-party / `curvemole`, no `try`-`except`-`pass`.
 - [ ] Version bumped for every change; identifier never changed.
