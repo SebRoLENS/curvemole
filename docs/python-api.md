@@ -11,10 +11,12 @@ beginning with `_` and GUI classes are outside this scripting contract.
 Record the installed version and scientific dependency versions with your results.
 
 **Scientific corrections (release, 2026-11-02).** The seven findings in the
-latest scientific audit are corrected in this edition: parameter scaling,
-nonlinear uncertainty derivatives, convolution alignment, compensated summation,
-profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact release build;
+latest scientific audit are corrected in this edition: units, parameter scaling
+and compensated summation; nonlinear formula uncertainty propagation; nonlinear
+linked-parameter uncertainty; convolution alignment on even-length grids;
+cancellation with fresh component IDs; profile confidence regions; and saved
+analysis provenance. Appendix J of the CurveMole user manual describes the
+changes and their limits. Use the documents attached to your exact release build;
 these corrections do not apply retroactively to earlier executables.
 
 ## 1. Installation and imports
@@ -158,7 +160,15 @@ curves = import_file(
 Import validity depends on contents, not only suffix. Inspect metadata/warnings,
 `curve.invalid`, and `curve.effective_mask`. SPE support covers calibrated,
 one-dimensional WinSpec SPE 2.x and LightField SPE 3.0 spectra with one region
-of interest. Imported numeric columns are retained for column formulas.
+of interest. An SPE file is read as columns `"Wavelength [nm]"` followed by
+`"Intensity 1"` ... `"Intensity N"` (one per frame), so `ColumnMapping(x=0, y=[1])`
+imports the first frame and `y=[1, 2, ...]` further frames. Files above 256 MiB
+are rejected. Imported numeric columns are retained for column formulas.
+
+`mapping.validate()` checks a `ColumnMapping` (also called by `import_file`).
+`mapping.by_position(columns)` converts name selectors to the positions they
+have in the list `columns`, so one mapping can be reused for files whose headers
+differ but whose column order is the same.
 
 ## 4. Curves, masks, and transformations
 
@@ -197,6 +207,7 @@ properties are read-only views: do not assign to `curve.x` or `curve.y`.
 | `undo_transformation()`, `redo_transformation()` | `bool`: whether an operation was available |
 | `restore_original()` | Clear transformations/redo and recompute original data |
 | `to_metadata()` | Metadata, not a complete numeric serialization |
+| `duplicate(name, *, raw=False)` | New curve with a new ID and `NOT_FITTED` state; `raw=True` drops transformations, masks and fit ranges, otherwise they are copied |
 
 `Mask(name, excluded, ranges=[], id=generated)` stores Boolean exclusions.
 `active_mask` selects the target for edits; it does not deactivate other masks.
@@ -213,7 +224,7 @@ operand=None, operand_errors=None)` is replayable. Prefer checked helpers from
 | `apply_custom_formula(curve, axis, formula)` | Axis `x` or `y`; only that coordinate variable is exposed; optional matching assignment such as `Y = 2*y` |
 | `apply_column_formula(curve, target, formula)` | Target `x`, `y` or retained column key such as `c3`; access `x`, `y`, one-based `c1`, `c2`, ... and `${original column label}` |
 | `apply_curve_operation(target, operand, operation, *, interpolation="linear", extrapolate=False)` | `curve_add`, `curve_subtract`, `curve_multiply`, `curve_divide`; interpolation `linear`, `nearest` or `cubic` |
-| `apply_background_subtraction(curve, background, *, method, description, parameters=None)` | Subtract supplied array from all rows, including masked rows |
+| `apply_background_subtraction(curve, background, *, method, description, parameters=None, estimated=True)` | Subtract supplied array from all rows, including masked rows. `estimated=True` marks it as an estimated background: the curve then has correlated Y errors (see Section 14.1) |
 
 Curve arithmetic aligns unmasked valid source rows and stores the aligned
 operand and its error scales for replay. Linear extrapolation extends the
@@ -320,12 +331,13 @@ bounds. Later explicit parameter validation rejects invalid values.
 | `polynomial` | `c0=0` ... `cN=0` | `metadata={"order": N}`, default 2, allowed 0-50; ascending powers |
 | `cubic_spline` | `y0=0` ... | Required `metadata={"x_nodes": [...]}`; at least two finite increasing nodes |
 
-Peak widths have lower bound `np.finfo(np.float64).eps`; area/center may be
+Peak widths have lower bound `np.finfo(np.float64).tiny` (about 2.2e-308); area/center may be
 negative. Two-node splines use `np.interp` linear interpolation with constant
 endpoint tails. Splines with three or more nodes use natural cubic boundaries
 and cubic extrapolation. Components are not automatically marked as
 background: set `.is_background=True`. Other component fields: `enabled=True`,
-`group=None`, `metadata`, `id`, `name`, `function_id`, `parameters`, `operator`.
+`group=None`, `metadata`, `id`, `name`, `function_id`, `parameters`, `operator`,
+`output_scale=1.0` (multiplies the component output).
 `to_dict()` / `Component.from_dict(value)` preserve state.
 
 `Model(name="Model", components=[], ...)` offers:
@@ -444,7 +456,7 @@ preserving comparisons such as `y == 1` and keyword-free conditional expressions
 An assignment to a different target raises `ExpressionError`. Coordinate and
 column calculator helpers use this parser; it does not execute Python.
 
-The testing interpreter limits source size (16,384 characters), AST complexity
+The expression interpreter limits source size (16,384 characters), AST complexity
 (2,048 nodes, depth 64), integer results (4,096 bits), array/broadcast results
 (10,000,000 elements) and aggregate array work (50,000,000 elements). Excesses
 raise `ExpressionError`; powers and broadcasting are checked before large results
@@ -457,7 +469,7 @@ Registry methods: `register(definition, *, replace=False)`,
 `identifiers() -> tuple`, `extend(definitions)`. Duplicate registration without
 `replace=True` raises `DataValidationError`.
 
-The testing API also provides `copy()` for an isolated registration table,
+The registry also provides `copy()` for an isolated registration table,
 `register_custom(definition, *, replace=False)` to reject formula collisions with
 builtin identifiers, and `set_project_functions(specifications)` to validate and
 replace a project's formula layer atomically. Clearing that layer restores the
@@ -494,7 +506,9 @@ Executable definitions from the same module use
 `FunctionDefinition(identifier, display_name, kind, evaluator,
 parameter_specs=(), parameter_factory=None, derived={}, description="",
 custom_metadata={}, configuration_specs=(), point_initializer=None,
-minimum_points=None)`. Evaluator protocol: `(x_array, values_mapping,
+minimum_points=None, intrinsic_bounds=False)`. With `intrinsic_bounds=True`,
+evaluating parameters outside the `ParameterSpec` limits raises
+`DataValidationError` instead of extrapolating. Evaluator protocol: `(x_array, values_mapping,
 metadata_mapping) -> shape-compatible numeric output`.
 Methods: `specs(metadata=None)`, `make_parameters(initial=None, metadata=None)`,
 `evaluate(x, parameters, metadata=None)`, `derived_values(parameters,
@@ -780,7 +794,7 @@ instrument noise.
 `FitResult` fields: `success`, `mode`, `message`, `status`, `evaluations`,
 `parameters`, `curve_outputs`, `statistics`, `warnings`, `settings`,
 `free_parameter_paths`, `covariance`, `correlation`, `timestamp`,
-`elapsed_seconds`, `cancelled`, `paused_curve_id`.
+`elapsed_seconds`, `cancelled`, `paused_curve_id`, `provenance`.
 
 `parameters[path]` is `ParameterEstimate` with `path`, `value`, `standard_error`,
 `ci_low`, `ci_high`, `minimum`, `maximum`, `status`, `link`, `at_bound`, `fixed`,
@@ -795,7 +809,9 @@ only fitted rows. `indices` indexes current rows;
 residual is **observed minus fitted**; optimizer residual has opposite sign.
 
 Global statistics: `N`, `k`, `degrees_of_freedom`, `RSS`, `RMSE`, `chi_square`,
-`reduced_chi_square`, `R_squared`, `AIC`, `AICc`, `BIC`. Per-curve statistics:
+`reduced_chi_square`, `R_squared`, `AIC`, `AICc`, `BIC`, plus
+`weighted_residual_sum_squares`, `within_spectrum_R_squared` (global fits) and
+`objective` (the optimizer objective). Per-curve statistics:
 `N`, `RSS`, `RMSE`, `R_squared`. Gaussian information criteria use the likelihood
 of the weighted residuals, including its precision normalization. A relative or
 unknown noise scale adds one likelihood parameter; independent fits retain their
@@ -831,10 +847,13 @@ original matching curves; later transformations can change their content hash.
 A new fit from a saved optimum is distinct from replay.
 
 `curvemole.core.diagnostics.residual_diagnostics(residual, *, max_lag=None,
-histogram_bins="auto") -> ResidualDiagnostics` returns standardized residuals,
-histogram, Q-Q arrays, autocorrelation, Durbin-Watson statistic, outlier indices,
-warnings; `.summary()` returns compact statistics.
-`estimate_block_length(residual)` estimates bootstrap block length.
+histogram_bins="auto", indices=None, x=None) -> ResidualDiagnostics` returns
+standardized residuals, histogram, Q-Q arrays, autocorrelation, Durbin-Watson
+statistic, outlier indices, warnings; `.summary()` returns compact statistics.
+Pass the fitted rows' `indices` and `x` (e.g. from `CurveFitOutput`) so
+autocorrelation is not computed across gaps.
+`estimate_block_length(residual, segments=None)` estimates bootstrap block
+length; `segments` is a sequence of slices of contiguous residuals.
 
 ## 14. Explicit uncertainty analysis
 
@@ -846,13 +865,25 @@ registry, successful current baseline, matching plan/data, and fitted models.
 
 Three methods return `ResamplingResult` and share arguments
 `(baseline, plan, curves, models, *, replicates=200, adaptive=None, seed=None,
-workers=1, cancellation=None, progress=None)`:
+workers=1, cancellation=None, progress=None)`; `block_bootstrap` defaults to
+`replicates=500`:
 
 - `parametric_monte_carlo(...)`: requires finite positive sigma_y or valid
   confidence-interval Y errors on fitted rows; weights alone are insufficient.
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
-  block length for each curve.
+  block length for each curve. Blocks never cross gaps: masked or deleted rows,
+  or a change of X spacing, split a curve into contiguous segments (calibrated
+  SPE spectra use detector-pixel adjacency instead of X spacing). If no adjacent
+  samples remain, `FitError` is raised. The configuration records `block_grid`
+  and `contiguous_segments`.
+
+**Worker processes.** Resampling and profile replicas always run in a pool of
+spawned processes, even with `workers=1`. Scripts must use an
+`if __name__ == "__main__":` guard (otherwise `BrokenProcessPool` is raised),
+and frozen executables need `multiprocessing.freeze_support()`. Workers rebuild
+built-in and safe formula functions only; executable plugin functions are not
+available to replicas.
 
 All replicas preserve the baseline's fitted rows. Changed models, fitted rows
 or fit weighting require a new baseline. For asymmetric Monte Carlo, observations
@@ -885,7 +916,8 @@ project.touch()
 
 Result fields: `method`, `requested`, `completed`, `failed`, `seed`,
 `parameter_paths`, `samples` (replicate-by-parameter), `intervals` (path to
-(low,high)), `confidence_level`, `configuration`, `failure_messages`.
+(low,high)), `confidence_level`, `configuration`, `failure_messages`,
+`provenance`.
 `to_dict(include_samples=True)` controls stored samples. Inspect failed attempts;
 `seed=None` uses the baseline settings seed. Replicas use local optimization,
 including when the baseline used another solver. `replicates` must be positive;
@@ -922,12 +954,37 @@ inspect every region and extend the scan where needed. A finite grid can still m
 a narrow remote mode. The default Gaussian-location example now agrees with the
 analytic 95% interval, approximately +/-1.959964 standard errors.
 
-`resampling_batch(method, jobs, *, replicates, option=None, workers=1,
+`UncertaintyAnalyzer().resampling_batch(method, jobs, *, replicates, option=None, workers=1,
 adaptive=None, cancellation=None, progress=None, on_result=None)` returns a list
 for jobs `(baseline, plan, curves_mapping, models_mapping)`. Method IDs:
 `monte_carlo`, `residual_bootstrap`, `block_bootstrap`; option supplies block
 length. Batch callbacks are `progress(completed_job_count)` and
 `on_result(job_index, result)`; other uncertainty progress uses `(fraction,text)`.
+
+### 14.1 Uncertainty after background subtraction
+
+An estimated background subtraction (`apply_background_subtraction(...,
+estimated=True)`, the default, and the desktop background tools) makes
+`curve.has_correlated_y_errors` true. The fit then warns that covariance is
+unavailable, and resampling raises `FitError` because the preprocessing
+introduced correlated errors. Choose explicitly how to treat the background with
+`curvemole.core.background_uncertainty.fit_background_uncertainty(fitter, plan,
+curves, models, mode, cancellation)`, where `curves`/`models` map curve IDs:
+
+- `mode="fixed"`: refit copies treating the subtracted background as exact;
+  resulting intervals are **conditional** on that background.
+- `mode="joint"`: remove the estimated subtraction from the copies and refit
+  signal plus background on the data before subtraction. The subtracted
+  functions must be components of the curve's model, named in the subtraction's
+  `parameters={"component_ids": [...]}` (the desktop records this automatically).
+
+It returns `(baseline, curves, models)` (modified copies; the inputs are not
+changed) and records the choice in `baseline.provenance["background_uncertainty"]`.
+Pass these three values to the `UncertaintyAnalyzer` methods. `cancellation` is a
+`CancellationToken` or `None`. Other operations that still introduce correlated
+errors raise `FitError`. Joint mode also rejects normalization or other data
+operations applied after the subtraction (finite Y scaling is allowed) and models
+whose enabled components use operators other than add/subtract.
 
 Analysis calls do not create the desktop's per-curve uncertainty display records.
 A custom key in `project.results` stores returned data but does not imply GUI
@@ -935,13 +992,13 @@ selection/integration.
 
 ## 15. Saving projects/models and YAML interoperability
 
-Saved state and full computational replay require different information. Ordinary
-fit records retain final parameters and settings but do not systematically store
-the original initial vector, resolved DE search bounds, exact Python/NumPy/SciPy
-and backend versions, RNG implementation, or source/plugin fingerprints used for
-that analysis. Keep the original script/workflow, inputs and environment alongside
-the project. A seed alone is insufficient; refitting the saved optimum can also
-recompute different automatic search bounds.
+Saved state and full computational replay require different information. New
+fit results store their provenance (Section 13) and can be replayed with
+`Fitter.replay`; results created by releases before that feature retain only
+final parameters and settings. Hashes identify inputs but do not embed them:
+keep the original script/workflow, input files and environment alongside the
+project. A seed alone is insufficient; refitting the saved optimum can recompute
+different automatic search bounds.
 
 Import from `curvemole.core.serialization`:
 
@@ -959,7 +1016,7 @@ Import from `curvemole.core.serialization`:
 immediately before replacing the destination; raising cancels that replacement.
 It supports a caller's lock/digest guard and does not itself acquire a lock.
 
-The testing reader and validator accept `limits=ArchiveLimits(...)`, imported from
+The project reader and validator accept `limits=ArchiveLimits(...)`, imported from
 `curvemole.core.archive_validation`. Defaults are 100,000 ZIP members, 1 GiB expanded
 content, 1 GiB per array and 512 MiB of manifest. Larger trusted loads can opt in
 to larger limits. `save_project` still validates against the default limits: raising
@@ -999,20 +1056,20 @@ shared-file writes. `load_fitmodel` retains IDs and links; retarget links or use
 `dump_workflow(project, path) -> Path`. Current dumping emits workflow schema 3;
 new YAML keys require schema 3 so older software rejects them instead
 of ignoring processing stages. Outcome fields are `project`, `result`,
-`outputs`. In 1.2.0 it also has `imported_files: list[Path]` and
+`outputs`. Since 1.2.0 it also has `imported_files: list[Path]` and
 `warnings: list[str]`, both defaulting to empty lists so the original three-field
 constructor remains valid. Relative paths resolve against the YAML directory. Dumping references
 source imports/models; it does not embed arbitrary transformed current data or
-all project state. Version 1.1.0 dump includes saved `curve_ids`, which the loader
+all project state. Since 1.1.0, dumps include saved `curve_ids`, which the loader
 maps to newly imported curve IDs in model selectors and `${...}` references.
 Ambiguous display-name aliases are not used as selectors; explicit saved curve
 identities disambiguate them. Links are resolved project-wide before fitting or
-export. Save `.fitproj` for full scientific state. The YAML audit details the
-complete import identity and reference format.
+export. Save `.fitproj` for full scientific state. The YAML automation audit
+(`ai-yaml-audit.md`) details the complete import identity and reference format.
 
-### 15.1 Beta workflow discovery, selection and preprocessing
+### 15.1 Workflow discovery, selection and preprocessing
 
-The following helpers require **1.2.0** and are module imports, not new
+The following helpers require **1.2.0 or later** and are module imports, not new
 package-root exports. They implement the same contract as the YAML runner;
 using Python is not required merely to enumerate a folder anymore.
 
@@ -1060,14 +1117,15 @@ project changed, and invalidates affected fits. All shapes and selections are
 checked before mutation; a later data-dependent error can leave earlier in-memory
 edits. The workflow runner writes no outputs before these stages finish.
 
-Beta workflows additionally reject misspelled nested keys and unknown
+Schema-3 workflows additionally reject misspelled nested keys and unknown
 function-specific parameter names, support `models[].curves`/`match` so one model
 specification can cover a batch, convert nested `columns.spectra` mappings, and
 provide `export.project_overwrite=False` for project-file protection. Safe YAML
 formula definitions are now retained in `Project.custom_functions` and emitted by
-`dump_workflow`; they are not just registered in memory as in 1.1.0. Dumped recipes
+`dump_workflow`; 1.1.0 and earlier only registered them in memory. Dumped recipes
 still do not replay preprocessing, masks, transformed data, fit plans or exports.
-The YAML reference lists the exact new fields and complete runnable examples.
+The YAML automation audit (`ai-yaml-audit.md`) lists the exact fields and
+complete runnable examples.
 
 ## 16. Tables, exports, figures, and notebooks
 
@@ -1212,7 +1270,7 @@ documented APIs, state assumptions, check success, retain warnings, preserve
 input files, and provide a run command. Supply a few non-sensitive representative
 rows when needed; repository source is unnecessary for this documented surface.
 
-> Using the attached CurveMole 1.2.0 Python audit, write `analysis.py` for Python
+> Using the attached CurveMole 1.4.2 Python audit, write `analysis.py` for Python
 > 3.12+. CSV has named columns `x`, `signal`, `sigma`. Fit constant background
 > plus an area-normalized Gaussian near 520 with positive sigma, mask 530-532,
 > report fitted values/errors/warnings, and save a new `.fitproj` plus numeric
