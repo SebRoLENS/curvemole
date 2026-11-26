@@ -81,6 +81,8 @@ Updates preserve existing attribution. The repository owner can change
    simple unique name. Do not upload directly to main.
 2. Rename the module and manifest, assign your own identifier, and implement
    `register(api)` using the [plugin author guide](https://github.com/SebRoLENS/curvemole/blob/main/docs/plugins.md).
+   When developing with an AI assistant, attach the
+   [plugin API audit](https://github.com/SebRoLENS/curvemole/blob/main/docs/ai-plugin-audit.md).
 3. Include exactly one `*.curvemole-plugin.json`, the Python module, `README.md`,
    `LICENSE`, and a test file. See the field table below.
 4. Write functional tests that execute each added feature and verify its result:
