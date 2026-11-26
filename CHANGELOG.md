@@ -13,6 +13,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Warn when imported files contain non-numeric values. ([`fa52386e`](https://github.com/SebRoLENS/curvemole/commit/fa52386e1787e3de22aaa3201507655f94c5504f))
 - Remove unused and shadowed code. ([`40b73a3e`](https://github.com/SebRoLENS/curvemole/commit/40b73a3e1d75d936b1c3fe8bf4b521c012bb4fd1))
 - Compare dropped paths independently of the Windows separator. ([`a7d22c09`](https://github.com/SebRoLENS/curvemole/commit/a7d22c09a09b21047e599bca7ec8cec35f22a5eb))
+- Read promoted documents as UTF-8 and route plugin PRs to testing in the manual. ([`63968ea1`](https://github.com/SebRoLENS/curvemole/commit/63968ea156ffb40f0d6f721c2512cb218b7a8c9d))
 
 ### Fixed
 
@@ -22,6 +23,9 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Documentation
 
 - Explain the Differential Evolution search limits in Fit settings. ([`ce62b8f1`](https://github.com/SebRoLENS/curvemole/commit/ce62b8f1621f9e86643dd289d60d29144891f4d3))
+- docs: add AI plugin API audit and link it from README and manual. ([`4d8410a8`](https://github.com/SebRoLENS/curvemole/commit/4d8410a8d6e5373ee328a1b3f76042db29642762))
+- docs: link the AI plugin API audit from the website. ([`b3b2c6de`](https://github.com/SebRoLENS/curvemole/commit/b3b2c6de203d59b33568f7800610048d25ce8ee4))
+- docs: correct and refresh the AI Python and YAML automation audits. ([`cdc84f9b`](https://github.com/SebRoLENS/curvemole/commit/cdc84f9b6deaff97334cfa32c4b114eb32c53860))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.4.2] - 2026-11-24
