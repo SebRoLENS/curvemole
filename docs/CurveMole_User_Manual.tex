@@ -5365,7 +5365,8 @@ To share a plugin, open \textbf{File \textgreater{} Plugin manager
 \textgreater{} Share my plugin on GitHub\ldots{}}. This opens the
 submission guide: fork the repository, upload your complete plugin
 folder at \texttt{custom\_plugins/by\_community/your\_plugin/}, then
-open a pull request to main. For private use, \textbf{Choose plugin
+open a pull request to the \texttt{testing} branch of
+\texttt{SebRoLENS/curvemole}. For private use, \textbf{Choose plugin
 folder\ldots{}} installs it on your computer only; loading a plugin does
 not publish its source. \textbf{Browse validated plugins} opens the
 downloads that have passed the checks.
@@ -5393,12 +5394,14 @@ separately installed extensions, not automatically enabled CurveMole
 features. Authors submit a folder with manifest, module, licence, README
 and functional tests through a pull request. GitHub checks manifests,
 actual registered capabilities, loading/removal and tests on Linux,
-Windows and macOS. Only a successful main run publishes the validated
-catalog and tested plugin ZIP files. \textbf{Browse validated plugins}
-and \textbf{Install selected} provide the normal installation route
-inside the manager, with an explicit trust decision. Alternatively, use
-the stable downloads in the \href{../custom_plugins/README.md}{plugin
-guide} or the separate
+Windows and macOS. A maintainer reviews and merges the pull request. The
+validated catalog and tested plugin ZIP files are published from a
+successful \texttt{main} run (at the next stable release) or, for an
+individual plugin, by the maintainer's separate plugin publication from
+\texttt{testing}. \textbf{Browse validated plugins} and \textbf{Install
+selected} provide the normal installation route inside the manager, with
+an explicit trust decision. Alternatively, use the stable downloads in
+the \href{../custom_plugins/README.md}{plugin guide} or the separate
 \href{https://github.com/SebRoLENS/curvemole/releases/tag/community-plugins-latest}{rolling
 community plugin release}, extract the chosen plugin and review/load its
 manifest in the manager. These direct downloads do not require a GitHub
