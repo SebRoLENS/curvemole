@@ -358,7 +358,14 @@ def parse_project(path):
             continue
         curve = Curve(data["title"], x, y, sigma_y=sigma, source=str(path),
                       metadata={"fityk_dataset": idx})
-        curve.masks[curve.active_mask].excluded[:] = ~active
+        mask = curve.masks[curve.active_mask]
+        mask.excluded[:] = ~active
+        # The fit uses the row flags. The plot draws boundaries from X intervals.
+        order = np.flatnonzero(np.isfinite(x))
+        order = order[np.argsort(x[order], kind="stable")]
+        edges = np.flatnonzero(np.diff(np.r_[False, mask.excluded[order], False]))
+        mask.ranges = [(float(x[order[start]]), float(x[order[stop - 1]]))
+                       for start, stop in edges.reshape(-1, 2)]
         components = []
         for name in models.get(idx, []):
             try:
@@ -393,6 +400,16 @@ def parse_project(path):
 
 def import_fityk(context):
     prepared, warnings = parse_project(context.path)
+    new_project = not context.project.curves
+    if new_project:
+        context.project.ui_state.update(autoscale_enabled=True, autoscale_mode="all")
+    # The saved S column is needed for fitting. Drawing a bar for every S
+    # can obscure the peaks and interrupts dense plot rendering on CurveMole 1.4.2.
+    hide_errors = any(curve.sigma_y is not None and (new_project or len(curve) > 4000)
+                      for curve, _ in prepared)
+    hide_errors = hide_errors and context.project.ui_state.get("show_error_bars", True)
+    if hide_errors:
+        context.project.ui_state["show_error_bars"] = False
     series = Series(f"Fityk: {Path(context.path).stem}")
     context.project.add_series(series)
     for curve, components in prepared:
@@ -405,6 +422,7 @@ def import_fityk(context):
     }
     return (f"Imported {len(prepared)} Fityk spectra; "
             f"{sum(len(parts) for _, parts in prepared)} components. "
+            + ("Error bars hidden; uncertainties retained. " if hide_errors else "")
             + ("Skipped: " + "; ".join(warnings[:12]) if warnings else ""))
 
 
