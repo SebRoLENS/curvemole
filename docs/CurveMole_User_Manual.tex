@@ -6162,11 +6162,14 @@ version and scientific dependency versions with your results.
 
 \textbf{Scientific corrections (release, 2026-11-02).} The seven
 findings in the latest scientific audit are corrected in this edition:
-parameter scaling, nonlinear uncertainty derivatives, convolution
-alignment, compensated summation, profile confidence regions and saved
-execution provenance. Appendix J describes the changes and their limits.
-Use the documents attached to your exact release build; these
-corrections do not apply retroactively to earlier executables.
+units, parameter scaling and compensated summation; nonlinear formula
+uncertainty propagation; nonlinear linked-parameter uncertainty;
+convolution alignment on even-length grids; cancellation with fresh
+component IDs; profile confidence regions; and saved analysis
+provenance. Appendix J of the CurveMole user manual describes the
+changes and their limits. Use the documents attached to your exact
+release build; these corrections do not apply retroactively to earlier
+executables.
 
 \hypertarget{installation-and-imports}{%
 \section{1. Installation and imports}\label{installation-and-imports}}
@@ -6427,8 +6430,18 @@ Import validity depends on contents, not only suffix. Inspect
 metadata/warnings, \texttt{curve.invalid}, and
 \texttt{curve.effective\_mask}. SPE support covers calibrated,
 one-dimensional WinSpec SPE 2.x and LightField SPE 3.0 spectra with one
-region of interest. Imported numeric columns are retained for column
-formulas.
+region of interest. An SPE file is read as columns
+\texttt{"Wavelength\ {[}nm{]}"} followed by \texttt{"Intensity\ 1"}
+\ldots{} \texttt{"Intensity\ N"} (one per frame), so
+\texttt{ColumnMapping(x=0,\ y={[}1{]})} imports the first frame and
+\texttt{y={[}1,\ 2,\ ...{]}} further frames. Files above 256 MiB are
+rejected. Imported numeric columns are retained for column formulas.
+
+\texttt{mapping.validate()} checks a \texttt{ColumnMapping} (also called
+by \texttt{import\_file}). \texttt{mapping.by\_position(columns)}
+converts name selectors to the positions they have in the list
+\texttt{columns}, so one mapping can be reused for files whose headers
+differ but whose column order is the same.
 
 \hypertarget{curves-masks-and-transformations-1}{%
 \section{4. Curves, masks, and
@@ -6558,6 +6571,13 @@ Clear transformations/redo and recompute original data\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
 Metadata, not a complete numeric serialization\strut
 \end{minipage}\tabularnewline
+\begin{minipage}[t]{0.47\columnwidth}\raggedright
+\texttt{duplicate(name,\ *,\ raw=False)}\strut
+\end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
+New curve with a new ID and \texttt{NOT\_FITTED} state;
+\texttt{raw=True} drops transformations, masks and fit ranges, otherwise
+they are copied\strut
+\end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
 
@@ -6611,9 +6631,11 @@ Target \texttt{x}, \texttt{y} or retained column key such as
 or \texttt{cubic}\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
-\texttt{apply\_background\_subtraction(curve,\ background,\ *,\ method,\ description,\ parameters=None)}\strut
+\texttt{apply\_background\_subtraction(curve,\ background,\ *,\ method,\ description,\ parameters=None,\ estimated=True)}\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Subtract supplied array from all rows, including masked rows\strut
+Subtract supplied array from all rows, including masked rows.
+\texttt{estimated=True} marks it as an estimated background: the curve
+then has correlated Y errors (see Section 14.1)\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
@@ -6893,16 +6915,17 @@ finite increasing nodes\strut
 \bottomrule
 \end{longtable}
 
-Peak widths have lower bound \texttt{np.finfo(np.float64).eps};
-area/center may be negative. Two-node splines use \texttt{np.interp}
-linear interpolation with constant endpoint tails. Splines with three or
-more nodes use natural cubic boundaries and cubic extrapolation.
-Components are not automatically marked as background: set
-\texttt{.is\_background=True}. Other component fields:
+Peak widths have lower bound \texttt{np.finfo(np.float64).tiny} (about
+2.2e-308); area/center may be negative. Two-node splines use
+\texttt{np.interp} linear interpolation with constant endpoint tails.
+Splines with three or more nodes use natural cubic boundaries and cubic
+extrapolation. Components are not automatically marked as background:
+set \texttt{.is\_background=True}. Other component fields:
 \texttt{enabled=True}, \texttt{group=None}, \texttt{metadata},
 \texttt{id}, \texttt{name}, \texttt{function\_id}, \texttt{parameters},
-\texttt{operator}. \texttt{to\_dict()} /
-\texttt{Component.from\_dict(value)} preserve state.
+\texttt{operator}, \texttt{output\_scale=1.0} (multiplies the component
+output). \texttt{to\_dict()} / \texttt{Component.from\_dict(value)}
+preserve state.
 
 \texttt{Model(name="Model",\ components={[}{]},\ ...)} offers:
 
@@ -7134,7 +7157,7 @@ assignment to a different target raises \texttt{ExpressionError}.
 Coordinate and column calculator helpers use this parser; it does not
 execute Python.
 
-The testing interpreter limits source size (16,384 characters), AST
+The expression interpreter limits source size (16,384 characters), AST
 complexity (2,048 nodes, depth 64), integer results (4,096 bits),
 array/broadcast results (10,000,000 elements) and aggregate array work
 (50,000,000 elements). Excesses raise \texttt{ExpressionError}; powers
@@ -7152,10 +7175,9 @@ Registry methods: \texttt{register(definition,\ *,\ replace=False)},
 \texttt{extend(definitions)}. Duplicate registration without
 \texttt{replace=True} raises \texttt{DataValidationError}.
 
-The testing API also provides \texttt{copy()} for an isolated
-registration table,
-\texttt{register\_custom(definition,\ *,\ replace=False)} to reject
-formula collisions with builtin identifiers, and
+The registry also provides \texttt{copy()} for an isolated registration
+table, \texttt{register\_custom(definition,\ *,\ replace=False)} to
+reject formula collisions with builtin identifiers, and
 \texttt{set\_project\_functions(specifications)} to validate and replace
 a project's formula layer atomically. Clearing that layer restores the
 previous definitions that have not been removed or disabled. Desktop
@@ -7193,8 +7215,10 @@ area profiles.
 Executable definitions from the same module use
 \texttt{ParameterSpec(name,\ default,\ minimum=-math.inf,\ maximum=math.inf,\ unit="")}
 and
-\texttt{FunctionDefinition(identifier,\ display\_name,\ kind,\ evaluator,\ parameter\_specs=(),\ parameter\_factory=None,\ derived=\{\},\ description="",\ custom\_metadata=\{\},\ configuration\_specs=(),\ point\_initializer=None,\ minimum\_points=None)}.
-Evaluator protocol:
+\texttt{FunctionDefinition(identifier,\ display\_name,\ kind,\ evaluator,\ parameter\_specs=(),\ parameter\_factory=None,\ derived=\{\},\ description="",\ custom\_metadata=\{\},\ configuration\_specs=(),\ point\_initializer=None,\ minimum\_points=None,\ intrinsic\_bounds=False)}.
+With \texttt{intrinsic\_bounds=True}, evaluating parameters outside the
+\texttt{ParameterSpec} limits raises \texttt{DataValidationError}
+instead of extrapolating. Evaluator protocol:
 \texttt{(x\_array,\ values\_mapping,\ metadata\_mapping)\ -\textgreater{}\ shape-compatible\ numeric\ output}.
 Methods: \texttt{specs(metadata=None)},
 \texttt{make\_parameters(initial=None,\ metadata=None)},
@@ -7789,7 +7813,7 @@ instrument noise.
 \texttt{warnings}, \texttt{settings}, \texttt{free\_parameter\_paths},
 \texttt{covariance}, \texttt{correlation}, \texttt{timestamp},
 \texttt{elapsed\_seconds}, \texttt{cancelled},
-\texttt{paused\_curve\_id}.
+\texttt{paused\_curve\_id}, \texttt{provenance}.
 
 \texttt{parameters{[}path{]}} is \texttt{ParameterEstimate} with
 \texttt{path}, \texttt{value}, \texttt{standard\_error},
@@ -7811,13 +7835,16 @@ minus fitted}; optimizer residual has opposite sign.
 Global statistics: \texttt{N}, \texttt{k},
 \texttt{degrees\_of\_freedom}, \texttt{RSS}, \texttt{RMSE},
 \texttt{chi\_square}, \texttt{reduced\_chi\_square},
-\texttt{R\_squared}, \texttt{AIC}, \texttt{AICc}, \texttt{BIC}.
-Per-curve statistics: \texttt{N}, \texttt{RSS}, \texttt{RMSE},
-\texttt{R\_squared}. Gaussian information criteria use the likelihood of
-the weighted residuals, including its precision normalization. A
-relative or unknown noise scale adds one likelihood parameter;
-independent fits retain their separate fitted noise scales. The result
-records \texttt{negative\_twice\_log\_likelihood} and
+\texttt{R\_squared}, \texttt{AIC}, \texttt{AICc}, \texttt{BIC}, plus
+\texttt{weighted\_residual\_sum\_squares},
+\texttt{within\_spectrum\_R\_squared} (global fits) and
+\texttt{objective} (the optimizer objective). Per-curve statistics:
+\texttt{N}, \texttt{RSS}, \texttt{RMSE}, \texttt{R\_squared}. Gaussian
+information criteria use the likelihood of the weighted residuals,
+including its precision normalization. A relative or unknown noise scale
+adds one likelihood parameter; independent fits retain their separate
+fitted noise scales. The result records
+\texttt{negative\_twice\_log\_likelihood} and
 \texttt{likelihood\_parameters}. AIC/AICc/BIC are unavailable for robust
 losses, active interval-error arrays (including equal lower/upper
 half-widths) and arbitrary spectrum balancing or correlated errors from
@@ -7854,11 +7881,15 @@ initial-state provenance raise \texttt{FitError}. Replay needs the
 original matching curves; later transformations can change their content
 hash. A new fit from a saved optimum is distinct from replay.
 
-\texttt{curvemole.core.diagnostics.residual\_diagnostics(residual,\ *,\ max\_lag=None,\ histogram\_bins="auto")\ -\textgreater{}\ ResidualDiagnostics}
+\texttt{curvemole.core.diagnostics.residual\_diagnostics(residual,\ *,\ max\_lag=None,\ histogram\_bins="auto",\ indices=None,\ x=None)\ -\textgreater{}\ ResidualDiagnostics}
 returns standardized residuals, histogram, Q-Q arrays, autocorrelation,
 Durbin-Watson statistic, outlier indices, warnings; \texttt{.summary()}
-returns compact statistics. \texttt{estimate\_block\_length(residual)}
-estimates bootstrap block length.
+returns compact statistics. Pass the fitted rows' \texttt{indices} and
+\texttt{x} (e.g.~from \texttt{CurveFitOutput}) so autocorrelation is not
+computed across gaps.
+\texttt{estimate\_block\_length(residual,\ segments=None)} estimates
+bootstrap block length; \texttt{segments} is a sequence of slices of
+contiguous residuals.
 
 \hypertarget{explicit-uncertainty-analysis}{%
 \section{14. Explicit uncertainty
@@ -7873,7 +7904,8 @@ the baseline's registry, successful current baseline, matching
 plan/data, and fitted models.
 
 Three methods return \texttt{ResamplingResult} and share arguments
-\texttt{(baseline,\ plan,\ curves,\ models,\ *,\ replicates=200,\ adaptive=None,\ seed=None,\ workers=1,\ cancellation=None,\ progress=None)}:
+\texttt{(baseline,\ plan,\ curves,\ models,\ *,\ replicates=200,\ adaptive=None,\ seed=None,\ workers=1,\ cancellation=None,\ progress=None)};
+\texttt{block\_bootstrap} defaults to \texttt{replicates=500}:
 
 \begin{itemize}
 \tightlist
@@ -7886,8 +7918,21 @@ Three methods return \texttt{ResamplingResult} and share arguments
   fitted model.
 \item
   \texttt{block\_bootstrap(...,\ block\_length=None,\ ...)}: residual
-  blocks; None estimates block length for each curve.
+  blocks; None estimates block length for each curve. Blocks never cross
+  gaps: masked or deleted rows, or a change of X spacing, split a curve
+  into contiguous segments (calibrated SPE spectra use detector-pixel
+  adjacency instead of X spacing). If no adjacent samples remain,
+  \texttt{FitError} is raised. The configuration records
+  \texttt{block\_grid} and \texttt{contiguous\_segments}.
 \end{itemize}
+
+\textbf{Worker processes.} Resampling and profile replicas always run in
+a pool of spawned processes, even with \texttt{workers=1}. Scripts must
+use an \texttt{if\ \_\_name\_\_\ ==\ "\_\_main\_\_":} guard (otherwise
+\texttt{BrokenProcessPool} is raised), and frozen executables need
+\texttt{multiprocessing.freeze\_support()}. Workers rebuild built-in and
+safe formula functions only; executable plugin functions are not
+available to replicas.
 
 All replicas preserve the baseline's fitted rows. Changed models, fitted
 rows or fit weighting require a new baseline. For asymmetric Monte
@@ -7927,12 +7972,13 @@ Result fields: \texttt{method}, \texttt{requested}, \texttt{completed},
 \texttt{failed}, \texttt{seed}, \texttt{parameter\_paths},
 \texttt{samples} (replicate-by-parameter), \texttt{intervals} (path to
 (low,high)), \texttt{confidence\_level}, \texttt{configuration},
-\texttt{failure\_messages}. \texttt{to\_dict(include\_samples=True)}
-controls stored samples. Inspect failed attempts; \texttt{seed=None}
-uses the baseline settings seed. Replicas use local optimization,
-including when the baseline used another solver. \texttt{replicates}
-must be positive; replica failures reduce the number of accepted
-samples, rather than silently counting as successful fits.
+\texttt{failure\_messages}, \texttt{provenance}.
+\texttt{to\_dict(include\_samples=True)} controls stored samples.
+Inspect failed attempts; \texttt{seed=None} uses the baseline settings
+seed. Replicas use local optimization, including when the baseline used
+another solver. \texttt{replicates} must be positive; replica failures
+reduce the number of accepted samples, rather than silently counting as
+successful fits.
 
 \texttt{AdaptiveReplicateSettings(initial\_successes=500,\ batch\_successes=200,\ tolerance=0.05,\ consecutive\_checks=3,\ maximum\_attempts=10000)}
 stops when all percentile endpoints stabilize for the required checks;
@@ -7968,7 +8014,7 @@ still miss a narrow remote mode. The default Gaussian-location example
 now agrees with the analytic 95\% interval, approximately +/-1.959964
 standard errors.
 
-\texttt{resampling\_batch(method,\ jobs,\ *,\ replicates,\ option=None,\ workers=1,\ adaptive=None,\ cancellation=None,\ progress=None,\ on\_result=None)}
+\texttt{UncertaintyAnalyzer().resampling\_batch(method,\ jobs,\ *,\ replicates,\ option=None,\ workers=1,\ adaptive=None,\ cancellation=None,\ progress=None,\ on\_result=None)}
 returns a list for jobs
 \texttt{(baseline,\ plan,\ curves\_mapping,\ models\_mapping)}. Method
 IDs: \texttt{monte\_carlo}, \texttt{residual\_bootstrap},
@@ -7976,6 +8022,46 @@ IDs: \texttt{monte\_carlo}, \texttt{residual\_bootstrap},
 are \texttt{progress(completed\_job\_count)} and
 \texttt{on\_result(job\_index,\ result)}; other uncertainty progress
 uses \texttt{(fraction,text)}.
+
+\hypertarget{uncertainty-after-background-subtraction}{%
+\subsection{14.1 Uncertainty after background
+subtraction}\label{uncertainty-after-background-subtraction}}
+
+An estimated background subtraction
+(\texttt{apply\_background\_subtraction(...,\ estimated=True)}, the
+default, and the desktop background tools) makes
+\texttt{curve.has\_correlated\_y\_errors} true. The fit then warns that
+covariance is unavailable, and resampling raises \texttt{FitError}
+because the preprocessing introduced correlated errors. Choose
+explicitly how to treat the background with
+\texttt{curvemole.core.background\_uncertainty.fit\_background\_uncertainty(fitter,\ plan,\ curves,\ models,\ mode,\ cancellation)},
+where \texttt{curves}/\texttt{models} map curve IDs:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{mode="fixed"}: refit copies treating the subtracted background
+  as exact; resulting intervals are \textbf{conditional} on that
+  background.
+\item
+  \texttt{mode="joint"}: remove the estimated subtraction from the
+  copies and refit signal plus background on the data before
+  subtraction. The subtracted functions must be components of the
+  curve's model, named in the subtraction's
+  \texttt{parameters=\{"component\_ids":\ {[}...{]}\}} (the desktop
+  records this automatically).
+\end{itemize}
+
+It returns \texttt{(baseline,\ curves,\ models)} (modified copies; the
+inputs are not changed) and records the choice in
+\texttt{baseline.provenance{[}"background\_uncertainty"{]}}. Pass these
+three values to the \texttt{UncertaintyAnalyzer} methods.
+\texttt{cancellation} is a \texttt{CancellationToken} or \texttt{None}.
+Other operations that still introduce correlated errors raise
+\texttt{FitError}. Joint mode also rejects normalization or other data
+operations applied after the subtraction (finite Y scaling is allowed)
+and models whose enabled components use operators other than
+add/subtract.
 
 Analysis calls do not create the desktop's per-curve uncertainty display
 records. A custom key in \texttt{project.results} stores returned data
@@ -7986,13 +8072,13 @@ but does not imply GUI selection/integration.
 interoperability}\label{saving-projectsmodels-and-yaml-interoperability}}
 
 Saved state and full computational replay require different information.
-Ordinary fit records retain final parameters and settings but do not
-systematically store the original initial vector, resolved DE search
-bounds, exact Python/NumPy/SciPy and backend versions, RNG
-implementation, or source/plugin fingerprints used for that analysis.
-Keep the original script/workflow, inputs and environment alongside the
-project. A seed alone is insufficient; refitting the saved optimum can
-also recompute different automatic search bounds.
+New fit results store their provenance (Section 13) and can be replayed
+with \texttt{Fitter.replay}; results created by releases before that
+feature retain only final parameters and settings. Hashes identify
+inputs but do not embed them: keep the original script/workflow, input
+files and environment alongside the project. A seed alone is
+insufficient; refitting the saved optimum can recompute different
+automatic search bounds.
 
 Import from \texttt{curvemole.core.serialization}:
 
@@ -8050,7 +8136,7 @@ archive validation and immediately before replacing the destination;
 raising cancels that replacement. It supports a caller's lock/digest
 guard and does not itself acquire a lock.
 
-The testing reader and validator accept
+The project reader and validator accept
 \texttt{limits=ArchiveLimits(...)}, imported from
 \texttt{curvemole.core.archive\_validation}. Defaults are 100,000 ZIP
 members, 1 GiB expanded content, 1 GiB per array and 512 MiB of
@@ -8099,28 +8185,29 @@ when applying to a different curve.
 \texttt{dump\_workflow(project,\ path)\ -\textgreater{}\ Path}. Current
 dumping emits workflow schema 3; new YAML keys require schema 3 so older
 software rejects them instead of ignoring processing stages. Outcome
-fields are \texttt{project}, \texttt{result}, \texttt{outputs}. In 1.2.0
-it also has \texttt{imported\_files:\ list{[}Path{]}} and
+fields are \texttt{project}, \texttt{result}, \texttt{outputs}. Since
+1.2.0 it also has \texttt{imported\_files:\ list{[}Path{]}} and
 \texttt{warnings:\ list{[}str{]}}, both defaulting to empty lists so the
 original three-field constructor remains valid. Relative paths resolve
 against the YAML directory. Dumping references source imports/models; it
 does not embed arbitrary transformed current data or all project state.
-Version 1.1.0 dump includes saved \texttt{curve\_ids}, which the loader
+Since 1.1.0, dumps include saved \texttt{curve\_ids}, which the loader
 maps to newly imported curve IDs in model selectors and
 \texttt{\$\{...\}} references. Ambiguous display-name aliases are not
 used as selectors; explicit saved curve identities disambiguate them.
 Links are resolved project-wide before fitting or export. Save
-\texttt{.fitproj} for full scientific state. The YAML audit details the
-complete import identity and reference format.
+\texttt{.fitproj} for full scientific state. The YAML automation audit
+(\texttt{ai-yaml-audit.md}) details the complete import identity and
+reference format.
 
-\hypertarget{beta-workflow-discovery-selection-and-preprocessing}{%
-\subsection{15.1 Beta workflow discovery, selection and
-preprocessing}\label{beta-workflow-discovery-selection-and-preprocessing}}
+\hypertarget{workflow-discovery-selection-and-preprocessing}{%
+\subsection{15.1 Workflow discovery, selection and
+preprocessing}\label{workflow-discovery-selection-and-preprocessing}}
 
-The following helpers require \textbf{1.2.0} and are module imports, not
-new package-root exports. They implement the same contract as the YAML
-runner; using Python is not required merely to enumerate a folder
-anymore.
+The following helpers require \textbf{1.2.0 or later} and are module
+imports, not new package-root exports. They implement the same contract
+as the YAML runner; using Python is not required merely to enumerate a
+folder anymore.
 
 From \texttt{curvemole.core.workflow\_inputs}:
 
@@ -8204,17 +8291,18 @@ selections are checked before mutation; a later data-dependent error can
 leave earlier in-memory edits. The workflow runner writes no outputs
 before these stages finish.
 
-Beta workflows additionally reject misspelled nested keys and unknown
-function-specific parameter names, support
+Schema-3 workflows additionally reject misspelled nested keys and
+unknown function-specific parameter names, support
 \texttt{models{[}{]}.curves}/\texttt{match} so one model specification
 can cover a batch, convert nested \texttt{columns.spectra} mappings, and
 provide \texttt{export.project\_overwrite=False} for project-file
 protection. Safe YAML formula definitions are now retained in
 \texttt{Project.custom\_functions} and emitted by
-\texttt{dump\_workflow}; they are not just registered in memory as in
-1.1.0. Dumped recipes still do not replay preprocessing, masks,
-transformed data, fit plans or exports. The YAML reference lists the
-exact new fields and complete runnable examples.
+\texttt{dump\_workflow}; 1.1.0 and earlier only registered them in
+memory. Dumped recipes still do not replay preprocessing, masks,
+transformed data, fit plans or exports. The YAML automation audit
+(\texttt{ai-yaml-audit.md}) lists the exact fields and complete runnable
+examples.
 
 \hypertarget{tables-exports-figures-and-notebooks}{%
 \section{16. Tables, exports, figures, and
@@ -8445,7 +8533,7 @@ command. Supply a few non-sensitive representative rows when needed;
 repository source is unnecessary for this documented surface.
 
 \begin{quote}
-Using the attached CurveMole 1.2.0 Python audit, write
+Using the attached CurveMole 1.4.2 Python audit, write
 \texttt{analysis.py} for Python 3.12+. CSV has named columns \texttt{x},
 \texttt{signal}, \texttt{sigma}. Fit constant background plus an
 area-normalized Gaussian near 520 with positive sigma, mask 530-532,
@@ -8466,7 +8554,7 @@ reference}\label{appendix-g.-yaml-workflow-reference}}
 
 \textbf{Stable API baseline: CurveMole 1.4.2.} \textbf{Workflow schema:
 3; legacy schemas 1 and 2 remain accepted. Checked on 2026-11-02.} This
-reference documents CurveMole 1.2.0, including folder/pattern imports,
+reference documents CurveMole 1.4.2, including folder/pattern imports,
 templates, shared selectors, preprocessing, validation and output
 controls. Use \texttt{schema\_version:\ 3} for these workflow fields.
 Schemas 1 and 2 retain their legacy fields; older executables can reject
@@ -8479,21 +8567,24 @@ older executables.
 
 \textbf{Scientific corrections (release, 2026-11-02).} The seven
 findings in the latest scientific audit are corrected in this edition:
-parameter scaling, nonlinear uncertainty derivatives, convolution
-alignment, compensated summation, profile confidence regions and saved
-execution provenance. Appendix J describes the changes and their limits.
-Use the documents attached to your exact release build; these
-corrections do not apply retroactively to earlier executables.
+units, parameter scaling and compensated summation; nonlinear formula
+uncertainty propagation; nonlinear linked-parameter uncertainty;
+convolution alignment on even-length grids; cancellation with fresh
+component IDs; profile confidence regions; and saved analysis
+provenance. Appendix J of the CurveMole user manual describes the
+changes and their limits. Use the documents attached to your exact
+release build; these corrections do not apply retroactively to earlier
+executables.
 
 \hypertarget{w1.-what-a-workflow-can-do}{%
 \section{W1. What a workflow can do}\label{w1.-what-a-workflow-can-do}}
 
 A workflow imports data into one new project and one series, constructs
 models, optionally runs one fit plan, and optionally saves a project and
-an analysis bundle. In 1.2.0, imports can select individual files, glob
-patterns or folders; optional preprocessing prepares the curves before
-model construction. The scientific engine is the same engine used by
-Python and the desktop application. YAML is a declarative recipe, not
+an analysis bundle. Since 1.2.0, imports can select individual files,
+glob patterns or folders; optional preprocessing prepares the curves
+before model construction. The scientific engine is the same engine used
+by Python and the desktop application. YAML is a declarative recipe, not
 Python code or a general task scheduler.
 
 The execution order is fixed:
@@ -8523,7 +8614,7 @@ The execution order is fixed:
   requested.
 \end{enumerate}
 
-The 1.2.0 preprocessing stage supports masks, fit ranges and the
+The preprocessing stage (1.2.0+) supports masks, fit ranges and the
 documented scalar/formula transformations. There are no YAML stages for
 background subtraction, curve-to-curve calculator operations, repeated
 fits, conditional branches, loops, live folder monitoring, opening an
@@ -8542,7 +8633,7 @@ the workflow's existing import options for batch imports.
 inspect}\label{w2.-run-validate-and-inspect}}
 
 Install the exact downloaded CurveMole wheel in a Python 3.12+
-environment. For the current operations install the \texttt{1.2.0}
+environment. For the current operations install the \texttt{1.4.2}
 wheel; older wheels may support only a subset of this interface. Then
 run:
 
@@ -8616,7 +8707,9 @@ Command-line usage error\strut
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 3\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Data/import failure; failed YAML validation reported as a result\strut
+\texttt{validate} found problems (listed in \texttt{failures}), or a
+data error at \texttt{run} such as a missing column, invalid values or
+an unknown function ID\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 4\strut
@@ -8631,16 +8724,23 @@ Project archive failure\strut
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 6\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Other CurveMole domain error, including plugin/workflow errors\strut
+Other CurveMole errors: missing input file/directory or a glob without
+matches, an invalid workflow passed to \texttt{run}, unreadable YAML or
+a wrong \texttt{schema\_version} (also for \texttt{validate}), plugin
+trust/loading errors, refused project overwrite\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.47\columnwidth}\raggedright
 10\strut
 \end{minipage} & \begin{minipage}[t]{0.47\columnwidth}\raggedright
-Unexpected failure, including some malformed nested YAML or file
+Unexpected failure, including some malformed nested YAML or bundle file
 collisions\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
+
+Run \texttt{validate} first: it lists all structural problems at once,
+while \texttt{run} stops at the first one with exit code 6. Function
+IDs, column selectors and data are checked only by \texttt{run}.
 
 For desktop use, select \textbf{Run automation} in the bottom
 \textbf{Automations} toolbar. The first run asks for a \texttt{.yml} or
@@ -8726,11 +8826,12 @@ The document root must be a mapping. Use a single YAML document, spaces
 for indentation, and literal field names from this reference. YAML is
 read with \texttt{yaml.safe\_load}. Use YAML booleans (\texttt{true},
 \texttt{false}), \texttt{null}, integers and numeric values rather than
-quoted versions of them. For example, \texttt{fixed:\ "false"} is a
-nonempty string and is converted to true by the runner. Prefer ordinary
-decimal notation such as \texttt{0.00000001} when a parser might read an
-exponent as a string. YAML \texttt{.inf}/\texttt{-.inf} can represent
-unbounded limits; \texttt{null} cannot replace a numeric bound.
+quoted versions of them. Quoted booleans and numbers are validation
+errors: for example, \texttt{fixed:\ "false"} is reported as ``must be a
+boolean''. Prefer ordinary decimal notation such as \texttt{0.00000001}
+when a parser might read an exponent as a string. YAML
+\texttt{.inf}/\texttt{-.inf} can represent unbounded limits;
+\texttt{null} cannot replace a numeric bound.
 
 All relative input paths, plugin manifest paths, project output paths
 and bundle paths resolve against the \textbf{workflow file's directory},
@@ -8741,16 +8842,26 @@ literal single-file path: put wildcard expressions in the \texttt{glob}
 field or use \texttt{directory}/\texttt{pattern}. Quote Windows paths
 with single quotes or use forward slashes. Extensions alone do not
 determine whether the text importer can read a file. The importer also
-reads calibrated SPE 2.x and SPE 3.0 spectra with one region of
-interest.
+reads calibrated SPE 2.x and SPE 3.0 spectra with one region of interest
+(SPE 3.0: height 1, at most 10,000 frames). For SPE files omit
+\texttt{config} (it is ignored); the columns are
+\texttt{"Wavelength\ {[}nm{]}"} (index 0) followed by
+\texttt{"Intensity\ 1"} \ldots{} \texttt{"Intensity\ N"}, one per frame,
+so map \texttt{x:\ 0} and \texttt{y:\ {[}1{]}} for the first frame.
+Directory imports default to \texttt{pattern:\ "*.csv"} and matching is
+case-sensitive: use \texttt{pattern:\ "*.spe"} (or \texttt{"*.SPE"}) for
+SPE folders.
 
 The validator rejects unknown keys in supported workflow blocks instead
 of silently accepting typos. Function-specific initial-parameter and
 constraint names are checked at execution after the function
 configuration/plugins are available. The 1.1.0 runner can ignore some
-unused keys, so validation there is weaker. Validation is not a
-substitute for inspecting imported curves, resolved parameters,
-convergence and output contents.
+unused keys, so validation there is weaker. Some checks happen only at
+\texttt{run}: custom function identifiers that collide with built-ins,
+percentage link tolerances of 100 or more, \texttt{similar} links with
+zero tolerance, and non-integer construction options such as polynomial
+\texttt{order:\ 2.0}. Validation is not a substitute for inspecting
+imported curves, resolved parameters, convergence and output contents.
 
 \hypertarget{w5.-top-level-fields}{%
 \section{W5. Top-level fields}\label{w5.-top-level-fields}}
@@ -8771,8 +8882,11 @@ Contract\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Required integer\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Beta uses \texttt{3}; legacy \texttt{1} and \texttt{2} accept only their
-older fields, with current global composition semantics\strut
+Use \texttt{3}; legacy \texttt{1} and \texttt{2} accept only their older
+fields, with current global composition semantics. Any schema-3 feature
+(batch imports, \texttt{curves}/\texttt{match} selectors,
+\texttt{preprocess}, nested \texttt{spectra}, templates,
+\texttt{project\_overwrite}) in a schema 1/2 file fails validation\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{name}\strut
@@ -8982,14 +9096,15 @@ silently choosing one: give those curves distinct \texttt{aliases} or
 string becomes a stable workflow identity that the runner maps to the
 newly generated runtime ID. Identities must be unique across all import
 items; duplicates raise an error. Use simple nonempty strings without
-dots, such as \texttt{sample\_a} and \texttt{sample\_b}, so canonical
-parameter references can split the identity from component/parameter
-names. These identities can select curves and, unlike display aliases
-alone, can occur inside
-\texttt{\$\{identity.component\_id.parameter\_name\}} links. The runner
-remaps only the first dotted segment of each reference, not arbitrary
-text or component display names. Identity entries take precedence over
-aliases with the same spelling; avoid accidental collisions.
+dots, braces or whitespace (validation rejects them), such as
+\texttt{sample\_a} and \texttt{sample\_b}, so canonical parameter
+references can split the identity from component/parameter names. These
+identities can select curves and, unlike display aliases alone, can
+occur inside \texttt{\$\{identity.component\_id.parameter\_name\}}
+links. The runner remaps only the first dotted segment of each
+reference, not arbitrary text or component display names. Identity
+entries take precedence over aliases with the same spelling; avoid
+accidental collisions.
 
 For one file, both lists follow the order returned by the importer. In
 batch imports the lists apply once to the flattened curves from all
@@ -9064,7 +9179,8 @@ importer\tabularnewline
 Only these plain fields and escaped braces are accepted. Attribute/index
 access, conversions and format specifiers are rejected.
 Template-generated identities must be unique, nonempty and suitable for
-canonical parameter paths; use simple strings without dots, for example
+canonical parameter paths; use simple strings without dots, braces or
+whitespace, for example
 \texttt{batch\_\{file\_index\}\_\{curve\_index\}}. Index-based
 identities are repeatable for a fixed file selection/order; adding or
 removing a file may change them. For enduring scientific identities, use
@@ -9172,8 +9288,9 @@ Leading comment markers after left whitespace is stripped\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{null}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Truthy means first retained row supplies column names; false/null means
-no header when config is explicit\strut
+\texttt{true} means first retained row supplies column names;
+\texttt{false}/\texttt{null} means no header when config is explicit.
+Must be a boolean or null\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{encoding}\strut
@@ -9307,8 +9424,11 @@ operation\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{{[}{]}}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Beta: nested per-spectrum mappings, converted to \texttt{ColumnMapping}
-objects\strut
+1.2.0+: nested per-spectrum mappings, converted to
+\texttt{ColumnMapping} objects. Put uncertainty selectors and
+\texttt{error\_confidence\_level} inside each entry; entries cannot nest
+\texttt{spectra} and cannot be combined with outer
+\texttt{x}/\texttt{y}/\texttt{pairs}\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
@@ -9406,7 +9526,7 @@ One workflow identity, unambiguous alias/name or actual curve ID\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{curves}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Beta alternative selector\strut
+1.2.0+ alternative selector\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{all}, \texttt{first}, \texttt{last}, or a nonempty list of
 identities/names/IDs\strut
@@ -9414,7 +9534,7 @@ identities/names/IDs\strut
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{match}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Beta alternative selector\strut
+1.2.0+ alternative selector\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 A name/identity wildcard pattern; must select at least one curve\strut
 \end{minipage}\tabularnewline
@@ -9439,6 +9559,15 @@ Components to append in order\strut
 \texttt{{[}{]}}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Component IDs ordering Multiply/Divide/Convolve operations\strut
+\end{minipage}\tabularnewline
+\begin{minipage}[t]{0.30\columnwidth}\raggedright
+\texttt{composition\_mode}\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Absent\strut
+\end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
+Legacy; accepts \texttt{global} or \texttt{ordered} but has no effect
+(all models use global roles). \texttt{dump\_workflow} writes
+\texttt{global}\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
@@ -9475,7 +9604,8 @@ Human-readable component label; never a parameter path\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 Generated \texttt{component\_\ldots{}} ID\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-Explicit stable component ID, unique within its model\strut
+Explicit stable component ID, unique within its model; no dots, braces
+or whitespace\strut
 \end{minipage}\tabularnewline
 \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{parameters}\strut
@@ -9597,8 +9727,9 @@ Constant function\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
 \texttt{y0\ \ldots{}\ yN:\ 0}\strut
 \end{minipage} & \begin{minipage}[t]{0.30\columnwidth}\raggedright
-\texttt{metadata.x\_nodes} supplies at least two finite strictly
-increasing X nodes\strut
+\textbf{Required} \texttt{metadata.x\_nodes}: at least two finite
+strictly increasing X nodes (one \texttt{yK} per node). Without it the
+run fails\strut
 \end{minipage}\tabularnewline
 \bottomrule
 \end{longtable}
@@ -9739,10 +9870,13 @@ Scalar transformation \texttt{operation} values are \texttt{y\_add},
 \texttt{value}; normalizations need no value. Division by zero and
 invalid normalization inputs fail. \texttt{custom\_formula} requires
 \texttt{axis:\ x} or \texttt{axis:\ y} plus \texttt{formula};
-\texttt{column\_formula} requires \texttt{target} and \texttt{formula}
-and can use retained \texttt{c1}, \texttt{c2}, \ldots{} columns. Both
-use the restricted expression vocabulary in W9, never arbitrary Python.
-For example:
+\texttt{column\_formula} requires \texttt{target} (\texttt{x},
+\texttt{y} or a retained column \texttt{cN}) and \texttt{formula} and
+can use retained \texttt{c1}, \texttt{c2}, \ldots{} columns,
+\texttt{\$\{original\ column\ label\}} references and \texttt{\^{}} as
+power (\texttt{custom\_formula} does not accept \texttt{\^{}}; use
+\texttt{**}). Both use the restricted expression vocabulary in W9, never
+arbitrary Python. For example:
 
 \begin{Shaded}
 \begin{Highlighting}[]
@@ -10152,9 +10286,10 @@ unusable uncertainty rows; intrinsically invalid X/Y remain excluded.
 defaults}\label{w11.-complete-solver-settings-and-defaults}}
 
 Only the following built-in settings are passed to \texttt{FitSettings};
-spell names exactly. An unrecognised setting raises \texttt{TypeError}.
-Do not add GUI-only controls such as propagation thresholds or Monte
-Carlo replicate counts here.
+spell names exactly. Validation reports an unrecognised setting as an
+unknown field, and \texttt{run} stops with exit code 6. Do not add
+GUI-only controls such as propagation thresholds or Monte Carlo
+replicate counts here.
 
 Built-in optimizers use dimensionless coordinates based on parameter and
 data scales; numerical Jacobians, automatic DE limits and bound
@@ -10432,16 +10567,22 @@ Positive integer stored correction pairs\strut
 \end{longtable}
 
 \texttt{local} with \texttt{auto} chooses an appropriate least-squares
-method. Explicit LM is incompatible with bounds and robust loss.
-Differential Evolution finds an initial solution then locally refines
-it. Finite user bounds take priority over its automatic search
-intervals; set scientifically meaningful finite bounds for difficult
-searches. Minimisers and local methods have different convergence
-properties; inspect results rather than relying only on solver
-termination. Multiple-worker independent fits support built-ins and safe
-custom formulas; executable plugin model functions cannot be
-reconstructed automatically in worker processes. \texttt{workers} is not
-a general parallelisation switch for every mode.
+method. Explicit LM (\texttt{solver:\ lm} or
+\texttt{local\_method:\ lm}) is incompatible with bounds and robust
+loss. Built-in peak widths (\texttt{sigma}, \texttt{gamma},
+\texttt{fwhm}) and \texttt{eta} always carry default bounds, so LM with
+gaussian, lorentzian, voigt or pseudo\_voigt components ends with
+\texttt{success:\ false} (exit code 0). Use LM only for models whose
+parameters are all unbounded (constant, linear, polynomial,
+cubic\_spline or unbounded formulas). Differential Evolution finds an
+initial solution then locally refines it. Finite user bounds take
+priority over its automatic search intervals; set scientifically
+meaningful finite bounds for difficult searches. Minimisers and local
+methods have different convergence properties; inspect results rather
+than relying only on solver termination. Multiple-worker independent
+fits support built-ins and safe custom formulas; executable plugin model
+functions cannot be reconstructed automatically in worker processes.
+\texttt{workers} is not a general parallelisation switch for every mode.
 
 \hypertarget{w12.-output-contract-and-reruns}{%
 \section{W12. Output contract and
@@ -10567,7 +10708,7 @@ not a filename:
 
 \begin{Shaded}
 \begin{Highlighting}[]
-\ExtensionTok{curvemole}\NormalTok{ run workflow.yml {-}{-}trust{-}plugin org.example.lab\_tools {-}{-}json}
+\ExtensionTok{curvemole}\NormalTok{ run workflow.yml {-}{-}trust{-}plugin org.example.lab{-}tools {-}{-}json}
 \end{Highlighting}
 \end{Shaded}
 
@@ -10617,17 +10758,17 @@ writes YAML containing imports and model/component specifications.
 Current dumping emits schema 3; the stable 1.1.0 dumper emits schema 2.
 \texttt{WorkflowOutcome} has \texttt{project}, \texttt{result}
 (\texttt{FitResult\ \textbar{}\ None}), and \texttt{outputs}
-(\texttt{list{[}Path{]}}). Beta adds \texttt{imported\_files}
-(\texttt{list{[}Path{]}}) and \texttt{warnings} (\texttt{list{[}str{]}})
-with empty-list defaults, preserving the original
-three-positional-argument constructor.
+(\texttt{list{[}Path{]}}). Since 1.2.0 it also has
+\texttt{imported\_files} (\texttt{list{[}Path{]}}) and \texttt{warnings}
+(\texttt{list{[}str{]}}) with empty-list defaults, preserving the
+original three-positional-argument constructor.
 
 \texttt{dump\_workflow} is a starting recipe, \textbf{not a complete
 project round trip}. It does not embed data arrays, transformed data,
 masks, preprocessing stages, results, a fit plan, exports or plugin
-declarations. Beta includes persisted safe custom-function definitions;
-the stable 1.1.0 dumper did not. It uses original source paths and saved
-import mappings, or a fallback
+declarations. Since 1.2.0 it includes persisted safe custom-function
+definitions; the 1.1.0 dumper did not. It uses original (absolute)
+source paths and saved import mappings, or a fallback
 \texttt{data/\textless{}curve-name\textgreater{}.csv} path that it does
 not create. It does not export the original series structure. A curve
 originally selected from one of multiple Y columns must have its dumped
@@ -10659,7 +10800,7 @@ Example prompt:
 
 \begin{quote}
 Use the attached CurveMole YAML audit as the API contract. I am running
-CurveMole 1.2.0. Create one schema-3 workflow for the attached column
+CurveMole 1.4.2. Create one schema-3 workflow for the attached column
 layout. Use only documented fields and function names. Ask for missing
 scientific assumptions. Return the complete YAML, the validate/run
 commands, the expected outputs, and any limitations. If the task needs
@@ -10679,19 +10820,20 @@ asking the AI to adapt a workflow.
 \chapter{Appendix H. Using the automation audits with an
 AI}\label{appendix-h.-using-the-automation-audits-with-an-ai}}
 
-\hypertarget{h.1-what-the-two-audits-are-for}{%
-\section{H.1 What the two audits are
-for}\label{h.1-what-the-two-audits-are-for}}
+\hypertarget{h.1-what-the-audits-are-for}{%
+\section{H.1 What the audits are
+for}\label{h.1-what-the-audits-are-for}}
 
-The two downloadable Markdown documents are self-contained context packs
-for creating CurveMole automations with an AI assistant. Each records
-the interfaces verified against the stable 1.1.0 API and the marked
-1.2.0 workflow additions, including exact names, configuration fields,
-defaults, examples, return values and practical limits. Here, ``audit''
-means an inspection of the implemented automation interface. It does not
-mean a security certification, an executable script, or an assessment of
-your scientific model. Neither document requires an AI service or
-uploads data from CurveMole.
+The downloadable Markdown audits are self-contained context packs for
+creating CurveMole automations (and, with the plugin API audit of H.5,
+plugins) with an AI assistant. Each records the interfaces verified
+against the release named in its ``Stable baseline'' line, with
+minimum-version labels such as ``1.2.0+'' for later additions, including
+exact names, configuration fields, defaults, examples, return values and
+practical limits. Here, ``audit'' means an inspection of the implemented
+automation interface. It does not mean a security certification, an
+executable script, or an assessment of your scientific model. Neither
+document requires an AI service or uploads data from CurveMole.
 
 \begin{longtable}[]{@{}lll@{}}
 \toprule
@@ -10739,10 +10881,10 @@ Section 18 and Appendix H.5\strut
 
 Python is appropriate for loops, conditional processing,
 existing-project editing, unsupported transformations, explicit
-uncertainty analyses or selective exports. In 1.2.0, YAML also supports
-folder/pattern imports, shared curve selectors, masking, fit ranges and
-the documented scalar/formula preprocessing. Use schema 3 for those
-additions. YAML follows a declarative sequence of imports,
+uncertainty analyses or selective exports. Since 1.2.0, YAML also
+supports folder/pattern imports, shared curve selectors, masking, fit
+ranges and the documented scalar/formula preprocessing. Use schema 3 for
+those additions. YAML follows a declarative sequence of imports,
 preprocessing, model construction, one fit and exports. YAML has no
 general task graph, loop, conditional, Python execution or uncertainty
 stage. Loading a plugin does not add arbitrary new YAML stages. The
@@ -10753,18 +10895,27 @@ imported data; it does not edit the open GUI project.
 \section{H.2 Download and version
 matching}\label{h.2-download-and-version-matching}}
 
-For 1.2.0, use the versioned audits attached to the exact release. The
-exact stable-source editions are also available here:
+Use the audits matching your installed release. The exact stable-source
+editions are available here:
 
 \begin{itemize}
 \tightlist
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-python-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.4.2/docs/ai-python-audit.md}{Download
   Python audit}
 \item
-  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.2.0/docs/ai-yaml-audit.md}{Download
+  \href{https://raw.githubusercontent.com/SebRoLENS/curvemole/v1.4.2/docs/ai-yaml-audit.md}{Download
   YAML audit}
 \end{itemize}
+
+Corrections to the audits published between releases are available from
+the \texttt{main} branch:
+\href{https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-python-audit.md}{Python},
+\href{https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-yaml-audit.md}{YAML}
+and
+\href{https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-plugin-audit.md}{plugin
+API}. Prefer these when their ``Stable baseline'' line matches your
+installed version.
 
 Save each page as a \texttt{.md} file. On GitHub, \textbf{Download raw
 file} also saves the Markdown source. In a source checkout they are in
@@ -10820,7 +10971,7 @@ cannot describe every user-installed extension.
 A YAML request can be written as:
 
 \begin{verbatim}
-Use the attached audit for CurveMole 1.2.0. Generate a complete schema-3
+Use the attached audit for CurveMole 1.4.2. Generate a complete schema-3
 workflow and the CLI commands to validate and run it. Import *.csv from data/
 in natural filename order. Files have a comma separator, a header and x, y, sigma_y
 columns; sigma_y means one standard deviation. Apply a constant background and
@@ -10835,7 +10986,7 @@ A Python request can be written as:
 
 \begin{verbatim}
 Use the attached Python automation audit as the interface reference for CurveMole
-1.1.0. Write a complete runnable script, including imports, for the input layout
+1.4.2. Write a complete runnable script, including imports, for the input layout
 and model I describe below. Use the documented core API and exact argument names.
 Check fit success and warnings, keep input files unchanged, and save a new project
 and an analysis bundle. Include installation and execution commands. Ask for
