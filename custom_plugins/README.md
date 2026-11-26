@@ -89,7 +89,9 @@ Updates preserve existing attribution. The repository owner can change
    exporter output, importer columns, known solver result, etc. Merely checking
    that the module imports is insufficient. Keep tests deterministic, offline,
    without interactive dialogs or dependencies beyond CurveMole's bundled stack.
-5. Run `python scripts/validate_community_plugins.py` from the repository root,
+5. Run `python scripts/validate_community_plugins.py` and
+   `ruff check custom_plugins/by_community/your_plugin` from the repository root
+   (the PR also fails on lint errors; `ruff check --fix` corrects import order),
    then open a PR describing the feature and the tests. GitHub repeats the checks
    on all three platforms. A maintainer reviews code and test quality before merge.
 
