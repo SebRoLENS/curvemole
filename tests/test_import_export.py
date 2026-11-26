@@ -250,3 +250,22 @@ def test_cross_spectrum_links_are_resolved_in_exports() -> None:
     assert resolved[target_path] == resolved[source_path] == 1.25
     assert not tidy.empty
     assert np.isfinite(tidy["value"]).all()
+
+
+def test_non_numeric_cells_are_reported_but_explicit_missing_values_are_not(tmp_path):
+    from curvemole.core.importers import ColumnMapping, import_file, non_numeric_summary
+
+    path = tmp_path / "values.csv"
+    path.write_text("x;y\n1,0;2,5\n2,0;\n3,0;1.234,5\n4,0;NaN\n5,0;4x\n", encoding="utf-8")
+    [curve] = import_file(path, ColumnMapping(x=0, y=[1]))
+    details = curve.metadata["import"]
+    assert details["non_numeric_values"] == {"y": 2}
+    assert any("data row(s) 3, 5" in warning for warning in details["warnings"])
+    assert int(curve.invalid.sum()) == 4
+    assert "2 non-numeric value(s)" in non_numeric_summary([curve])
+
+    clean = tmp_path / "clean.txt"
+    clean.write_text("1 2\n2 3\n3 4\n", encoding="utf-8")
+    [ordinary] = import_file(clean, ColumnMapping(x=0, y=[1]))
+    assert "non_numeric_values" not in ordinary.metadata["import"]
+    assert non_numeric_summary([ordinary]) is None

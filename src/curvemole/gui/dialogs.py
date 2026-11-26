@@ -119,7 +119,15 @@ class ImportMappingDialog(QDialog):
         self.header = QCheckBox(self.tr("First data row is a header"))
         self.header.setChecked(bool(self.inspection.config.header))
         settings_layout.addWidget(self.header)
+        settings_layout.addWidget(QLabel(self.tr("Ignore first rows:")))
+        self.skip_rows = QSpinBox()
+        self.skip_rows.setRange(0, 1_000_000)
+        self.skip_rows.setValue(int(self.inspection.config.skip_rows))
+        self.skip_rows.setToolTip(self.tr(
+            "Ignore this many physical lines at the beginning of the file before parsing."))
+        settings_layout.addWidget(self.skip_rows)
         settings_layout.addStretch(1)
+        self.skip_rows.valueChanged.connect(self._reload)
         self.delimiter.currentIndexChanged.connect(self._reload)
         self.decimal.currentTextChanged.connect(self._reload)
         self.header.toggled.connect(self._reload)
@@ -233,6 +241,7 @@ class ImportMappingDialog(QDialog):
             delimiter=self.delimiter.currentData(),
             decimal=self.decimal.currentText(),
             header=self.header.isChecked(),
+            skip_rows=self.skip_rows.value(),
         )
 
     def mapping(self) -> ColumnMapping:

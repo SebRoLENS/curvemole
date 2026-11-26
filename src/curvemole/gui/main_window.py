@@ -2109,6 +2109,10 @@ class MainWindow(QMainWindow):
                     curve.colour = palette[index % len(palette)]
             self._commit_import(series, destination)
             self._notify(self.tr("Imported ") + f"{len(series.curves)} " + self.tr("curve(s)."))
+            from curvemole.core.importers import non_numeric_summary
+
+            if (issues := non_numeric_summary(series.curves)) is not None:
+                self._notify(issues, warning=True)
         except Exception as exc:
             self._show_error(self.tr("Import data"), exc)
 
@@ -5549,13 +5553,25 @@ class MainWindow(QMainWindow):
             event.acceptProposedAction()
 
     def dropEvent(self, event: Any) -> None:
+        # Import validity follows file contents rather than the filename suffix.
         paths = [url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()]
         projects = [path for path in paths if Path(path).suffix.lower() == ".fitproj"]
-        data = [path for path in paths if Path(path).suffix.lower() in {".txt", ".dat", ".csv", ".tsv"}]
+        data = [path for path in paths
+                if Path(path).is_file() and Path(path).suffix.lower() != ".fitproj"]
         if projects:
+            ignored = len(projects) - 1 + len(data)
             self.open_project(projects[0])
+            if ignored:
+                self._notify(
+                    self.tr("Opened ") + Path(projects[0]).name + self.tr("; ignored ")
+                    + f"{ignored} " + self.tr("other dropped file(s). Drop a project on its own, "
+                                              "then drop data files to import them."),
+                    warning=True,
+                )
         elif data:
             self.import_data(data)
+        if paths:
+            event.acceptProposedAction()
 
 
 def _state_colour(state: CurveState) -> QColor:

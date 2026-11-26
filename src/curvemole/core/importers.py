@@ -295,6 +295,7 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                     raise DataValidationError("An error/weight column is already assigned as X or Y.")
     numeric_columns = {f"c{i}": _numeric(frame[name], selected.decimal)
                        for i, name in enumerate(frame.columns, 1)}
+    rejected: dict[str, np.ndarray] = {}
     numeric_columns = ImmutableColumns(numeric_columns)
     labels = {f"c{i}": str(name) for i, name in enumerate(frame.columns, 1)}
     column_keys = {name: f"c{i}" for i, name in enumerate(frame.columns, 1)}
@@ -321,6 +322,22 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
         sample_grid = (
             frame.attrs.get("sample_grid") if x_name == "Wavelength [nm]" and y_name != x_name else None
         )
+        curve_warnings = list(warnings)
+        non_numeric: dict[str, int] = {}
+        used = [x_column, y_column] + [getattr(spectrum, name) for name in (
+            "sigma_x", "sigma_y", "weights", "variance", "inverse_variance",
+            "error_y_plus", "error_y_minus")]
+        for name in dict.fromkeys(_column_name(frame, column) for column in used if column is not None):
+            if name not in rejected:
+                rejected[name] = _unparsed_rows(frame[name], numeric_columns[column_keys[name]])
+            rows = rejected[name]
+            if len(rows):
+                non_numeric[name] = int(len(rows))
+                shown = ", ".join(str(row) for row in rows[:5]) + (", …" if len(rows) > 5 else "")
+                curve_warnings.append(
+                    f"{len(rows)} non-numeric value(s) in column '{name}' were treated as missing "
+                    f"and excluded (data row(s) {shown})."
+                )
         curve = Curve(
             name=(str(y_name) if selected.header else f"Y — column {frame.columns.get_loc(y_name) + 1}")
             if mapping.as_separated_files or mapping.spectra else source.stem,
@@ -360,12 +377,29 @@ def _curves_from_frame(source: Path, mapping: ColumnMapping, selected: ImportCon
                     "error_y_minus_column": spectrum.error_y_minus,
                     "error_confidence_level": spectrum.error_confidence_level,
                     "as_separated_files": mapping.as_separated_files or bool(mapping.spectra),
-                    "warnings": warnings,
+                    "warnings": curve_warnings,
+                    **({"non_numeric_values": non_numeric} if non_numeric else {}),
                 }
             },
         )
         curves.append(curve)
     return curves
+
+
+def non_numeric_summary(curves: Iterable[Curve]) -> str | None:
+    """One user-facing sentence about cells skipped as non-numeric, if any."""
+    total = 0
+    names = []
+    for curve in curves:
+        counts = curve.metadata.get("import", {}).get("non_numeric_values", {})
+        if counts:
+            total += sum(counts.values())
+            names.append(curve.name)
+    if not total:
+        return None
+    listed = ", ".join(names[:3]) + (", …" if len(names) > 3 else "")
+    return (f"{total} non-numeric value(s) were treated as missing and excluded from "
+            f"{len(names)} curve(s): {listed}. See each curve's import details.")
 
 
 def import_many(
@@ -475,6 +509,24 @@ def _numeric(series: pd.Series, decimal: str) -> np.ndarray:
     if decimal == ",":
         values = values.str.replace(",", ".", regex=False)
     return pd.to_numeric(values, errors="coerce").to_numpy(dtype=float)
+
+
+_MISSING_TEXT = frozenset({"", "nan", "na", "n/a", "null", "none", "-", "--"})
+
+
+def unparsed_values(values: Iterable[str], parsed: np.ndarray) -> np.ndarray:
+    """1-based data rows whose non-empty text could not be read as a number.
+
+    Explicit missing-value markers (empty cells, NaN, NA, ...) are intentional
+    and are not reported; typing errors such as ``4x`` or ``1.234,5`` are.
+    """
+    text = np.asarray([str(value).strip().casefold() for value in values], dtype=object)
+    missing = np.isnan(parsed) & ~np.isin(text, list(_MISSING_TEXT))
+    return np.flatnonzero(missing) + 1
+
+
+def _unparsed_rows(series: pd.Series, parsed: np.ndarray) -> np.ndarray:
+    return unparsed_values(series.astype(str).tolist(), parsed)
 
 
 def _split(line: str, delimiter: str | None) -> list[str]:

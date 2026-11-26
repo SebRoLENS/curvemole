@@ -20,10 +20,6 @@ from curvemole.gui import background_navigation as _background_navigation  # noq
 # assuming that imported one-dimensional data are spectra.
 from curvemole.gui import data_series_management as _data_series_management  # noqa: F401,E402
 
-# Let import validity follow file contents rather than the filename suffix and
-# expose configurable leading-row skipping in the mapping preview.
-from curvemole.gui import import_flexibility as _import_flexibility  # noqa: F401,E402
-
 # Ensure multi-file imports follow human/numeric filename order rather than the
 # lexical order returned by the platform file dialog.
 from curvemole.gui import import_sort_fix as _import_sort_fix  # noqa: F401,E402

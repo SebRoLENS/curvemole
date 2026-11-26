@@ -107,6 +107,10 @@ def prepare_file(path, signature, x_column, y_column, entry, settings, cancellat
     acquisition.resolved_parameter_values()
     json.dumps(acquisition.ui_state.get("plugin_data", {}), allow_nan=False)
     imported = f"Imported {path.name}: {len(curves)} spectrum/spectra"
+    from curvemole.core.importers import non_numeric_summary
+
+    if (issues := non_numeric_summary(curves)) is not None:
+        imported = f"{imported}\nWARNING: {issues}"
     return acquisition, digest, f"{imported}\n{summary}" if summary else imported, destinations
 
 

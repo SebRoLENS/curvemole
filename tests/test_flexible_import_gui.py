@@ -116,3 +116,57 @@ def test_batch_import_series_name_and_later_rename(tmp_path, monkeypatch, apply_
     window.project.dirty = False
     window.close()
     app.processEvents()
+
+
+def test_import_reports_non_numeric_cells(tmp_path, monkeypatch):
+    app = QApplication.instance() or QApplication([])
+    path = tmp_path / "typo.txt"
+    path.write_text("x y\n1 2\n2 3\n3 4x\n4 5\n5 nan\n", encoding="utf-8")
+    window = CurveMoleMainWindow(Project())
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    monkeypatch.setattr(window, "_show_error", lambda title, exc: pytest.fail(f"{title}: {exc}"))
+    monkeypatch.setattr(ImportMappingDialog, "exec", lambda dialog: (dialog._accept(), dialog.result())[1])
+    notices = []
+    monkeypatch.setattr(window, "_notify", lambda message, warning=False: notices.append((message, warning)))
+    window.import_data([str(path)])
+    assert any(warning and "1 non-numeric value(s)" in message for message, warning in notices)
+    window.project.dirty = False
+    window.close()
+    app.processEvents()
+
+
+def test_dropping_a_project_with_data_reports_the_ignored_files(tmp_path, monkeypatch):
+    from PySide6.QtCore import QMimeData, QUrl
+
+    app = QApplication.instance() or QApplication([])
+    project = tmp_path / "analysis.fitproj"
+    data = tmp_path / "spectrum.txt"
+    project.write_bytes(b"")
+    data.write_text("x y\n0 1\n1 2\n", encoding="utf-8")
+    window = CurveMoleMainWindow(Project())
+    monkeypatch.setattr(window, "_automatic_update_check", lambda: None)
+    opened, imported, notices = [], [], []
+    monkeypatch.setattr(window, "open_project", opened.append)
+    monkeypatch.setattr(window, "import_data", imported.append)
+    monkeypatch.setattr(window, "_notify", lambda message, warning=False: notices.append((message, warning)))
+
+    class Drop:
+        def __init__(self, paths):
+            self.data = QMimeData()
+            self.data.setUrls([QUrl.fromLocalFile(str(item)) for item in paths])
+            self.accepted = False
+
+        def mimeData(self):
+            return self.data
+
+        def acceptProposedAction(self):
+            self.accepted = True
+
+    event = Drop([project, data])
+    window.dropEvent(event)
+    assert opened == [str(project)] and imported == [] and event.accepted
+    assert notices and notices[0][1] and "ignored 1" in notices[0][0]
+    window.dropEvent(Drop([data]))
+    assert imported == [[str(data)]]
+    window.close()
+    app.processEvents()
