@@ -90,6 +90,41 @@ def test_one_plan_avoids_duplicate_and_unrelated_jobs(paths, event, message, exp
     assert {key for key, enabled in result.items() if enabled} == expected
 
 
+def test_pull_request_plan_ignores_base_pushes_after_the_pr_was_opened(tmp_path, monkeypatch):
+    def git(*args):
+        return subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@example.com", *args],
+                              cwd=work, check=True, capture_output=True, text=True).stdout.strip()
+
+    origin, work = tmp_path / "origin.git", tmp_path / "work"
+    subprocess.run(["git", "init", "-q", "--bare", str(origin)], check=True)
+    subprocess.run(["git", "clone", "-q", str(origin), str(work)], check=True, capture_output=True)
+    (work / "README.md").write_text("base\n")
+    git("add", ".")
+    git("commit", "-qm", "base")
+    git("branch", "-M", "testing")
+    stale_base = git("rev-parse", "HEAD")
+    git("checkout", "-qb", "plugin")
+    (work / "custom_plugins/by_community/example").mkdir(parents=True)
+    (work / "custom_plugins/by_community/example/main.py").write_text("x = 1\n")
+    git("add", ".")
+    git("commit", "-qm", "plugin")
+    git("checkout", "-q", "testing")
+    (work / "tests").mkdir()
+    (work / "tests/test_new.py").write_text("\n")
+    git("add", ".")
+    git("commit", "-qm", "base advanced after the PR was opened")
+    git("merge", "-q", "--no-ff", "plugin", "-m", "test merge")
+    merge = git("rev-parse", "HEAD")
+    git("push", "-q", "origin", "testing")
+    monkeypatch.chdir(work)
+
+    base = policy.merge_base_parent(merge)
+    paths = git("diff", "--name-only", base, merge).splitlines()
+    assert base != stale_base
+    assert paths == ["custom_plugins/by_community/example/main.py"]
+    assert policy.plan(paths, "pull_request", "", "contributor")["plugins_only"]
+
+
 @pytest.mark.parametrize("signing,title,macos_instructions", [
     (None, "Windows and macOS downloads are unsigned.", True),
     ({"arm64": False, "x86_64": False}, "Windows and macOS downloads are unsigned.", True),
