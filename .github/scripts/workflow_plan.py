@@ -99,15 +99,26 @@ def check_plugin_submission(paths: list[str], event: dict, before: str, after: s
             raise SystemExit(f"{identifier}: set the manifest author to your GitHub username ({login}).")
 
 
+def merge_base_parent(merge_sha: str) -> str:
+    """First parent of a pull request's test merge commit: the base tip it was built on.
+
+    The event's ``pull_request.base.sha`` can predate later pushes to the base
+    branch, so diffing against it would count those pushes as part of the PR.
+    """
+    subprocess.run(["git", "fetch", "--no-tags", "--depth=2", "origin", merge_sha], check=True)
+    return subprocess.check_output(["git", "rev-parse", f"{merge_sha}^1"], text=True).strip()
+
+
 def main() -> None:
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     name = os.environ["GITHUB_EVENT_NAME"]
-    before = event.get("before") if name == "push" else event["pull_request"]["base"]["sha"]
     after = os.environ["GITHUB_SHA"]
+    before = merge_base_parent(after) if name == "pull_request" else event.get("before")
     if not before or set(before) == {"0"}:
         command = ["git", "ls-files", "-z"]
     else:
-        subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", before], check=True)
+        if name != "pull_request":
+            subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", before], check=True)
         command = ["git", "diff", "--name-only", "--no-renames", "-z", before, after]
     paths = [path for path in subprocess.check_output(command, text=True).split("\0") if path]
     if name == "pull_request":
