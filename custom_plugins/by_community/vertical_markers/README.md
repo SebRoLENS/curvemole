@@ -74,17 +74,26 @@ Once published in the validated catalog: **File > Plugin Manager > Browse
 validated plugins…** and install "Vertical markers".
 
 Manual installation: copy the `vertical_markers/` folder to a permanent
-location, then **File > Plugin Manager > Choose folder… > Scan**, select
+location, then **File > Plugin Manager > Choose plugin folder…**, select
 "Vertical markers", review the source and choose **Review and trust selected
 plugin…**. Every change to the files requires trusting the plugin again (source
 fingerprint).
 
 ## Tests
 
-With a Python installation of CurveMole 1.4.2 (PowerShell):
+With a Python installation of CurveMole 1.4.2, from the repository root.
+
+bash:
 
 ```bash
 QT_QPA_PLATFORM=offscreen python -m pytest custom_plugins/by_community/vertical_markers/test_plugin.py
+python scripts/validate_community_plugins.py
+```
+
+PowerShell:
+
+```powershell
+$env:QT_QPA_PLATFORM="offscreen"; python -m pytest custom_plugins/by_community/vertical_markers/test_plugin.py
 python scripts/validate_community_plugins.py
 ```
 
