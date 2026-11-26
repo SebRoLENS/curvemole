@@ -3483,7 +3483,8 @@ included with CurveMole; no additional dependencies are required.
 
 To share a plugin, open **File > Plugin manager > Share my plugin on GitHub...**.
 This opens the submission guide: fork the repository, upload your complete plugin
-folder at `custom_plugins/by_community/your_plugin/`, then open a pull request to main.
+folder at `custom_plugins/by_community/your_plugin/`, then open a pull request to the
+`testing` branch of `SebRoLENS/curvemole`.
 For private use, **Choose plugin folder...** installs it on your computer only;
 loading a plugin does not publish its source. **Browse validated plugins** opens
 the downloads that have passed the checks.
@@ -3507,8 +3508,10 @@ monitor. These are separately installed extensions, not automatically enabled
 CurveMole features. Authors submit a folder with
 manifest, module, licence, README and functional tests through a pull request.
 GitHub checks manifests, actual registered capabilities, loading/removal and tests
-on Linux, Windows and macOS. Only a successful main run publishes the validated
-catalog and tested plugin ZIP files. **Browse validated plugins** and **Install
+on Linux, Windows and macOS. A maintainer reviews and merges the pull request.
+The validated catalog and tested plugin ZIP files are published from a
+successful `main` run (at the next stable release) or, for an individual plugin,
+by the maintainer's separate plugin publication from `testing`. **Browse validated plugins** and **Install
 selected** provide the normal installation route inside the manager, with an
 explicit trust decision. Alternatively, use the stable downloads in the
 [plugin guide](../custom_plugins/README.md) or the separate

@@ -141,12 +141,13 @@ def promote(root: Path, version: str) -> None:
     ):
         destination, reference = root/'docs'/target, root/'docs'/source
         if destination.exists() and reference.exists():
-            prefix = destination.read_text().split(marker, 1)[0]
-            destination.write_text(prefix+marker+'\n\n'+reference.read_text().split('\n', 1)[1].lstrip())
+            prefix = destination.read_text(encoding='utf-8').split(marker, 1)[0]
+            destination.write_text(prefix+marker+'\n\n'+reference.read_text(encoding='utf-8').split('\n', 1)[1].lstrip(),
+                                   encoding='utf-8')
     manual = root/'docs/manual.md'
     if not manual.exists():
         return
-    text = manual.read_text()
+    text = manual.read_text(encoding='utf-8')
     for name, marker, title in (
         ('python-api.md', 'PYTHON SCRIPTING REFERENCE', '## Appendix F. Python scripting reference'),
         ('workflows.md', 'YAML WORKFLOW REFERENCE', '## Appendix G. YAML workflow reference'),
@@ -157,5 +158,5 @@ def promote(root: Path, version: str) -> None:
         if reference.exists() and start in text and end in text:
             before, rest = text.split(start, 1)
             _, after = rest.split(end, 1)
-            text = before+start+'\n\n'+appendix(reference.read_text(), title)+'\n\n'+end+after
-    manual.write_text(text)
+            text = before+start+'\n\n'+appendix(reference.read_text(encoding='utf-8'), title)+'\n\n'+end+after
+    manual.write_text(text, encoding='utf-8')
