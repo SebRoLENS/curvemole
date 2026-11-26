@@ -807,7 +807,12 @@ class FitPlanDialog(QDialog):
             spin.setDecimals(3)
             spin.setSuffix(" %")
             spin.setValue(value)
-            spin.setToolTip(self.tr("Applied to the current parameter value only where an explicit bound is absent. At zero a data-based scale is used."))
+            spin.setToolTip(self.tr(
+                "Applied to the current parameter value only where an explicit bound is absent. "
+                "At zero a data-based scale is used. Differential Evolution searches only inside "
+                "these limits: with the default 50 %, it cannot reach a value more than 50 % away "
+                "from the starting value. Widen these limits or set explicit "
+                "bounds when the starting values are uncertain."))
         bound_row.addWidget(QLabel(self.tr("Below")))
         bound_row.addWidget(self.de_lower_percent)
         bound_row.addWidget(QLabel(self.tr("Above")))
