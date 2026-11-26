@@ -17,6 +17,7 @@ Qt is imported only when the panel is created.
 
 from __future__ import annotations
 
+import contextlib
 import math
 import re
 
@@ -272,8 +273,16 @@ def _build_panel_class():  # noqa: C901 - Qt class built lazily
     from PySide6.QtCore import Qt, QTimer
     from PySide6.QtGui import QBrush, QColor, QKeySequence, QShortcut
     from PySide6.QtWidgets import (
-        QCheckBox, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QListWidget,
-        QListWidgetItem, QPushButton, QVBoxLayout, QWidget,
+        QCheckBox,
+        QHBoxLayout,
+        QInputDialog,
+        QLabel,
+        QLineEdit,
+        QListWidget,
+        QListWidgetItem,
+        QPushButton,
+        QVBoxLayout,
+        QWidget,
     )
 
     class MarkerPanel(QWidget):
@@ -569,10 +578,8 @@ def _build_panel_class():  # noqa: C901 - Qt class built lazily
         def _close_session(self):
             session, self._session = self._session, None
             if session is not None and not getattr(session, "closed", False):
-                try:
+                with contextlib.suppress(Exception):  # already expired
                     session.close()
-                except Exception:  # noqa: BLE001 - already expired
-                    pass
 
         def _uncheck_mode(self):
             self._mode_button.blockSignals(True)
