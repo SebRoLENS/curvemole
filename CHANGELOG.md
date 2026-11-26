@@ -9,6 +9,19 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ### Changed
 
 - Show full spectra, masks and fitted peaks in the Fityk importer [publish plugin: fityk_importer]. ([`fae7789c`](https://github.com/SebRoLENS/curvemole/commit/fae7789cda268c53a23dcde1894577b4e7422a61))
+- Find weak peaks and estimate peak heights above the local background. ([`00a63e44`](https://github.com/SebRoLENS/curvemole/commit/00a63e44a35786ddeddc61fe796f79bc71e62189))
+- Warn when imported files contain non-numeric values. ([`fa52386e`](https://github.com/SebRoLENS/curvemole/commit/fa52386e1787e3de22aaa3201507655f94c5504f))
+- Remove unused and shadowed code. ([`40b73a3e`](https://github.com/SebRoLENS/curvemole/commit/40b73a3e1d75d936b1c3fe8bf4b521c012bb4fd1))
+- Compare dropped paths independently of the Windows separator. ([`a7d22c09`](https://github.com/SebRoLENS/curvemole/commit/a7d22c09a09b21047e599bca7ec8cec35f22a5eb))
+
+### Fixed
+
+- Correct bootstrap uncertainty for fits with few data points. ([`90247575`](https://github.com/SebRoLENS/curvemole/commit/9024757539c41aaf3d44d167f2644d7731cf18e9))
+- Harden and speed up GitHub workflows. ([`e0ebe068`](https://github.com/SebRoLENS/curvemole/commit/e0ebe06801eecd36f42e2788b1041bad65b32213))
+
+### Documentation
+
+- Explain the Differential Evolution search limits in Fit settings. ([`ce62b8f1`](https://github.com/SebRoLENS/curvemole/commit/ce62b8f1621f9e86643dd289d60d29144891f4d3))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.4.2] - 2026-11-24

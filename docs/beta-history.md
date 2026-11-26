@@ -2,6 +2,46 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.4.3-beta.179](https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.3-beta.179) — published 2026-11-26
+
+Changes since `v1.4.0-beta.163` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.4.0-beta.163...v1.4.3-beta.179)).
+
+### Added
+
+- Add optional fit, background and scale uncertainty to ruby pressure. ([`34c767a8`](https://github.com/SebRoLENS/curvemole/commit/34c767a8500ecbd29a2f5b4b87fd19635ee2c89b))
+
+### Changed
+
+- Set Ruby fluorescence plugin version to 1.0.0. ([`0f3dac2c`](https://github.com/SebRoLENS/curvemole/commit/0f3dac2c27623eca0a2959c35a4a2d51f09d9460))
+- Set Cosmic Ray Removal plugin version to 1.0.0. ([`b9c65b0c`](https://github.com/SebRoLENS/curvemole/commit/b9c65b0c57c1ac01bb343e67971b0882b567d907))
+- Credit MAtti0201 for the community TSV exporter. ([`6f5c56f8`](https://github.com/SebRoLENS/curvemole/commit/6f5c56f8602fc3ec111b52978e7dcce6adfefd82))
+- Check plugin contributor identity and trust official developer downloads. ([`b5497bfb`](https://github.com/SebRoLENS/curvemole/commit/b5497bfbacf2fa7ce96380cc728a93c0a017375d))
+- Offer conditional and joint uncertainty analysis after background subtraction. ([`76ac31ff`](https://github.com/SebRoLENS/curvemole/commit/76ac31ff22c66980606aa6cfd85924d90e76f981))
+- Show background uncertainty intervals in the model panel. ([`930916d2`](https://github.com/SebRoLENS/curvemole/commit/930916d2e62ef09eaf7f8b59e198733896d0bfcb))
+- Verify the background uncertainty dialog on macOS. ([`088c29c3`](https://github.com/SebRoLENS/curvemole/commit/088c29c3091eee16fca8daa73893e21858d60c14))
+- Use detector pixels for block bootstrap on calibrated SPE spectra. ([`8a2971fd`](https://github.com/SebRoLENS/curvemole/commit/8a2971fd01987cb7a82c84d0dab1132b6f9dd330))
+- Recalculate ruby pressure when full uncertainty is toggled. ([`2c0599cf`](https://github.com/SebRoLENS/curvemole/commit/2c0599cfa1cc4ec0e453dcdb2525b8d4c8c3c70e))
+- Import calibrated LightField SPE 3.0 spectra. ([`8782de9a`](https://github.com/SebRoLENS/curvemole/commit/8782de9a072f4b2a7e4ffcfba7fd89949723b691))
+- Configure Ruby pressure uncertainty and show pressure during bootstrap. ([`10fc7acf`](https://github.com/SebRoLENS/curvemole/commit/10fc7acfc27b9d66b787ff5b9c79a946be724daa))
+- Publish plugin fixes independently from CurveMole releases [publish plugin: ruby_fluo_pressure_monitor]. ([`01ec16b0`](https://github.com/SebRoLENS/curvemole/commit/01ec16b0fa509feef69d1ed367640bc61d1cb576))
+- Keep the SPE 3.0 manual and automation references in sync. ([`e561495f`](https://github.com/SebRoLENS/curvemole/commit/e561495f06f37113b07c118468283b459d8f4ff6))
+- Show full spectra, masks and fitted peaks in the Fityk importer [publish plugin: fityk_importer]. ([`fae7789c`](https://github.com/SebRoLENS/curvemole/commit/fae7789cda268c53a23dcde1894577b4e7422a61))
+- Find weak peaks and estimate peak heights above the local background. ([`00a63e44`](https://github.com/SebRoLENS/curvemole/commit/00a63e44a35786ddeddc61fe796f79bc71e62189))
+- Warn when imported files contain non-numeric values. ([`fa52386e`](https://github.com/SebRoLENS/curvemole/commit/fa52386e1787e3de22aaa3201507655f94c5504f))
+- Remove unused and shadowed code. ([`40b73a3e`](https://github.com/SebRoLENS/curvemole/commit/40b73a3e1d75d936b1c3fe8bf4b521c012bb4fd1))
+- Compare dropped paths independently of the Windows separator. ([`a7d22c09`](https://github.com/SebRoLENS/curvemole/commit/a7d22c09a09b21047e599bca7ec8cec35f22a5eb))
+
+### Fixed
+
+- Preserve queued testing builds across successive pushes. ([`1bd63b7f`](https://github.com/SebRoLENS/curvemole/commit/1bd63b7f62b7ce2acef99fde5e5e340605920755))
+- Preserve known Y rescaling in joint background uncertainty fits. ([`3588d287`](https://github.com/SebRoLENS/curvemole/commit/3588d287445c8cc469d077ff15ee8141833a428d))
+- Correct bootstrap uncertainty for fits with few data points. ([`90247575`](https://github.com/SebRoLENS/curvemole/commit/9024757539c41aaf3d44d167f2644d7731cf18e9))
+- Harden and speed up GitHub workflows. ([`e0ebe068`](https://github.com/SebRoLENS/curvemole/commit/e0ebe06801eecd36f42e2788b1041bad65b32213))
+
+### Documentation
+
+- Explain the Differential Evolution search limits in Fit settings. ([`ce62b8f1`](https://github.com/SebRoLENS/curvemole/commit/ce62b8f1621f9e86643dd289d60d29144891f4d3))
+
 ## [1.4.0-beta.163](https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.0-beta.163) — published 2026-11-23
 
 Changes since `v1.3.3-beta.162` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.3.3-beta.162...v1.4.0-beta.163)).
