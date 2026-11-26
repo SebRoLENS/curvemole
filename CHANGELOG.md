@@ -6,6 +6,10 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 ## [Unreleased]
 
 <!-- BEGIN AUTOMATED CHANGES: do not edit inside this block -->
+### Added
+
+- Add Vertical markers community plugin. ([`de64ae52`](https://github.com/SebRoLENS/curvemole/commit/de64ae52d87539fdf26e8ea72b6974c8b76091d4))
+
 ### Changed
 
 - Show full spectra, masks and fitted peaks in the Fityk importer [publish plugin: fityk_importer]. ([`fae7789c`](https://github.com/SebRoLENS/curvemole/commit/fae7789cda268c53a23dcde1894577b4e7422a61))
@@ -26,6 +30,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - docs: add AI plugin API audit and link it from README and manual. ([`4d8410a8`](https://github.com/SebRoLENS/curvemole/commit/4d8410a8d6e5373ee328a1b3f76042db29642762))
 - docs: link the AI plugin API audit from the website. ([`b3b2c6de`](https://github.com/SebRoLENS/curvemole/commit/b3b2c6de203d59b33568f7800610048d25ce8ee4))
 - docs: correct and refresh the AI Python and YAML automation audits. ([`cdc84f9b`](https://github.com/SebRoLENS/curvemole/commit/cdc84f9b6deaff97334cfa32c4b114eb32c53860))
+- docs: add ruff lint guidance to the AI plugin audit. ([`3ee5cb1b`](https://github.com/SebRoLENS/curvemole/commit/3ee5cb1bab0c792fc71c4b8ac6907a57c896631b))
 <!-- END AUTOMATED CHANGES -->
 
 ## [1.4.2] - 2026-11-24
