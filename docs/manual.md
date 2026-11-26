@@ -29,6 +29,7 @@ Useful links:
 - [Quick Start](quick-start.md)
 - [Python automation audit](ai-python-audit.md)
 - [YAML automation audit](ai-yaml-audit.md)
+- [Plugin API audit for AI-assisted plugin development](ai-plugin-audit.md)
 
 ## 1. About this manual
 
@@ -3391,7 +3392,9 @@ fit algorithms, transformations, analyses, commands, workflows, panels, plot lay
 and lifecycle notifications. Full contracts and runnable examples are in
 [Creating and managing plugins](plugins.md). Built-ins cannot be replaced through
 this API; contributed entries carry a plugin-specific symbol and identify the
-providing plugin in their tooltip.
+providing plugin in their tooltip. To develop a plugin with an AI assistant, attach
+the self-contained [plugin API audit](ai-plugin-audit.md); Appendix H.5 explains
+how to use it.
 
 ### 18.4 Trust boundary
 
@@ -6213,6 +6216,7 @@ Neither document requires an AI service or uploads data from CurveMole.
 | Python script, notebook or custom batch logic | [Python automation audit](ai-python-audit.md) | Appendix F |
 | A `.yml` or `.yaml` file for `curvemole run` or the desktop Run automation button | [YAML automation audit](ai-yaml-audit.md) | Appendix G |
 | Advice on which interface can perform a task | Both audits | Appendices F and G |
+| A new plugin (menu command, exporter, importer, panel, fit algorithm, model function, import processor) | [Plugin API audit](ai-plugin-audit.md) | Section 18 and Appendix H.5 |
 
 Python is appropriate for loops, conditional processing, existing-project editing,
 unsupported transformations, explicit uncertainty analyses or selective exports.
@@ -6332,6 +6336,42 @@ Keep the generated script or YAML, the exact audits supplied to the AI, the soft
 version, input data, settings, random seeds and output files together. Correct
 execution and fit convergence are necessary checks; the scientific interpretation
 still requires the checks in Section 1.4.
+
+### H.5 Developing plugins with the plugin API audit
+
+The third downloadable document, the **plugin API audit**
+([ai-plugin-audit.md](ai-plugin-audit.md)), is the equivalent context pack for
+executable plugins rather than automations. It records the plugin API `"1"`
+contract as implemented in CurveMole 1.4.2: manifest fields and validation rules,
+loading, trust and source fingerprints, the registration API, every extension
+kind with its callback contract and menu location, the detached project context
+and Undo commit rules, panel services and main-graph plot sessions, threading
+limits, test patterns and the community validator. It also states which
+exceptions disable a plugin, so that the generated code reports ordinary user
+mistakes instead of disabling itself.
+
+Download the current edition from
+[GitHub](https://raw.githubusercontent.com/SebRoLENS/curvemole/main/docs/ai-plugin-audit.md)
+and attach the file to the AI conversation. Describe the feature, where it should
+appear (exporter, analysis, panel, solver, function...), the scientific method,
+units, inputs, outputs and your installed CurveMole version. Ask for a complete
+plugin folder: manifest, module, `README.md`, `LICENSE` and functional pytest
+tests. Attach the Python automation audit too when the plugin builds models or
+runs fits.
+
+```text
+Use only the attached CurveMole plugin API audit to write a complete plugin
+for CurveMole 1.4.2. The plugin should add an analysis command that reports
+the integrated area of the active spectrum between two x values stored in the
+plugin settings. Deliver the manifest, module, README, LICENSE and pytest tests.
+List assumptions and flag anything the plugin API cannot do.
+```
+
+Plugins are executable Python code. Before trusting a generated plugin in
+**File > Plugin Manager**, read its source, run its tests and try it on a copy of
+your project. To share it, follow Section 18.7 and run the community validator.
+The audit describes the plugin interface; it is not a security review of the
+generated code.
 
 
 ## Appendix I. Release integrity and resource limits

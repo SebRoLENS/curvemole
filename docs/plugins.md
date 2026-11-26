@@ -5,6 +5,10 @@ solvers or functions through the supported API. Every contribution has its plugi
 menu or selector and identifies its providing plugin in the tooltip.
 Executable Python plugins are different from safe custom-function/formula JSON files.
 
+To write a plugin with an AI assistant, attach the self-contained
+[plugin API audit](ai-plugin-audit.md) to the conversation. It condenses this
+guide and the implemented host contract for API 1.
+
 ## Citing CurveMole in analyses that use plugins
 
 Cite the **exact CurveMole host version** in your bibliography and state its
