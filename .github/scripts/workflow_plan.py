@@ -30,11 +30,23 @@ PLUGIN_PATHS = (
     "src/curvemole/plugin_fingerprint.py",
     ".github/workflows/community-plugins.yml",
 )
+# Plugin folders that the application's own test suite does not read. The TSV
+# exporter is excluded: tests/test_startup_imports.py benchmarks it.
+PLUGIN_ONLY_PATHS = ("custom_plugins/by_community/", "custom_plugins/by_main_developer/")
+SOURCE_TEST_PLUGIN_PATHS = ("custom_plugins/by_community/tsv_exporter/",)
 
 
 def touches(paths: list[str], patterns: tuple[str, ...]) -> bool:
     return any(path.startswith(pattern) if pattern.endswith("/") else path == pattern
                for path in paths for pattern in patterns)
+
+
+def plugins_only(paths: list[str]) -> bool:
+    """True when a change touches only plugin folders, so source tests cannot change."""
+    return bool(paths) and all(
+        touches([path], PLUGIN_ONLY_PATHS) and not touches([path], SOURCE_TEST_PLUGIN_PATHS)
+        for path in paths
+    )
 
 
 def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bool]:
@@ -47,6 +59,7 @@ def plan(paths: list[str], event: str, message: str, actor: str) -> dict[str, bo
         "screenshots": screenshots,
         "plugins": touches(paths, PLUGIN_PATHS),
         "candidate": push and "[skip release]" in message and touches(paths, RELEASE_PATHS),
+        "plugins_only": plugins_only(paths),
     }
 
 

@@ -815,7 +815,9 @@ process with `QT_QPA_PLATFORM=offscreen`: load with trust, compare registered
 kinds with `capabilities`, disable and verify all contributions are gone
 (60 s limit); then run `pytest` on `test_file` (120 s limit). The folder
 fingerprint must be identical before and after. GitHub runs this on Linux,
-Windows and macOS.
+Windows and macOS. A pull request that changes only plugin folders skips
+CurveMole's own test matrix; lint (Section 12.4) and this validation still run,
+and the aggregate `CI result` check must pass.
 
 ### 12.4 Lint (community plugins)
 

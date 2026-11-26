@@ -93,7 +93,7 @@ Updates preserve existing attribution. The repository owner can change
    `ruff check custom_plugins/by_community/your_plugin` from the repository root
    (the PR also fails on lint errors; `ruff check --fix` corrects import order),
    then open a PR describing the feature and the tests. GitHub repeats the checks
-   on all three platforms. A maintainer reviews code and test quality before merge.
+   on all three platforms; the aggregate `CI result` check must be green. A maintainer reviews code and test quality before merge.
 
 | Manifest field | Requirement |
 | --- | --- |
@@ -117,19 +117,24 @@ The generated catalog records a SHA-256 fingerprint of every submitted plugin fo
 
 ## Repository settings for maintainers
 
-In GitHub **Settings > Rules > Rulesets**, protect the target branches, require
-review approval, an up-to-date contribution branch, and these status checks for
-plugin submissions:
+Every pull request reports one aggregate status check, **`CI result`**, which fails
+when any planned CI job fails or is cancelled: the provenance check (`plan`,
+which also enforces the manifest `author`), `validate / lint`, the source tests,
+documentation, and for plugin changes `Validate plugins / ubuntu-22.04`,
+`windows-2025` and `macos-15`. Pull requests that change only plugin folders
+under `by_community/` or `by_main_developer/` (except the TSV exporter, which the
+source tests use) skip CurveMole's own test matrix: those tests cannot read the
+plugin, while lint and the three-platform plugin validation still run.
+Do not merge a contribution unless `CI result` is green.
 
-- `Validate plugins / ubuntu-22.04`
-- `Validate plugins / windows-2022`
-- `Validate plugins / macos-15`
-
-Also retain the CI plan check, which checks the submission's origin.
-Require owner review for the workflow, validator,
-and community submissions. Workflow files alone cannot make checks mandatory or
-prevent an administrator from merging directly. The catalog job remains gated by
-all three platform jobs, independently of branch protection.
+The repository ruleset **Protect main and testing** (Settings > Rules > Rulesets)
+blocks deletion and force pushes of `main` and `testing`; the repository admin
+can bypass it. Required pull requests, approvals and required status checks are
+**not** enforced by a ruleset: the release, promotion, documentation and DOI
+workflows push to these branches with `GITHUB_TOKEN`, and a personal repository
+cannot exempt GitHub Actions from such rules. Enforcing them would require these
+workflows to push with a GitHub App token added as a bypass actor. Until then the
+merge decision rests on the maintainer, who is the only account with write access.
 
 Tests establish tested compatibility, not absence of every bug or malicious code.
 Python plugins execute with the user's permissions. CI uses disposable hosted workers,
