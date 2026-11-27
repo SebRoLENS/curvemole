@@ -929,6 +929,10 @@ class FitPlanDialog(QDialog):
         buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+        from curvemole.gui import sequential_plan_controls
+
+        sequential_plan_controls.build_sequential_controls(self)
+        sequential_plan_controls.build_propagation_controls(self)
 
     def _update_solver_options(self, index: int) -> None:
         self.solver.setToolTip(self.solver.itemData(index, Qt.ItemDataRole.ToolTipRole) or "")
@@ -960,7 +964,7 @@ class FitPlanDialog(QDialog):
         if hasattr(self, "_refresh_sources"):
             self._refresh_sources()
 
-    def plan(self) -> FitPlan:
+    def _base_plan(self) -> FitPlan:
         curve_ids: list[str] = []
         weights: dict[str, float] = {}
         for row in range(self.curves.rowCount()):
@@ -1018,7 +1022,7 @@ class FitPlanDialog(QDialog):
                                 )
                             )
 
-    def _accept(self) -> None:
+    def _base_accept(self) -> None:
         try:
             plan = self.plan()
             plan.validate()
@@ -1027,6 +1031,29 @@ class FitPlanDialog(QDialog):
             QMessageBox.warning(self, self.tr("Fit plan"), str(exc))
             return
         self.accept()
+
+    def plan(self):
+        from curvemole.gui import sequential_plan_controls
+
+        result = sequential_plan_controls.sequential_plan(self, self._base_plan())
+        return sequential_plan_controls.propagation_plan(self, result)
+
+    def _accept(self) -> None:
+        from curvemole.gui import sequential_plan_controls
+
+        if sequential_plan_controls.sequential_accept_check(self):
+            self._base_accept()
+
+    def _sequential_source_changed(self) -> None:
+        from curvemole.gui import sequential_plan_controls
+
+        sequential_plan_controls.sequential_source_changed(self)
+
+    def _update_sequential_controls(self) -> None:
+        from curvemole.gui import sequential_plan_controls
+
+        sequential_plan_controls.update_sequential_controls(self)
+        sequential_plan_controls.update_propagation_controls(self)
 
 
 class CopyFitDialog(QDialog):

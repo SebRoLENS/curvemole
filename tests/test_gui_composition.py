@@ -54,7 +54,7 @@ def test_runtime_class_patching_does_not_grow():
                   if callable(value) and not isinstance(value, Signal)
                   and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
     """)
-    assert int(output) <= 35
+    assert int(output) <= 26
 
 
 def test_building_blocks_do_not_import_the_window_or_its_extensions():
@@ -107,3 +107,17 @@ def test_undo_commands_are_pushed_only_through_the_undo_service():
     offenders = [str(path.relative_to(source)) for path in source.rglob("*.py")
                  if path.name != "undo_service.py" and "undo_stack.push(" in path.read_text(encoding="utf-8")]
     assert offenders == []
+
+
+def test_fit_flow_is_native_and_the_fit_dialog_is_not_patched():
+    output = _run("""
+        from curvemole.gui.dialogs import FitPlanDialog
+        from curvemole.gui.main_window import MainWindow
+        names = ("_fit_finished", "quick_fit", "resume_sequence", "terminate_sequence", "_task_done",
+                 "_run_background", "refresh_all", "apply_theme", "start_uncertainty")
+        modules = {getattr(MainWindow, name).__module__ for name in names}
+        modules |= {value.__module__ for value in vars(FitPlanDialog).values()
+                    if callable(value) and hasattr(value, "__module__")}
+        print(sorted(modules))
+    """)
+    assert output.strip() == "['curvemole.gui.dialogs', 'curvemole.gui.main_window']"

@@ -1,11 +1,12 @@
 """Qt desktop client for the CurveMole scientific engine.
 
 The modules below extend MainWindow, PlotWorkspace and the panels when they are
-imported. Their ORDER IS SIGNIFICANT: several wrap a method that an earlier one
-installed (for example sequential_propagation_options wraps a FitPlanDialog
-method added by sequential_fit_ui). The list is therefore kept in this explicit
-order rather than sorted automatically; append new extensions at the end and
-see tests/test_gui_composition.py.
+imported. Their ORDER IS SIGNIFICANT where one wraps a method that an earlier
+one installed, so the list is kept in this explicit order rather than sorted
+automatically. New behaviour should not be added this way: use real methods,
+controllers (background, fit, uncertainty, project session, task runner) and
+``gui.window_extensions`` contributions instead; tests/test_gui_composition.py
+caps the number of methods still installed from outside MainWindow.
 """
 # isort: skip_file
 
@@ -65,27 +66,11 @@ from curvemole.gui import peak_placement_zoom_fix as _peak_placement_zoom_fix  #
 # residual visibility grouped with the display controls requested by the user.
 from curvemole.gui import plot_controls_fix as _plot_controls_fix  # noqa: F401,E402
 
-# Keep mouse-wheel zoom selected by the user while Quick Fit runs and completes.
-from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F401,E402
-
 # Unify Quick Add, automatic peak detection, and Function Builder around the shared
 # function registry, with a persistent user-selected function-library directory.
 from curvemole.gui import quick_function_library as _quick_function_library  # noqa: F401,E402
 
 
-# Add propagating sequential-fit controls plus pause/resume state that survives
-# manual intervention on a suspicious spectrum.
-from curvemole.gui import sequential_fit_ui as _sequential_fit_ui  # noqa: F401,E402
-
-# Add configurable source-model propagation and allow selected functions to be
-# ignored by the parameter-change pause trigger.
-from curvemole.gui import (
-    sequential_propagation_options as _sequential_propagation_options,  # noqa: F401,E402
-)
-
-# Keep a persistent, directly visible Continue button in the status bar while a
-# sequential fit is paused for manual intervention.
-from curvemole.gui import sequential_resume_button as _sequential_resume_button  # noqa: F401,E402
 
 # Add per-spectrum numeric export for data, fitted components, total fit, background,
 # and residuals while preserving the original source extension.

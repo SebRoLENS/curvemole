@@ -7,7 +7,6 @@ import json
 import math
 import os
 import re
-import time
 from collections import Counter
 from collections.abc import Callable
 from importlib import resources
@@ -78,15 +77,12 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
-from curvemole.core.errors import ConstraintError, FitError
+from curvemole.core.errors import ConstraintError
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
-    CancellationToken,
-    FitMode,
     FitPlan,
     FitResult,
     FitSettings,
-    Fitter,
 )
 from curvemole.core.importers import ImportColumnError, ImportPreview, import_file
 from curvemole.core.initialization import (
@@ -101,9 +97,9 @@ from curvemole.core.project import Project
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, save_project
-from curvemole.core.state import copy_result_maps, restore_model
+from curvemole.core.state import copy_result_maps
 from curvemole.core.transactions import ModelEdit, restore_model_state
-from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
+from curvemole.core.uncertainty import AdaptiveReplicateSettings
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.colours import (
     DEFAULT_SERIES_PALETTE,
@@ -119,7 +115,6 @@ from curvemole.gui.dialogs import (
     BackgroundComponentsDialog,  # noqa: F401
     CopyFitDialog,
     ExportBundleDialog,
-    FitPlanDialog,
     ImportMappingDialog,
     PluginManagerDialog,
 )
@@ -877,6 +872,8 @@ class MainWindow(QMainWindow):
         )
         from curvemole.gui.project_session import ProjectSession
         self.session = ProjectSession(self)
+        from curvemole.gui.uncertainty_controller import UncertaintyController
+        self.uncertainty_controller = UncertaintyController(self)
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
         from curvemole.gui.undo_service import UndoService
@@ -966,6 +963,9 @@ class MainWindow(QMainWindow):
         self._release_update_controller = UpdateController(self)
         from curvemole.gui.fit_undo import FitLifecycleController
         self.fit_lifecycle = FitLifecycleController(self)
+        from curvemole.gui.fit_controller import FitController
+        self.fit_controller = FitController(self)
+        self.fit_controller.install()
 
     def export_spectra_data(self) -> None:
         """Quick export: one numeric file per selected spectrum with its fit curves."""
@@ -1699,23 +1699,13 @@ class MainWindow(QMainWindow):
         window_extensions.run(self, "signals")
 
     def _update_uncertainty_tags(self) -> None:
-        self.curve_tree.set_uncertainty_method(self.uncertainty_panel.method.currentData())
+        return self.uncertainty_controller._update_uncertainty_tags()
 
     def _sync_uncertainty_method(self) -> None:
-        from curvemole.core.analysis_errors import display_method
-
-        method = display_method(self.project)
-        if method is not None:
-            ui_method = "monte_carlo" if method == "parametric_monte_carlo" else method
-            index = self.uncertainty_panel.method.findData(ui_method)
-            if index >= 0 and index != self.uncertainty_panel.method.currentIndex():
-                with QSignalBlocker(self.uncertainty_panel.method):
-                    self.uncertainty_panel.method.setCurrentIndex(index)
-                self.uncertainty_panel._update_controls()
-        self._update_uncertainty_tags()
+        return self.uncertainty_controller._sync_uncertainty_method()
 
     def _uncertainty_method_changed(self, _index: int) -> None:
-        self._select_uncertainty_display(self.uncertainty_panel.method.currentData())
+        return self.uncertainty_controller._uncertainty_method_changed(_index)
 
     def refresh_all(self) -> None:
         previous_project = getattr(self, "_displayed_project_id", id(self.project))
@@ -1762,6 +1752,9 @@ class MainWindow(QMainWindow):
             from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
 
             ensure_gui_garbage_collection().retire_project()
+        controller = getattr(self, "fit_controller", None)
+        if controller is not None:
+            controller.sync()
 
     def new_project(self) -> None:
         return self.session.new_project()
@@ -2562,298 +2555,47 @@ class MainWindow(QMainWindow):
                 self._set_active_curve(next_id)
 
     def start_fit(self) -> None:
-        if not self._ensure_editable():
-            return
-        if self.task_running:
-            return
-        selected = self.curve_tree.selected_curve_ids()
-        if not selected and self.active_curve_id:
-            selected = {self.active_curve_id}
-        with transient_widget(FitPlanDialog(self.project, selected, self.fit_settings, self)) as dialog:
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            plan = dialog.plan()
-            self.fit_settings = plan.settings
-            self.last_fit_plan = plan
-            self._run_fit(plan)
+        return self.fit_controller.start_fit()
+
+    def _quick_fit_core(self) -> None:
+        return self.fit_controller._quick_fit_core()
 
     def quick_fit(self) -> None:
-        if not self._ensure_editable():
-            return
-        if self.task_running:
-            return
-        selected = self.curve_tree.selected_curve_ids()
-        if not selected and self.active_curve_id:
-            selected = {self.active_curve_id}
-        if not selected:
-            self._notify(self.tr("Select or activate at least one curve first."), warning=True)
-            return
-        settings = self.last_fit_plan.settings if self.last_fit_plan is not None else self.fit_settings
-        if getattr(self, "_sequential_pause_result", None) is not None:
-            # Quick Fit repairs the active spectrum without consuming the saved
-            # sequential queue or accidentally running a one-curve sequence.
-            selected = {self.active_curve_id} if self.active_curve_id else selected
-            settings = self.fit_settings
-        plan = FitPlan(
-            [curve.id for curve in self.project.curves if curve.id in selected],
-            FitMode.INDEPENDENT,
-            settings=copy.deepcopy(settings),
-        )
-        try:
-            plan.validate()
-        except Exception as exc:
-            self._show_error(self.tr("Quick Fit"), exc)
-            return
-        self.fit_settings = copy.deepcopy(plan.settings)
-        self.last_fit_plan = copy.deepcopy(plan)
-        self._run_fit(plan)
+        self.fit_controller.quick_fit(self._quick_fit_core)
 
     def _run_fit(self, plan: FitPlan) -> None:
-        if self.task_running:
-            self._notify(self.tr("Another task is already running."), warning=True)
-            return
-        self._running_fit_plan = copy.deepcopy(plan)
-        self._fit_task_active = True
-        self._cancellation = CancellationToken()
-        cancellation = self._cancellation
-        # The worker gets its own registry snapshot: disabling a plugin on the
-        # GUI thread during a running task must not change the functions it uses.
-        fitter = Fitter(self.registry.copy())
-        curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
-                     if curve.id in plan.curve_ids}
-        stream = plan.mode == FitMode.INDEPENDENT and len(plan.curve_ids) > 1
-        # Every mode owns its inputs, including sequential propagation. This
-        # permits coherent saves and safe retirement of an unresponsive task.
-        models = {cid: self.project.model_for(cid).clone() for cid in plan.curve_ids}
-        plan = copy.deepcopy(plan)
-        self._task_snapshot_safe = True
-
-        from curvemole.core import live_fit_progress
-
-        live_interval = live_fit_progress.LIVE_PREVIEW_SECONDS
-
-        def operation(progress, publish=None):
-            last_live = [-math.inf]
-
-            def live_progress(value, text):
-                if publish is not None and text.startswith("Evaluation "):
-                    now = time.monotonic()
-                    # Throttle previews: a full plot refresh per evaluation slows
-                    # the fit and competes for the GIL.
-                    if now - last_live[0] >= live_interval:
-                        last_live[0] = now
-                        parameters = {path: parameter for cid, model in models.items()
-                                      for path, parameter in model.parameter_map(cid).items()}
-                        try:
-                            values = resolve_parameter_values(parameters)
-                        except Exception:  # noqa: BLE001 - previews are best effort
-                            # A transiently invalid link elsewhere must not fail a valid fit.
-                            values = None
-                        if values is not None:
-                            publish({"live_values": values})
-                progress(value, text)
-            return fitter.fit(
-                plan, curve_map, models, cancellation=cancellation,
-                progress=live_progress,
-                on_curve_result=(lambda cid, result: publish((cid, result))) if stream and publish else None,
-            )
-
-        def finished(result):
-            self.plot_workspace._live_parameter_values = None
-            # Apply worker-side propagation and states only on the GUI thread.
-            for cid in plan.curve_ids:
-                curve = self.project.dataset.curve(cid)
-                curve.state = curve_map[cid].state
-                current = self.project.model_for(cid)
-                saved = models[cid]
-                restore_model(current, saved)
-            self._fit_finished(result)
-            self.fit_lifecycle.complete(result)
-
-        def partial(item):
-            if isinstance(item, dict) and "live_values" in item:
-                from curvemole.gui.live_fit_refresh import refresh_snapshot
-                refresh_snapshot(self, item["live_values"])
-            else:
-                self._partial_fit_result(item)
-
-        self.fit_lifecycle.begin(plan)
-        try:
-            self._run_background(operation, finished, self.tr("Fitting…"), partial=partial)
-        except Exception:
-            self.fit_lifecycle.abort()
-            self.fit_lifecycle.done()
-            raise
+        return self.fit_controller._run_fit(plan)
 
     def _partial_fit_result(self, item: tuple[str, FitResult]) -> None:
-        """Expose a completed independent spectrum while other fits are queued."""
-        curve_id, result = item
-        curve = self.project.dataset.curve(curve_id)
-        if result.success:
-            self._apply_fit_result_to_project(result)
-            from curvemole.core.fit_records import (
-                baseline_for_curve,
-                individual_plan,
-                plan_to_record,
-            )
-
-            plan = self._running_fit_plan
-            baseline = baseline_for_curve(result, curve_id)
-            baseline.success = True
-            records = dict(self.project.results.get("fit_by_curve", {}))
-            previous_key = records.get(curve_id, {}).get("global_key")
-            affected_ids = {curve_id}
-            if previous_key is not None:
-                affected_ids.update(cid for cid, record in records.items()
-                                    if record.get("global_key") == previous_key)
-                records = {cid: record for cid, record in records.items()
-                           if record.get("global_key") != previous_key}
-                baselines = dict(self.project.results.get("global_fit_baselines", {}))
-                baselines.pop(previous_key, None)
-                self.project.results["global_fit_baselines"] = baselines
-            records[curve_id] = {
-                "plan": plan_to_record(individual_plan(plan, curve_id)),
-                "baseline": baseline,
-            }
-            self.project.results["fit_by_curve"] = records
-            for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve"):
-                updated = dict(self.project.results.get(key, {}))
-                for affected_id in affected_ids:
-                    updated.pop(affected_id, None)
-                self.project.results[key] = updated
-            self.project.results["last_fit"] = result
-        else:
-            curve.state = CurveState.FAILED
-        self.project.results["last_attempt"] = result
-        self.project.touch()
-        self.refresh_all()
+        return self.fit_controller._partial_fit_result(item)
 
     def _apply_fit_result_to_project(self, result: FitResult) -> None:
         # Fitting runs in a worker thread. Commit the returned estimates explicitly
         # to the GUI-side project so the redraw never depends on worker-side mutation.
-        fitted_curve_ids = self._successful_fit_curve_ids(result)
-        if not fitted_curve_ids:
-            return
-
-        self.project.invalidate_fits(fitted_curve_ids, preserve=fitted_curve_ids)
-        parameter_map = self.project.parameter_map()
-        for path, estimate in result.parameters.items():
-            curve_id = path.split(".", 1)[0]
-            if curve_id not in fitted_curve_ids or path not in parameter_map:
-                continue
-            parameter = parameter_map[path]
-            parameter.value = float(estimate.value)
-            parameter.standard_error = estimate.standard_error
-            parameter.ci_low = estimate.ci_low
-            parameter.ci_high = estimate.ci_high
-        for curve_id in fitted_curve_ids:
-            try:
-                self.project.dataset.curve(curve_id).state = CurveState.FITTED
-            except KeyError:
-                continue
+        return self.fit_controller._apply_fit_result_to_project(result)
 
     def _successful_fit_curve_ids(self, result: FitResult) -> set[str]:
-        if result.success:
-            return set(result.curve_outputs)
-        if result.mode == FitMode.GLOBAL:
-            return set()
-        # A merged independent/sequential result fails when any one fit fails.
-        # Its successful spectra are still marked FITTED by the fitter.
-        return {
-            curve_id for curve_id in result.curve_outputs
-            if self.project.dataset.curve(curve_id).state == CurveState.FITTED
-        }
+        return self.fit_controller._successful_fit_curve_ids(result)
+
+    def _fit_finished_core(self, result: FitResult) -> None:
+        return self.fit_controller._fit_finished_core(result)
 
     def _fit_finished(self, result: FitResult) -> None:
-        successful_ids = self._successful_fit_curve_ids(result)
-        self._apply_fit_result_to_project(result)
-        self.project.results["last_attempt"] = result
-        if result.paused_curve_id:
-            self.project.results["last_sequential_pause_message"] = result.message
-        if result.success:
-            self.project.results["last_fit"] = result
-        if successful_ids:
-            from curvemole.core.fit_records import (
-                baseline_for_curve,
-                individual_plan,
-                plan_to_record,
-            )
-
-            plan = getattr(self, "_running_fit_plan", None)
-            if plan is None:
-                plan = FitPlan(list(result.curve_outputs), result.mode, copy.deepcopy(result.settings))
-            # Fit undo captures the outer results mapping, so replace nested maps
-            # instead of mutating its previously captured values.
-            records = dict(self.project.results.get("fit_by_curve", {}))
-            reports = dict(self.project.results.get("uncertainty_reports_by_curve", {}))
-            analyses = dict(self.project.results.get("uncertainty_by_curve", {}))
-            global_baselines = dict(self.project.results.get("global_fit_baselines", {}))
-            for curve_id in successful_ids:
-                previous_key = records.get(curve_id, {}).get("global_key")
-                if previous_key is not None:
-                    for related_id, record in list(records.items()):
-                        if record.get("global_key") == previous_key:
-                            records.pop(related_id, None)
-                            reports.pop(related_id, None)
-                            analyses.pop(related_id, None)
-                    global_baselines.pop(previous_key, None)
-                reports.pop(curve_id, None)
-                analyses.pop(curve_id, None)
-            global_key = None
-            if result.mode == FitMode.GLOBAL:
-                global_key = result.timestamp
-                global_baselines[global_key] = result
-            for curve_id in successful_ids:
-                record = {"plan": plan_to_record(individual_plan(plan, curve_id))}
-                if global_key is not None:
-                    record["global_key"] = global_key
-                else:
-                    baseline = baseline_for_curve(result, curve_id)
-                    baseline.success = True  # The aggregate may include failed neighbours.
-                    record["baseline"] = baseline
-                records[curve_id] = record
-            self.project.results["fit_by_curve"] = records
-            self.project.results["global_fit_baselines"] = global_baselines
-            self.project.results["uncertainty_reports_by_curve"] = reports
-            self.project.results["uncertainty_by_curve"] = analyses
-        self.project.snapshot(
-            "Fit",
-            {
-                "mode": result.mode.value,
-                "settings": result.to_dict(arrays=False)["settings"],
-                "result": result.to_dict(arrays=False),
-            },
-        )
-        self.resume_action.setEnabled(bool(result.paused_curve_id))
-        self._paused_result = result if result.paused_curve_id else None
-        if result.paused_curve_id:
-            self.active_curve_id = result.paused_curve_id
-        self.refresh_all()
-        if result.success or result.curve_outputs:
-            self.plot_workspace.auto_range()
-        if result.paused_curve_id:
-            self.show_sequential_pause_reason()
-        elif result.success:
-            self._notify(self.tr("Fit completed."))
-        else:
-            self._notify(result.message, warning=True)
+        self.fit_controller.fit_finished(result, self._fit_finished_core)
 
     def show_sequential_pause_reason(self) -> None:
-        message = self.project.results.get("last_sequential_pause_message")
-        if message:
-            QMessageBox.warning(self, self.tr("Sequential fit — last pause reason"), str(message))
+        return self.fit_controller.show_sequential_pause_reason()
 
     def resume_sequence(self) -> None:
-        result = self._paused_result
-        if not result or not result.paused_curve_id or not self.last_fit_plan:
-            return
-        try:
-            start = self.last_fit_plan.curve_ids.index(result.paused_curve_id)
-        except ValueError:
-            return
-        plan = copy.deepcopy(self.last_fit_plan)
-        plan.curve_ids = plan.curve_ids[start:]
-        self._run_fit(plan)
+        """Continue a paused sequential fit from the (corrected) current spectrum."""
+        self.fit_controller.resume_sequence()
+
+    def terminate_sequence(self) -> None:
+        """Discard a paused sequence, keeping every existing fit and model edit."""
+        self.fit_controller.terminate_sequence()
+
+    def _set_sequential_resume_available(self, available: bool) -> None:
+        self.fit_controller.set_resume_available(available)
 
     def cancel_task(self) -> None:
         if self.task_runner.cancel():
@@ -2930,403 +2672,37 @@ class MainWindow(QMainWindow):
         self._notify(self.tr("Functions reordered and automatic names renumbered."))
 
     def _recover_missing_fit_records(self) -> None:
-        """Recover successful spectra from an older, partially failed batch fit."""
-        from curvemole.core.fit_records import baseline_for_curve, individual_plan, plan_to_record
-
-        attempt = self.project.results.get("last_attempt")
-        if not isinstance(attempt, FitResult) or attempt.mode == FitMode.GLOBAL:
-            return
-        records = self.project.results.setdefault("fit_by_curve", {})
-        available = {curve.id for curve in self.project.curves}
-        plan = FitPlan(list(attempt.curve_outputs), attempt.mode, copy.deepcopy(attempt.settings))
-        recovered = False
-        for curve_id in attempt.curve_outputs:
-            if curve_id not in available or curve_id in records:
-                continue
-            if self.project.dataset.curve(curve_id).state != CurveState.FITTED:
-                continue
-            baseline = baseline_for_curve(attempt, curve_id)
-            baseline.success = True
-            records[curve_id] = {"plan": plan_to_record(individual_plan(plan, curve_id)),
-                                 "baseline": baseline}
-            recovered = True
-        if recovered:
-            self.project.touch()
+        return self.fit_controller._recover_missing_fit_records()
 
     def _fit_for_uncertainty(self, curve_id: str) -> tuple[FitResult, FitPlan] | None:
-        from curvemole.core.fit_records import (
-            baseline_for_curve,
-            individual_plan,
-            plan_from_record,
-        )
-
-        self._recover_missing_fit_records()
-        record = self.project.results.get("fit_by_curve", {}).get(curve_id)
-        if record:
-            baseline = (self.project.results.get("global_fit_baselines", {}).get(record["global_key"])
-                        if "global_key" in record else record.get("baseline"))
-            if baseline is None:
-                return None
-            if isinstance(baseline, dict):
-                baseline = FitResult.from_dict(baseline)
-            return baseline, plan_from_record(record["plan"])
-        # Existing projects only retained the most recent fit. Do not infer
-        # historical residuals or covariance from the model currently shown.
-        recorded = self.project.results.get(curve_id)
-        if isinstance(recorded, FitResult) and recorded.success and curve_id in recorded.curve_outputs:
-            saved_plan = recorded.provenance.get("plan")
-            plan = (plan_from_record(saved_plan) if saved_plan else
-                    FitPlan([curve_id], settings=copy.deepcopy(recorded.settings)))
-            return baseline_for_curve(recorded, curve_id), individual_plan(plan, curve_id)
-        latest = self._last_fit_result()
-        if latest is None or curve_id not in latest.curve_outputs:
-            return None
-        plan = self.last_fit_plan
-        if plan is None or curve_id not in plan.curve_ids:
-            plan = FitPlan(list(latest.curve_outputs), latest.mode, copy.deepcopy(latest.settings))
-        if any(cid not in {curve.id for curve in self.project.curves} for cid in plan.curve_ids):
-            return None
-        return baseline_for_curve(latest, curve_id), individual_plan(plan, curve_id)
+        return self.uncertainty_controller._fit_for_uncertainty(curve_id)
 
     def _choose_background_uncertainty(self, curves: list[Curve]) -> str | None:
-        from curvemole.core.background_uncertainty import joint_background_components
-
-        unavailable = []
-        for curve in curves:
-            try:
-                joint_background_components(curve, self.project.model_for(curve.id))
-            except FitError as exc:
-                unavailable.append(str(exc))
-        with transient_widget(QMessageBox(self)) as dialog:
-            dialog.setWindowTitle(self.tr("Background uncertainty"))
-            dialog.setTextFormat(Qt.TextFormat.PlainText)
-            dialog.setText(self.tr("An estimated background was subtracted from {spectra}.")
-                           .format(spectra=", ".join(curve.name for curve in curves)))
-            explanation = self.tr(
-                "Keep the corrected data and report intervals conditional on the subtracted background, "
-                "or fit the signal and background together on the data before subtraction. "
-                "For a spline, the joint fit can adjust node heights while keeping their X positions fixed. "
-                "Both choices create a separate analysis without changing the workspace fit."
-            )
-            if unavailable:
-                explanation += "\n\n" + self.tr("Joint fitting is unavailable.") + "\n" + "\n".join(unavailable)
-            dialog.setInformativeText(explanation)
-            fixed = dialog.addButton(self.tr("Ignore background uncertainty"), QMessageBox.ButtonRole.ActionRole)
-            joint = dialog.addButton(self.tr("Refit with background"), QMessageBox.ButtonRole.ActionRole)
-            joint.setEnabled(not unavailable)
-            cancel = dialog.addButton(QMessageBox.StandardButton.Cancel)
-            dialog.setDefaultButton(joint if joint.isEnabled() else cancel)
-            dialog.exec()
-            return {fixed: "fixed", joint: "joint"}.get(dialog.clickedButton())
+        return self.uncertainty_controller._choose_background_uncertainty(curves)
 
     def start_uncertainty(self, method: str, replicates: int, option: Any,
                           scope: str = "active", workers: int = 1,
                           adaptive: AdaptiveReplicateSettings | None = None,
                           replica_timeout_seconds: float = 60.0) -> None:
-        if not self._ensure_editable():
-            return
-        if self.task_running:
-            self._notify(self.tr("Another task is already running."), warning=True)
-            return
-        if adaptive is not None:
-            try:
-                adaptive.validate()
-            except Exception as exc:
-                self._show_error(self.tr("Adaptive uncertainty settings"), exc)
-                return
-        method_index = self.uncertainty_panel.method.findData(method)
-        if method_index >= 0:
-            self.uncertainty_panel.method.setCurrentIndex(method_index)
-        if scope == "all":
-            ids = [curve.id for curve in self.project.curves if curve.state == CurveState.FITTED]
-        elif scope == "selected":
-            selected = self.curve_tree.selected_curve_ids()
-            ids = [curve.id for curve in self.project.curves if curve.id in selected]
-        else:
-            ids = [self.active_curve_id] if self.active_curve_id else []
-        if method == "profile_likelihood" and len(ids) != 1:
-            self._notify(self.tr("Profile likelihood requires one active spectrum and parameter."), warning=True)
-            return
-        available = {curve.id: curve for curve in self.project.curves}
-        subtracted = {cid for cid, curve in available.items()
-                      if any(step.is_estimated_background for step in curve.transformations)}
-        jobs = []
-        missing = []
-        background_ids = set()
-        for curve_id in ids:
-            record = self._fit_for_uncertainty(curve_id)
-            if record is not None and all(cid in available for cid in record[1].curve_ids):
-                baseline, plan = record
-            elif curve_id in subtracted:
-                baseline, plan = None, FitPlan([curve_id], settings=copy.deepcopy(self.fit_settings))
-            else:
-                missing.append(curve_id)
-                continue
-            plan_backgrounds = subtracted.intersection(plan.curve_ids)
-            if not plan_backgrounds and (baseline is None or not baseline.success or any(
-                available[cid].state != CurveState.FITTED
-                for cid in plan.curve_ids
-            )):
-                missing.append(curve_id)
-                continue
-            if method == "profile_likelihood" and len(plan.curve_ids) != 1:
-                self._notify(self.tr("Profile likelihood requires an independent single-spectrum fit."), warning=True)
-                return
-            if method == "monte_carlo" and not plan_backgrounds and any(
-                available[cid].y_error_scales(
-                    include_inverse_variance=plan.settings.absolute_sigma is not False) is None
-                for cid in plan.curve_ids
-            ):
-                missing.append(curve_id)
-                continue
-            plan.settings.confidence_level = self.uncertainty_panel.confidence.value() / 100
-            background_ids.update(plan_backgrounds)
-            jobs.append((curve_id, baseline, plan))
-        if not jobs:
-            self._notify(self.tr("No usable saved fit for the requested spectra. Refit them first."), warning=True)
-            return
-        if missing:
-            self._notify(self.tr("Skipped {count} spectra without a usable baseline or required noise data.")
-                         .format(count=len(missing)), warning=True)
-        treatment = self._choose_background_uncertainty(
-            [curve for cid, curve in available.items() if cid in background_ids]) if background_ids else None
-        if background_ids and treatment is None:
-            return
-        if method == "covariance" and not background_ids:
-            self._uncertainty_finished([(curve_id, baseline, baseline)
-                                        for curve_id, baseline, _ in jobs])
-            return
-        profile_points = self.uncertainty_panel.profile_points.value()
-        try:
-            profile_lower = float(self.uncertainty_panel.profile_lower.text()) if self.uncertainty_panel.profile_lower.text().strip() else None
-            profile_upper = float(self.uncertainty_panel.profile_upper.text()) if self.uncertainty_panel.profile_upper.text().strip() else None
-        except ValueError:
-            if method == "profile_likelihood":
-                self._notify(self.tr("Profile limits must be numeric, or blank for automatic."), warning=True)
-                return
-            profile_lower = profile_upper = None
-        # The worker gets its own registry snapshot: disabling a plugin on the
-        # GUI thread during a running task must not change the functions it uses.
-        fitter = Fitter(self.registry.copy())
-        analyzer = UncertaintyAnalyzer(fitter,
-                                       replica_timeout_seconds=replica_timeout_seconds)
-        needed_ids = {cid for _, _, plan in jobs for cid in plan.curve_ids}
-        curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
-                     if curve.id in needed_ids}
-        models = {cid: self.project.model_for(cid).clone() for cid in needed_ids}
-        self._cancellation = CancellationToken()
-        cancellation = self._cancellation
-        self._task_snapshot_safe = True
-        grouped: dict[tuple[Any, ...], list[str]] = {}
-        unique_jobs = []
-        for curve_id, baseline, plan in jobs:
-            key = (("global", baseline.timestamp if baseline else None, tuple(plan.curve_ids))
-                   if plan.mode == FitMode.GLOBAL else ("individual", curve_id))
-            if key not in grouped:
-                unique_jobs.append((curve_id, baseline, plan, key))
-                grouped[key] = []
-            grouped[key].append(curve_id)
-
-        self._uncertainty_task = {
-            "method": "parametric_monte_carlo" if method == "monte_carlo" else method,
-            "curve_ids": {cid for cid, _, _ in jobs},
-            "completed": set(),
-            "background_treatment": treatment,
-        }
-        replica_global_search = self.uncertainty_panel.replica_global_search.isChecked()
-
-        def prepare_inputs(baseline, plan):
-            from curvemole.core.background_uncertainty import fit_background_uncertainty
-
-            curves = {cid: curve_map[cid] for cid in plan.curve_ids}
-            analysis_models = {cid: models[cid] for cid in plan.curve_ids}
-            if background_ids.intersection(plan.curve_ids):
-                baseline, curves, analysis_models = fit_background_uncertainty(
-                    fitter, plan, curves, analysis_models, treatment, cancellation)
-            if method in {"monte_carlo", "residual_bootstrap", "block_bootstrap"} and replica_global_search:
-                plan = copy.deepcopy(plan)
-                plan.settings.solver = "differential_evolution"
-            return baseline, plan, curves, analysis_models
-
-        def operation(progress: Callable[[float | None, str], None], publish=None) -> Any:
-            completed = []
-            if method not in {"profile_likelihood", "covariance"} and workers > 1 and len(unique_jobs) > 1:
-                batch = [prepare_inputs(baseline, plan) for _, baseline, plan, _ in unique_jobs]
-                results = analyzer.resampling_batch(
-                    method, batch, replicates=replicates, option=option, adaptive=adaptive,
-                    workers=workers, cancellation=cancellation,
-                    progress=lambda count: progress(count / len(unique_jobs),
-                                                    f"{method}: {count}/{len(unique_jobs)} spectra"),
-                    on_result=(lambda index, result: publish([
-                        (selected_id, batch[index][0], result)
-                        for selected_id in grouped[unique_jobs[index][3]]
-                    ])) if publish else None,
-                )
-                for (_, _, _, key), (baseline, _, _, _), result in zip(unique_jobs, batch, results, strict=True):
-                    completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
-                return completed
-            for index, (curve_id, baseline, plan, key) in enumerate(unique_jobs):
-                cancellation.raise_if_cancelled()
-                def step(value, message, index=index):
-                    progress((index + (value or 0.0)) / len(unique_jobs), message)
-                if background_ids.intersection(plan.curve_ids):
-                    step(None, f"Fitting {curve_map[curve_id].name} for uncertainty analysis…")
-                baseline, plan, curves, analysis_models = prepare_inputs(baseline, plan)
-                if method == "covariance":
-                    if not any(p.ci_low is not None and p.ci_high is not None
-                               for p in baseline.parameters.values()):
-                        raise FitError(" ".join(baseline.warnings) or "No parameter confidence intervals are available.")
-                    result = baseline
-                elif method == "profile_likelihood":
-                    if not option:
-                        raise RuntimeError("Choose a profile parameter.")
-                    result = analyzer.profile_parameter(
-                        baseline, curves[curve_id], analysis_models[curve_id],
-                        str(option), confidence_level=plan.settings.confidence_level,
-                        points=profile_points, lower=profile_lower, upper=profile_upper,
-                        spectrum_weight=plan.spectrum_weights.get(curve_id, 1.0),
-                        equal_contribution=plan.equal_contribution,
-                        workers=workers,
-                        cancellation=cancellation, progress=step)
-                else:
-                    arguments = dict(
-                        baseline=baseline, plan=plan, curves=curves,
-                        models=analysis_models, replicates=replicates, adaptive=adaptive,
-                        workers=workers,
-                        cancellation=cancellation, progress=step)
-                    if method == "monte_carlo":
-                        result = analyzer.parametric_monte_carlo(**arguments)
-                    elif method == "block_bootstrap":
-                        result = analyzer.block_bootstrap(**arguments, block_length=option)
-                    else:
-                        result = analyzer.residual_bootstrap(**arguments)
-                completed.extend((selected_id, baseline, result) for selected_id in grouped[key])
-                if publish:
-                    publish([(selected_id, baseline, result) for selected_id in grouped[key]])
-                progress((index + 1) / len(unique_jobs), f"Completed {curve_map[curve_id].name}")
-            return completed
-
-        if len(unique_jobs) > 1:
-            self._run_background(operation, self._uncertainty_finished,
-                                 self.tr("Uncertainty analysis…"),
-                                 partial=self._partial_uncertainty_result)
-        else:
-            self._run_background(operation, self._uncertainty_finished,
-                                 self.tr("Uncertainty analysis…"))
+        return self.uncertainty_controller.start_uncertainty(method, replicates, option, scope, workers, adaptive, replica_timeout_seconds)
 
     def _partial_uncertainty_result(self, completed: list[tuple[str, FitResult, Any]]) -> None:
-        for curve_id, baseline, analysis_result in completed:
-            self._store_uncertainty_result(curve_id, baseline, analysis_result)
-        self.project.touch()
-        self.curve_tree.populate(self.project, self.active_curve_id)
-        if self.active_curve_id in {curve_id for curve_id, _, _ in completed}:
-            self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
-        self.model_panel.refresh_parameters()
+        return self.uncertainty_controller._partial_uncertainty_result(completed)
 
     def _uncertainty_finished(self, result: Any) -> None:
-        if not isinstance(result, list):
-            baseline = getattr(self, "_uncertainty_baseline", None) or self._last_fit_result() or result
-            result = [(self.active_curve_id, baseline, result)]
-        for curve_id, baseline, analysis_result in result:
-            if curve_id is not None:
-                self._store_uncertainty_result(curve_id, baseline, analysis_result)
-        self.project.touch()
-        self.curve_tree.populate(self.project, self.active_curve_id)
-        self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
-        self.model_panel.refresh_parameters()
-        self.uncertainty_panel.results.show_method(self.uncertainty_panel.method.currentData())
-        warnings = [uncertainty_warning(self.project, curve_id,
-                    "covariance" if isinstance(analysis, FitResult) else getattr(analysis, "method", "profile_likelihood"))
-                    for curve_id, _baseline, analysis in result if curve_id is not None]
-        self._notify(self.tr("Uncertainty analysis finished with warnings. See the analysis panel.")
-                     if any(warnings) else self.tr("Uncertainty analysis completed."), warning=any(warnings))
+        return self.uncertainty_controller._uncertainty_finished(result)
 
     def delete_uncertainty_analysis(self, method: str) -> None:
-        if not self._ensure_editable():
-            return
-        if self.task_running:
-            self._notify(self.tr("Wait for the running task before deleting an analysis."), warning=True)
-            return
-        method = "parametric_monte_carlo" if method == "monte_carlo" else method
-        names = {method, "monte_carlo"} if method == "parametric_monte_carlo" else {method}
-        per_curve_keys = ("uncertainty_reports_by_curve", "uncertainty_by_curve", "uncertainty_failures_by_curve")
-        global_keys = ("uncertainty", "uncertainty_reports")
-        saved = {
-            key: {curve_id: {name: value for name, value in methods.items() if name in names}
-                  for curve_id, methods in self.project.results.get(key, {}).items()
-                  if names.intersection(methods)} for key in per_curve_keys}
-        old_global = {key: {name: value for name, value in self.project.results.get(key, {}).items() if name in names}
-                      for key in global_keys}
-        if not any(saved.values()) and not any(old_global.values()):
-            return
-        old_choice = self.project.results.get("uncertainty_display_method")
-
-        def remove() -> None:
-            for key in per_curve_keys:
-                self.project.results[key] = {
-                    curve_id: remaining for curve_id, methods in self.project.results.get(key, {}).items()
-                    if (remaining := {name: value for name, value in methods.items() if name not in names})}
-            for key in global_keys:
-                self.project.results[key] = {name: value for name, value in self.project.results.get(key, {}).items()
-                                             if name not in names}
-            if self.project.results.get("uncertainty_display_method") in names:
-                self.project.results.pop("uncertainty_display_method", None)
-
-        def restore() -> None:
-            for key, curves in saved.items():
-                for curve_id, methods in curves.items():
-                    self.project.results.setdefault(key, {}).setdefault(curve_id, {}).update(methods)
-            for key, methods in old_global.items():
-                self.project.results.setdefault(key, {}).update(methods)
-            if old_choice is not None:
-                self.project.results["uncertainty_display_method"] = old_choice
-
-        self._push_change(self.tr("Delete uncertainty analysis"), remove, restore, modified_curve_ids=set())
+        return self.uncertainty_controller.delete_uncertainty_analysis(method)
 
     def _store_uncertainty_result(self, curve_id: str, baseline: FitResult, result: Any) -> None:
-        method = "covariance" if isinstance(result, FitResult) else getattr(result, "method", "profile_likelihood")
-        self.project.results.get("uncertainty_failures_by_curve", {}).get(curve_id, {}).pop(method, None)
-        task = getattr(self, "_uncertainty_task", None)
-        if task and task["method"] == method:
-            task["completed"].add(curve_id)
-        self.project.results.setdefault("uncertainty", {})[method] = result
-        self.project.results.setdefault("uncertainty_by_curve", {}).setdefault(curve_id, {})[method] = result
-        analysis = (result.to_dict(include_samples=False)
-                    if hasattr(result, "samples") else result.to_dict())
-        if method not in {"covariance", "profile_likelihood"}:
-            samples = np.asarray(result.samples)
-            if samples.ndim == 2 and samples.shape[0] >= 3 and samples.shape[1] > 1:
-                with np.errstate(invalid="ignore", divide="ignore"):
-                    analysis["sample_correlation"] = np.corrcoef(samples, rowvar=False).tolist()
-            analysis.pop("samples", None)
-        self.project.results.setdefault("uncertainty_reports_by_curve", {}).setdefault(curve_id, {})[method] = {
-            "baseline": baseline.to_dict(arrays=False), "analysis": analysis,
-        }
-        from curvemole.core.analysis_errors import DISPLAY_METHODS
-
-        if self.project.results.get("uncertainty_display_method") not in DISPLAY_METHODS:
-            self.project.results["uncertainty_display_method"] = method
-            self._sync_uncertainty_method()
+        return self.uncertainty_controller._store_uncertainty_result(curve_id, baseline, result)
 
     def _select_uncertainty_display(self, method: str) -> None:
-        from curvemole.core.analysis_errors import DISPLAY_METHODS
-
-        method = "parametric_monte_carlo" if method == "monte_carlo" else method
-        if method not in DISPLAY_METHODS:
-            return
-        previous = self.project.results.get("uncertainty_display_method")
-        self.project.results["uncertainty_display_method"] = method
-        if previous != method and not self.project.read_only:
-            self.project.touch()
-        self._sync_uncertainty_method()
-        self.uncertainty_panel.set_parameters(self.project, self.active_curve_id)
-        self.model_panel.refresh_parameters()
+        return self.uncertainty_controller._select_uncertainty_display(method)
 
     def _show_uncertainty_analysis(self) -> None:
-        curve_id = self.model_panel.display_method.curve_id
-        if curve_id and curve_id != self.active_curve_id:
-            self._set_active_curve(curve_id)
-        self.activate_tool_dock(self.uncertainty_dock)
+        return self.uncertainty_controller._show_uncertainty_analysis()
 
     def mask_point(self, x_value: float, *, unmask: bool = False) -> None:
         x_offset, _ = self.plot_workspace._active_display_offsets()
@@ -3684,6 +3060,9 @@ class MainWindow(QMainWindow):
             self.curve_tree.blockSignals(blocked)
         if hasattr(self, "model_panel"):
             self.model_panel.refresh()
+        controller = getattr(self, "fit_controller", None)
+        if controller is not None:
+            controller.style()
 
     def reset_layout(self) -> None:
         self.dock_collapse.restore({})
@@ -4404,6 +3783,7 @@ class MainWindow(QMainWindow):
         self.redo_action.setEnabled(False)
         self.uncertainty_panel.set_busy(True)
         self._notify(status)
+        self.fit_controller.sync()
 
     def _poll_task(self) -> None:
         self.task_runner.poll()
@@ -4467,8 +3847,11 @@ class MainWindow(QMainWindow):
         self.refresh_all()
 
     def _task_done(self, *_: Any) -> None:
-        self._reset_task_state()
-        self.fit_lifecycle.done()
+        try:
+            self._reset_task_state()
+            self.fit_lifecycle.done()
+        finally:
+            self.fit_controller.task_done()
 
     def _reset_task_state(self) -> None:
         """Idempotent busy-state cleanup, also used if a completion hook fails."""
