@@ -2,6 +2,36 @@
 
 Generated from beta tags and the GitHub release catalog (when available). Beta run numbers may have gaps. Each section describes changes between consecutive published betas, or since the previous stable release. The cumulative stable-cycle history is in `CHANGELOG.md`.
 
+## [1.4.3-beta.190](https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.3-beta.190) — published 2026-11-27
+
+Changes since `v1.4.3-beta.179` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.4.3-beta.179...v1.4.3-beta.190)).
+
+### Added
+
+- Add Vertical markers community plugin. ([`de64ae52`](https://github.com/SebRoLENS/curvemole/commit/de64ae52d87539fdf26e8ea72b6974c8b76091d4))
+
+### Changed
+
+- Read promoted documents as UTF-8 and route plugin PRs to testing in the manual. ([`63968ea1`](https://github.com/SebRoLENS/curvemole/commit/63968ea156ffb40f0d6f721c2512cb218b7a8c9d))
+- Address review of Vertical markers plugin. ([`177b93be`](https://github.com/SebRoLENS/curvemole/commit/177b93be27f1c38be61f30b1ebc5b2327d7d719f))
+- Speed up parallel fits, Jacobians, plot redraws, imports and project saving. ([`057ec560`](https://github.com/SebRoLENS/curvemole/commit/057ec5601485da4a3e045aae786684abc83241f7))
+- Make CLI exit codes, JSON and workflow validation dependable. ([`8d579596`](https://github.com/SebRoLENS/curvemole/commit/8d5795960bf3a0bc22aca7604a01b3a04795a07d))
+- Keep residuals readable, fit windows to the screen and use standard shortcuts. ([`1ce5de94`](https://github.com/SebRoLENS/curvemole/commit/1ce5de948dba709e633851b774344ba3fefc70e1))
+- Move custom peak roles into the core and remove shadowed GUI code. ([`da1f10a3`](https://github.com/SebRoLENS/curvemole/commit/da1f10a3a87dc6e39962821a118f4b087dd51fd1))
+- Isolate worker registries, guard plugin state and break the plot import cycle. ([`ef9dc958`](https://github.com/SebRoLENS/curvemole/commit/ef9dc958ce539dc31c9bb905bf008b605ba690b1))
+
+### Fixed
+
+- Fix collapsing block-bootstrap uncertainties, Monte Carlo noise scale and area normalisation. ([`5ace268d`](https://github.com/SebRoLENS/curvemole/commit/5ace268db46d6afc8954a96a182a257778512ed1))
+- Fix edits during running fits, undo scope, saved infinite bounds, mask copies and CSV imports. ([`c990fa67`](https://github.com/SebRoLENS/curvemole/commit/c990fa67d2c5cf08310c2c504c2bfbb853c2ea15))
+
+### Documentation
+
+- docs: add AI plugin API audit and link it from README and manual. ([`4d8410a8`](https://github.com/SebRoLENS/curvemole/commit/4d8410a8d6e5373ee328a1b3f76042db29642762))
+- docs: link the AI plugin API audit from the website. ([`b3b2c6de`](https://github.com/SebRoLENS/curvemole/commit/b3b2c6de203d59b33568f7800610048d25ce8ee4))
+- docs: correct and refresh the AI Python and YAML automation audits. ([`cdc84f9b`](https://github.com/SebRoLENS/curvemole/commit/cdc84f9b6deaff97334cfa32c4b114eb32c53860))
+- docs: add ruff lint guidance to the AI plugin audit. ([`3ee5cb1b`](https://github.com/SebRoLENS/curvemole/commit/3ee5cb1bab0c792fc71c4b8ac6907a57c896631b))
+
 ## [1.4.3-beta.179](https://github.com/SebRoLENS/curvemole/releases/tag/v1.4.3-beta.179) — published 2026-11-26
 
 Changes since `v1.4.0-beta.163` ([compare](https://github.com/SebRoLENS/curvemole/compare/v1.4.0-beta.163...v1.4.3-beta.179)).
