@@ -94,22 +94,23 @@ The actual statistics object contains the fit statistics. In 1.2.0,
 `imported_files` records resolved input paths in import order and `warnings`
 reports skipped empty selections, for example when `allow_empty: true`. These
 two additional JSON keys are absent in the 1.1.0 baseline. `run` returns exit
-code 0 when it returns normally, **even if `success` is false**. Batch callers must
-check both the process status and the JSON `success` value. A failed fit can still
-produce exports for inspection.
+code 4 when the fit does not succeed (`success` is false), so batch callers can rely
+on the process status. A failed fit can still produce exports for inspection.
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Command returned normally; inspect fit success separately |
+| 0 | Success |
 | 2 | Command-line usage error |
-| 3 | `validate` found problems (listed in `failures`), or a data error at `run` such as a missing column, invalid values or an unknown function ID |
-| 4 | Raised fit failure |
+| 3 | Invalid workflow: `validate` found problems (listed in `failures`) or `run` refused the workflow, including unreadable YAML, a wrong `schema_version`, unknown function IDs, parameter names or curve names; also data errors at `run` such as a missing column or invalid values |
+| 4 | The fit failed or did not succeed (`success: false`) |
 | 5 | Project archive failure |
-| 6 | Other CurveMole errors: missing input file/directory or a glob without matches, an invalid workflow passed to `run`, unreadable YAML or a wrong `schema_version` (also for `validate`), plugin trust/loading errors, refused project overwrite |
+| 6 | Other CurveMole errors: missing input file/directory or a glob without matches, plugin trust/loading errors, refused project overwrite |
 | 10 | Unexpected failure, including some malformed nested YAML or bundle file collisions |
 
-Run `validate` first: it lists all structural problems at once, while `run`
-stops at the first one with exit code 6. Function IDs, column selectors and data
+Run `validate` first: it lists all problems at once, including misspelt function
+IDs, parameter names and curve names (with a "Did you mean" suggestion), while
+`run` stops with exit code 3. Curve names are checked when every import declares
+`aliases` or `curve_ids`; functions supplied by plugins, column selectors and data
 are checked only by `run`.
 
 For desktop use, select **Run automation** in the bottom **Automations** toolbar.
@@ -838,7 +839,7 @@ uncertainty rows; intrinsically invalid X/Y remain excluded.
 
 Only the following built-in settings are passed to `FitSettings`; spell names
 exactly. Validation reports an unrecognised setting as an unknown field, and
-`run` stops with exit code 6. Do not add GUI-only controls
+`run` stops with exit code 3. Do not add GUI-only controls
 such as propagation thresholds or Monte Carlo replicate counts here.
 
 Built-in optimizers use dimensionless coordinates based on parameter and data
@@ -891,7 +892,7 @@ normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 (`solver: lm` or `local_method: lm`) is incompatible with bounds and robust loss.
 Built-in peak widths (`sigma`, `gamma`, `fwhm`) and `eta` always carry default
 bounds, so LM with gaussian, lorentzian, voigt or pseudo_voigt components ends with
-`success: false` (exit code 0). Use LM only for models whose parameters are all
+`success: false` (exit code 4). Use LM only for models whose parameters are all
 unbounded (constant, linear, polynomial, cubic_spline or unbounded formulas). Differential Evolution finds an initial
 solution then locally refines it. Finite user bounds take priority over its
 automatic search intervals; set scientifically meaningful finite bounds for

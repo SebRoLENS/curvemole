@@ -23,6 +23,9 @@ class OriginalDataController(QObject):
         window.restore_original_action = self.action
         window.restore_original_controller = self
         self.menu.aboutToShow.connect(self.rebuild_menu)
+        data_menu = getattr(window, "data_menu", None)
+        if data_menu is not None:
+            data_menu.insertAction(window.calculator_action, self.action)
         toolbar = window.findChild(QToolBar, "Main_toolbar")
         if toolbar is not None:
             actions = toolbar.actions()

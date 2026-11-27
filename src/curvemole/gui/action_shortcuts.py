@@ -22,34 +22,30 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
+# Stable, documented bindings. System conventions come first (Ctrl+A/C/V/X/W
+# keep their usual meaning, Save As is Ctrl+Shift+S). Single keys are reserved
+# for frequent, non-destructive plot and modelling commands; commands that
+# change data or the window layout have no single-key shortcut. Commands not
+# listed here have no shortcut, so the bindings never depend on menu order,
+# loaded plugins or the keyboard layout.
 _PREFERRED = {
     "new_action": "Ctrl+N", "open_action": "Ctrl+O", "import_action": "Ctrl+I",
-    "save_action": "Ctrl+S", "save_as_action": "S", "export_action": "Ctrl+E",
+    "save_action": "Ctrl+S", "save_as_action": "Ctrl+Shift+S", "export_action": "Ctrl+E",
     "quit_action": "Ctrl+Q", "undo_action": "Ctrl+Z", "redo_action": "Ctrl+Y",
-    "add_component_action": "Ctrl+A", "quick_add_function_action": "A",
+    "add_component_action": "Ctrl+Shift+A", "quick_add_function_action": "A",
     "edit_points_action": "E", "fit_action": "Ctrl+F", "quick_fit_action": "F",
-    "cancel_action": "X", "resume_action": "C", "copy_fit_action": "Ctrl+C",
-    "copy_fit_next_action": "Ctrl+V", "find_peaks_action": "Ctrl+P",
+    "cancel_action": "X", "resume_action": "C", "copy_fit_action": "Ctrl+Shift+C",
+    "copy_fit_next_action": "Ctrl+Shift+V", "find_peaks_action": "Ctrl+Shift+P",
     "function_info_action": "H", "function_action": "Ctrl+H",
     "calculator_action": "D", "notebook_action": "N", "uncertainty_action": "Ctrl+U",
-    "subtract_background_action": "B", "revert_background_action": "R",
-    "auto_axes_action": "V", "view_options_action": "O", "restore_original_action": "U",
+    "subtract_background_action": "B",
+    "auto_axes_action": "V", "view_options_action": "O",
     "manual_action": "Ctrl+M", "quick_start_action": "Ctrl+J",
     "quick_add_background": "G", "quick_add_manual_points": "P",
     "export_spectra_action": "Ctrl+T",
 }
 _PREFERRED_TEXT = {"Mask": "M", "View unmasked": "W", "Run automation": "T"}
-_SHORTCUT_SCHEMA = 2
-
-
-def _simple(sequence):
-    if sequence.count() != 1:
-        return False
-    key = sequence[0]
-    return (key.keyboardModifiers() == Qt.KeyboardModifier.NoModifier
-            and not Qt.Key.Key_F1 <= key.key() <= Qt.Key.Key_F35
-            or key.keyboardModifiers() == Qt.KeyboardModifier.ControlModifier
-            and Qt.Key.Key_A <= key.key() <= Qt.Key.Key_Z)
+_SHORTCUT_SCHEMA = 3
 
 
 def _event_sequence(event):
@@ -237,8 +233,6 @@ class ActionShortcuts(QObject):
                     names[action] = name
             identities = {action: (names.get(action) or self.identities.get(action, action.text()))
                           for action in commands}
-            preferred = {_portable(QKeySequence(key)) for key in
-                         (*_PREFERRED.values(), *_PREFERRED_TEXT.values())}
             assignments = {}
             used = set()
             # Allocate preferred and saved bindings before drawing from the pool.
@@ -251,28 +245,6 @@ class ActionShortcuts(QObject):
                     if key not in used:
                         assignments[command] = key
                         used.add(key)
-            for command in commands:
-                saved = self.saved.get(identities[command])
-                if command not in assignments and isinstance(saved, str):
-                    sequence = QKeySequence(saved)
-                    key = _portable(sequence)
-                    if _simple(sequence) and key not in used | preferred:
-                        assignments[command] = key
-                        used.add(key)
-            pool = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
-                    *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
-            pool.extend(key for key in string.punctuation if key not in pool)
-            available = iter(_portable(QKeySequence(key)) for key in pool)
-            for command in commands:
-                if command in assignments:
-                    continue
-                key = next((key for key in available if key not in used | preferred), None)
-                if key is None:
-                    # Extra plugin commands can exceed the single-key alphabet.
-                    key = next(("Ctrl+"+c for c in string.digits if "Ctrl+"+c not in used), None)
-                if key is not None:
-                    assignments[command] = key
-                    used.add(key)
             saved_before = dict(self.saved)
             self.bindings = {}
             for command, key in assignments.items():

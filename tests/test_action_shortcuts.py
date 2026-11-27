@@ -27,39 +27,57 @@ def window(tmp_path, monkeypatch):
     app.processEvents()
 
 
-def test_all_menu_and_toolbar_commands_have_unique_shortcuts_and_tooltips(window):
+def _with_shortcut(commands):
+    return [command for command in commands if not command.shortcut().isEmpty()]
+
+
+def test_documented_commands_have_unique_shortcuts_shown_in_tooltips(window):
+    from curvemole.gui.action_shortcuts import _PREFERRED
+
     _, win = window
     manager = win._action_shortcuts
     manager.refresh()
+    for name, key in _PREFERRED.items():
+        action = getattr(win, name, None)
+        if action is not None:
+            assert action.shortcut() == QKeySequence(key), name
     seen = {}
-    commands = manager.commands()
-    assert len(commands) > 40
-    for action in commands:
-        assert not action.shortcut().isEmpty(), action.text()
-        for seq in action.shortcuts():
-            key = seq.toString()
-            assert key not in seen or seen[key] is action, (key, seen.get(key), action.text())
-            seen[key] = action
-        native = action.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
-        assert native in action.toolTip().splitlines()[0]
+    for command in _with_shortcut([*manager.commands(), *manager.buttons()]):
+        key = command.shortcut().toString()
+        assert key not in seen or seen[key] is command, (key, seen.get(key), command.text())
+        seen[key] = command
+        native = command.shortcut().toString(QKeySequence.SequenceFormat.NativeText)
+        assert native in command.toolTip().splitlines()[0]
     for toolbar in win.findChildren(QToolBar):
         for button in toolbar.findChildren(QToolButton):
             action = button.defaultAction()
-            if action is not None:
+            if action is not None and not action.shortcut().isEmpty():
                 assert action.shortcut().toString(QKeySequence.SequenceFormat.NativeText) in button.toolTip()
-    for button in manager.buttons():
-        assert not button.shortcut().isEmpty()
-        assert button.shortcut().toString() not in seen
-        seen[button.shortcut().toString()] = button
-        assert button.shortcut().toString(QKeySequence.SequenceFormat.NativeText) in button.toolTip()
+
+
+def test_system_conventions_are_respected(window):
+    _, win = window
+    manager = win._action_shortcuts
+    assigned = {command.shortcut().toString() for command in _with_shortcut(
+        [*manager.commands(), *manager.buttons()])}
+    # Select all, copy, paste, cut and close keep their usual meaning.
+    assert not assigned & {"Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+W", "Ctrl+P"}
     assert win.save_action.shortcut() == QKeySequence("Ctrl+S")
+    assert win.save_as_action.shortcut() == QKeySequence("Ctrl+Shift+S")
     assert win.fit_action.shortcut() == QKeySequence("Ctrl+F")
+    # Commands that change data or the layout never sit on a single key.
+    for action in (win.save_as_action, win.restore_original_action, win.revert_background_action):
+        sequence = action.shortcut()
+        assert sequence.isEmpty() or sequence[0].keyboardModifiers() != 0, action.text()
+    # No digits or punctuation: those differ between keyboard layouts.
+    for key in assigned:
+        assert len(key) != 1 or key.isalpha(), key
 
 
 def test_shortcuts_trigger_toolbar_and_menu_actions(window):
     app, win = window
     received = []
-    for action in (win.quick_peak_action, win.manual_action, win.log_action):
+    for action in (win.quick_fit_action, win.manual_action, win.calculator_action):
         action.triggered.disconnect()
         name = action.text()
         action.triggered.connect(lambda checked=False, name=name: received.append(name))
@@ -72,22 +90,21 @@ def test_shortcuts_trigger_toolbar_and_menu_actions(window):
         assert received[-1] == action.text()
 
 
-def test_dynamic_actions_and_changed_tooltips_are_updated(window):
+def test_new_commands_get_no_automatic_key_and_keep_their_tooltips(window):
     app, win = window
+    before = {command: command.shortcut().toString() for command in win._action_shortcuts.commands()}
     menu = win.menuBar().actions()[0].menu()
     action = QAction("Plugin command", win)
     action.setToolTip("An explanation that must survive.")
     menu.addAction(action)
+    for index in range(15):
+        menu.addAction(QAction(f"Additional native command {index}", win))
     app.processEvents()
-    assert not action.shortcut().isEmpty()
-    assert "An explanation" in action.toolTip()
-    action.setText("Updated command")
-    app.processEvents()
-    assert action.toolTip().startswith("Updated command (")
-    assert "An explanation" in action.toolTip()
-    before = action.toolTip()
     win._action_shortcuts.refresh()
-    assert action.toolTip() == before
+    assert action.shortcut().isEmpty()
+    assert action.toolTip() == "An explanation that must survive."
+    for command, key in before.items():
+        assert command.shortcut().toString() == key, command.text()
 
 
 def test_toolbar_toggles_have_working_shortcuts(window):
@@ -101,51 +118,6 @@ def test_toolbar_toggles_have_working_shortcuts(window):
         QTest.qWait(150)
         app.processEvents()
         assert checkbox.isChecked() != before
-
-
-def test_assigned_shortcuts_survive_reopening_with_new_commands(window):
-    app, win = window
-    first = win.log_action.shortcut()
-    old_settings = win.settings
-    second = CurveMoleMainWindow()
-    second.settings = old_settings
-    # Force restoration against the same settings while creating commands in a different order.
-    for action in second._action_shortcuts.commands():
-        if action is second.log_action:
-            action.setShortcut(QKeySequence())
-    second._action_shortcuts.saved = dict(win._action_shortcuts.saved)
-    extra = QAction("An additional plugin command", second)
-    second.menuBar().actions()[0].menu().insertAction(second.menuBar().actions()[0].menu().actions()[0], extra)
-    second._action_shortcuts.refresh()
-    assert second.log_action.shortcut() == first
-    second.project.dirty = False
-    second.close()
-    app.processEvents()
-
-
-def test_shortcut_opens_toolbar_drop_down_menus(window):
-    app, win = window
-    for action in (win.view_options_action, win.restore_original_action):
-        win.activateWindow()
-        win.setFocus()
-        app.processEvents()
-        QTest.keySequence(win, action.shortcut())
-        app.processEvents()
-        assert action.menu().isVisible()
-        action.menu().close()
-        app.processEvents()
-
-
-def test_all_builtin_shortcuts_are_single_keys_or_control_letters(window):
-    from curvemole.gui.action_shortcuts import _simple
-
-    _, win = window
-    commands = [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]
-    snapshot = [(command.text(), command.shortcut().toString()) for command in commands]
-    for command in commands:
-        assert _simple(command.shortcut()), snapshot
-        if isinstance(command, QAction):
-            assert command in win.actions()
 
 
 def test_commands_work_with_plot_and_function_list_focus(window):
@@ -186,21 +158,35 @@ def test_plain_shortcuts_do_not_steal_typing_or_native_select_all(window):
     assert editor.selectedText() == "a test"
 
 
-def test_migrates_old_shortcut_assignments(window):
+def test_shortcut_opens_toolbar_drop_down_menu(window):
+    app, win = window
+    action = win.view_options_action
+    win.activateWindow()
+    win.setFocus()
+    app.processEvents()
+    QTest.keySequence(win, action.shortcut())
+    app.processEvents()
+    assert action.menu().isVisible()
+    action.menu().close()
+    app.processEvents()
+
+
+def test_previous_automatic_assignments_are_discarded(window):
     _, win = window
     manager = win._action_shortcuts
     manager.saved["manual_action"] = "Ctrl+K, F1"
     win.manual_action.setShortcut(QKeySequence("Ctrl+K, F1"))
     manager.refresh()
     assert win.manual_action.shortcut() == QKeySequence("Ctrl+M")
-    assert win.settings.value("shortcuts/schema", type=int) == 2
+    assert win.settings.value("shortcuts/schema", type=int) == 3
 
 
-def test_every_menu_command_activates_from_its_displayed_shortcut(window):
+def test_every_command_with_a_shortcut_activates_from_it(window):
     import warnings
 
     app, win = window
-    actions = win._action_shortcuts.commands()
+    actions = _with_shortcut(win._action_shortcuts.commands())
+    assert len(actions) > 20
     received = []
     for action in actions:
         with warnings.catch_warnings():
@@ -217,80 +203,3 @@ def test_every_menu_command_activates_from_its_displayed_shortcut(window):
         QTest.keySequence(win.plot_workspace.graphics, action.shortcut())
         app.processEvents()
         assert received == [action], (action.text(), action.shortcut().toString(), received)
-
-
-def test_removed_commands_do_not_reserve_single_keys_forever(window):
-    import string
-
-    from curvemole.gui.action_shortcuts import _simple
-
-    _, win = window
-    manager = win._action_shortcuts
-    keys = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
-            *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
-    # Native menus may be replaced at startup in a different order per platform.
-    # Old persisted identities must not consume keys needed by the live commands.
-    manager.saved = {f"removed-command-{i}": key for i, key in enumerate(keys)}
-    manager.refresh()
-    for command in [*manager.commands(), *manager.buttons()]:
-        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
-
-
-def test_preferred_commands_release_their_previous_saved_keys_immediately(window):
-    import string
-
-    from curvemole.gui.action_shortcuts import _PREFERRED, _PREFERRED_TEXT, _simple
-
-    _, win = window
-    manager = win._action_shortcuts
-    preferred = set(_PREFERRED.values()) | set(_PREFERRED_TEXT.values())
-    keys = [*string.ascii_uppercase, *("Ctrl+"+c for c in string.ascii_uppercase),
-            *string.digits, "-", "+", ",", ".", "/", "*", ";", "'", "[", "]", "\\", "=", "`", ":", "Space"]
-    previous = iter(key for key in keys if key not in preferred)
-    manager.saved = {name: next(previous) for name in _PREFERRED if getattr(win, name, None) is not None}
-    manager.refresh()
-    for command in [*manager.commands(), *manager.buttons()]:
-        assert _simple(command.shortcut()), (command.text(), command.shortcut().toString())
-
-
-def test_larger_native_menus_still_use_single_keys_or_control_letters(window):
-    from curvemole.gui.action_shortcuts import _simple
-
-    app, win = window
-    menu = win.menuBar().actions()[0].menu()
-    for index in range(15):
-        menu.addAction(QAction(f"Additional native command {index}", win))
-    app.processEvents()
-    win._action_shortcuts.refresh()
-    commands = [*win._action_shortcuts.commands(), *win._action_shortcuts.buttons()]
-    snapshot = [(command.text(), command.shortcut().toString()) for command in commands]
-    for command in commands:
-        assert _simple(command.shortcut()), snapshot
-
-
-def test_shifted_punctuation_activates_its_symbol_shortcut_but_remains_typable(window):
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QLineEdit
-
-    app, win = window
-    manager = win._action_shortcuts
-    action = QAction("Symbol command", win)
-    win.menuBar().actions()[0].menu().addAction(action)
-    manager.commands()
-    manager.saved[manager.identities[action]] = "!"
-    manager.refresh()
-    assert action.shortcut() == QKeySequence("!")
-    received = []
-    action.triggered.connect(lambda checked=False: received.append(True))
-    win.activateWindow()
-    win.plot_workspace.graphics.setFocus()
-    app.processEvents()
-    QTest.keyClick(win.plot_workspace.graphics, Qt.Key.Key_Exclam, Qt.KeyboardModifier.ShiftModifier)
-    assert received == [True]
-    editor = QLineEdit(win)
-    editor.show()
-    editor.setFocus()
-    app.processEvents()
-    QTest.keyClick(editor, Qt.Key.Key_Exclam, Qt.KeyboardModifier.ShiftModifier)
-    assert editor.text() == "!"
-    assert received == [True]

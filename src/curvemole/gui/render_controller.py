@@ -47,10 +47,13 @@ def _restore_plot_view(workspace: PlotWorkspace, state: PlotViewState | None) ->
         yRange=list(y_range),
         padding=0,
     )
-    workspace.residual_plot.getViewBox().setRange(
-        yRange=list(residual_y_range),
-        padding=0,
-    )
+    residual_view = workspace.residual_plot.getViewBox()
+    if getattr(workspace, "_residual_view_manual", False):
+        residual_view.setRange(yRange=list(residual_y_range), padding=0)
+    else:
+        # New residuals (e.g. after a fit) must not be clipped to the range of
+        # the previous ones; only a residual zoom chosen by hand is preserved.
+        residual_view.enableAutoRange(axis=pg.ViewBox.YAxis)
 
 
 def _optimise_plot_rendering(workspace: PlotWorkspace) -> None:

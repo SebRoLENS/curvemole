@@ -100,3 +100,17 @@ def isolated_data_directory(tmp_path):
         settings.remove("data_directory")
     else:
         settings.setValue("data_directory", previous)
+
+
+@pytest.fixture(autouse=True)
+def no_leftover_screen_fit_filter():
+    """The application-wide screen clamp is per test; the 800x800 offscreen
+    screen would otherwise resize windows in unrelated layout tests."""
+    yield
+    from PySide6.QtWidgets import QApplication
+
+    app = QApplication.instance()
+    screen_fit = getattr(app, "_curvemole_screen_fit", None) if app is not None else None
+    if screen_fit is not None:
+        app.removeEventFilter(screen_fit)
+        app._curvemole_screen_fit = None

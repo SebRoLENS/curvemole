@@ -68,6 +68,13 @@ def _set_table_checked(table: QTableWidget, column: int, checked: bool) -> None:
             item.setCheckState(state)
 
 
+def _name_accept(buttons: QDialogButtonBox, text: str) -> None:
+    """Name the accept button after its action instead of a generic "OK"."""
+    button = buttons.button(QDialogButtonBox.StandardButton.Ok)
+    if button is not None:
+        button.setText(text)
+
+
 class ImportMappingDialog(QDialog):
     def __init__(
         self,
@@ -227,6 +234,7 @@ class ImportMappingDialog(QDialog):
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Cancel | QDialogButtonBox.StandardButton.Ok
         )
+        _name_accept(self.buttons, self.tr("Import"))
         self.buttons.accepted.connect(lambda: self._accept())
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
@@ -532,6 +540,7 @@ class BackgroundComponentsDialog(QDialog):
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        _name_accept(self.buttons, self.tr("Subtract"))
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(bool(candidates))
@@ -568,7 +577,7 @@ class AddComponentDialog(QDialog):
         self.name = QLineEdit()
         self.operator = QComboBox()
         self.operator.addItems(["add", "subtract", "multiply", "divide", "convolve"])
-        self.add_as_background = QCheckBox(self.tr("Add as background"))
+        self.add_as_background = QCheckBox(self.tr("Mark as background"))
         self.add_as_background.setToolTip(self.tr("Mark this function as part of the spectrum background."))
         self.spline_nodes = QLineEdit()
         self.spline_nodes_label = QLabel(self.tr("Spline x nodes"))
@@ -611,6 +620,7 @@ class AddComponentDialog(QDialog):
         self.estimate_parameters.clicked.connect(self._estimate_parameters)
         self.resize(760, 640)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        _name_accept(buttons, self.tr("Add"))
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -903,6 +913,7 @@ class FitPlanDialog(QDialog):
         layout.addWidget(advanced_box)
         self._update_solver_options(self.solver.currentIndex())
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        _name_accept(buttons, self.tr("Fit"))
         buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -1092,6 +1103,7 @@ class CopyFitDialog(QDialog):
         self.function_summary.setWordWrap(True)
         layout.addWidget(self.function_summary)
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        _name_accept(self.buttons, self.tr("Copy"))
         self.buttons.accepted.connect(self.accept)
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
@@ -1303,6 +1315,7 @@ class ExportBundleDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
+        _name_accept(buttons, self.tr("Export"))
         buttons.accepted.connect(lambda: self._accept())
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)

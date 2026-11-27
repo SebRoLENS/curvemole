@@ -384,15 +384,15 @@ data, and the model panel on the right identifies the active curve.
 
 ### 4.2 Add a background
 
-1. Press the **+** button in **Model and parameters**, or press **Ctrl++**.
-2. Select **Constant** and enable **Add as background**.
+1. Press the **+** button in **Model and parameters**, or press **Ctrl+Shift+A**.
+2. Select **Constant** and enable **Mark as background**.
 3. Keep composition set to `add`.
 4. Press **OK**.
 5. In the parameter table, enter an initial `offset` near the visual baseline.
 
 ### 4.3 Add a Gaussian peak graphically
 
-1. Add another component and select **Gaussian**. Leave **Add as background** and
+1. Add another component and select **Gaussian**. Leave **Mark as background** and
    **Initialize from manually selected points on the graph** unchecked.
 2. Press **OK**. The pointer changes to a crosshair.
 3. Click at the approximate peak center.
@@ -654,7 +654,7 @@ background selection. In Show all functions mode these actions span the project.
 Selection is separate from enabling: a checked function contributes to the model
 and fit; an unchecked function remains stored but is excluded. Hover directly over
 its checkbox for an explanation. Changing a checkbox on a selected function applies
-the enabled state to the whole selection. **Use as background** classifies the
+the enabled state to the whole selection. **Mark as background** classifies the
 selected functions; it does not subtract them from the data.
 The larger switch is grouped immediately above the parameter table under
 **Selected functions: N**, so its targets are explicit. It shows **ON**, **OFF** or
@@ -1068,7 +1068,7 @@ Open Fit… to use another fitting mode.
 
 ### 7.5 Data Calculator
 
-Open **Tools > Data Calculator**. The following scalar operations are available:
+Open **Data > Data Calculator**. The following scalar operations are available:
 
 - add to or subtract from y;
 - multiply or divide y;
@@ -1245,7 +1245,7 @@ editing. Read-only projects cannot be edited.
 All entries in the function library are fitting functions. Constant, linear, polynomial,
 cubic-spline, peak-shaped, and custom formulas are not separated into a special
 background-function class. Background is instead a property of a model component.
-Select a component in **Model and parameters** and enable **Use as background** when
+Select a component in **Model and parameters** and enable **Mark as background** when
 that component represents the experimental baseline or background.
 
 **Data > Subtract background...** uses these component-level marks. If no component is
@@ -1430,8 +1430,8 @@ $$
 ### 8.3 Built-in functions commonly used as backgrounds
 
 The library names are **Constant**, **Linear**, **Polynomial** and **Cubic spline**.
-They become background components only when **Add as background** in the Add dialog
-or **Use as background** in the model panel is enabled.
+They become background components only when **Mark as background** in the Add dialog
+or **Mark as background** in the model panel is enabled.
 
 #### Constant
 
@@ -1530,7 +1530,7 @@ functions. This selector and the toolbar selector stay synchronized; the referen
 updates immediately. Browsing does not add a component and cancels unfinished
 graphical placement without removing components already added. **Copy formula** copies
 the displayed expression; **Add function** opens the advanced Add component
-dialog with that function selected. The Model menu and Ctrl++ still open that
+dialog with that function selected. The Model menu and Ctrl+Shift+A still open that
 dialog directly. Plugin formulas are displayed when supplied by the provider.
 
 In the Functions group's point placement, right-click and Return/Enter commit the same points
@@ -1663,7 +1663,7 @@ points are saved with the project and remain editable after reopening it.
 
 #### Drawing a cubic-spline background
 
-After choosing **Cubic spline**, enable **Add as background** and keep manual-point
+After choosing **Cubic spline**, enable **Mark as background** and keep manual-point
 initialization enabled:
 
 1. left-click background nodes on the plot;
@@ -1699,9 +1699,8 @@ controls them.
 
 ### 8.8 Automatic peak suggestions
 
-Choose **Model > Find positive peaks…**. Despite the menu label, the first dialog
-can search positive, negative, or both
-signs. The next dialog selects any registered function classified as a peak, initially
+Choose **Model > Find peaks…**. The first dialog searches positive, negative, or
+both signs. The next dialog selects any registered function classified as a peak, initially
 preferring the peak selected in the Functions group. CurveMole then:
 
 - subtracts the median as an initial baseline;
@@ -1711,7 +1710,8 @@ preferring the peak selected in the Functions group. CurveMole then:
 - estimates width at half prominence;
 - sorts suggestions by prominence.
 
-Choose how many suggestions to add. Every suggestion is initialized using the selected
+Choose how many suggestions to add; all of them are proposed by default, strongest
+first. Every suggestion is initialized using the selected
 peak function's explicit parameter roles or, for legacy functions, recognized parameter
 names. Suggestions are initial estimates, not a scientific decision about the number,
 identity, or line shape of peaks.
@@ -3028,8 +3028,16 @@ function: Gaussian and Voigt use `sigma`, Lorentzian uses `gamma`, and pseudo-Vo
 uses `fwhm`.
 
 If no initial peak override is supplied, the CLI uses the strongest automatic
-positive peak suggestion when available. Background choices are none, constant, or
-linear.
+positive peak suggestion when available. `--peaks N` fits the N most prominent
+suggestions (the overrides apply to the first peak); a warning reports additional
+candidates that were not fitted. `--sigma-y COLUMN` weights the fit with Y standard
+uncertainties. Background choices are none, constant, or linear. Parameters are
+printed as `spectrum / function / parameter: value ± standard error`.
+
+Exit codes: 0 success, 2 usage (for example an existing `--output` without
+`--force`), 3 data (including a missing input file), 4 unsuccessful fit
+(`success: false`), 5 project file, 6 plugin or other domain error, 10 unexpected
+(use `--verbose` for the traceback). JSON output writes non-finite numbers as `null`.
 
 ### 15.5 Fit a series
 
@@ -3320,7 +3328,7 @@ records and Appendix J.5 for fresh component IDs under strong cancellation.
 
 ### 18.1 Formula Builder
 
-Open **Tools > Function Builder**. Enter:
+Open **Model > Function Builder**. Enter:
 
 - an identifier using letters, numbers, and underscores;
 - a display name;
@@ -3817,7 +3825,7 @@ extensions must follow their applicable license obligations.
 
 ## Appendix A. Keyboard shortcuts
 
-Menu and toolbar shortcuts use plain keys or Ctrl+letter. Contextual editing
+Menu and toolbar shortcuts use plain letters, Ctrl+letter or Ctrl+Shift+letter. Contextual editing
 also uses the special keys listed below. The table uses portable Qt spellings;
 **Help > Shortcuts...** shows the native labels and actual bindings for this window,
 including loaded plugins. Native modifier labels can differ on macOS.
@@ -3828,12 +3836,16 @@ including loaded plugins. Native modifier labels can differ on macOS.
 | Ctrl+O | Open project |
 | Ctrl+I | Import data |
 | Ctrl+S | Save project |
-| S | Save project as |
+| Ctrl+Shift+S | Save project as |
 | Ctrl+E | Export analysis bundle |
 | Ctrl+T | Export one numeric file per selected spectrum |
 | Ctrl+Z | Undo |
 | Ctrl+Y | Redo |
-| Ctrl+A | Add component |
+| Ctrl+Shift+A | Add component (advanced dialog) |
+| A | Add the selected function |
+| Ctrl+Shift+C | Copy fit |
+| Ctrl+Shift+V | Copy fit to next spectrum |
+| Ctrl+Shift+P | Find peaks |
 | Ctrl+F | Open Fit dialog |
 | Ctrl+J | Quick Start |
 | Esc | Cancel graphical peak or manual-point placement |
@@ -3857,21 +3869,25 @@ explains navigation, masking, function placement, point editing and selection.
 The searchable Keyboard tab lists the currently assigned menu, toolbar and plugin
 shortcuts, together with keys that apply only in a particular editing context.
 
-Every command in the top menus and toolbars has a dedicated keyboard shortcut,
-including the Background and Initialize with points toggles.
+Frequent commands have fixed, documented shortcuts, including the Background and
+Initialize with points toggles. The bindings do not depend on the menu order, the
+loaded plugins or the keyboard layout; commands without a shortcut are still listed
+in the Keyboard tab so it can be searched as a command index.
 Hover a button to see the command name and its shortcut on the first tooltip line;
-the existing explanation remains below. Menus also display the shortcut. Commands
-use single keys or Ctrl+letter, without function keys or multi-step sequences.
+the existing explanation remains below. Menus also display the shortcut.
+Standard system keys keep their usual meaning: Ctrl+A selects all, Ctrl+C and
+Ctrl+V copy and paste, and Save As is **Ctrl+Shift+S**. Single letters are used
+only for frequent commands that do not change data or the window layout.
 For example: **A** adds a function, **E** reopens its control points, **F** runs
 Quick Fit, **Ctrl+F** opens the Fit dialog, **X** cancels the running task, **B**
-subtracts background, **R** reverts it, **V** shows all data, and **H** opens function
+opens Subtract background, **V** shows all data, and **H** opens function
 details. Standard Ctrl+S, Ctrl+O, Ctrl+Z and Ctrl+Y remain available.
 
 Shortcuts work while the plot or function list has focus. While typing in a text
 field, spin box or parameter table, plain keys and native copy/paste/undo remain
 with that editor. Dialogs and popup menus keep their own keyboard handling.
-Assignments from the previous beta are migrated automatically. Dynamically added
-commands receive shortcuts too; disabled commands remain unavailable by keyboard.
+Automatic assignments from earlier betas are discarded. Commands added by plugins
+have no shortcut; disabled commands remain unavailable by keyboard.
 
 
 ## Appendix B. Built-in identifiers
@@ -5335,22 +5351,23 @@ The actual statistics object contains the fit statistics. In 1.2.0,
 `imported_files` records resolved input paths in import order and `warnings`
 reports skipped empty selections, for example when `allow_empty: true`. These
 two additional JSON keys are absent in the 1.1.0 baseline. `run` returns exit
-code 0 when it returns normally, **even if `success` is false**. Batch callers must
-check both the process status and the JSON `success` value. A failed fit can still
-produce exports for inspection.
+code 4 when the fit does not succeed (`success` is false), so batch callers can rely
+on the process status. A failed fit can still produce exports for inspection.
 
 | Exit code | Meaning |
 | --- | --- |
-| 0 | Command returned normally; inspect fit success separately |
+| 0 | Success |
 | 2 | Command-line usage error |
-| 3 | `validate` found problems (listed in `failures`), or a data error at `run` such as a missing column, invalid values or an unknown function ID |
-| 4 | Raised fit failure |
+| 3 | Invalid workflow: `validate` found problems (listed in `failures`) or `run` refused the workflow, including unreadable YAML, a wrong `schema_version`, unknown function IDs, parameter names or curve names; also data errors at `run` such as a missing column or invalid values |
+| 4 | The fit failed or did not succeed (`success: false`) |
 | 5 | Project archive failure |
-| 6 | Other CurveMole errors: missing input file/directory or a glob without matches, an invalid workflow passed to `run`, unreadable YAML or a wrong `schema_version` (also for `validate`), plugin trust/loading errors, refused project overwrite |
+| 6 | Other CurveMole errors: missing input file/directory or a glob without matches, plugin trust/loading errors, refused project overwrite |
 | 10 | Unexpected failure, including some malformed nested YAML or bundle file collisions |
 
-Run `validate` first: it lists all structural problems at once, while `run`
-stops at the first one with exit code 6. Function IDs, column selectors and data
+Run `validate` first: it lists all problems at once, including misspelt function
+IDs, parameter names and curve names (with a "Did you mean" suggestion), while
+`run` stops with exit code 3. Curve names are checked when every import declares
+`aliases` or `curve_ids`; functions supplied by plugins, column selectors and data
 are checked only by `run`.
 
 For desktop use, select **Run automation** in the bottom **Automations** toolbar.
@@ -6079,7 +6096,7 @@ uncertainty rows; intrinsically invalid X/Y remain excluded.
 
 Only the following built-in settings are passed to `FitSettings`; spell names
 exactly. Validation reports an unrecognised setting as an unknown field, and
-`run` stops with exit code 6. Do not add GUI-only controls
+`run` stops with exit code 3. Do not add GUI-only controls
 such as propagation thresholds or Monte Carlo replicate counts here.
 
 Built-in optimizers use dimensionless coordinates based on parameter and data
@@ -6132,7 +6149,7 @@ normalization; supplied Nelder-Mead simplex vertices remain physical parameters.
 (`solver: lm` or `local_method: lm`) is incompatible with bounds and robust loss.
 Built-in peak widths (`sigma`, `gamma`, `fwhm`) and `eta` always carry default
 bounds, so LM with gaussian, lorentzian, voigt or pseudo_voigt components ends with
-`success: false` (exit code 0). Use LM only for models whose parameters are all
+`success: false` (exit code 4). Use LM only for models whose parameters are all
 unbounded (constant, linear, polynomial, cubic_spline or unbounded formulas). Differential Evolution finds an initial
 solution then locally refines it. Finite user bounds take priority over its
 automatic search intervals; set scientifically meaningful finite bounds for

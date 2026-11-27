@@ -174,12 +174,17 @@ def detect_config(path: str | Path) -> ImportConfig:
         if b"\x00" in stream.read(4096):
             raise DataValidationError("Incomplete or unsupported binary spectrum; use SPE 2.x or X/Y text.")
     indexed_lines = []
+    comments: dict[int, str] = {}
     numeric_count = 0
     try:
         with source.open(encoding="utf-8-sig", errors="replace") as stream:
             for index, line in enumerate(stream):
                 line = line.rstrip("\r\n")
-                if not line.strip() or line.lstrip().startswith(("#", ";", "%", "!")):
+                if not line.strip():
+                    continue
+                if line.lstrip().startswith(("#", ";", "%", "!")):
+                    if not indexed_lines and len(comments) < 200:
+                        comments[index] = line
                     continue
                 indexed_lines.append((index, line))
                 numeric_count += _looks_like_numeric_row(line)
@@ -232,6 +237,22 @@ def detect_config(path: str | Path) -> ImportConfig:
         ):
             skip_rows = previous_index
             header = True
+
+    if not header and data_position == 0 and comments:
+        # Instruments often write the column names as the last comment line,
+        # e.g. "# Raman shift (cm-1)<TAB>Intensity (counts)".
+        comment_index = max(comments)
+        text = _strip_comment(comments[comment_index], ("#", ";", "%", "!"))
+        candidates = [delimiter]
+        if delimiter is None and "\t" in text and "\t" in first_data_line:
+            candidates.insert(0, "\t")
+        for candidate in candidates:
+            names = [name.strip() for name in _split(text, candidate)]
+            data_fields = _split(first_data_line, candidate)
+            if (len(names) >= 2 and len(names) == len(data_fields) and all(names)
+                    and any(not _is_number(name, decimal) for name in names)):
+                delimiter, skip_rows, header = candidate, comment_index, True
+                break
 
     return ImportConfig(
         delimiter=delimiter,
@@ -443,6 +464,10 @@ def _read_frame(
                 if index < config.skip_rows or not line.strip():
                     continue
                 if line.lstrip().startswith(prefixes):
+                    if config.header and index == config.skip_rows and not count and not kept:
+                        # The header is the commented column-name line itself.
+                        kept.append(_strip_comment(line.rstrip("\r\n"), prefixes) + "\n")
+                        continue
                     comments += 1
                     continue
                 kept.append(line.rstrip("\r\n") + "\n")
@@ -543,6 +568,14 @@ def unparsed_values(values: Iterable[str], parsed: np.ndarray) -> np.ndarray:
 def _unparsed_rows(series: pd.Series, parsed: np.ndarray) -> np.ndarray:
     # Only rows that failed to parse need their text inspected.
     return unparsed_values(series.to_numpy(dtype=object), parsed)
+
+
+def _strip_comment(line: str, prefixes) -> str:
+    text = line.strip()
+    for prefix in sorted(prefixes, key=len, reverse=True):
+        if text.startswith(prefix):
+            return text[len(prefix):].strip()
+    return text
 
 
 def _split(line: str, delimiter: str | None) -> list[str]:

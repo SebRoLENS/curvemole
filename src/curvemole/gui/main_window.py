@@ -1037,7 +1037,8 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle(self._title())
         self.setMinimumSize(960, 640)
-        self.resize(1440, 900)
+        from curvemole.gui.screen_fit import default_window_size
+        self.resize(default_window_size(self, QSize(1440, 900)))
         self.setAcceptDrops(True)
         icon_path = _resource_path("curvemole.png")
         if icon_path:
@@ -1045,6 +1046,8 @@ class MainWindow(QMainWindow):
 
         self.plot_workspace = PlotWorkspace(self.registry)
         self.setCentralWidget(self.plot_workspace)
+        # Docked tools may shrink the plot, but never below a usable size.
+        self.plot_workspace.setMinimumSize(360, 280)
         self._build_docks()
         self.dock_collapse = DockCollapseControls(self)
         self.statusBar().addPermanentWidget(self.dock_collapse)
@@ -1188,7 +1191,9 @@ class MainWindow(QMainWindow):
         self.function_dock.hide()
 
         self.uncertainty_panel = UncertaintyPanel()
-        self.uncertainty_dock = self._dock(self.tr("Uncertainty Analysis"), self.uncertainty_panel, Qt.DockWidgetArea.BottomDockWidgetArea)
+        # Tabbed beside Model and parameters: at the bottom it took the full
+        # window width and squeezed the plot to a few pixels on laptops.
+        self.uncertainty_dock = self._dock(self.tr("Uncertainty Analysis"), self.uncertainty_panel, Qt.DockWidgetArea.RightDockWidgetArea)
         self.uncertainty_dock.hide()
 
         # Keep a Python owner for the initial dock widget.  Passing a temporary
@@ -1517,7 +1522,7 @@ class MainWindow(QMainWindow):
         self.copy_fit_action.triggered.connect(self.copy_fit)
         self.copy_fit_next_action = QAction(self.tr("Copy fit to next…"), self)
         self.copy_fit_next_action.triggered.connect(lambda: self.copy_fit(next_only=True))
-        self.find_peaks_action = QAction(self.tr("Find positive peaks…"), self)
+        self.find_peaks_action = QAction(self.tr("Find peaks…"), self)
         self.find_peaks_action.triggered.connect(self.find_peaks)
         self.mask_tolerance_action = QAction(self.tr("Mask transfer tolerance…"), self)
         self.mask_tolerance_action.triggered.connect(self.set_mask_tolerance)
@@ -1540,7 +1545,7 @@ class MainWindow(QMainWindow):
                     "solver, loss and algorithm settings, or defaults on first use.")
         )
         self.quick_fit_action.triggered.connect(self.quick_fit)
-        self.resume_action = QAction(self.tr("Continue paused sequence"), self)
+        self.resume_action = QAction(self.tr("Continue sequential fit"), self)
         self.resume_action.setIcon(_resource_icon("resume.svg"))
         self.resume_action.setEnabled(False)
         self.resume_action.triggered.connect(self.resume_sequence)
@@ -1618,7 +1623,6 @@ class MainWindow(QMainWindow):
         file_menu.addAction(self.export_action)
         file_menu.addAction(self.export_parameters_action)
         file_menu.addAction(self.export_view_action)
-        file_menu.addAction(self.notebook_action)
         file_menu.addAction(self.recovery_action)
         file_menu.addAction(self.plugins_action)
         file_menu.addSeparator()
@@ -1627,18 +1631,18 @@ class MainWindow(QMainWindow):
         edit_menu = menu.addMenu(self.tr("&Edit"))
         edit_menu.addActions([self.undo_action, self.redo_action])
 
+        # Each command lives in one menu; the toolbar may repeat it.
         data_menu = menu.addMenu(self.tr("&Data"))
+        self.data_menu = data_menu
         data_menu.addActions(
             [
-                self.import_action,
                 self.edit_data_points_action,
                 self.subtract_background_action,
                 self.calculator_action,
-                self.worksheet_action,
             ]
         )
         data_menu.addSeparator()
-        data_menu.addAction(self.mask_tolerance_action)
+        data_menu.addActions([self.plot_workspace.mask_action, self.mask_tolerance_action])
 
         model_menu = menu.addMenu(self.tr("&Model"))
         model_menu.addActions(
@@ -1694,9 +1698,10 @@ class MainWindow(QMainWindow):
         view_menu.addAction(self.reset_layout_action)
 
         self.tools_menu = menu.addMenu(self.tr("&Tools"))
-        self.tools_menu.addActions(
-            [self.calculator_action, self.function_action, self.uncertainty_action]
-        )
+        # Calculator (Data), Function Builder (Model) and Uncertainty Analysis
+        # (Fit) are listed once, in their workflow menus. Tools holds the
+        # notebook and commands added by plugins.
+        self.tools_menu.addAction(self.notebook_action)
 
         self.help_menu = menu.addMenu(self.tr("&Help"))
         self.help_menu.addActions(
@@ -2328,7 +2333,7 @@ class MainWindow(QMainWindow):
         suggested = (self.project.path.parent if self.project.path else Path.cwd()) / f"{self.project.name}-functions-parameters.csv"
         from PySide6.QtWidgets import QCheckBox, QGridLayout
 
-        with transient_widget(QFileDialog(self, self.tr("Export functions parameters"), str(suggested),
+        with transient_widget(QFileDialog(self, self.tr("Export function parameters"), str(suggested),
                              self.tr("CSV files (*.csv)"))) as dialog:
             dialog.setAcceptMode(QFileDialog.AcceptMode.AcceptSave)
             dialog.setDefaultSuffix("csv")
@@ -2349,7 +2354,7 @@ class MainWindow(QMainWindow):
                     self.project, selected, include_covariance=covariance.isChecked())
                 self._notify(self.tr("Functions parameters exported: ") + str(destination))
             except Exception as exc:
-                self._show_error(self.tr("Export functions parameters"), exc)
+                self._show_error(self.tr("Export function parameters"), exc)
 
     def edit_component_points(self, component_id: str | None = None) -> None:
         from curvemole.gui.edit_function_points import FunctionPointEditor
@@ -4181,7 +4186,8 @@ class MainWindow(QMainWindow):
         self.dock_collapse.restore({})
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.series_dock)
         self.series_dock.show()
-        self.resize(1440, 900)
+        from curvemole.gui.screen_fit import default_window_size
+        self.resize(default_window_size(self, QSize(1440, 900)))
         for dock in self._tool_docks:
             if dock is not self.model_dock:
                 dock.hide()

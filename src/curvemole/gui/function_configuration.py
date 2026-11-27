@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.parameters import Parameter
+from curvemole.gui.parameter_limits import _NUMERICAL_FLOORS
 
 
 class FunctionOptionsWidget(QWidget):
@@ -155,6 +156,13 @@ class FunctionOptionsDialog(QDialog):
         super().accept()
 
 
+def _bound_text(value: float, *, lower: bool = False) -> str:
+    """Readable numbers: "0" for a strict-positivity floor, no 17-digit noise."""
+    if lower and value in _NUMERICAL_FLOORS:
+        return "0"
+    return f"{value:.12g}"
+
+
 class InitialParametersTable(QTableWidget):
     def __init__(self, parent=None):
         super().__init__(0, 5, parent)
@@ -178,7 +186,11 @@ class InitialParametersTable(QTableWidget):
             self.setItem(row, 0, name)
             old = previous.get(parameter.name)
             for col, value in enumerate((parameter.value, parameter.minimum, parameter.maximum), 1):
-                self.setItem(row, col, QTableWidgetItem(old[col-1] if old else str(value)))
+                item = QTableWidgetItem(old[col-1] if old else _bound_text(value, lower=col == 2))
+                if col == 2 and value in _NUMERICAL_FLOORS:
+                    item.setToolTip(self.tr(
+                        "0 means strictly positive (> 0); the smallest positive number is used internally."))
+                self.setItem(row, col, item)
             fixed = QTableWidgetItem()
             fixed.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
             fixed.setCheckState(old[3] if old else Qt.CheckState.Checked if parameter.fixed else Qt.CheckState.Unchecked)
@@ -196,6 +208,8 @@ class InitialParametersTable(QTableWidget):
                 spec = specs[name]
                 if not math.isfinite(value) or math.isnan(lower) or math.isnan(upper):
                     raise ValueError(self.tr("Use a finite initial value and valid limits."))
+                if lower == 0 and spec.minimum > 0:
+                    lower = spec.minimum  # "0" stands for the strict-positivity floor
                 if lower < spec.minimum or upper > spec.maximum:
                     raise ValueError(self.tr("Limits exceed the function's allowed domain."))
                 parameter = Parameter(name, value, lower, upper,

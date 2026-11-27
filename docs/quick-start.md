@@ -1,12 +1,5 @@
 # CurveMole Quick Start
 
-**Scientific corrections (release, 2026-11-02).** The seven findings in the
-latest scientific audit are corrected in this edition: parameter scaling,
-nonlinear uncertainty derivatives, convolution alignment, compensated summation,
-profile confidence regions and saved execution provenance. Appendix J describes
-the changes and their limits. Use the documents attached to your exact release build;
-these corrections do not apply retroactively to earlier executables.
-
 Use **View all** in the main icon toolbar (also in the plot context menu and **View > Axes**)
 to frame all experimental samples, including masked regions. **View unmasked**,
 alongside it, frames only unmasked samples. Neither command includes model
@@ -192,7 +185,7 @@ the active, corrected spectrum becomes the source for the remaining spectra;
 the saved sequential monitoring and propagation settings are retained.
 
 With the spline actually subtracted, confirm that it is disabled and that only the
-new peak functions contribute to the model. Press **F5**, select the active curve,
+new peak functions contribute to the model. Press **Ctrl+F**, select the active curve,
 choose **Single / independent**, and start the fit. During optimization CurveMole
 updates the trial model periodically without resetting a zoom chosen by the user.
 
@@ -333,7 +326,7 @@ See [manual section 16](manual.md) for the format, plugin trust and output behav
 
 ## Calculator: operations between columns
 
-Open **Tools > Data Calculator**, choose the green **Advanced - column formula**
+Open **Data > Data Calculator**, choose the green **Advanced - column formula**
 entry at the top, and select a destination (Y, X or another source column).
 Use **Insert into formula** to insert available columns by name: `c1`, `c2`, etc.
 For example, `c2 / c3**2` divides column 2 by the square of column 3.
@@ -371,3 +364,12 @@ residual bootstrap, block bootstrap and profile likelihood. Resampling defaults 
 include reasons. Select a parameter row to set an acceptable absolute uncertainty;
 without one the program does not declare its precision adequate. Export the
 recorded tables using **Uncertainty intervals, assessments and matrices**.
+
+## Release notes
+
+**Scientific corrections (release, 2026-11-02).** The seven findings in the
+latest scientific audit are corrected in this edition: parameter scaling,
+nonlinear uncertainty derivatives, convolution alignment, compensated summation,
+profile confidence regions and saved execution provenance. Appendix J describes
+the changes and their limits. Use the documents attached to your exact release build;
+these corrections do not apply retroactively to earlier executables.

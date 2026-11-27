@@ -525,7 +525,7 @@ def _find_peaks(window: MainWindow) -> None:
             window.tr("Suggested peaks found: ")
             + f"{len(suggestions)}\n"
             + window.tr("How many should be added?"),
-            min(1, len(suggestions)),
+            len(suggestions),  # all suggestions; the user can reduce the count
             1,
             len(suggestions),
         )

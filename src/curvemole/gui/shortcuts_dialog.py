@@ -60,10 +60,11 @@ class ShortcutsDialog(QDialog):
             sequences = command.shortcuts() if isinstance(command, QAction) else [command.shortcut()]
             keys = ", ".join(sequence.toString(QKeySequence.SequenceFormat.NativeText)
                              for sequence in sequences if not sequence.isEmpty())
-            if keys:
-                context = manager.identities.get(command, self.tr("Toolbar"))
-                context = _label(context).replace("_toolbar", " toolbar").replace("/", " → ")
-                rows.append((_label(command.text()), keys, context))
+            # Commands without a shortcut are listed too, so the reference is
+            # also a searchable index of where every command lives.
+            context = manager.identities.get(command, self.tr("Toolbar"))
+            context = _label(context).replace("_toolbar", " toolbar").replace("/", " → ")
+            rows.append((_label(command.text()), keys, context))
         for key, action, context in (
             ("Up", self.tr("Activate previous checked spectrum"), self.tr("Plot focus")),
             ("Down", self.tr("Activate next checked spectrum"), self.tr("Plot focus")),

@@ -53,6 +53,8 @@ class MarkdownDialog(QDialog):
         larger = QPushButton("+")
         smaller.setToolTip(self.tr("Zoom out"))
         larger.setToolTip(self.tr("Zoom in"))
+        smaller.setAccessibleName(self.tr("Zoom out"))
+        larger.setAccessibleName(self.tr("Zoom in"))
         smaller.clicked.connect(lambda: self.browser.zoomOut(1))
         larger.clicked.connect(lambda: self.browser.zoomIn(1))
         for widget in (self.back, self.forward, self.search, find, smaller, larger):

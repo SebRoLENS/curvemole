@@ -129,6 +129,7 @@ class ModelPanel(QWidget):
         self.components = FunctionList()
         self.components.currentItemChanged.connect(self._component_selected)
         self.components.itemChanged.connect(self._component_enabled)
+        self.components.setMinimumHeight(4 * self.components.fontMetrics().height() + 16)
         single_layout.addWidget(self.components, 1)
         self.composition_summary = QLabel()
         self.composition_summary.setTextFormat(Qt.TextFormat.PlainText)
@@ -152,6 +153,7 @@ class ModelPanel(QWidget):
             button = QToolButton()
             button.setText(text)
             button.setToolTip(tooltip)
+            button.setAccessibleName(tooltip)  # screen readers would read only the symbol
             button.clicked.connect(slot)
             buttons.addWidget(button)
         buttons.addStretch(1)
@@ -163,6 +165,7 @@ class ModelPanel(QWidget):
         self.reorder_rules_button = QToolButton()
         self.reorder_rules_button.setText("⚙")
         self.reorder_rules_button.setToolTip(self.tr("Advanced reorder rules…"))
+        self.reorder_rules_button.setAccessibleName(self.tr("Advanced reorder rules"))
         self.reorder_rules_button.clicked.connect(self.reorderRulesRequested)
         buttons.addWidget(self.reorder_rules_button)
         single_layout.addLayout(buttons)
@@ -177,8 +180,8 @@ class ModelPanel(QWidget):
         single_layout.addLayout(buttons)
         self.background_group = QGroupBox(self.tr("No functions selected"))
         background_layout = QVBoxLayout(self.background_group)
-        self.background_toggle = BackgroundSwitch(self.tr("Use as background"))
-        self.background_toggle.setAccessibleName(self.tr("Use selected functions as background"))
+        self.background_toggle = BackgroundSwitch(self.tr("Mark as background"))
+        self.background_toggle.setAccessibleName(self.tr("Mark selected functions as background"))
         self.background_toggle.checkStateChanged.connect(
             lambda state: self._background_toggled(state == Qt.CheckState.Checked))
         background_layout.addWidget(self.background_toggle)
@@ -207,6 +210,10 @@ class ModelPanel(QWidget):
         self.parameters.horizontalHeader().setSectionsClickable(True)
         self.parameters.horizontalHeader().sectionClicked.connect(self._show_uncertainty_menu)
         self.parameters.itemChanged.connect(self._parameter_changed)
+        # The parameter table is the main editing surface: keep about five rows
+        # visible. On short screens the panel scrolls instead of squeezing it.
+        row_height = self.parameters.verticalHeader().defaultSectionSize()
+        self.parameters.setMinimumHeight(self.parameters.horizontalHeader().sizeHint().height() + 5 * row_height + 6)
         single_layout.addWidget(self.parameters, 2)
         fixed_buttons = QHBoxLayout()
         self.lock_all_parameters_button = QPushButton(self.tr("Lock all"))

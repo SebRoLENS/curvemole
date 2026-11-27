@@ -468,6 +468,12 @@ class PlotWorkspace(QWidget):
             axisItems={side: ScientificAxisItem(side) for side in ("bottom", "left")},
         )
         self.residual_plot.setXLink(self.plot)
+        # Residual Y follows the residuals of the visible X range until the user
+        # zooms or pans the residual axis by hand (View all resets that choice).
+        self._residual_view_manual = False
+        residual_box = self.residual_plot.getViewBox()
+        residual_box.setAutoVisible(y=True)
+        residual_box.sigRangeChangedManually.connect(self._residual_range_changed_manually)
         self.residual_plot.setMaximumHeight(190)
         self.residual_plot.showGrid(x=True, y=True, alpha=0.15)
         self.residual_plot.setLabel("left", self.tr("Residual"))
@@ -1018,12 +1024,17 @@ class PlotWorkspace(QWidget):
             # one Qt geometry query per label: the layout runs on every refresh
             # and view change, and overlays can carry thousands of labels.
             placed: list[tuple[float, float, float, float]] = []
+            view_top = self.view_box.sceneBoundingRect().top()
             for label, base_x, base_y in sorted(self._component_label_specs, key=lambda item: item[1]):
                 label.setPos(base_x, base_y)
                 rect = label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0)
                 left, top, right, bottom = rect.left(), rect.top(), rect.right(), rect.bottom()
                 step = max(16.0, rect.height() + 4.0)
                 offset = _label_offset(placed, left, top, right, bottom, step, limit)
+                if top - offset < view_top:
+                    # Keep the label inside the plot instead of cutting it off at
+                    # the top edge (a negative offset moves it down over its peak).
+                    offset = top - view_top
                 if offset:
                     label.setPos(base_x, base_y + direction * offset * step_scale)
                 placed.append((left, top - offset, right, bottom - offset))
@@ -1613,7 +1624,11 @@ class PlotWorkspace(QWidget):
             padding=0.04,
         )
         # Residuals may determine only their own Y axis, never the linked X axis.
+        self._residual_view_manual = False
         residual_view.enableAutoRange(axis=pg.ViewBox.YAxis)
+
+    def _residual_range_changed_manually(self, *_: Any) -> None:
+        self._residual_view_manual = True
 
     def _mouse_moved(self, event: tuple[QPointF]) -> None:
         point = event[0]

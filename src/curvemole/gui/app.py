@@ -38,6 +38,8 @@ def _configure_gui_defaults() -> None:
         # Native Windows/macOS controls do not consistently honour our dark
         # palette. Fusion keeps the existing themes coherent across platforms.
         app.setStyle("Fusion")
+        from curvemole.gui.screen_fit import install as install_screen_fit
+        install_screen_fit(app)
     # CurveMole's numerical parameters are scientific data, not localized prose.
     # Keep decimal input/output stable and portable regardless of the OS locale.
     QLocale.setDefault(QLocale.c())
