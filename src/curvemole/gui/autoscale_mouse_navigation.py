@@ -5,6 +5,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QTreeWidgetItem
 
+from curvemole.gui import window_extensions
 from curvemole.gui.main_window import MainWindow
 
 
@@ -39,19 +40,10 @@ def _data_item_clicked(
     )
 
 
-def _install() -> None:
-    original = MainWindow._connect_signals
-    if getattr(original, "_curvemole_mouse_autoscale", False):
-        return
-
-    def connect_signals(window: MainWindow) -> None:
-        original(window)
-        window.curve_tree.itemClicked.connect(
-            lambda item, column, window=window: _data_item_clicked(window, item, column)
-        )
-
-    connect_signals._curvemole_mouse_autoscale = True  # type: ignore[attr-defined]
-    MainWindow._connect_signals = connect_signals
+def _connect_signals(window: MainWindow) -> None:
+    window.curve_tree.itemClicked.connect(
+        lambda item, column, window=window: _data_item_clicked(window, item, column)
+    )
 
 
-_install()
+window_extensions.register("signals", _connect_signals, key="autoscale_mouse_navigation.signals")

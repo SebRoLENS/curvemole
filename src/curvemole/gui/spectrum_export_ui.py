@@ -25,11 +25,9 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.project import Project
 from curvemole.core.spectrum_export import SpectrumExportOptions, export_spectra
+from curvemole.gui import window_extensions
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.windowing import transient_widget
-
-_ORIGINAL_BUILD_ACTIONS = MainWindow._build_actions
-_ORIGINAL_BUILD_MENUS = MainWindow._build_menus
 
 
 class SpectrumExportDialog(QDialog):
@@ -193,7 +191,6 @@ class SpectrumExportDialog(QDialog):
 
 
 def _build_actions(window: MainWindow) -> None:
-    _ORIGINAL_BUILD_ACTIONS(window)
     window.export_spectra_action = QAction(
         window.tr("Quick export: spectra and fit curves…"), window
     )
@@ -204,7 +201,6 @@ def _build_actions(window: MainWindow) -> None:
 
 
 def _build_menus(window: MainWindow) -> None:
-    _ORIGINAL_BUILD_MENUS(window)
     for menu_action in window.menuBar().actions():
         menu = menu_action.menu()
         if menu is not None and window.export_action in menu.actions():
@@ -252,12 +248,8 @@ def _export_spectra_data(window: MainWindow) -> None:
 
 
 def _install() -> None:
-    if getattr(MainWindow, "_curvemole_spectrum_export_ui", False):
-        return
-    MainWindow._build_actions = _build_actions
-    MainWindow._build_menus = _build_menus
-    MainWindow.export_spectra_data = _export_spectra_data
-    MainWindow._curvemole_spectrum_export_ui = True
+    window_extensions.register("actions", _build_actions)
+    window_extensions.register("menus", _build_menus)
 
 
 _install()

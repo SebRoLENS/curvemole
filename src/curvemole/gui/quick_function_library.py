@@ -40,6 +40,7 @@ from curvemole.core.initialization import (
 from curvemole.core.models import Component, Model
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
+from curvemole.gui import window_extensions
 from curvemole.gui.data_directories import library_directory, prepare_library_directory
 from curvemole.gui.function_composition import (
     ensure_insertion_operator,
@@ -629,15 +630,11 @@ def _install() -> None:
     if getattr(MainWindow, "_curvemole_quick_function_library", False):
         return
 
-    original_build_actions = MainWindow._build_actions
-    original_build_toolbar = MainWindow._build_toolbar
-    original_connect_signals = MainWindow._connect_signals
     original_load_custom_functions = MainWindow._load_custom_functions
     original_add_component = MainWindow.add_component
     original_show_plugin_manager = MainWindow.show_plugin_manager
 
     def build_actions(window: MainWindow) -> None:
-        original_build_actions(window)
         window.quick_peak_action.setText(window.tr("Add function"))
         window.quick_peak_action.setToolTip(
             window.tr(
@@ -649,7 +646,6 @@ def _install() -> None:
         window.function_info_action.triggered.connect(lambda: show_function_info(window))
 
     def build_toolbar(window: MainWindow) -> None:
-        original_build_toolbar(window)
         toolbar = window.findChild(QToolBar, "Main_toolbar")
         if toolbar is None:
             return
@@ -741,7 +737,6 @@ def _install() -> None:
         toolbar.insertWidget(window._fit_toolbar_separator, group)
 
     def connect_signals(window: MainWindow) -> None:
-        original_connect_signals(window)
         window.function_builder.library_button.clicked.connect(
             lambda: change_function_library(window))
         window.function_builder.functionAdded.connect(
@@ -786,9 +781,9 @@ def _install() -> None:
         original_show_plugin_manager(window)
         _refresh_quick_function_selector(window)
 
-    MainWindow._build_actions = build_actions
-    MainWindow._build_toolbar = build_toolbar
-    MainWindow._connect_signals = connect_signals
+    window_extensions.register("actions", build_actions, key="quick_function_library.actions")
+    window_extensions.register("toolbar", build_toolbar, key="quick_function_library.toolbar")
+    window_extensions.register("signals", connect_signals, key="quick_function_library.signals")
     MainWindow._load_custom_functions = load_custom_functions
     MainWindow.add_component = add_component
     MainWindow.quick_peak = _quick_add_function

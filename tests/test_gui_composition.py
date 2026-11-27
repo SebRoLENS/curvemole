@@ -52,7 +52,7 @@ def test_runtime_class_patching_does_not_grow():
         print(sum(1 for value in vars(MainWindow).values()
                   if callable(value) and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
     """)
-    assert int(output) <= 41
+    assert int(output) <= 36
 
 
 def test_building_blocks_do_not_import_the_window_or_its_extensions():
@@ -85,5 +85,14 @@ def test_background_commands_are_native_window_methods():
         from curvemole.gui.main_window import MainWindow
         print(sorted({getattr(MainWindow, name).__module__ for name in
                       ("subtract_background", "subtract_all_backgrounds", "revert_backgrounds")}))
+    """)
+    assert output.strip() == "['curvemole.gui.main_window']"
+
+
+def test_window_building_stages_are_extended_through_the_registry():
+    output = _run("""
+        from curvemole.gui.main_window import MainWindow
+        names = ("_build_actions", "_build_menus", "_build_toolbar", "_connect_signals", "export_spectra_data")
+        print(sorted({getattr(MainWindow, name).__module__ for name in names}))
     """)
     assert output.strip() == "['curvemole.gui.main_window']"

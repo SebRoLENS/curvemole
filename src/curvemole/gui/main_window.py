@@ -168,6 +168,7 @@ def _resource_icon(
     return QIcon(pixmap)
 
 
+from curvemole.gui import window_extensions  # noqa: E402
 from curvemole.gui.task_runner import TaskCallbacks, TaskRunner, Worker  # noqa: E402,F401
 from curvemole.gui.undo_commands import CallbackCommand  # noqa: E402,F401 - public import path
 
@@ -954,6 +955,12 @@ class MainWindow(QMainWindow):
         from curvemole.gui.fit_undo import FitLifecycleController
         self.fit_lifecycle = FitLifecycleController(self)
 
+    def export_spectra_data(self) -> None:
+        """Quick export: one numeric file per selected spectrum with its fit curves."""
+        from curvemole.gui.spectrum_export_ui import _export_spectra_data
+
+        _export_spectra_data(self)
+
     def subtract_background(self) -> None:
         """Subtract model background from the active spectrum (or all, from the dialog)."""
         # Resolved through this module so plugins and tests can substitute the dialog.
@@ -1466,6 +1473,8 @@ class MainWindow(QMainWindow):
         )
         self.about_action = QAction(self.tr("About CurveMole"), self)
         self.about_action.triggered.connect(self.show_about)
+        # Contributions registered by extension modules (gui.window_extensions).
+        window_extensions.run(self, "actions")
 
     def configure_plot_appearance(self) -> None:
         with transient_widget(PlotAppearanceDialog(self.plot_workspace.plot_appearance(), self)) as dialog:
@@ -1567,6 +1576,8 @@ class MainWindow(QMainWindow):
             [self.quick_start_action, self.manual_action, self.shortcuts_action,
              self.update_action, self.report_action, self.about_action]
         )
+        # Contributions registered by extension modules (gui.window_extensions).
+        window_extensions.run(self, "menus")
 
     def _build_toolbar(self) -> None:
         toolbar = QToolBar(self.tr("Main toolbar"), self)
@@ -1608,6 +1619,8 @@ class MainWindow(QMainWindow):
                 "QToolButton:checked { background: palette(button); "
                 "border: 2px solid palette(highlight); border-radius: 6px; }"
             )
+        # Contributions registered by extension modules (gui.window_extensions).
+        window_extensions.run(self, "toolbar")
 
     def _connect_signals(self) -> None:
         self.curve_tree.activeCurveChanged.connect(self._activate_tree_curve)
@@ -1670,6 +1683,8 @@ class MainWindow(QMainWindow):
         self.model_panel.renameRequested.connect(self.rename_function)
         self.model_panel.reorderRequested.connect(self.reorder_functions)
         self.model_panel.reorderRulesRequested.connect(self.edit_reorder_rules)
+        # Contributions registered by extension modules (gui.window_extensions).
+        window_extensions.run(self, "signals")
 
     def _update_uncertainty_tags(self) -> None:
         self.curve_tree.set_uncertainty_method(self.uncertainty_panel.method.currentData())

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from curvemole.core.notebook import description_key
+from curvemole.gui import window_extensions
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.notebook import LaboratoryNotebookDialog
 
@@ -88,12 +89,7 @@ def _install() -> None:
         edit_description._curvemole_notebook_live_refresh = True  # type: ignore[attr-defined]
         MainWindow._edit_description = edit_description
 
-    original_connect = MainWindow._connect_signals
-    if getattr(original_connect, "_curvemole_notebook_selection_sync", False):
-        return
-
     def connect_signals(window: MainWindow) -> None:
-        original_connect(window)
 
         # Follow the user's current object only while the notebook is open on its
         # descriptions tab. Objects without descriptions leave the notebook alone.
@@ -122,8 +118,7 @@ def _install() -> None:
             )
         )
 
-    connect_signals._curvemole_notebook_selection_sync = True  # type: ignore[attr-defined]
-    MainWindow._connect_signals = connect_signals
+    window_extensions.register("signals", connect_signals, key="notebook_live_refresh.signals")
 
 
 _install()
