@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 
 from curvemole.core.data import Series
-from curvemole.core.errors import CurveMoleError
+from curvemole.core.errors import CurveMoleError, DataValidationError
 from curvemole.core.export import export_bundle
 from curvemole.core.fitting import FitMode, FitPlan, FitResult, FitSettings, Fitter
 from curvemole.core.functions import formula_definition
@@ -42,20 +42,91 @@ def load_workflow(path: str | Path) -> dict[str, Any]:
     try:
         value = yaml.safe_load(source.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
-        raise CurveMoleError(f"Cannot read workflow '{source}': {exc}") from exc
+        raise DataValidationError(f"Cannot read workflow '{source}': {exc}") from exc
     if not isinstance(value, dict):
-        raise CurveMoleError("Workflow root must be a mapping.")
+        raise DataValidationError("Workflow root must be a mapping.")
     schema = value.get("schema_version")
     if isinstance(schema, bool) or not isinstance(schema, int) or schema not in {1, 2, WORKFLOW_SCHEMA_VERSION}:
-        raise CurveMoleError(
+        raise DataValidationError(
             f"Unsupported workflow schema {schema}; expected {WORKFLOW_SCHEMA_VERSION}."
         )
     return value
 
 
 def validate_workflow(value: Mapping[str, Any]) -> list[str]:
-    """Check supported fields, nested structures and safe expressions without I/O."""
-    return validate_workflow_structure(value)
+    """Check fields, structures, safe expressions and references without I/O.
+
+    Beyond the schema, function identifiers, parameter names and curve names are
+    resolved as ``run`` would, so a typing error is reported before any data
+    are read or fitted.
+    """
+    errors = validate_workflow_structure(value)
+    if errors:
+        return errors
+    return _semantic_errors(value)
+
+
+def _suggest(name: str, choices) -> str:
+    import difflib
+
+    match = difflib.get_close_matches(str(name), [str(choice) for choice in choices], n=1)
+    return f" Did you mean '{match[0]}'?" if match else ""
+
+
+def _semantic_errors(workflow: Mapping[str, Any]) -> list[str]:
+    errors: list[str] = []
+    registry = default_registry().copy()
+    for custom in workflow.get("custom_functions", []):
+        try:
+            registry.register_custom(formula_definition(
+                custom["identifier"], custom.get("display_name", custom["identifier"]), custom["formula"],
+                kind=custom.get("kind", "generic"), defaults=custom.get("defaults"),
+                bounds={key: tuple(value) for key, value in custom.get("bounds", {}).items()},
+                derived_formulas=custom.get("derived", {}),
+            ), replace=True)
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            errors.append(f"custom function '{custom.get('identifier')}': {exc}")
+    # Plugins may register further functions; those can only be checked by run.
+    check_functions = not workflow.get("plugins")
+    known = registry.identifiers()
+    for model_index, model in enumerate(workflow.get("models", [])):
+        for number, spec in enumerate(model.get("components", [])):
+            label = f"models[{model_index}].components[{number}]"
+            function = spec.get("function")
+            if function not in known:
+                if check_functions:
+                    errors.append(f"{label}.function '{function}' is not a registered function."
+                                  + _suggest(function, known))
+                continue
+            try:
+                component = Component.create(function, registry=registry, metadata=spec.get("metadata"))
+            except Exception as exc:  # noqa: BLE001 - reported, not raised
+                errors.append(f"{label}: {exc}")
+                continue
+            names = list(component.parameters)
+            for key in ("parameters", "constraints"):
+                for name in spec.get(key, {}):
+                    if name not in component.parameters:
+                        errors.append(f"{label}.{key}.{name}: unknown parameter for '{function}'."
+                                      + _suggest(name, names) + " Available: " + ", ".join(names))
+    imports = workflow.get("imports", [])
+    if imports and all("aliases" in item or "curve_ids" in item for item in imports):
+        declared = [name for item in imports for key in ("aliases", "curve_ids") for name in item.get(key, [])]
+        sections = [(f"models[{index}]", spec) for index, spec in enumerate(workflow.get("models", []))]
+        sections += [(f"preprocess[{index}]", spec) for index, spec in enumerate(workflow.get("preprocess", []))
+                     if isinstance(spec, Mapping)]
+        if isinstance(workflow.get("fit"), Mapping):
+            sections.append(("fit", workflow["fit"]))
+        for label, spec in sections:
+            references = []
+            if isinstance(spec.get("curve"), str):
+                references.append(spec["curve"])
+            if isinstance(spec.get("curves"), list):
+                references.extend(spec["curves"])
+            for reference in references:
+                if reference not in declared:
+                    errors.append(f"{label}: unknown curve '{reference}'." + _suggest(reference, declared))
+    return errors
 
 
 def run_workflow(
@@ -68,7 +139,7 @@ def run_workflow(
     workflow = load_workflow(source)
     errors = validate_workflow(workflow)
     if errors:
-        raise CurveMoleError("Invalid workflow: " + "; ".join(errors))
+        raise DataValidationError("Invalid workflow: " + "; ".join(errors))
     root = source.parent
     export_spec = workflow.get("export", {})
     project_output = None

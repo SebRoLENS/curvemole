@@ -802,7 +802,8 @@ def export_bundle(
     collisions = [relative for relative in planned if (root / relative).exists()]
     if collisions and not overwrite:
         raise FileExistsError(
-            "Export would overwrite existing files. Confirm update or choose versioned export: "
+            "Export would overwrite existing files. Update the existing export (CLI: --force) or create a "
+            "versioned export (CLI: --versioned): "
             + ", ".join(collisions[:8])
         )
     if collisions and overwrite and not previous_owned:

@@ -67,8 +67,16 @@ class PluginAPI:
 
     def add(self, kind: str, identifier: str, label: str, callback: Callable[..., Any],
             *, description: str = "", auto_show: bool = False) -> str:
-        if kind not in KINDS or not identifier.strip() or not callable(callback):
-            raise CurveMoleError("Invalid extension kind, identifier or callback.")
+        if kind not in KINDS:
+            import difflib
+
+            close = difflib.get_close_matches(str(kind), sorted(KINDS), n=1)
+            hint = f" Did you mean '{close[0]}'?" if close else ""
+            raise CurveMoleError(f"Unknown extension kind '{kind}'.{hint} Valid kinds: {', '.join(sorted(KINDS))}.")
+        if not isinstance(identifier, str) or not identifier.strip():
+            raise CurveMoleError(f"Extension identifier for '{kind}' must be a non-empty string.")
+        if not callable(callback):
+            raise CurveMoleError(f"Extension '{identifier}' needs a callable callback, not {type(callback).__name__}.")
         key = f"{self.identifier}:{identifier}"
         if key in extensions.entries:
             raise CurveMoleError(f"Extension already registered: {key}")
