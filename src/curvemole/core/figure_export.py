@@ -6,6 +6,8 @@ traces. It never imports pyplot, changes the process backend, or opens a window.
 
 from __future__ import annotations
 
+import os
+import tempfile
 import textwrap
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -77,6 +79,36 @@ _THEMES = {
         "components": ("#bca9f6", "#eeb886", "#82c8e1", "#e4a2ba", "#bbd58b"),
     },
 }
+
+
+
+def _export_figure(**kwargs):
+    """Create a lazy, standalone renderer without changing the caller's backend.
+
+    A plugin/API caller may already own interactive pyplot figures. Using an
+    explicit Agg canvas avoids changing their global backend or creating GUI
+    figure managers when exports run on a worker thread.
+    """
+    if "MPLCONFIGDIR" not in os.environ:
+        preferred_cache = Path.home() / ".cache" / "curvemole" / "matplotlib"
+        try:
+            preferred_cache.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            preferred_cache = Path(tempfile.gettempdir()) / "curvemole-matplotlib"
+            preferred_cache.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(preferred_cache)
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+    from matplotlib.figure import Figure
+
+    figure = Figure(**kwargs)
+    FigureCanvasAgg(figure)
+    return figure
+
+
+def _release_export_figure(figure):
+    """Release raster/artist data immediately, including after failed writes."""
+    figure.clear()
+    figure.set_canvas(None)
 
 
 def _label(name: str, unit: str) -> str:
@@ -291,7 +323,6 @@ def export_plot_snapshot(
     transparent: bool = False,
 ) -> Path:
     """Render a frozen screen view, preserving its curves, offsets and ranges."""
-    from curvemole.core.export import _export_figure, _release_export_figure
 
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -420,7 +451,7 @@ def export_figure(
 ) -> Path:
     """Export data, a smooth composed model and raw unmasked residuals."""
     if parameter_values is None:
-        from curvemole.core.export import _resolved_values
+        from curvemole.core.export.common import _resolved_values
         parameter_values = _resolved_values(models)
     snapshot = _snapshot_for_curves(
         list(curves), models, registry=registry or default_registry(), parameter_values=parameter_values,
@@ -482,7 +513,7 @@ def generate_pdf_report(
     """Write one vector page per spectrum, with only its own current statistics."""
     from matplotlib.backends.backend_pdf import PdfPages
 
-    from curvemole.core.export import _export_figure, _registry_for_project, _release_export_figure
+    from curvemole.core.export.common import _registry_for_project
 
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)

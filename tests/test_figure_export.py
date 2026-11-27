@@ -86,7 +86,7 @@ def test_single_curve_export_resolves_links_to_other_curves(tmp_path, monkeypatc
 
 
 def test_snapshot_preserves_display_offsets_ranges_and_log_coordinates(tmp_path, monkeypatch):
-    from curvemole.core import export as exporter
+    from curvemole.core import figure_export as exporter
 
     seen = []
     original_release = exporter._release_export_figure

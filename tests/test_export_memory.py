@@ -85,7 +85,7 @@ def test_failed_graphic_exports_close_figures_and_remove_temporary_files(tmp_pat
     from matplotlib.backends.backend_pdf import PdfPages
     from matplotlib.figure import Figure
 
-    from curvemole.core import export as exporter
+    from curvemole.core import figure_export as exporter
 
     project = Project("report")
     project.add_curve(Curve("example", [0., 1.], [1., 2.]))

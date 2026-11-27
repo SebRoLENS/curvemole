@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from contextlib import suppress
 from typing import Any
 
 import numpy as np
@@ -26,16 +25,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from shiboken6 import isValid
 
-from curvemole.core.errors import CurveMoleError
-from curvemole.core.models import component_height
-from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.gui.plot_appearance import (
     colour_with_opacity,
-    marker_for_curve,
     normalize_plot_appearance,
     plot_mode_flags,
     qt_pen_style,
@@ -220,31 +214,7 @@ class MaskViewBox(pg.ViewBox):
         super().mouseDragEvent(event, axis=axis)
 
 
-def _label_offset(placed, left, top, right, bottom, step, limit):
-    """Smallest whole number of upward steps that clears every placed label.
-
-    A placed rectangle forbids the open offset interval (top - its bottom,
-    bottom - its top). Merging those intervals finds the answer in one sweep
-    instead of re-testing every label at every trial step.
-    """
-    forbidden = sorted((top - b, bottom - t) for lo, t, r, b in placed if lo < right and left < r)
-    merged: list[list[float]] = []
-    for low, high in forbidden:
-        if merged and low < merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], high)
-        else:
-            merged.append([low, high])
-    steps = 0
-    for low, high in merged:
-        offset = steps * step
-        if high <= offset:
-            continue
-        if low >= offset:
-            break
-        steps = math.ceil(high / step - 1e-9)
-        if steps >= limit:
-            return limit * step
-    return steps * step
+from curvemole.gui.plot_scene import _label_offset  # noqa: E402,F401 - historical import path
 
 
 class PlotWorkspace(QWidget):
@@ -263,6 +233,13 @@ class PlotWorkspace(QWidget):
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        from curvemole.gui.plot_placement import PlacementController
+        from curvemole.gui.plot_scene import SceneRenderer
+        from curvemole.gui.plot_view_state import ViewState
+
+        self.placement = PlacementController(self)
+        self.scene = SceneRenderer(self)
+        self.view_state = ViewState(self)
         self.registry = registry
         self._project: Project | None = None
         self._active_curve_id: str | None = None
@@ -621,26 +598,10 @@ class PlotWorkspace(QWidget):
             self._apply_autoscale()
 
     def _autoscale_settings_changed(self, *_: Any) -> None:
-        enabled = self.autoscale_toggle.isChecked()
-        self.autoscale_mode.setEnabled(enabled)
-        if self._project is not None:
-            self._project.ui_state["autoscale_enabled"] = enabled
-            self._project.ui_state["autoscale_mode"] = (
-                "active" if self.autoscale_mode.currentIndex() == 1 else "all"
-            )
-        if enabled:
-            self._apply_autoscale()
+        return self.view_state._autoscale_settings_changed(*_)
 
     def _apply_autoscale(self, *, series_id: str | None = None) -> None:
-        if series_id is not None:
-            self._fit_experimental_data(
-                active_only=self.autoscale_mode.currentIndex() == 1,
-                series_id=series_id,
-            )
-        elif self.autoscale_mode.currentIndex() == 1:
-            self.view_active()
-        else:
-            self.auto_range()
+        return self.view_state._apply_autoscale(series_id=series_id)
 
     def _scope_enabled(self, index: int) -> None:
         self.scope_project.setEnabled(index != 0)
@@ -689,266 +650,7 @@ class PlotWorkspace(QWidget):
         self.render_controller.refresh(*args)
 
     def _refresh_scene(self, *_: Any) -> None:
-        initial_view = not self._data_items
-        # Placement may span many refreshes; do not retain removed scene items
-        # (and their complete data arrays) in the mouse-state snapshot.
-        self._restore_placement_mouse_targets()
-        previous = self._render_items
-        self._render_items = {}
-        # Hide old labels and keep them in the scene for reuse: removing,
-        # destroying and recreating thousands of text items dominated Overlay
-        # refreshes. Unused labels simply stay hidden.
-        pool = getattr(self, "_label_pool", [])
-        pool.extend(self._component_labels)
-        for label in pool:
-            label.setVisible(False)
-        self._label_pool = pool
-        retained = {item for _, item in previous.values()} | set(pool)
-        for plot in (self.plot, self.residual_plot):
-            for item in tuple(plot.items):
-                if item not in retained:
-                    plot.removeItem(item)
-        self.plot.setToolTip("")
-
-        def draw(key, plot, *data, **options):
-            entry = previous.pop(key, None)
-            if entry is not None and entry[0] is plot and entry[1] in plot.items:
-                item = entry[1]
-                item.setData(*data, **options)
-                item.setVisible(True)
-            else:
-                item = plot.plot(*data, **options)
-            self._render_items[key] = (plot, item)
-            return item
-
-        def remove_unused():
-            for plot, item in previous.values():
-                plot.removeItem(item)
-        self._data_items.clear()
-        self._error_items.clear()
-        self._component_items.clear()
-        self._sum_items.clear()
-        self._component_labels.clear()
-        self._component_labels_by_key.clear()
-        self._component_label_specs.clear()
-        self._handles.clear()
-        self._placement_items.clear()
-        project = self._project
-        if project is None or not project.curves:
-            remove_unused()
-            for session in list(self._plugin_plot_sessions.values()):
-                session._invalidate()
-            self.plot.setTitle(self.tr("Import data to begin"))
-            return
-        appearance = self._plot_appearance
-        mode = self.display_mode.currentText()
-        curves = [self.curve_for_display(curve) for curve in self.displayed_curves()]
-        x_step = self.x_offset.value() if mode == self.tr("Waterfall") else 0.0
-        y_step = self.y_offset.value() if mode == self.tr("Waterfall") else 0.0
-        try:
-            global_values = getattr(self, "_render_values", None)
-            if global_values is None:
-                global_values = getattr(self, "_live_parameter_values", None)
-            if global_values is None:
-                global_values = project.resolved_parameter_values()
-        except CurveMoleError:
-            # An invalid link in one model must not erase measured data or
-            # prevent independent models from being displayed.
-            global_values = None
-        for index, curve in enumerate(curves):
-            x = curve.x + index * x_step
-            y = curve.y + index * y_step
-            from curvemole.gui.background_display import background_removed
-            subtract = background_removed(self, curve.id)
-            background = getattr(self, "_curvemole_background_cache", {}).get(curve.id)
-            if background is None:
-                background = np.zeros_like(curve.y)
-            data_y = y - background if subtract else y
-            unmasked = ~curve.effective_mask
-            symbol = marker_for_curve(appearance, index)
-            data_width = float(appearance["data_line_width"]) * (
-                1.35 if curve.id == self._active_curve_id else 1.0
-            )
-            item = draw(("data", curve.id), self.plot,
-                x[unmasked],
-                data_y[unmasked],
-                name=curve.name,
-                **self._plot_options(
-                    str(appearance["data_style"]),
-                    curve.colour,
-                    data_width,
-                    str(appearance["data_line_style"]),
-                    int(appearance["data_opacity"]),
-                    float(appearance["data_point_size"]),
-                    symbol,
-                ),
-            )
-            item.curve_id = curve.id
-            self._data_items[curve.id] = item
-            if self.error_bars_toggle.isChecked():
-                from curvemole.gui.background_display import (
-                    background_removed,
-                )
-                from curvemole.gui.data_errors import error_bar_item
-                bar_y = y
-                if background_removed(self, curve.id):
-                    bar_y = y - background
-                errors = error_bar_item(curve, x, bar_y, unmasked,
-                    colour_with_opacity(curve.colour, int(appearance["data_opacity"])))
-                if errors is not None:
-                    self.plot.addItem(errors)
-                    self._error_items[curve.id] = errors
-            for mask in (() if getattr(self, "_lightweight_masks", False) else curve.masks.values()):
-                for lower, upper in mask.effective_ranges(curve.x):
-                    if math.isclose(lower, upper):
-                        continue
-                    region = pg.LinearRegionItem(
-                        values=(lower + index * x_step, upper + index * x_step),
-                        movable=False,
-                        brush=pg.mkBrush(120, 120, 120, 38),
-                        pen=pg.mkPen(120, 120, 120, 70),
-                    )
-                    region.setZValue(-20)
-                    self.plot.addItem(region)
-            model = None if self.display_replays(curve) else project.models.get(curve.id)
-            if model and model.components:
-                try:
-                    errors = getattr(getattr(self, "render_controller", None), "errors", {})
-                    if curve.id in errors:
-                        raise CurveMoleError(errors[curve.id])
-                    values = global_values
-                    if values is None:
-                        values = resolve_parameter_values(
-                            project.parameter_map(), paths=model.parameter_map(curve.id),
-                        )
-                    cached = (getattr(self, "_render_models", None) or {}).get(curve.id)
-                    if cached is None:
-                        cached = model.evaluate(curve.x, curve_id=curve.id, values=values,
-                                                registry=self.registry, components=True)
-                    total, component_arrays = cached
-                except CurveMoleError as exc:
-                    self.plot.setToolTip(
-                        f"Model unavailable: {exc}. Review function operators, parameter links, "
-                        "or File → Plugin Manager."
-                    )
-                    continue
-                total = total + index * y_step
-                sum_item = draw(("sum", curve.id), self.plot,
-                    x,
-                    total - background if subtract else total,
-                    name=f"{curve.name} Model sum",
-                    **self._plot_options(
-                        str(appearance["function_style"]),
-                        str(appearance["model_sum_colour"]),
-                        float(appearance["function_sum_line_width"]),
-                        str(appearance["function_sum_line_style"]),
-                        int(appearance["function_opacity"]),
-                        float(appearance["function_point_size"]),
-                        symbol,
-                    ),
-                )
-                sum_item.curve_id = curve.id
-                self._sum_items[curve.id] = sum_item
-                residual = curve.y - (total - index * y_step)
-                draw(("residual", curve.id), self.residual_plot,
-                    x[unmasked],
-                    residual[unmasked],
-                    **self._plot_options(
-                        str(appearance["residual_style"]),
-                        curve.colour,
-                        float(appearance["residual_line_width"]),
-                        str(appearance["residual_line_style"]),
-                        int(appearance["residual_opacity"]),
-                        float(appearance["residual_point_size"]),
-                        symbol,
-                    ),
-                )
-                for component in model.components:
-                    if not component.enabled or component.id not in component_arrays:
-                        continue
-                    component_y = component_arrays[component.id] + index * y_step
-                    if not subtract and not component.is_background:
-                        if component.operator == "add":
-                            component_y = background + component_y
-                        elif component.operator == "subtract":
-                            component_y = background - component_arrays[component.id] + index * y_step
-                    selected = (
-                        component.id == self._selected_component_id
-                        and curve.id == self._active_curve_id
-                    )
-                    colour = (
-                        str(appearance["selected_component_colour"])
-                        if selected
-                        else str(appearance["component_colour"])
-                    )
-                    width = (
-                        float(appearance["function_selected_line_width"])
-                        if selected
-                        else float(appearance["function_component_line_width"])
-                    )
-                    component_item = draw(("component", curve.id, component.id), self.plot,
-                        x,
-                        component_y,
-                        **self._plot_options(
-                            str(appearance["function_style"]),
-                            colour,
-                            width,
-                            str(appearance["function_component_line_style"]),
-                            int(appearance["function_opacity"]),
-                            float(appearance["function_point_size"]),
-                            symbol,
-                        ),
-                    )
-                    component_item.setVisible(not (subtract and component.is_background))
-                    component_item.component_id = component.id
-                    component_item.curve_id = curve.id
-                    component_item.curve.setClickable(
-                        True,
-                        width=max(
-                            8.0,
-                            float(appearance["function_point_size"]) + 4.0,
-                        ),
-                    )
-                    if not getattr(component_item, "_curvemole_selection_connected", False):
-                        component_item.sigClicked.connect(
-                            lambda item, event, curve_id=curve.id, component_id=component.id: (
-                                self.componentOnCurveSelected.emit(curve_id, component_id)
-                            )
-                        )
-                        component_item._curvemole_selection_connected = True
-                    key = (curve.id, component.id)
-                    self._component_items[key] = component_item
-                    if self._show_component_labels:
-                        label = self._add_component_label(component.name, x, component_y)
-                        if label is not None:
-                            self._component_labels_by_key[key] = label
-                if curve.id == self._active_curve_id and self._selected_component_id:
-                    self._add_component_handles(
-                        curve,
-                        model,
-                        index * x_step,
-                        index * y_step,
-                    )
-        remove_unused()
-        if curves:
-            first = curves[0]
-            self.plot.setLabel("bottom", first.x_label, units=first.x_unit or None)
-            self.plot.setLabel("left", first.y_label, units=first.y_unit or None)
-            self.residual_plot.setLabel(
-                "bottom",
-                first.x_label,
-                units=first.x_unit or None,
-            )
-        self._apply_grid_appearance()
-        self._layout_component_labels()
-        self._render_placement_preview()
-        self.point_editor.refresh()
-        for session in list(self._plugin_plot_sessions.values()):
-            session.refresh()
-        self._sync_placement_mouse_targets()
-        self.plot.setTitle("")
-        if initial_view:
-            self.auto_range()
+        return self.scene._refresh_scene(*_)
 
     def set_component_labels_visible(self, visible: bool) -> None:
         self._show_component_labels = bool(visible)
@@ -959,148 +661,15 @@ class PlotWorkspace(QWidget):
         self.refresh()
 
     def _add_component_label(self, name: str, x: np.ndarray, y: np.ndarray) -> pg.TextItem | None:
-        finite = np.isfinite(x) & np.isfinite(y)
-        if not np.any(finite):
-            return
-        finite_indices = np.flatnonzero(finite)
-        values = y[finite]
-        maximum = float(np.nanmax(values))
-        tolerance = max(abs(maximum) * 1e-10, np.finfo(float).eps)
-        maxima = finite_indices[np.isclose(values, maximum, rtol=1e-10, atol=tolerance)]
-        index = int(maxima[len(maxima) // 2]) if len(maxima) else int(finite_indices[np.nanargmax(values)])
-        x_position = float(x[index])
-        y_position = float(y[index])
-        pool = getattr(self, "_label_pool", None)
-        if pool:
-            label = pool.pop()
-            label.setText(name)
-            label.setVisible(True)
-        else:
-            label = pg.TextItem(
-                text=name,
-                color="#202020",
-                anchor=(0.5, 1.0),
-                border=pg.mkPen(100, 100, 100, 150),
-                fill=pg.mkBrush(255, 255, 255, 220),
-            )
-            label.setZValue(70)
-        if label.scene() is None:
-            self.plot.addItem(label)
-        label.setPos(x_position, y_position)
-        self._component_labels.append(label)
-        self._component_label_specs.append((label, x_position, y_position))
-        return label
+        return self.scene._add_component_label(name, x, y)
 
     def _layout_component_labels(self, *_: Any) -> None:
-        if self._laying_out_labels or not self._component_label_specs:
-            return
-        self._laying_out_labels = True
-        try:
-            _, y_per_pixel = self.view_box.viewPixelSize()
-            step_scale = abs(float(y_per_pixel)) if math.isfinite(float(y_per_pixel)) else 0.0
-            if step_scale == 0.0:
-                return
-            direction = -1.0 if bool(self.view_box.state.get("yInverted", False)) else 1.0
-            limit = len(self._component_label_specs) + 3
-            # Scene rectangles as (left, top, right, bottom). Labels move up the
-            # screen in whole steps until they clear every earlier label. Only
-            # one Qt geometry query per label: the layout runs on every refresh
-            # and view change, and overlays can carry thousands of labels.
-            placed: list[tuple[float, float, float, float]] = []
-            view_top = self.view_box.sceneBoundingRect().top()
-            for label, base_x, base_y in sorted(self._component_label_specs, key=lambda item: item[1]):
-                label.setPos(base_x, base_y)
-                rect = label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0)
-                left, top, right, bottom = rect.left(), rect.top(), rect.right(), rect.bottom()
-                step = max(16.0, rect.height() + 4.0)
-                offset = _label_offset(placed, left, top, right, bottom, step, limit)
-                if top - offset < view_top:
-                    # Keep the label inside the plot instead of cutting it off at
-                    # the top edge (a negative offset moves it down over its peak).
-                    offset = top - view_top
-                if offset:
-                    label.setPos(base_x, base_y + direction * offset * step_scale)
-                placed.append((left, top - offset, right, bottom - offset))
-        finally:
-            self._laying_out_labels = False
+        return self.scene._layout_component_labels(*_)
 
     def _add_component_handles(
         self, curve: Any, model: Any, x_offset: float, y_offset: float
     ) -> None:
-        try:
-            component = model.component(self._selected_component_id)
-        except KeyError:
-            return
-        if component.function_id not in self.registry.identifiers():
-            return
-        definition = self.registry.get(component.function_id)
-        if component.function_id == "cubic_spline":
-            for index, x_node in enumerate(component.metadata.get("x_nodes", [])):
-                parameter = component.parameters.get(f"y{index}")
-                if parameter is None:
-                    continue
-                target = pg.TargetItem(
-                    pos=(float(x_node) + x_offset, parameter.value + y_offset),
-                    size=10,
-                    movable=True,
-                    pen=pg.mkPen("#009E73", width=2),
-                    brush=pg.mkBrush(255, 255, 255, 180),
-                )
-                target.setToolTip(
-                    self.tr(
-                        "Drag an unlocked spline y node. Fixed nodes stay locked unless Ctrl is held; "
-                        "the x position always remains fixed."
-                    )
-                )
-                self.plot.addItem(target)
-                target.sigPositionChangeFinished.connect(
-                    lambda item, component_id=component.id, node=index, xo=float(x_node)
-                    + x_offset, yo=y_offset: self._emit_spline_node(
-                        item, component_id, node, xo, yo
-                    )
-                )
-                self._handles.append(target)
-            return
-        if definition.kind != "peak" or "center" not in component.parameters:
-            return
-        height = component_height(component, registry=self.registry)
-        if height is None:
-            return
-        centre = component.parameters["center"].value
-        target = pg.TargetItem(
-            pos=(centre + x_offset, height + y_offset),
-            size=12,
-            movable=True,
-            pen=pg.mkPen("#009E73", width=2),
-            brush=pg.mkBrush(255, 255, 255, 180),
-        )
-        target.setToolTip(self.tr("Drag peak centre/height. Hold Ctrl to change a fixed value."))
-        self.plot.addItem(target)
-        target.sigPositionChangeFinished.connect(
-            lambda item: self._emit_peak(component.id, item.pos(), x_offset, y_offset)
-        )
-        self._handles.append(target)
-        derived = definition.derived_values(
-            {name: parameter.value for name, parameter in component.parameters.items()}, component.metadata
-        )
-        fwhm = derived.get("FWHM")
-        if fwhm and fwhm > 0:
-            for side in (-1, 1):
-                line = pg.InfiniteLine(
-                    pos=centre + x_offset + side * fwhm / 2,
-                    angle=90,
-                    movable=True,
-                    pen=pg.mkPen("#009E73", width=1.2),
-                    hoverPen=pg.mkPen("#E69F00", width=2),
-                )
-                line.setToolTip(self.tr("Drag to change FWHM. Hold Ctrl for a fixed width."))
-                self.plot.addItem(line)
-                line.sigPositionChangeFinished.connect(
-                    lambda item, component_id=component.id, c=centre + x_offset: self._emit_width(
-                        component_id, 2 * abs(float(item.value()) - c)
-                    )
-                )
-                self._handles.append(line)
+        return self.scene._add_component_handles(curve, model, x_offset, y_offset)
 
     def _emit_peak(self, component_id: str, position: QPointF, x_offset: float, y_offset: float) -> None:
         modifiers = bool(Qt.KeyboardModifier.ControlModifier & QApplication.keyboardModifiers())
@@ -1135,334 +704,67 @@ class PlotWorkspace(QWidget):
         )
 
     def begin_peak_placement(self, name: str) -> None:
-        self.restore_data_view_for_editing()
-        self.cancel_placement()
-        self._placement_mode = "peak"
-        self._placement_name = name
-        self._peak_preview = None
-        self.view_box.interaction_mode = "peak"
-        self.mask_toggle.setChecked(False)
-        self.mask_toggle.setEnabled(False)
-        self.undo_point_button.hide()
-        self.finish_placement_button.hide()
-        self.placement_label.setText(
-            self.tr("Place ")
-            + name
-            + self.tr(": click the peak centre, drag horizontally to either half-height edge, and release. Esc cancels.")
-        )
-        self.placement_bar.show()
-        self.graphics.setCursor(Qt.CursorShape.CrossCursor)
-        self._update_interaction_state()
-        self._sync_placement_mouse_targets()
+        return self.placement.begin_peak_placement(name)
 
     def begin_spline_placement(self, name: str) -> None:
-        self.restore_data_view_for_editing()
-        self.cancel_placement()
-        self._placement_mode = "spline"
-        self._placement_name = name
-        self._spline_points = []
-        self.placement_editor.start()
-        self.view_box.interaction_mode = "spline"
-        # Placement graphics must never force a new view range. Manual pan/zoom stays active.
-        self.view_box.disableAutoRange()
-        self.mask_toggle.setChecked(False)
-        self.mask_toggle.setEnabled(False)
-        self.undo_point_button.show()
-        self.finish_placement_button.show()
-        self.undo_point_button.setEnabled(False)
-        self.finish_placement_button.setEnabled(False)
-        self._update_spline_instruction()
-        self.placement_bar.show()
-        self.graphics.setCursor(Qt.CursorShape.CrossCursor)
-        self._update_interaction_state()
-        self._sync_placement_mouse_targets()
+        return self.placement.begin_spline_placement(name)
 
     def mark_quick_add_placement(self) -> None:
-        """Enable Quick Add finish gestures for the placement just started."""
-        if self._placement_mode is None:
-            return
-        self._quick_add_placement = True
-        self.view_box.quick_add_placement = True
-        self.view_box._context_menu_timer.stop()
-        self.view_box._context_menu_event = None
-        self._quick_add_return.setEnabled(True)
-        self._quick_add_enter.setEnabled(True)
-        if self._placement_mode == "spline":
-            self._update_spline_instruction()
+        return self.placement.mark_quick_add_placement()
 
     def cancel_placement(self) -> None:
-        for session in list(self._plugin_plot_sessions.values()):
-            if session.picking:
-                session.set_picking(False)
-        if self.point_editor.active:
-            self.point_editor.finish()
-        if self._placement_mode is None:
-            return
-        self._end_placement()
-        self.placementCancelled.emit()
+        return self.placement.cancel_placement()
 
     def finish_placement(self) -> None:
-        if self._placement_mode != "spline":
-            return
-        if len(self._spline_points) < 2:
-            self._update_spline_instruction()
-            return
-        points = sorted(self._spline_points)
-        self._end_placement()
-        self.splinePlacementFinished.emit(points)
+        return self.placement.finish_placement()
 
     def undo_spline_point(self) -> None:
-        if self._placement_mode == "spline":
-            self.placement_editor.undo()
+        return self.placement.undo_spline_point()
 
     def _preview_peak_placement(self, x: float, y: float, fwhm: float) -> None:
-        if self._placement_mode != "peak":
-            return
-        x, y = self._from_display_coordinates(x, y)
-        self._peak_preview = (x, y, fwhm)
-        self._render_placement_preview()
+        return self.placement._preview_peak_placement(x, y, fwhm)
 
     def _finish_peak_placement(self, x: float, y: float, fwhm: float) -> None:
-        if self._placement_mode != "peak":
-            return
-        x, y = self._from_display_coordinates(x, y)
-        selected_width = fwhm if fwhm > 0 else self._default_peak_width()
-        self._end_placement()
-        self.peakPlacementFinished.emit(x, y, selected_width)
+        return self.placement._finish_peak_placement(x, y, fwhm)
 
     def _add_spline_point(self, x: float, y: float) -> None:
-        if self._placement_mode != "spline":
-            return
-        x, y = self.placement_editor.data_position(QPointF(x, y), scene=False)
-        if not math.isfinite(x) or not math.isfinite(y):
-            return
-        tolerance = max(self._active_x_span(), 1.0) * 1e-12
-        for index, (existing_x, _) in enumerate(self._spline_points):
-            if math.isclose(x, existing_x, rel_tol=0.0, abs_tol=tolerance):
-                if self._spline_points[index] == (x, y):
-                    return
-                self.placement_editor.record()
-                self._spline_points[index] = (x, y)
-                break
-        else:
-            self.placement_editor.record()
-            self._spline_points.append((x, y))
-        self._render_placement_preview()
-        self._update_spline_instruction()
+        return self.placement._add_spline_point(x, y)
 
     def _remove_spline_point(self, x: float, y: float) -> None:
-        if self._placement_mode != "spline" or not self._spline_points:
-            return
-        x, y = self.placement_editor.data_position(QPointF(x, y), scene=False)
-        x_scale = max(self._active_x_span(), np.finfo(float).eps)
-        y_scale = max(self._active_y_span(), np.finfo(float).eps)
-        index = min(
-            range(len(self._spline_points)),
-            key=lambda item: (
-                ((self._spline_points[item][0] - x) / x_scale) ** 2
-                + ((self._spline_points[item][1] - y) / y_scale) ** 2
-            ),
-        )
-        self.placement_editor.record()
-        self._spline_points.pop(index)
-        self._render_placement_preview()
-        self._update_spline_instruction()
+        return self.placement._remove_spline_point(x, y)
 
     def _render_placement_preview(self) -> None:
-        self._clear_placement_items()
-        if self._placement_mode is None or self._project is None or not self._active_curve_id:
-            return
-        x_offset, y_offset = self._active_display_offsets()
-        if self._placement_mode == "peak" and self._peak_preview is not None:
-            centre, height, fwhm = self._peak_preview
-            width = fwhm if fwhm > 0 else self._default_peak_width()
-            region = pg.LinearRegionItem(
-                values=(centre + x_offset - width / 2, centre + x_offset + width / 2),
-                movable=False,
-                brush=pg.mkBrush(0, 158, 115, 38),
-                pen=pg.mkPen(0, 158, 115, 130),
-            )
-            centre_line = pg.InfiniteLine(
-                pos=centre + x_offset,
-                angle=90,
-                movable=False,
-                pen=pg.mkPen("#009E73", width=2),
-            )
-            marker = self.plot.plot(
-                [centre + x_offset],
-                [height + y_offset],
-                pen=None,
-                symbol="+",
-                symbolSize=14,
-                symbolPen=pg.mkPen("#009E73", width=2),
-            )
-            for item in (region, centre_line):
-                self.plot.addItem(item)
-            self._placement_items.extend([region, centre_line, marker])
-            return
-        if self._placement_mode != "spline" or not self._spline_points:
-            return
-        ordered = sorted(self._spline_points)
-        node_x = np.asarray([point[0] for point in ordered], dtype=float)
-        node_y = np.asarray([point[1] for point in ordered], dtype=float)
-        markers = self.plot.plot(
-            node_x + x_offset,
-            node_y + y_offset,
-            pen=None,
-            symbol="o",
-            symbolSize=9,
-            symbolBrush=pg.mkBrush("#009E73"),
-            symbolPen=pg.mkPen("#ffffff", width=1),
-        )
-        self._placement_items.append(markers)
-        if len(ordered) < 2:
-            return
-        curve = self._project.dataset.curve(self._active_curve_id)
-        finite = np.isfinite(curve.x)
-        if not np.any(finite):
-            return
-        data_x = np.asarray(curve.x[finite], dtype=float)
-        lower = float(min(np.min(data_x), np.min(node_x)))
-        upper = float(max(np.max(data_x), np.max(node_x)))
-        preview_count = max(400, min(4000, len(data_x) * 2))
-        preview_x = np.linspace(lower, upper, preview_count)
-        metadata = {"x_nodes": node_x.tolist()}
-        values = {f"y{index}": value for index, value in enumerate(node_y)}
-        preview = self.registry.get("cubic_spline").evaluate(preview_x, values, metadata)
-        line = self.plot.plot(
-            preview_x + x_offset,
-            preview + y_offset,
-            pen=pg.mkPen("#009E73", width=2, style=Qt.PenStyle.DashLine),
-        )
-        self._placement_items.append(line)
+        return self.placement._render_placement_preview()
 
     def _clear_placement_items(self) -> None:
-        for item in self._placement_items:
-            # Live dragging replaces preview graphics repeatedly. Retaining their
-            # mouse-state snapshots would also retain every discarded preview.
-            pending = [item]
-            while pending:
-                target = pending.pop()
-                if isValid(target):
-                    pending.extend(target.childItems())
-                self._placement_mouse_targets.pop(target, None)
-            with suppress(RuntimeError):
-                self.plot.removeItem(item)
-        self._placement_items.clear()
+        return self.placement._clear_placement_items()
 
     def _end_placement(self) -> None:
-        self.placement_editor.stop()
-        self._clear_placement_items()
-        self._placement_mode = None
-        self._quick_add_placement = False
-        self.view_box.quick_add_placement = False
-        self._quick_add_return.setEnabled(False)
-        self._quick_add_enter.setEnabled(False)
-        self._placement_name = ""
-        self._peak_preview = None
-        self._spline_points = []
-        self.view_box.interaction_mode = None
-        self.placement_bar.hide()
-        self.mask_toggle.setEnabled(True)
-        self.graphics.unsetCursor()
-        self._update_interaction_state()
-        self._sync_placement_mouse_targets()
+        return self.placement._end_placement()
 
     def _restore_placement_mouse_targets(self) -> None:
-        for item, (buttons, enabled) in self._placement_mouse_targets.items():
-            if isValid(item):
-                item.setAcceptedMouseButtons(buttons)
-                item.setEnabled(enabled)
-        self._placement_mouse_targets.clear()
+        return self.placement._restore_placement_mouse_targets()
 
     def _sync_placement_mouse_targets(self) -> None:
-        """Let placement clicks pass through plot symbols, curves and handles."""
-        if (self._placement_mode is None and not self.point_editor.active
-                and self.view_box.interaction_mode != 'plugin_points'):
-            self._restore_placement_mouse_targets()
-            return
-
-        no_button = Qt.MouseButton.NoButton
-        roots = (
-            *self.plot.items,
-            *self._data_items.values(),
-            *self._component_items.values(),
-            *self._placement_items,
-            *self._handles,
-        )
-        items: list[Any] = []
-        seen: set[Any] = set()
-        for root in roots:
-            pending = [root]
-            while pending:
-                item = pending.pop()
-                if not isValid(item) or item in seen:
-                    continue
-                seen.add(item)
-                items.append(item)
-                pending.extend(item.childItems())
-        # Snapshot all children before disabling their parents: Qt propagates
-        # the disabled state, so reading a child afterwards loses its old value.
-        for item in items:
-            if item not in self._placement_mouse_targets:
-                self._placement_mouse_targets[item] = (
-                    item.acceptedMouseButtons(), item.isEnabled()
-                )
-        for item in items:
-            item.setAcceptedMouseButtons(no_button)
-            item.setEnabled(False)
+        return self.placement._sync_placement_mouse_targets()
 
     def _update_spline_instruction(self) -> None:
-        count = len(self._spline_points)
-        finish = (
-            self.tr("Right-click, press Enter or Finish when done; Esc cancels.")
-            if self._quick_add_placement else
-            self.tr("Press Finish when done; Esc cancels. Right-click removes the nearest point.")
-        )
-        self.placement_label.setText(
-            self.tr("Place spline nodes: ")
-            + self.placement_editor.instruction()
-            + self.tr("The mouse wheel zooms. The curve updates live. ")
-            + f"{count}/2 " + self.tr("minimum points. ") + finish
-        )
-        self.undo_point_button.setEnabled(self.placement_editor.can_undo)
-        self.finish_placement_button.setEnabled(count >= 2)
+        return self.placement._update_spline_instruction()
 
     def _active_display_offsets(self) -> tuple[float, float]:
-        if self.display_mode.currentText() != self.tr("Waterfall") or self._project is None:
-            return 0.0, 0.0
-        curves = self.displayed_curves()
-        index = next(
-            (position for position, curve in enumerate(curves) if curve.id == self._active_curve_id),
-            0,
-        )
-        return index * self.x_offset.value(), index * self.y_offset.value()
+        return self.view_state._active_display_offsets()
 
     def _from_display_coordinates(self, x: float, y: float) -> tuple[float, float]:
-        x_offset, y_offset = self._active_display_offsets()
-        return x - x_offset, y - y_offset
+        return self.view_state._from_display_coordinates(x, y)
 
     def _active_x_span(self) -> float:
-        if self._project is None or not self._active_curve_id:
-            return 0.0
-        curve = self._project.dataset.curve(self._active_curve_id)
-        finite = curve.x[np.isfinite(curve.x)]
-        return float(np.ptp(finite)) if len(finite) else 0.0
+        return self.view_state._active_x_span()
 
     def _active_y_span(self) -> float:
-        if self._project is None or not self._active_curve_id:
-            return 0.0
-        curve = self._project.dataset.curve(self._active_curve_id)
-        finite = curve.y[np.isfinite(curve.y)]
-        return float(np.ptp(finite)) if len(finite) else 0.0
+        return self.view_state._active_y_span()
 
     def _default_peak_width(self) -> float:
-        if self._project is None or not self._active_curve_id:
-            return 1.0
-        curve = self._project.dataset.curve(self._active_curve_id)
-        finite = np.sort(curve.x[np.isfinite(curve.x)])
-        spacing = float(np.nanmedian(np.abs(np.diff(finite)))) if len(finite) > 1 else 0.0
-        return max(self._active_x_span() * 0.05, spacing * 4, np.finfo(float).eps)
+        return self.placement._default_peak_width()
 
     def _update_interaction_state(self) -> None:
         spline_navigation = self._placement_mode == "spline"
@@ -1505,24 +807,22 @@ class PlotWorkspace(QWidget):
         self.graphics.setToolTip(self.mask_toggle.toolTip() if enabled else "")
 
     def set_log_x(self, enabled: bool) -> None:
-        self.plot.setLogMode(x=enabled, y=None)
-        self.residual_plot.setLogMode(x=enabled, y=False)
+        return self.view_state.set_log_x(enabled)
 
     def set_log_y(self, enabled: bool) -> None:
-        self.plot.setLogMode(x=None, y=enabled)
+        return self.view_state.set_log_y(enabled)
 
     def set_reverse_x(self, enabled: bool) -> None:
-        self.view_box.invertX(enabled)
+        return self.view_state.set_reverse_x(enabled)
 
     def set_reverse_y(self, enabled: bool) -> None:
-        self.view_box.invertY(enabled)
+        return self.view_state.set_reverse_y(enabled)
 
     def set_view_locked(self, enabled: bool) -> None:
-        self._view_locked = enabled
-        self._update_interaction_state()
+        return self.view_state.set_view_locked(enabled)
 
     def auto_range(self) -> None:
-        self._fit_experimental_data(active_only=False)
+        return self.view_state.auto_range()
 
     def _error_bars_changed(self, *_: Any) -> None:
         if self._project is not None:
@@ -1532,86 +832,15 @@ class PlotWorkspace(QWidget):
             self._apply_autoscale()
 
     def view_active(self) -> None:
-        self._fit_experimental_data(active_only=True)
+        return self.view_state.view_active()
 
     def _fit_experimental_data(self, *, active_only: bool, series_id: str | None = None) -> None:
         # Never use scene/item bounds: adaptive rendering clips those to the
         # current viewport, while model extrapolation can dwarf the actual data.
-        from curvemole.gui.background_display import (
-            _background_array,
-            _displayed_curves,
-            background_removed,
-        )
-
-        curves, x_step, y_step = _displayed_curves(self)
-        series_curves = None
-        if series_id is not None and self._project is not None:
-            series = next((group for group in self._project.dataset.series if group.id == series_id), None)
-            series_curves = {curve.id for curve in series.curves} if series is not None else set()
-        log_x, log_y = self.plot.ctrl.logXCheck.isChecked(), self.plot.ctrl.logYCheck.isChecked()
-        bounds = []
-        for index, curve in enumerate(curves):
-            if series_curves is not None and curve.id not in series_curves:
-                continue
-            x = np.asarray(curve.x, dtype=float) + index * x_step
-            y = np.asarray(curve.y, dtype=float)
-            if background_removed(self, curve.id):
-                y = y - _background_array(self, curve)
-            y = y + index * y_step
-            valid = np.isfinite(x) & np.isfinite(y)
-            if active_only:
-                valid &= ~curve.effective_mask
-            if log_x:
-                valid &= x > 0
-            if log_y:
-                valid &= y > 0
-            if not np.any(valid):
-                continue
-            # Include displayed CI endpoints in the experimental-data range.
-            range_x, range_y = [x[valid]], [y[valid]]
-            if self.error_bars_toggle.isChecked():
-                from curvemole.gui.data_errors import y_error_widths
-                widths = y_error_widths(curve)
-                if widths is not None:
-                    minus, plus = widths
-                    keep = valid & np.isfinite(minus) & np.isfinite(plus) & (minus > 0) & (plus > 0)
-                    range_y.extend((y[keep]-minus[keep], y[keep]+plus[keep]))
-                if curve.current_sigma_x is not None:
-                    sx = curve.current_sigma_x
-                    keep = valid & np.isfinite(sx) & (sx > 0)
-                    range_x.extend((x[keep]-sx[keep], x[keep]+sx[keep]))
-            x, y = np.concatenate(range_x), np.concatenate(range_y)
-            if log_x:
-                x = np.log10(x[x > 0])
-            if log_y:
-                y = np.log10(y[y > 0])
-            bounds.append((float(x.min()), float(x.max()), float(y.min()), float(y.max())))
-        # Empty/all-masked data must not fall back to model bounds.
-        if not bounds:
-            return
-        limits = np.asarray(bounds)
-        def usable_range(lower: float, upper: float) -> tuple[float, float]:
-            # pyqtgraph otherwise retains the previous (possibly huge) span
-            # for a constant signal or a single remaining unmasked sample.
-            if lower == upper:
-                half_span = max(abs(lower) * 0.05, 0.5)
-                return lower - half_span, upper + half_span
-            return lower, upper
-
-        self.view_box.disableAutoRange()
-        residual_view = self.residual_plot.getViewBox()
-        residual_view.disableAutoRange()
-        self.view_box.setRange(
-            xRange=usable_range(float(limits[:, 0].min()), float(limits[:, 1].max())),
-            yRange=usable_range(float(limits[:, 2].min()), float(limits[:, 3].max())),
-            padding=0.04,
-        )
-        # Residuals may determine only their own Y axis, never the linked X axis.
-        self._residual_view_manual = False
-        residual_view.enableAutoRange(axis=pg.ViewBox.YAxis)
+        return self.view_state._fit_experimental_data(active_only=active_only, series_id=series_id)
 
     def _residual_range_changed_manually(self, *_: Any) -> None:
-        self._residual_view_manual = True
+        return self.view_state._residual_range_changed_manually(*_)
 
     def _mouse_moved(self, event: tuple[QPointF]) -> None:
         point = event[0]

@@ -64,15 +64,21 @@ def test_building_blocks_do_not_import_the_window_or_its_extensions():
     from pathlib import Path
 
     gui = Path(__file__).resolve().parents[1] / "src" / "curvemole" / "gui"
-    building_blocks = ["plot", "panels", "render_controller", "data_point_editor", "edit_function_points",
+    building_blocks = ["plot", "plot_placement", "plot_scene", "plot_view_state", "panels", "dialogs",
+                       "render_controller", "data_point_editor", "edit_function_points",
                        "background_display", "point_initialisation", "model_selection", "updates",
                        "updates_windows", "update_platform"]
     forbidden = {"curvemole.gui.main_window", "curvemole.gui.background_navigation",
                  "curvemole.gui.manual_points", "curvemole.gui.manual_points_live",
                  "curvemole.gui.model_multiselect", "curvemole.gui.windows_update_fix"}
     offenders = []
+    sources = []
     for name in building_blocks:
-        tree = ast.parse((gui / f"{name}.py").read_text(encoding="utf-8"))
+        path = gui / name
+        sources += sorted(path.glob("*.py")) if path.is_dir() else [gui / f"{name}.py"]
+    for source in sources:
+        name = source.relative_to(gui).with_suffix("").as_posix()
+        tree = ast.parse(source.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module in forbidden:
                 offenders.append(f"{name} -> {node.module}")
@@ -116,7 +122,7 @@ def test_fit_flow_is_native_and_the_fit_dialog_is_not_patched():
         names = ("_fit_finished", "quick_fit", "resume_sequence", "terminate_sequence", "_task_done",
                  "_run_background", "refresh_all", "apply_theme", "start_uncertainty")
         modules = {getattr(MainWindow, name).__module__ for name in names}
-        modules |= {value.__module__ for value in vars(FitPlanDialog).values()
+        modules |= {value.__module__.rsplit(".fit_plan_dialog", 1)[0] for value in vars(FitPlanDialog).values()
                     if callable(value) and hasattr(value, "__module__")}
         print(sorted(modules))
     """)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
@@ -26,8 +27,10 @@ from PySide6.QtWidgets import (
 from curvemole.core.project import Project
 from curvemole.core.spectrum_export import SpectrumExportOptions, export_spectra
 from curvemole.gui import window_extensions
-from curvemole.gui.main_window import MainWindow
 from curvemole.gui.windowing import transient_widget
+
+if TYPE_CHECKING:
+    from curvemole.gui.main_window import MainWindow
 
 
 class SpectrumExportDialog(QDialog):

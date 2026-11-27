@@ -205,7 +205,7 @@ def test_failed_bundle_regeneration_leaves_all_preexisting_files_untouched(tmp_p
     def fail(*args, **kwargs):
         raise OSError("Synthetic write failure")
 
-    monkeypatch.setattr("curvemole.core.export.generate_html_report", fail)
+    monkeypatch.setattr("curvemole.core.export.bundle.generate_html_report", fail)
     with pytest.raises(OSError, match="Synthetic write failure"):
         export_bundle(project, tmp_path, selection=selection, overwrite=True)
     assert {file.relative_to(tmp_path): file.read_bytes() for file in tmp_path.rglob("*") if file.is_file()} == before

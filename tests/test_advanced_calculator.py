@@ -147,7 +147,7 @@ def test_save_advanced_formula_and_insert_dropdown(tmp_path, monkeypatch):
     assert panel.column_target.currentData() == "c3"
     panel.formula.setText("y / ")
     panel.formula.setCursorPosition(4)
-    monkeypatch.setattr("curvemole.gui.panels.choose_column",
+    monkeypatch.setattr("curvemole.gui.panels.calculator_panel.choose_column",
                         lambda *args: panel.column_target.findData("c3"))
     assert panel.formula.text() == "y / "
     panel.column_insert.click()

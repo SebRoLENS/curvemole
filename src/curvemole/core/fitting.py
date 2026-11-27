@@ -892,8 +892,7 @@ class Fitter:
         cancellation: CancellationToken,
         progress: ProgressCallback | None,
     ) -> FitResult:
-        from scipy import optimize
-
+        """Prepare the scaled problem, run the selected solver and build the result."""
         original_states = {curve.id: curve.state for curve in curves}
         original_parameter_state = {
             path: (
@@ -927,135 +926,8 @@ class Fitter:
                 not curve.has_y_errors and curve.current_weights is None for curve in curves)
             residual_unit = max(characteristic_scale(data[1]) for data in problem._data.values()) if unweighted else 1.0
             execution['residual_unit'] = residual_unit
-            solver_settings = copy.copy(settings)
-            solver_settings.f_scale /= residual_unit
-
-            def scaled_residual(vector, *, report=True):
-                return problem.residual(vector * scales, report=report) / residual_unit
-
-            def scaled_jacobian(vector, *, dense=False):
-                return scale_jacobian(problem.jacobian(vector * scales, dense=dense),
-                                      scales / residual_unit)
-
-            if settings.solver == "differential_evolution":
-                search_lower, search_upper = _automatic_de_bounds(problem, settings)
-                execution["search_bounds"] = [search_lower.tolist(), search_upper.tolist()]
-                if progress:
-                    progress(0.0, "Differential Evolution initial search")
-                differential = optimize.differential_evolution(
-                    lambda vector: _objective(scaled_residual(vector, report=False), solver_settings),
-                    list(zip(search_lower / scales, search_upper / scales, strict=True)),
-                    seed=settings.seed,
-                    maxiter=settings.de_maxiter,
-                    popsize=settings.de_popsize,
-                    mutation=(settings.de_mutation_min, settings.de_mutation_max),
-                    recombination=settings.de_recombination,
-                    tol=settings.de_tol,
-                    atol=settings.de_atol,
-                    workers=1,
-                    updating="immediate",
-                    polish=False,
-                    callback=lambda intermediate_result: cancellation.cancelled,
-                )
-                cancellation.raise_if_cancelled()
-                initial = differential.x * scales
-            execution['solver_bounds'] = [
-                [float(bound) if math.isfinite(bound) else None for bound in side]
-                for side in (lower, upper)
-            ]
-            from curvemole.core.extensions import current_extensions
-            extensions = current_extensions()
-            custom = next((entry for entry in extensions.values("fit_solvers")
-                           if entry.identifier == settings.solver), None)
-            if custom is not None:
-                from types import SimpleNamespace
-                request = SimpleNamespace(residual=problem.residual,
-                    jacobian=lambda vector: problem.jacobian(vector, dense=True),
-                    initial=initial.copy(), bounds=(lower.copy(), upper.copy()),
-                    settings=copy.deepcopy(settings), cancellation=cancellation)
-                least_squares = custom.callback(request)
-                cancellation.raise_if_cancelled()
-                vector = np.asarray(least_squares.x, dtype=float)
-                if (vector.shape != initial.shape or not np.all(np.isfinite(vector))
-                        or np.any(vector < lower) or np.any(vector > upper)):
-                    raise FitError("Plugin solver returned invalid or out-of-bounds parameters.")
-                # Recompute residuals/Jacobian through the standard constrained problem.
-                least_squares = SimpleNamespace(x=vector, fun=problem.residual(vector, report=False),
-                    jac=problem.jacobian(vector) if self._compute_inference and least_squares.success else None,
-                    nfev=int(least_squares.nfev),
-                    success=bool(least_squares.success), status=int(least_squares.status),
-                    message=str(least_squares.message))
-            elif settings.solver in {"nelder_mead", "powell", "lbfgsb"}:
-                method = {"nelder_mead": "Nelder-Mead", "powell": "Powell",
-                          "lbfgsb": "L-BFGS-B"}[settings.solver]
-                options = _minimize_options(settings)
-                if settings.solver == "nelder_mead" and settings.nm_initial_simplex is not None:
-                    simplex = np.asarray(settings.nm_initial_simplex, dtype=float)
-                    if simplex.shape != (len(initial) + 1, len(initial)):
-                        raise FitError("Initial simplex dimension does not match the free parameters.")
-                    if problem.coordinates is not None:
-                        simplex = np.asarray([problem.coordinates.encode(vertex) for vertex in simplex])
-                    options["initial_simplex"] = simplex / scales
-                    if np.any(simplex < lower) or np.any(simplex > upper):
-                        raise FitError("Initial simplex vertices must satisfy parameter bounds.")
-                minimised = optimize.minimize(
-                    lambda vector: _objective(scaled_residual(vector), solver_settings),
-                    initial / scales, method=method,
-                    bounds=list(zip(lower / scales, upper / scales, strict=True)),
-                    options=options,
-                )
-                cancellation.raise_if_cancelled()
-                from types import SimpleNamespace
-                vector = np.clip(minimised.x * scales, lower, upper)
-                least_squares = SimpleNamespace(
-                    x=vector, fun=problem.residual(vector, report=False),
-                    jac=problem.jacobian(vector) if self._compute_inference and minimised.success else None,
-                    nfev=minimised.nfev,
-                    success=minimised.success, status=minimised.status,
-                    message=minimised.message,
-                )
-            else:
-                method = (settings.solver if settings.solver in {"trf", "dogbox", "lm"}
-                          else _select_method(settings, lower, upper))
-                if (method == "lm" and settings.local_method == "auto" and settings.solver != "lm"
-                        and (problem._jacobian_sparsity is not None
-                             or sum(len(data[0]) for data in problem._data.values()) < len(initial))):
-                    method = "trf"
-                if method == "lm" and (np.any(np.isfinite(lower)) or
-                                       np.any(np.isfinite(upper)) or settings.loss != "linear"):
-                    raise FitError("Levenberg-Marquardt requires no bounds and linear loss.")
-                least_squares = optimize.least_squares(
-                    scaled_residual,
-                    initial / scales,
-                    jac=(lambda vector: scaled_jacobian(vector, dense=True)) if method == "lm"
-                        else scaled_jacobian,
-                    bounds=(lower / scales, upper / scales),
-                    method=method,
-                    loss=settings.loss,
-                    f_scale=solver_settings.f_scale,
-                    x_scale=settings.x_scale,
-                    max_nfev=settings.max_nfev,
-                    ftol=settings.ftol,
-                    xtol=settings.xtol,
-                    gtol=settings.gtol,
-                )
-                least_squares.x = least_squares.x * scales
-                least_squares.jac = scale_jacobian(least_squares.jac, residual_unit / scales)
-                least_squares.fun = least_squares.fun * residual_unit
-            execution['resolved_method'] = (settings.solver if custom is not None else method)
-            if progress:
-                progress(
-                    min(least_squares.nfev / settings.max_nfev, 1.0),
-                    f"Evaluation {least_squares.nfev}",
-                )
-            cancellation.raise_if_cancelled()
-            # Only scipy least_squares modifies J for a robust loss. Minimize
-            # and extension paths above already reconstructed the raw J.
-            covariance_jacobian = (
-                problem.jacobian(least_squares.x)
-                if self._compute_inference and least_squares.success and settings.loss != "linear" and custom is None
-                and settings.solver not in {"nelder_mead", "powell", "lbfgsb"}
-                else least_squares.jac)
+            least_squares, covariance_jacobian = self._solve(
+                problem, settings, initial, scales, residual_unit, execution, cancellation, progress)
         except FitCancelled:
             _restore_parameters(problem.parameters if "problem" in locals() else {}, original_parameter_state)
             for curve in curves:
@@ -1073,7 +945,154 @@ class Fitter:
             if isinstance(exc, (FitError, ConstraintError)):
                 raise
             raise FitError(f"Least-squares solver failed: {exc}") from exc
+        return self._fit_result(problem, plan, curves, least_squares, covariance_jacobian, scales,
+                                execution, original_parameter_state)
 
+    def _solve(self, problem, settings, initial, scales, residual_unit, execution, cancellation, progress):
+        """Run the global search (if any) and the selected solver on the scaled problem.
+
+        Returns the solver outcome (``x``, ``fun``, ``jac``, ``nfev``, ``success``,
+        ``status``, ``message``) in physical units and the Jacobian to use for
+        the covariance.
+        """
+        from scipy import optimize
+
+        lower, upper = problem.bounds
+        solver_settings = copy.copy(settings)
+        solver_settings.f_scale /= residual_unit
+
+        def scaled_residual(vector, *, report=True):
+            return problem.residual(vector * scales, report=report) / residual_unit
+
+        def scaled_jacobian(vector, *, dense=False):
+            return scale_jacobian(problem.jacobian(vector * scales, dense=dense),
+                                  scales / residual_unit)
+
+        if settings.solver == "differential_evolution":
+            search_lower, search_upper = _automatic_de_bounds(problem, settings)
+            execution["search_bounds"] = [search_lower.tolist(), search_upper.tolist()]
+            if progress:
+                progress(0.0, "Differential Evolution initial search")
+            differential = optimize.differential_evolution(
+                lambda vector: _objective(scaled_residual(vector, report=False), solver_settings),
+                list(zip(search_lower / scales, search_upper / scales, strict=True)),
+                seed=settings.seed,
+                maxiter=settings.de_maxiter,
+                popsize=settings.de_popsize,
+                mutation=(settings.de_mutation_min, settings.de_mutation_max),
+                recombination=settings.de_recombination,
+                tol=settings.de_tol,
+                atol=settings.de_atol,
+                workers=1,
+                updating="immediate",
+                polish=False,
+                callback=lambda intermediate_result: cancellation.cancelled,
+            )
+            cancellation.raise_if_cancelled()
+            initial = differential.x * scales
+        execution['solver_bounds'] = [
+            [float(bound) if math.isfinite(bound) else None for bound in side]
+            for side in (lower, upper)
+        ]
+        from curvemole.core.extensions import current_extensions
+        extensions = current_extensions()
+        custom = next((entry for entry in extensions.values("fit_solvers")
+                       if entry.identifier == settings.solver), None)
+        if custom is not None:
+            from types import SimpleNamespace
+            request = SimpleNamespace(residual=problem.residual,
+                jacobian=lambda vector: problem.jacobian(vector, dense=True),
+                initial=initial.copy(), bounds=(lower.copy(), upper.copy()),
+                settings=copy.deepcopy(settings), cancellation=cancellation)
+            least_squares = custom.callback(request)
+            cancellation.raise_if_cancelled()
+            vector = np.asarray(least_squares.x, dtype=float)
+            if (vector.shape != initial.shape or not np.all(np.isfinite(vector))
+                    or np.any(vector < lower) or np.any(vector > upper)):
+                raise FitError("Plugin solver returned invalid or out-of-bounds parameters.")
+            # Recompute residuals/Jacobian through the standard constrained problem.
+            least_squares = SimpleNamespace(x=vector, fun=problem.residual(vector, report=False),
+                jac=problem.jacobian(vector) if self._compute_inference and least_squares.success else None,
+                nfev=int(least_squares.nfev),
+                success=bool(least_squares.success), status=int(least_squares.status),
+                message=str(least_squares.message))
+        elif settings.solver in {"nelder_mead", "powell", "lbfgsb"}:
+            method = {"nelder_mead": "Nelder-Mead", "powell": "Powell",
+                      "lbfgsb": "L-BFGS-B"}[settings.solver]
+            options = _minimize_options(settings)
+            if settings.solver == "nelder_mead" and settings.nm_initial_simplex is not None:
+                simplex = np.asarray(settings.nm_initial_simplex, dtype=float)
+                if simplex.shape != (len(initial) + 1, len(initial)):
+                    raise FitError("Initial simplex dimension does not match the free parameters.")
+                if problem.coordinates is not None:
+                    simplex = np.asarray([problem.coordinates.encode(vertex) for vertex in simplex])
+                options["initial_simplex"] = simplex / scales
+                if np.any(simplex < lower) or np.any(simplex > upper):
+                    raise FitError("Initial simplex vertices must satisfy parameter bounds.")
+            minimised = optimize.minimize(
+                lambda vector: _objective(scaled_residual(vector), solver_settings),
+                initial / scales, method=method,
+                bounds=list(zip(lower / scales, upper / scales, strict=True)),
+                options=options,
+            )
+            cancellation.raise_if_cancelled()
+            from types import SimpleNamespace
+            vector = np.clip(minimised.x * scales, lower, upper)
+            least_squares = SimpleNamespace(
+                x=vector, fun=problem.residual(vector, report=False),
+                jac=problem.jacobian(vector) if self._compute_inference and minimised.success else None,
+                nfev=minimised.nfev,
+                success=minimised.success, status=minimised.status,
+                message=minimised.message,
+            )
+        else:
+            method = (settings.solver if settings.solver in {"trf", "dogbox", "lm"}
+                      else _select_method(settings, lower, upper))
+            if (method == "lm" and settings.local_method == "auto" and settings.solver != "lm"
+                    and (problem._jacobian_sparsity is not None
+                         or sum(len(data[0]) for data in problem._data.values()) < len(initial))):
+                method = "trf"
+            if method == "lm" and (np.any(np.isfinite(lower)) or
+                                   np.any(np.isfinite(upper)) or settings.loss != "linear"):
+                raise FitError("Levenberg-Marquardt requires no bounds and linear loss.")
+            least_squares = optimize.least_squares(
+                scaled_residual,
+                initial / scales,
+                jac=(lambda vector: scaled_jacobian(vector, dense=True)) if method == "lm"
+                    else scaled_jacobian,
+                bounds=(lower / scales, upper / scales),
+                method=method,
+                loss=settings.loss,
+                f_scale=solver_settings.f_scale,
+                x_scale=settings.x_scale,
+                max_nfev=settings.max_nfev,
+                ftol=settings.ftol,
+                xtol=settings.xtol,
+                gtol=settings.gtol,
+            )
+            least_squares.x = least_squares.x * scales
+            least_squares.jac = scale_jacobian(least_squares.jac, residual_unit / scales)
+            least_squares.fun = least_squares.fun * residual_unit
+        execution['resolved_method'] = (settings.solver if custom is not None else method)
+        if progress:
+            progress(
+                min(least_squares.nfev / settings.max_nfev, 1.0),
+                f"Evaluation {least_squares.nfev}",
+            )
+        cancellation.raise_if_cancelled()
+        # Only scipy least_squares modifies J for a robust loss. Minimize
+        # and extension paths above already reconstructed the raw J.
+        covariance_jacobian = (
+            problem.jacobian(least_squares.x)
+            if self._compute_inference and least_squares.success and settings.loss != "linear" and custom is None
+            and settings.solver not in {"nelder_mead", "powell", "lbfgsb"}
+            else least_squares.jac)
+        return least_squares, covariance_jacobian
+
+    def _fit_result(self, problem, plan, curves, least_squares, covariance_jacobian, scales,
+                    execution, original_parameter_state):
+        """Statistics, covariance, estimates and warnings of a finished solve."""
+        settings = plan.settings
         values = problem.values(least_squares.x, commit=True)
         outputs = problem.outputs(values)
         warnings: list[str] = []
