@@ -37,9 +37,10 @@ from curvemole.core.initialization import (
     find_peak_suggestions,
     initialise_peak_component,
 )
-from curvemole.core.models import Component, Model
+from curvemole.core.models import Component
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.plugins import export_custom_function, import_custom_function
+from curvemole.core.transactions import restore_model_state
 from curvemole.gui import window_extensions
 from curvemole.gui.data_directories import library_directory, prepare_library_directory
 from curvemole.gui.function_composition import (
@@ -543,11 +544,11 @@ def _find_peaks(window: MainWindow) -> None:
                 model.add(component)
             after = model.to_dict()
         except Exception as exc:
-            window.project.models[window.active_curve_id] = Model.from_dict(before)
+            restore_model_state(window.project, window.active_curve_id, before)
             window._show_error(window.tr("Find Peaks"), exc)
             return
 
-        window.project.models[window.active_curve_id] = Model.from_dict(before)
+        restore_model_state(window.project, window.active_curve_id, before)
         window._push_model_state(
             window.active_curve_id,
             before,

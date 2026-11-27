@@ -48,11 +48,13 @@ def test_runtime_class_patching_does_not_grow():
     # Methods installed on MainWindow by other modules. Lower this ceiling when
     # an extension becomes a real method or controller; never raise it.
     output = _run("""
+        from PySide6.QtCore import Signal
         from curvemole.gui.main_window import MainWindow
         print(sum(1 for value in vars(MainWindow).values()
-                  if callable(value) and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
+                  if callable(value) and not isinstance(value, Signal)
+                  and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
     """)
-    assert int(output) <= 36
+    assert int(output) <= 35
 
 
 def test_building_blocks_do_not_import_the_window_or_its_extensions():
@@ -96,3 +98,12 @@ def test_window_building_stages_are_extended_through_the_registry():
         print(sorted({getattr(MainWindow, name).__module__ for name in names}))
     """)
     assert output.strip() == "['curvemole.gui.main_window']"
+
+
+def test_undo_commands_are_pushed_only_through_the_undo_service():
+    from pathlib import Path
+
+    source = Path(__file__).resolve().parents[1] / "src" / "curvemole"
+    offenders = [str(path.relative_to(source)) for path in source.rglob("*.py")
+                 if path.name != "undo_service.py" and "undo_stack.push(" in path.read_text(encoding="utf-8")]
+    assert offenders == []

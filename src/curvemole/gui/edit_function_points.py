@@ -12,6 +12,7 @@ from curvemole.core.display import display_curve
 from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Component, Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
+from curvemole.core.transactions import restore_model_state
 from curvemole.gui.point_initialisation import (
     _generic_fit_component,
     _normalise_points,
@@ -221,7 +222,7 @@ class FunctionPointEditor(QObject):
             # cleared on close. Capture the project and curve identity by value.
             project, curve_id = self.project, self.curve_id
             def restore(model_state, transformations, redo, state):
-                project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
+                restore_model_state(project, curve_id, model_state)
                 target = project.dataset.curve(curve_id)
                 target.transformations = copy.deepcopy(transformations)
                 target.redo_transformations = copy.deepcopy(redo)

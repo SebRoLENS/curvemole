@@ -113,10 +113,12 @@ class FitUndoCommand(QUndoCommand):
         if self.initial:
             self.initial = False
         else:
-            _restore(self.window, self.after, self.curve_ids)
+            with self.window.undo_service.executing():
+                _restore(self.window, self.after, self.curve_ids)
 
     def undo(self):
-        _restore(self.window, self.before, self.curve_ids)
+        with self.window.undo_service.executing():
+            _restore(self.window, self.before, self.curve_ids)
 
 
 class FitLifecycleController:
@@ -140,7 +142,7 @@ class FitLifecycleController:
         window._fit_undo_before = None
         if before is not None:
             if result.success or result.curve_outputs or result.paused_curve_id:
-                window.undo_stack.push(FitUndoCommand(window, before, _capture(window, before["scope"])))
+                window.undo_service.push_applied(FitUndoCommand(window, before, _capture(window, before["scope"])))
             else:
                 _restore(window, before)
 

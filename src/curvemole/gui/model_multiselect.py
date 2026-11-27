@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from collections import defaultdict
 from typing import Any
 
@@ -21,7 +20,7 @@ from PySide6.QtWidgets import (
 from curvemole.core.background_status import background_component_status
 from curvemole.core.errors import ConstraintError
 from curvemole.core.expressions import SafeExpression
-from curvemole.core.models import Model
+from curvemole.core.transactions import restore_model_state
 from curvemole.gui.dialogs import ParameterLinkDialog
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import COMPONENT_CURVE_ROLE, ModelPanel
@@ -47,7 +46,7 @@ def _refs_for_request(window: MainWindow, component_id: str) -> list[tuple[str, 
 
 def _restore_models(window: MainWindow, states: dict[str, dict[str, Any]]) -> None:
     for curve_id, state in states.items():
-        window.project.models[curve_id] = Model.from_dict(copy.deepcopy(state))
+        restore_model_state(window.project, curve_id, state)
 
 
 def _push_multi_model_change(

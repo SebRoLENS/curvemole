@@ -97,6 +97,9 @@ class ManualSaveController(QObject):
                     self._source.read_only = False
                     if self._source.revision == self._revision:
                         self._source.mark_saved(path)
+                        service = getattr(self.window, "undo_service", None)
+                        if service is not None:
+                            service.mark_saved()
                         self.window._clear_recovery()
                         self.window._notify(self.tr("Project saved."))
                     else:

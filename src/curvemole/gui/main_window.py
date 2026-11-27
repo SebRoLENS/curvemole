@@ -110,6 +110,7 @@ from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
 from curvemole.core.serialization import ProjectLock, load_project, save_project
 from curvemole.core.state import copy_result_maps, restore_model
+from curvemole.core.transactions import ModelEdit, restore_model_state
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.colours import (
@@ -832,6 +833,20 @@ class DockTabTitleFilter(QObject):
 
 class MainWindow(QMainWindow):
     plugins_ready = Signal()
+    # Emitted whenever the window's Project object is replaced (new, open,
+    # recovery, plugin or fit Undo snapshots). Prefer it over polling.
+    projectReplaced = Signal(object)
+
+    @property
+    def project(self) -> Project:
+        return self._project
+
+    @project.setter
+    def project(self, value: Project) -> None:
+        previous = getattr(self, "_project", None)
+        self._project = value
+        if previous is not None and previous is not value:
+            self.projectReplaced.emit(value)
     _LAYOUT_SCHEMA_VERSION = 2
 
     def __init__(self, project: Project | None = None, *, defer_plugins: bool = False) -> None:
@@ -870,6 +885,9 @@ class MainWindow(QMainWindow):
         )
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
+        from curvemole.gui.undo_service import UndoService
+        self.undo_service = UndoService(self, self.undo_stack)
+        self.projectReplaced.connect(self.undo_service.project_replaced)
         self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
         from curvemole.gui.autosave import AutosaveController
         self._autosave_controller = AutosaveController(self)
@@ -1764,7 +1782,7 @@ class MainWindow(QMainWindow):
         self._load_custom_functions()
         self.active_curve_id = None
         self.selected_component_id = None
-        self.undo_stack.clear()
+        self.undo_service.reset()
         self.refresh_all()
 
     def open_project(self, path: str | Path | None = None) -> None:
@@ -1824,7 +1842,7 @@ class MainWindow(QMainWindow):
             self.project = project
             self.active_curve_id = project.curves[0].id if project.curves else None
             self.selected_component_id = None
-            self.undo_stack.clear()
+            self.undo_service.reset()
             self._load_custom_functions()
             self._normalise_component_names()
             self._normalise_spectrum_colours()
@@ -2417,7 +2435,7 @@ class MainWindow(QMainWindow):
         self._assign_component_name(component, model)
         model.add(component)
         after = model.to_dict()
-        model.components = Model.from_dict(before).components
+        restore_model_state(self.project, curve_id, before)
         self.selected_component_id = component.id
         self._push_model_state(curve_id, before, after, self.tr("Add component"))
 
@@ -2572,8 +2590,8 @@ class MainWindow(QMainWindow):
             if before != after:
                 self._push_change(
                     self.tr("Change calculation order"),
-                    lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
-                    lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+                    lambda: restore_model_state(self.project, curve_id, after),
+                    lambda: restore_model_state(self.project, curve_id, before),
                     modified_curve_ids={curve_id},
                 )
 
@@ -2591,11 +2609,11 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self._show_error(self.tr("Change function composition"), exc)
             return
-        self.project.models[curve_id] = Model.from_dict(before)
+        restore_model_state(self.project, curve_id, before)
         self._push_change(
             self.tr("Change function composition"),
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
+            lambda: restore_model_state(self.project, curve_id, after),
+            lambda: restore_model_state(self.project, curve_id, before),
             modified_curve_ids={curve_id},
         )
 
@@ -2630,7 +2648,7 @@ class MainWindow(QMainWindow):
 
             def restore(states):
                 for curve_id, state in states.items():
-                    self.project.models[curve_id] = Model.from_dict(copy.deepcopy(state["model"]))
+                    restore_model_state(self.project, curve_id, state["model"])
                     curve = self.project.dataset.curve(curve_id)
                     curve.masks = copy.deepcopy(state["masks"])
                     curve.active_mask = state["active_mask"]
@@ -4003,7 +4021,7 @@ class MainWindow(QMainWindow):
                 if all(existing.id != curve_id for existing in series.curves):
                     series.add(curve, index)
                 if model_state is not None:
-                    self.project.models[curve_id] = Model.from_dict(copy.deepcopy(model_state))
+                    restore_model_state(self.project, curve_id, model_state)
             self.project.results = copy_result_maps(saved_results)
             for curve in self.project.curves:
                 if curve.id in saved_states:
@@ -4055,12 +4073,12 @@ class MainWindow(QMainWindow):
         old = curve.colour.upper()
         if colour == old:
             return
-        self.undo_stack.push(
-            CallbackCommand(
-                self.tr("Change spectrum colour"),
-                lambda: self._set_curve_colour(curve_id, colour),
-                lambda: self._set_curve_colour(curve_id, old),
-            )
+        self.undo_service.push(
+            self.tr("Change spectrum colour"),
+            lambda: self._set_curve_colour(curve_id, colour),
+            lambda: self._set_curve_colour(curve_id, old),
+            refresh=False,
+            check_editable=False,
         )
 
     def apply_selected_palette(self, curve_ids: list[str], palette_name: str) -> None:
@@ -4095,12 +4113,12 @@ class MainWindow(QMainWindow):
             self.project.touch()
             self._refresh_curve_colours()
 
-        self.undo_stack.push(
-            CallbackCommand(
-                self.tr("Change selected spectra palette"),
-                lambda: restore(after),
-                lambda: restore(before),
-            )
+        self.undo_service.push(
+            self.tr("Change selected spectra palette"),
+            lambda: restore(after),
+            lambda: restore(before),
+            refresh=False,
+            check_editable=False,
         )
 
     def apply_series_palette(self, series_id: str, palette_name: str) -> None:
@@ -4128,12 +4146,12 @@ class MainWindow(QMainWindow):
             self.project.touch()
             self._refresh_curve_colours()
 
-        self.undo_stack.push(
-            CallbackCommand(
-                self.tr("Change series palette"),
-                lambda: restore(after_colours, palette_name),
-                lambda: restore(before_colours, before_palette),
-            )
+        self.undo_service.push(
+            self.tr("Change series palette"),
+            lambda: restore(after_colours, palette_name),
+            lambda: restore(before_colours, before_palette),
+            refresh=False,
+            check_editable=False,
         )
 
     def _series_layout_snapshot(self) -> list[tuple[Series, str, dict[str, Any], list[str]]]:
@@ -4176,12 +4194,12 @@ class MainWindow(QMainWindow):
         if before_order == after_order:
             return
         self._restore_series_layout(before, refresh=False)
-        self.undo_stack.push(
-            CallbackCommand(
-                text,
-                lambda: self._restore_series_layout(after),
-                lambda: self._restore_series_layout(before),
-            )
+        self.undo_service.push(
+            text,
+            lambda: self._restore_series_layout(after),
+            lambda: self._restore_series_layout(before),
+            refresh=False,
+            check_editable=False,
         )
 
     def move_data_row(
@@ -4430,7 +4448,7 @@ class MainWindow(QMainWindow):
         before = model.to_dict()
         operation(model)
         after = model.to_dict()
-        self.project.models[self.active_curve_id] = Model.from_dict(before)
+        restore_model_state(self.project, self.active_curve_id, before)
         self._push_model_state(self.active_curve_id, before, after, text)
 
     def _push_model_state(
@@ -4440,12 +4458,7 @@ class MainWindow(QMainWindow):
         after: dict[str, Any],
         text: str,
     ) -> None:
-        self._push_change(
-            text,
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(after))),
-            lambda: self.project.models.__setitem__(curve_id, Model.from_dict(copy.deepcopy(before))),
-            modified_curve_ids={curve_id},
-        )
+        self.undo_service.push_model_edit(ModelEdit.single(curve_id, before, after), text)
 
     def _push_change(
         self,
@@ -4456,14 +4469,8 @@ class MainWindow(QMainWindow):
         modified_curve_ids: set[str] | None = None,
         preserve_curve_ids: set[str] | None = None,
     ) -> None:
-        if not self._ensure_editable():
-            return
-
-        def wrapped(operation: Callable[[], None]) -> None:
-            operation()
-            self._after_edit(modified_curve_ids, preserve_curve_ids)
-
-        self.undo_stack.push(CallbackCommand(text, lambda: wrapped(redo), lambda: wrapped(undo)))
+        self.undo_service.push(text, redo, undo, modified_curve_ids=modified_curve_ids,
+                               preserve_curve_ids=preserve_curve_ids)
 
     def _after_edit(
         self,
@@ -4772,7 +4779,7 @@ class MainWindow(QMainWindow):
                 self.project = project
                 self.active_curve_id = project.curves[0].id if project.curves else None
                 self.selected_component_id = None
-                self.undo_stack.clear()
+                self.undo_service.reset()
                 self._load_custom_functions()
                 self._normalise_component_names()
                 self._normalise_spectrum_colours()
@@ -5121,7 +5128,7 @@ class MainWindow(QMainWindow):
             self.project = project
             self.active_curve_id = project.curves[0].id if project.curves else None
             self.selected_component_id = None
-            self.undo_stack.clear()
+            self.undo_service.reset()
             self._load_custom_functions()
             self._normalise_component_names()
             self._normalise_spectrum_colours()

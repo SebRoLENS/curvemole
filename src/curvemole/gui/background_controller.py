@@ -37,7 +37,6 @@ from curvemole.core.data import Curve, CurveState, Transformation
 from curvemole.gui.dialogs import BackgroundComponentsDialog
 from curvemole.gui.icons import vector_icon
 from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
-from curvemole.gui.undo_commands import CallbackCommand
 from curvemole.gui.windowing import transient_widget
 
 _BACKGROUND_METHODS = {"model_components", "model_components_global"}
@@ -286,12 +285,12 @@ def _subtract_all_backgrounds(
             _restore_component_states(window.project.model_for(curve_id), before)
             current.state = state_before
 
-    window.undo_stack.push(
-        CallbackCommand(
-            window.tr("Subtract backgrounds from all spectra"),
-            lambda: _touch_and_refresh(window, redo),
-            lambda: _touch_and_refresh(window, undo),
-        )
+    window.undo_service.push(
+        window.tr("Subtract backgrounds from all spectra"),
+        lambda: _touch_and_refresh(window, redo),
+        lambda: _touch_and_refresh(window, undo),
+        refresh=False,
+        check_editable=False,
     )
     window._notify(
         window.tr("Background subtracted from ")
@@ -517,12 +516,12 @@ def _revert_backgrounds(
             )
             _restore_component_states(window.project.model_for(record["curve_id"]), record["before_components"])
 
-    window.undo_stack.push(
-        CallbackCommand(
-            window.tr("Revert background subtraction"),
-            lambda: _touch_and_refresh(window, redo),
-            lambda: _touch_and_refresh(window, undo),
-        )
+    window.undo_service.push(
+        window.tr("Revert background subtraction"),
+        lambda: _touch_and_refresh(window, redo),
+        lambda: _touch_and_refresh(window, undo),
+        refresh=False,
+        check_editable=False,
     )
     window._notify(
         window.tr("Background subtraction reverted for ")
