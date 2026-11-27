@@ -24,6 +24,19 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Keep residuals readable, fit windows to the screen and use standard shortcuts. ([`1ce5de94`](https://github.com/SebRoLENS/curvemole/commit/1ce5de948dba709e633851b774344ba3fefc70e1))
 - Move custom peak roles into the core and remove shadowed GUI code. ([`da1f10a3`](https://github.com/SebRoLENS/curvemole/commit/da1f10a3a87dc6e39962821a118f4b087dd51fd1))
 - Isolate worker registries, guard plugin state and break the plot import cycle. ([`ef9dc958`](https://github.com/SebRoLENS/curvemole/commit/ef9dc958ce539dc31c9bb905bf008b605ba690b1))
+- Break the GUI import cycle between the plot, panels and window extensions. ([`4202dde8`](https://github.com/SebRoLENS/curvemole/commit/4202dde87392a63835beb69400bfd6a4a090aeb4))
+- Consolidate background subtraction and revert into a BackgroundController. ([`1d369a30`](https://github.com/SebRoLENS/curvemole/commit/1d369a30c877246728f83b2eba962011f1156535))
+- Move the packaging smoke test out of the core and pin pool teardown internals. ([`f6243261`](https://github.com/SebRoLENS/curvemole/commit/f6243261cba9717e42bd60b6658f4a40b29ea2d1))
+- Extract background task execution into a TaskRunner. ([`b3457e5e`](https://github.com/SebRoLENS/curvemole/commit/b3457e5e7a232c283412be85fdfe691db62cdc32))
+- Let extensions contribute actions, menus, toolbar entries and signals through a registry. ([`1f50196c`](https://github.com/SebRoLENS/curvemole/commit/1f50196c14a40f5aebf7210a477f943f153c8202))
+- Route every undoable change through an UndoService and restore models in place. ([`b7026fcb`](https://github.com/SebRoLENS/curvemole/commit/b7026fcb202b93a235456a631532d5827eb54b37))
+- Move the project lifecycle into a ProjectSession. ([`ef373bf6`](https://github.com/SebRoLENS/curvemole/commit/ef373bf645689e5d5230d638421e1e8d9a79f53d))
+- Move the fit and uncertainty flows into FitController and UncertaintyController. ([`6eda6747`](https://github.com/SebRoLENS/curvemole/commit/6eda674760db2825446a112a935d7374271ece57))
+- Inject plugin extensions into fits and version the plugin API semantically. ([`89ec40a3`](https://github.com/SebRoLENS/curvemole/commit/89ec40a3080709c917428dbd1d6eb9d3a77559d4))
+- Name result keys, settings and per-user paths in one place. ([`f366569a`](https://github.com/SebRoLENS/curvemole/commit/f366569a7ca4fe27264b250993008cc701c1f68b))
+- Split the large export, dialog, panel and plot modules and Fitter._fit_problem. ([`d841b296`](https://github.com/SebRoLENS/curvemole/commit/d841b29630284f0dd1f89f562817b69b22e0e851))
+- Organise regression tests by component and run core tests without Qt. ([`cbdc7e0e`](https://github.com/SebRoLENS/curvemole/commit/cbdc7e0e4db31a4d336862a5e834a01c8c7073c6))
+- Make Model panel multi-selection native and move model edits into a ModelEditController. ([`d12cd720`](https://github.com/SebRoLENS/curvemole/commit/d12cd720133c0bcea6182b50ef62eb00a0c2e956))
 
 ### Fixed
 
@@ -31,6 +44,7 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Harden and speed up GitHub workflows. ([`e0ebe068`](https://github.com/SebRoLENS/curvemole/commit/e0ebe06801eecd36f42e2788b1041bad65b32213))
 - Fix collapsing block-bootstrap uncertainties, Monte Carlo noise scale and area normalisation. ([`5ace268d`](https://github.com/SebRoLENS/curvemole/commit/5ace268db46d6afc8954a96a182a257778512ed1))
 - Fix edits during running fits, undo scope, saved infinite bounds, mask copies and CSV imports. ([`c990fa67`](https://github.com/SebRoLENS/curvemole/commit/c990fa67d2c5cf08310c2c504c2bfbb853c2ea15))
+- Fix intermittent GUI test crashes caused by timers firing after their window closed. ([`d65f99b6`](https://github.com/SebRoLENS/curvemole/commit/d65f99b6f58cac9f4a942a148e47745d1d3893cf))
 
 ### Documentation
 
