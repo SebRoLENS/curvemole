@@ -113,7 +113,7 @@ from curvemole.gui import view_options as _view_options  # noqa: F401,E402
 # Harden the frozen Windows self-updater. PyInstaller onefile keeps a bootloader
 # process alive briefly after the Python process exits, so replacement must wait
 # for the executable itself to be fully released before moving/removing files.
-from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F401,E402
+from curvemole.gui import updates_windows as _updates_windows  # noqa: F401,E402
 
 # Keep the Windows updater compatible with Windows PowerShell installations where
 # the Get-FileHash cmdlet is unavailable by using .NET SHA-256 primitives instead.

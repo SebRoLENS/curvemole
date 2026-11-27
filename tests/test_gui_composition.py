@@ -54,3 +54,28 @@ def test_runtime_class_patching_does_not_grow():
                   if callable(value) and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
     """)
     assert int(output) <= 44
+
+
+def test_building_blocks_do_not_import_the_window_or_its_extensions():
+    """Plot, panels and shared helpers must not depend on the modules that patch
+    MainWindow; that dependency formed an 11-module import cycle (issue #130)."""
+    import ast
+    from pathlib import Path
+
+    gui = Path(__file__).resolve().parents[1] / "src" / "curvemole" / "gui"
+    building_blocks = ["plot", "panels", "render_controller", "data_point_editor", "edit_function_points",
+                       "background_display", "point_initialisation", "model_selection", "updates",
+                       "updates_windows", "update_platform"]
+    forbidden = {"curvemole.gui.main_window", "curvemole.gui.background_navigation",
+                 "curvemole.gui.manual_points", "curvemole.gui.manual_points_live",
+                 "curvemole.gui.model_multiselect", "curvemole.gui.windows_update_fix"}
+    offenders = []
+    for name in building_blocks:
+        tree = ast.parse((gui / f"{name}.py").read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module in forbidden:
+                offenders.append(f"{name} -> {node.module}")
+            elif isinstance(node, ast.ImportFrom) and node.module == "curvemole.gui":
+                offenders += [f"{name} -> curvemole.gui.{alias.name}" for alias in node.names
+                              if f"curvemole.gui.{alias.name}" in forbidden]
+    assert offenders == []

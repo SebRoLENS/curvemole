@@ -12,12 +12,13 @@ from curvemole.core.display import display_curve
 from curvemole.core.errors import DataValidationError
 from curvemole.core.models import Component, Model
 from curvemole.core.parameters import Parameter, resolve_parameter_values
-from curvemole.gui.manual_points import initialise_component_from_points, minimum_manual_points
-from curvemole.gui.manual_points_live import (
+from curvemole.gui.point_initialisation import (
     _generic_fit_component,
     _normalise_points,
     _set_stored_points,
     _stored_points,
+    initialise_component_from_points,
+    minimum_manual_points,
     preview_component_from_points,
 )
 
@@ -80,7 +81,7 @@ class FunctionPointEditor(QObject):
         workspace.cancel_placement()
         # No fit is running: a retained worker preview must not override edits.
         workspace._live_parameter_values = None
-        from curvemole.gui.model_multiselect import _find_component_curve
+        from curvemole.gui.model_selection import _find_component_curve
         curve_id = _find_component_curve(window, component_id)
         if curve_id is None:
             return

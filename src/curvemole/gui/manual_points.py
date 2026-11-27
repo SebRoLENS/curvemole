@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import copy
-import math
 import re
-from collections.abc import Iterable
 from typing import Any
 
 import numpy as np
@@ -13,38 +10,16 @@ import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QCheckBox
 
-from curvemole.core.initialization import (
-    initialise_spline_component,
-)
-from curvemole.core.models import Component
-from curvemole.core.registry import default_registry
 from curvemole.gui.dialogs import AddComponentDialog
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import FunctionBuilderPanel
 from curvemole.gui.plot import PlotWorkspace
+from curvemole.gui.point_initialisation import (  # noqa: E402,F401 - compatibility re-exports
+    initialise_component_from_points,
+    manual_points_default,
+    minimum_manual_points,
+)
 from curvemole.gui.windowing import transient_widget
-
-
-def manual_points_default(definition: Any) -> bool:
-    """Return the function's preferred creation mode.
-
-    Linear and cubic-spline functions are manual-point-first by default. Custom
-    functions can override this through ``custom_metadata`` in Function Builder.
-    """
-    marker = definition.custom_metadata.get("manual_points_default")
-    if marker is not None:
-        return bool(marker)
-    return definition.identifier in {"linear", "cubic_spline"}
-
-
-def minimum_manual_points(component: Component, *, registry: Any = None) -> int:
-    """Require enough explicit points to determine the component sensibly."""
-    definition = (registry or default_registry()).get(component.function_id)
-    if definition.minimum_points is not None:
-        return definition.minimum_points
-    if definition.has_point_configuration or component.function_id == "cubic_spline":
-        return 2
-    return max(2, len(component.parameters))
 
 
 def _make_mask_visuals_mouse_transparent(workspace: PlotWorkspace) -> None:
@@ -64,104 +39,6 @@ def _make_mask_visuals_mouse_transparent(workspace: PlotWorkspace) -> None:
         if isinstance(item, pg.PlotDataItem):
             item.curve.setAcceptedMouseButtons(no_button)
             item.scatter.setAcceptedMouseButtons(no_button)
-
-
-def initialise_component_from_points(
-    component: Component,
-    points: Iterable[tuple[float, float]],
-    *,
-    registry: Any,
-    preview: bool = False,
-) -> Component:
-    """Initialize any function from explicit graph points and lock its parameters."""
-    selected = sorted((float(x), float(y)) for x, y in points)
-    if not selected:
-        raise ValueError("At least one manual point is required.")
-    if any(not math.isfinite(value) for point in selected for value in point):
-        raise ValueError("Manual points must be finite.")
-
-    definition = registry.get(component.function_id)
-    required = 1 if preview and definition.has_point_configuration else minimum_manual_points(component, registry=registry)
-    if len(selected) < required:
-        raise ValueError(f"This function needs at least {required} manual points.")
-
-    if component.function_id == "cubic_spline":
-        initialise_spline_component(component, selected, registry=registry)
-        return component
-
-    x = np.asarray([point[0] for point in selected], dtype=float)
-    y = np.asarray([point[1] for point in selected], dtype=float)
-    definition = registry.get(component.function_id)
-    if definition.has_point_configuration:
-        metadata = definition.configuration_from_points(x, y, component.metadata)
-        parameters = definition.make_parameters(metadata=metadata)
-    else:
-        metadata, parameters = dict(component.metadata), copy.deepcopy(component.parameters) if definition.point_initializer else component.parameters
-    if definition.point_initializer is not None:
-        initial = definition.point_initializer(x, y, metadata)
-        if set(initial) != set(parameters):
-            raise ValueError("Point initialization must supply all declared parameters.")
-        for name, parameter in parameters.items():
-            value = float(initial[name])
-            if not math.isfinite(value):
-                raise ValueError("Point initialization produced a non-finite parameter.")
-            parameter.value = value
-            parameter.fixed = True
-            parameter.validate()
-        component.metadata, component.parameters = metadata, parameters
-        return component
-    component.metadata, component.parameters = metadata, parameters
-
-    # Give common functions a physically meaningful starting estimate before
-    # the generic least-squares refinement.
-    if component.function_id == "linear":
-        slope, intercept = np.polyfit(x, y, 1)
-        component.parameters["slope"].value = float(slope)
-        component.parameters["intercept"].value = float(intercept)
-    elif component.function_id == "constant":
-        component.parameters["offset"].value = float(np.mean(y))
-    elif definition.kind == "peak":
-        # Use exactly the same fit as the placement preview, including signed peaks.
-        from curvemole.gui.manual_points_live import _generic_fit_component
-
-        fitted = _generic_fit_component(component, selected, registry=registry,
-                                        free_only=False, strict=True)
-        for parameter in fitted.parameters.values():
-            parameter.fixed = True
-            parameter.validate()
-        component.parameters = fitted.parameters
-        return component
-
-    names = list(component.parameters)
-    initial = np.asarray([component.parameters[name].value for name in names], dtype=float)
-    lower = np.asarray([component.parameters[name].minimum for name in names], dtype=float)
-    upper = np.asarray([component.parameters[name].maximum for name in names], dtype=float)
-    initial = np.minimum(np.maximum(initial, lower), upper)
-
-    scale = max(float(np.ptp(y)), float(np.max(np.abs(y))), 1.0)
-
-    def residual(values: np.ndarray) -> np.ndarray:
-        mapping = {name: float(value) for name, value in zip(names, values, strict=True)}
-        try:
-            calculated = definition.evaluate(x, mapping, component.metadata)
-        except Exception:
-            return np.full(len(x), 1e12, dtype=float)
-        result = (np.asarray(calculated, dtype=float) - y) / scale
-        if not np.all(np.isfinite(result)):
-            return np.full(len(x), 1e12, dtype=float)
-        return result
-
-    if names:
-        from scipy.optimize import least_squares
-        fitted = least_squares(residual, initial, bounds=(lower, upper), max_nfev=5000)
-        if fitted.success and np.all(np.isfinite(fitted.x)):
-            for name, value in zip(names, fitted.x, strict=True):
-                component.parameters[name].value = float(value)
-
-    for parameter in component.parameters.values():
-        parameter.fixed = True
-        parameter.validate()
-    return component
 
 
 def _install_add_component_dialog() -> None:

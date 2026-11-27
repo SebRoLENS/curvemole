@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import platform
 import re
 import stat
-import sys
 import time
 from contextlib import suppress
 from dataclasses import dataclass
@@ -87,28 +85,7 @@ def asset_suffixes(system: str, machine: str, binary: Path | None = None) -> tup
     return ()
 
 
-def _running_desktop_binary() -> Path | None:
-    system = platform.system()
-    if system == "Linux":
-        appimage = os.environ.get("APPIMAGE", "").strip()
-        if appimage:
-            path = Path(appimage).expanduser().absolute()
-            if path.is_file():
-                return path
-        return None
-    if system == "Windows" and getattr(sys, "frozen", False):
-        path = Path(sys.executable).absolute()
-        if path.is_file():
-            return path
-    return None
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+from curvemole.gui.update_platform import _running_desktop_binary, _sha256  # noqa: E402,F401
 
 
 class UpdateController(QObject):
@@ -126,7 +103,7 @@ class UpdateController(QObject):
     def __init__(self, window: Any) -> None:
         super().__init__(window)
         if platform.system() == "Windows":
-            from curvemole.gui.windows_update_fix import _cleanup_stale_update_files
+            from curvemole.gui.updates_windows import _cleanup_stale_update_files
             _cleanup_stale_update_files(_running_desktop_binary())
         self.window = window
         self.settings = QSettings("CurveMole", "CurveMole")
@@ -450,7 +427,7 @@ class UpdateController(QObject):
 
     def _download_update(self, asset: ReleaseAsset, latest: str) -> None:
         if platform.system() == "Windows":
-            from curvemole.gui.windows_update_fix import _download_windows_update
+            from curvemole.gui.updates_windows import _download_windows_update
             _download_windows_update(self, asset, latest)
             return
         if self._download_reply is not None:
@@ -572,7 +549,7 @@ class UpdateController(QObject):
 
     def _install_download(self, downloaded: Path, asset: ReleaseAsset, latest: str) -> None:
         if platform.system() == "Windows":
-            from curvemole.gui.windows_update_fix import _install_windows_download
+            from curvemole.gui.updates_windows import _install_windows_download
             _install_windows_download(self, downloaded, asset, latest)
             return
         current = _running_desktop_binary()

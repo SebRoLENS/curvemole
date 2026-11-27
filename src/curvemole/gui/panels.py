@@ -50,11 +50,10 @@ from curvemole.core.registry import FunctionRegistry
 from curvemole.core.uncertainty import DEFAULT_BLOCK_BOOTSTRAP_REPLICATES, AdaptiveReplicateSettings
 from curvemole.gui.background_role import BackgroundSwitch
 from curvemole.gui.calculator_columns import ColumnSelector, choose_column
+from curvemole.gui.model_selection import COMPONENT_CURVE_ROLE  # noqa: E402
 from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_bound
 from curvemole.gui.row_drag import RowDragMixin, RowDrop
 from curvemole.gui.worksheet import WorksheetModel
-
-COMPONENT_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 
 
 class FunctionList(RowDragMixin, QListWidget):

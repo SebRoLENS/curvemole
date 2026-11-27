@@ -17,7 +17,7 @@ from curvemole.gui.updates import (
     should_notify,
     update_kind,
 )
-from curvemole.gui.windows_update_fix import (
+from curvemole.gui.updates_windows import (
     _cleanup_stale_update_files,
     _windows_temp_download_path,
     windows_update_script,
