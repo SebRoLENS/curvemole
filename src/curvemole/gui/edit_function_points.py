@@ -73,7 +73,7 @@ class FunctionPointEditor(QObject):
 
     def start(self, component_id):
         window, workspace = self.window, self.window.plot_workspace
-        if window.project.read_only or window._thread is not None:
+        if window.project.read_only or window.task_running:
             window._notify(self.tr("Point editing requires an editable project and no running fit."), warning=True)
             return
         if not window.active_curve_id or not component_id:

@@ -77,10 +77,10 @@ def _prepare_interactive_quick_fit_view(window: MainWindow) -> None:
 
 
 def _quick_fit(window: MainWindow) -> None:
-    previous_thread = window._thread
+    previously_busy = window.task_running
     _ORIGINAL_QUICK_FIT(window)
     # A new worker means Quick Fit really started. Do not mark early-return paths.
-    if previous_thread is None and window._thread is not None:
+    if not previously_busy and window.task_running:
         window._curvemole_quick_fit_running = True
         _prepare_interactive_quick_fit_view(window)
 

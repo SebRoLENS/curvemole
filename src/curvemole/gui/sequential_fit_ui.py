@@ -320,7 +320,7 @@ def _install_pause_resume_state() -> None:
             )
 
     def resume_sequence(window: MainWindow) -> None:
-        if not window._ensure_editable() or window._thread is not None:
+        if not window._ensure_editable() or window.task_running:
             return
         result = getattr(window, "_sequential_pause_result", None) or window._paused_result
         plan_template = getattr(window, "_sequential_resume_plan", None) or window.last_fit_plan

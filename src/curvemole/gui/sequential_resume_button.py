@@ -55,7 +55,7 @@ def install_sequential_resume_button() -> None:
         style_button(window)
 
     def set_resume_available(window: MainWindow, available: bool) -> None:
-        enabled = available and window._thread is None
+        enabled = available and not window.task_running
         window.resume_action.setEnabled(enabled)
         button = getattr(window, "sequential_resume_button", None)
         if button is not None:
@@ -72,7 +72,7 @@ def install_sequential_resume_button() -> None:
             reason.setEnabled(has_reason)
 
     def terminate_sequence(window: MainWindow) -> None:
-        if window._thread is not None:
+        if window.task_running:
             return
         window._sequential_resume_plan = None
         window._sequential_pause_result = None

@@ -367,7 +367,7 @@ class FolderImportController:
     def busy(self):
         modal = QApplication.activeModalWidget()
         return (
-            self.window._thread is not None
+            self.window.task_running
             or self.window.automation_runner.process is not None
             or modal is not None
         )

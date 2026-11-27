@@ -433,7 +433,7 @@ class UpdateController(QObject):
         if self._download_reply is not None:
             self.window._notify(self.window.tr("An update download is already in progress."))
             return
-        if getattr(self.window, "_thread", None) is not None:
+        if getattr(self.window, "task_running", False):
             QMessageBox.warning(
                 self.window,
                 self.window.tr("Update CurveMole"),
@@ -544,7 +544,7 @@ class UpdateController(QObject):
             self._download_version = ""
             reply.deleteLater()
             self.window.progress.setVisible(False)
-            if getattr(self.window, "_thread", None) is None:
+            if not getattr(self.window, "task_running", False):
                 self.window.fit_action.setEnabled(True)
 
     def _install_download(self, downloaded: Path, asset: ReleaseAsset, latest: str) -> None:

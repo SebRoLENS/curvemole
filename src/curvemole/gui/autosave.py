@@ -58,7 +58,7 @@ class AutosaveController(QObject):
         if self._requested:
             # Built-in calculations own detached inputs. Preserve the wait for
             # callers that have not declared their task safe for snapshotting.
-            if self.window._thread is not None and not self.window._task_snapshot_safe:
+            if self.window.task_running and not self.window._task_snapshot_safe:
                 self.timer.start()
                 return
             self._requested = False

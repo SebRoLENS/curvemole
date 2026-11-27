@@ -7,6 +7,8 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QTimer
 from PySide6.QtWidgets import QApplication
 
+from curvemole.gui.task_runner import window_busy
+
 
 class ExternalImportBatch:
     def __init__(self, paths):
@@ -90,7 +92,7 @@ class ExternalFileController(QObject):
             return
         if not self.pending:
             return
-        if (self.busy or window._startup_pending or window._thread is not None
+        if (self.busy or window._startup_pending or window_busy(window)
                 or window.automation_runner.process is not None
                 or QApplication.activeModalWidget() is not None):
             self.timer.start(100)

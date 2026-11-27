@@ -25,6 +25,7 @@ from curvemole.core.plugin_identity import contribution_tooltip
 from curvemole.gui.dock_collapse import DockViewport
 from curvemole.gui.documentation import plugin_manuals, show_markdown_document
 from curvemole.gui.plugin_snapshots import ProjectSnapshot, ProjectSnapshotStore
+from curvemole.gui.task_runner import window_busy
 from curvemole.gui.windowing import transient_widget
 
 
@@ -205,7 +206,7 @@ class PluginHost:
 
     def run(self, entry: Any) -> None:
         window = self.window
-        if window._thread is not None and entry.kind != "panels":
+        if window_busy(window) and entry.kind != "panels":
             QMessageBox.information(window, "Plugins", "Wait for the running task to finish.")
             return
         mutating = entry.kind in {"importers", "transformations", "actions", "workflows"}

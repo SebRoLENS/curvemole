@@ -9,7 +9,6 @@ import os
 import re
 import socket
 import time
-import traceback
 from collections import Counter
 from collections.abc import Callable
 from importlib import resources
@@ -30,7 +29,6 @@ from PySide6.QtCore import (
     QTimer,
     QUrl,
     Signal,
-    Slot,
 )
 from PySide6.QtGui import (
     QAction,
@@ -146,7 +144,6 @@ from curvemole.gui.panels import (
 from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog, normalize_plot_appearance
 from curvemole.gui.row_drag import RowDragMixin, RowDrop, row_block_order
-from curvemole.gui.task_thread import TaskThread
 from curvemole.gui.updates import semantic_version as _semantic_version  # noqa: F401
 from curvemole.gui.updates import update_kind as _update_kind  # noqa: F401
 from curvemole.gui.windowing import transient_widget
@@ -171,131 +168,7 @@ def _resource_icon(
     return QIcon(pixmap)
 
 
-class Worker(QObject):
-    finished = Signal(object)
-    failed = Signal(str, str)
-    progress = Signal(object, str)
-    partial = Signal(object)
-
-    def __init__(self, operation: Callable[..., Any], *, streaming: bool = False) -> None:
-        super().__init__()
-        self.operation = operation
-        self.streaming = streaming
-        self.outcome = None
-        self._last_progress = 0.0
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            def progress(value, text):
-                now = time.monotonic()
-                if now - self._last_progress >= .05 or value == 1:
-                    self._last_progress = now
-                    self.progress.emit(value, text)
-            result = (self.operation(progress, self.partial.emit) if self.streaming
-                      else self.operation(progress))
-            self.outcome = ("finished", result)
-            self.finished.emit(result)
-        except BaseException as exc:
-            message = str(exc) or type(exc).__name__
-            details = traceback.format_exc()
-            self.outcome = ("failed", (message, details))
-            self.failed.emit(message, details)
-
-
-class TaskCallbacks(QObject):
-    """Stable Qt slots keep wrapped Python handlers on the GUI thread."""
-
-    def __init__(self, window, finished, partial=None):
-        super().__init__(window)
-        self.window = window
-        self.on_finished = finished
-        self.on_partial = partial
-        self.delivered = False
-        self.closed = False
-
-    def active(self):
-        return not self.closed and self.window._task_callbacks is self
-
-    def report_failure(self, message, details):
-        try:
-            self.window._task_failed(message, details)
-        except BaseException:
-            self.window._log(traceback.format_exc())
-            self.window._notify(message, warning=True)
-
-    @Slot(object, str)
-    def progress(self, value, text):
-        if self.active() and not self.delivered:
-            self.window._task_progress(value, text)
-
-    @Slot(object)
-    def partial(self, result):
-        if self.active() and not self.delivered and self.on_partial is not None:
-            try:
-                self.on_partial(result)
-            except BaseException as exc:
-                self.delivered = True
-                self.window.cancel_task()
-                self.report_failure(str(exc) or type(exc).__name__, traceback.format_exc())
-
-    @Slot(object)
-    def finished(self, result):
-        if self.active() and not self.delivered:
-            self.delivered = True
-            try:
-                self.on_finished(result)
-            except BaseException as exc:
-                self.report_failure(str(exc) or type(exc).__name__, traceback.format_exc())
-
-    @Slot(str, str)
-    def failed(self, message, details):
-        if self.active() and not self.delivered:
-            self.delivered = True
-            self.report_failure(message, details)
-
-    @Slot()
-    def done(self):
-        if not self.active():
-            return
-        # A watchdog can also reach here if a completion notification was lost.
-        outcome = self.window._worker.outcome if self.window._worker else None
-        if not self.delivered and outcome is not None:
-            kind, value = outcome
-            self.finished(value) if kind == "finished" else self.failed(*value)
-        if not self.active():
-            return
-        self.cleanup()
-
-    def retire(self):
-        if not self.active():
-            return
-        self.delivered = True
-        self.closed = True
-        self.report_failure(
-            self.window.tr("Task cancelled: the calculation did not respond. Previous valid results were retained."),
-            "Task retired after cancellation grace period; late callbacks are ignored.",
-        )
-        self.cleanup()
-
-    def cleanup(self):
-        self.closed = True
-        # Finished handlers capture detached fit inputs/results. Release those
-        # closures immediately even when Qt defers destruction of this object.
-        self.on_finished = None
-        self.on_partial = None
-        try:
-            self.window._task_done()
-        except BaseException:
-            self.window._log(traceback.format_exc())
-        finally:
-            # Even errors in a GUI completion hook must release the busy state.
-            if self.window._task_callbacks is self:
-                self.window._reset_task_state()
-                self.window._task_callbacks = None
-            self.deleteLater()
-
-
+from curvemole.gui.task_runner import TaskCallbacks, TaskRunner, Worker  # noqa: E402,F401
 from curvemole.gui.undo_commands import CallbackCommand  # noqa: E402,F401 - public import path
 
 
@@ -959,7 +832,6 @@ class DockTabTitleFilter(QObject):
 class MainWindow(QMainWindow):
     plugins_ready = Signal()
     _LAYOUT_SCHEMA_VERSION = 2
-    _TASK_CANCEL_GRACE_SECONDS = 5
 
     def __init__(self, project: Project | None = None, *, defer_plugins: bool = False) -> None:
         from curvemole.gui.garbage_collection import ensure_gui_garbage_collection
@@ -974,15 +846,7 @@ class MainWindow(QMainWindow):
         self.fit_settings = FitSettings()
         self.last_fit_plan: FitPlan | None = None
         self._paused_result: FitResult | None = None
-        self._thread: TaskThread | None = None
-        self._worker: Worker | None = None
-        self._cancellation: CancellationToken | None = None
-        self._task_callbacks = None
-        self._task_snapshot_safe = False
-        self._cancel_requested_at = None
-        self._task_watchdog = QTimer(self)
-        self._task_watchdog.setInterval(250)
-        self._task_watchdog.timeout.connect(self._poll_task)
+        self.task_runner = TaskRunner(self)
         self._project_lock: ProjectLock | None = None
         self._project_disk_digest: str | None = None
         self._transfer_request: dict | None = None
@@ -1967,7 +1831,7 @@ class MainWindow(QMainWindow):
         if getattr(self, "_project_loading", False):
             self._notify(self.tr("Wait for project loading to finish."), warning=True)
             return False
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the running task before opening another project."), warning=True)
             return False
         if self.automation_runner.process is not None:
@@ -2190,7 +2054,7 @@ class MainWindow(QMainWindow):
         """Populate the dock without changing its visibility or active tool tab."""
         from curvemole.gui.notebook import LaboratoryNotebookDialog
 
-        editable = self._thread is None and not self.project.read_only
+        editable = not self.task_running and not self.project.read_only
         current = self._notebook_widget
         if (
             current is None
@@ -2243,7 +2107,7 @@ class MainWindow(QMainWindow):
 
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the current task to finish before editing descriptions."))
             return
         entry = self.project.notebook.descriptions.get(description_key(kind, object_id, curve_id))
@@ -2253,7 +2117,7 @@ class MainWindow(QMainWindow):
                 self.refresh_all()
 
     def export_analysis(self) -> None:
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the current task to finish before exporting."), warning=True)
             return
         self.plot_workspace.point_editor.finish()
@@ -2545,7 +2409,7 @@ class MainWindow(QMainWindow):
     def move_function_row(
         self, curve_id: str, sources: str | tuple[tuple[str, str], ...], target_id: str, after: bool,
     ) -> None:
-        if self._thread is not None:
+        if self.task_running:
             return
         model = self.project.models.get(curve_id)
         if model is None:
@@ -2781,7 +2645,7 @@ class MainWindow(QMainWindow):
     def start_fit(self) -> None:
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             return
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
@@ -2797,7 +2661,7 @@ class MainWindow(QMainWindow):
     def quick_fit(self) -> None:
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             return
         selected = self.curve_tree.selected_curve_ids()
         if not selected and self.active_curve_id:
@@ -2826,7 +2690,7 @@ class MainWindow(QMainWindow):
         self._run_fit(plan)
 
     def _run_fit(self, plan: FitPlan) -> None:
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         self._running_fit_plan = copy.deepcopy(plan)
@@ -3073,15 +2937,11 @@ class MainWindow(QMainWindow):
         self._run_fit(plan)
 
     def cancel_task(self) -> None:
-        self._poll_task()
-        if self._cancellation:
-            self._cancellation.cancel()
-            if self._cancel_requested_at is None:
-                self._cancel_requested_at = time.monotonic()
+        if self.task_runner.cancel():
             self._notify(self.tr("Cancellation requested…"), warning=True)
 
     def rename_function(self, curve_id: str, component_id: str) -> None:
-        if self._thread is not None or not self._ensure_editable():
+        if self.task_running or not self._ensure_editable():
             return
         from PySide6.QtWidgets import QInputDialog
         component = self.project.model_for(curve_id).component(component_id)
@@ -3102,7 +2962,7 @@ class MainWindow(QMainWindow):
                           modified_curve_ids=set())
 
     def edit_reorder_rules(self) -> None:
-        if not self.active_curve_id or self._thread is not None:
+        if not self.active_curve_id or self.task_running:
             return
         from curvemole.gui.reorder import ReorderRulesDialog, load_reorder_rules
 
@@ -3116,7 +2976,7 @@ class MainWindow(QMainWindow):
                 self.settings.setValue("model/reorder_rules", json.dumps(rules))
 
     def reorder_functions(self) -> None:
-        if self._thread is not None or not self.active_curve_id or not self._ensure_editable():
+        if self.task_running or not self.active_curve_id or not self._ensure_editable():
             return
         from curvemole.core.reorder import reorder_component_names
         from curvemole.gui.reorder import load_reorder_rules
@@ -3246,7 +3106,7 @@ class MainWindow(QMainWindow):
                           replica_timeout_seconds: float = 60.0) -> None:
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         if adaptive is not None:
@@ -3465,7 +3325,7 @@ class MainWindow(QMainWindow):
     def delete_uncertainty_analysis(self, method: str) -> None:
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the running task before deleting an analysis."), warning=True)
             return
         method = "parametric_monte_carlo" if method == "monte_carlo" else method
@@ -3745,7 +3605,7 @@ class MainWindow(QMainWindow):
         if not enabled:
             editor.finish()
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the current calculation before editing data points."))
             self._data_point_edit_mode_changed(False)
             return
@@ -3768,7 +3628,7 @@ class MainWindow(QMainWindow):
         self._apply_data_point_edit(curve_id, row, None)
 
     def _apply_data_point_edit(self, curve_id: str, row: int, coordinates) -> None:
-        if self._thread is not None or not self._ensure_editable():
+        if self.task_running or not self._ensure_editable():
             return
         if curve_id != self.active_curve_id or not self.plot_workspace.point_editor.active:
             return
@@ -3979,7 +3839,7 @@ class MainWindow(QMainWindow):
             dialog.exec()
 
     def show_plugin_manager(self) -> None:
-        if self._thread is not None:
+        if self.task_running:
             QMessageBox.information(self, "Plugin Manager", "Wait for the running task to finish.")
             return
         from curvemole.gui.data_directories import library_directory
@@ -4071,7 +3931,7 @@ class MainWindow(QMainWindow):
             return
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the current task to finish before removing spectra."))
             return
         selected = self.curve_tree.selected_curve_ids()
@@ -4312,7 +4172,7 @@ class MainWindow(QMainWindow):
     def move_data_row(
         self, source: tuple[str, str] | tuple[tuple[str, str], ...], target: tuple[str, str], after: bool,
     ) -> None:
-        if not source or self._thread is not None:
+        if not source or self.task_running:
             return
         dataset = self.project.dataset
         sources = (source,) if isinstance(source[0], str) else source
@@ -4397,7 +4257,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         if not self._ensure_editable():
             return
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Wait for the current task to finish before moving data."))
             return
         dataset = self.project.dataset
@@ -4430,7 +4290,7 @@ class MainWindow(QMainWindow):
         self._push_series_layout_change(self.tr("Move spectra to series"), operation)
 
     def merge_series(self, source_series_ids: str | tuple[str, ...], target_series_id: str) -> None:
-        if self._thread is not None:
+        if self.task_running:
             return
         dataset = self.project.dataset
         selected = {source_series_ids} if isinstance(source_series_ids, str) else set(source_series_ids)
@@ -4622,25 +4482,11 @@ class MainWindow(QMainWindow):
         status: str,
         partial: Callable[[Any], None] | None = None,
     ) -> None:
-        if self._thread is not None:
+        if self.task_running:
             self._notify(self.tr("Another task is already running."), warning=True)
             return
         self.plot_workspace.point_editor.finish()
-        if self._cancellation is None:
-            self._cancellation = CancellationToken()
-        self._worker = Worker(operation, streaming=partial is not None)
-        self._thread = TaskThread(self._worker, self._cancellation)
-        self._task_callbacks = TaskCallbacks(self, finished, partial)
-        self._worker.progress.connect(self._task_callbacks.progress, Qt.ConnectionType.QueuedConnection)
-        if partial is not None:
-            self._worker.partial.connect(self._task_callbacks.partial, Qt.ConnectionType.QueuedConnection)
-        self._worker.finished.connect(self._task_callbacks.finished, Qt.ConnectionType.QueuedConnection)
-        self._worker.failed.connect(self._task_callbacks.failed, Qt.ConnectionType.QueuedConnection)
-        # The runner owns the emitter until the operation returns, including
-        # after cancellation has retired its GUI callbacks.
-        self._thread.finished.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._task_callbacks.done, Qt.ConnectionType.QueuedConnection)
-        self._thread.finished.connect(self._thread.deleteLater)
+        self.task_runner.start(operation, finished, partial)
         self.progress.setRange(0, 100)
         self.progress.setValue(0)
         self.progress.setVisible(True)
@@ -4650,18 +4496,34 @@ class MainWindow(QMainWindow):
         self.redo_action.setEnabled(False)
         self.uncertainty_panel.set_busy(True)
         self._notify(status)
-        self._thread.start()
-        self._task_watchdog.start()
 
     def _poll_task(self) -> None:
-        callbacks = self._task_callbacks
-        if self._thread is None or callbacks is None or not callbacks.active():
-            return
-        if not self._thread.isRunning():
-            callbacks.done()
-        elif (self._task_snapshot_safe and self._cancel_requested_at is not None
-              and time.monotonic() - self._cancel_requested_at >= self._TASK_CANCEL_GRACE_SECONDS):
-            callbacks.retire()
+        self.task_runner.poll()
+
+    # Task state lives in the TaskRunner. These aliases keep the historical
+    # attribute names working for extensions, plugins and tests; new code uses
+    # ``task_running`` and ``task_runner``.
+    @property
+    def task_running(self) -> bool:
+        """True while a fit or analysis task is running."""
+        return self.task_runner.busy
+
+    _thread = property(lambda self: self.task_runner.thread,
+                       lambda self, value: setattr(self.task_runner, "thread", value))
+    _worker = property(lambda self: self.task_runner.worker,
+                       lambda self, value: setattr(self.task_runner, "worker", value))
+    _task_callbacks = property(lambda self: self.task_runner.callbacks,
+                               lambda self, value: setattr(self.task_runner, "callbacks", value))
+    _cancellation = property(lambda self: self.task_runner.cancellation,
+                             lambda self, value: setattr(self.task_runner, "cancellation", value))
+    _cancel_requested_at = property(lambda self: self.task_runner.cancel_requested_at,
+                                    lambda self, value: setattr(self.task_runner, "cancel_requested_at", value))
+    _task_snapshot_safe = property(lambda self: self.task_runner.snapshot_safe,
+                                   lambda self, value: setattr(self.task_runner, "snapshot_safe", value))
+    _task_watchdog = property(lambda self: self.task_runner.watchdog)
+    _TASK_CANCEL_GRACE_SECONDS = property(
+        lambda self: self.task_runner.CANCEL_GRACE_SECONDS,
+        lambda self, value: setattr(self.task_runner, "CANCEL_GRACE_SECONDS", value))
 
     def _task_progress(self, value: float | None, text: str) -> None:
         if value is None:
@@ -4702,13 +4564,8 @@ class MainWindow(QMainWindow):
 
     def _reset_task_state(self) -> None:
         """Idempotent busy-state cleanup, also used if a completion hook fails."""
-        self._task_watchdog.stop()
+        self.task_runner.reset()
         self.plot_workspace._live_parameter_values = None
-        self._thread = None
-        self._worker = None
-        self._cancellation = None
-        self._cancel_requested_at = None
-        self._task_snapshot_safe = False
         self._fit_task_active = False
         self._uncertainty_task = None
         self.progress.setVisible(False)
@@ -4948,7 +4805,7 @@ class MainWindow(QMainWindow):
         if getattr(self, "_project_loading", False):
             self._notify(self.tr("Wait for project loading to finish."), warning=True)
             return False
-        if self._thread is not None:
+        if self.task_running:
             # A running fit or analysis works on a snapshot and writes its result
             # back on completion; edits made meanwhile would be overwritten or
             # leave a result marked current for data it never saw.
@@ -5029,7 +4886,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Automation running", "Stop the automation or wait for it to finish before closing.")
             event.ignore()
             return
-        if self._thread is not None:
+        if self.task_running:
             QMessageBox.warning(self, self.tr("Task running"), self.tr("Cancel the running task before quitting."))
             event.ignore()
             return
@@ -5133,7 +4990,7 @@ class MainWindow(QMainWindow):
             requests = pending_requests(lock.project_path, lock.session_id)
             if requests:
                 # Never release ownership while a fit or save is in progress.
-                if self._thread is not None or self._manual_save_controller.busy:
+                if self.task_running or self._manual_save_controller.busy:
                     lock.heartbeat()
                     return
                 request = requests[0]

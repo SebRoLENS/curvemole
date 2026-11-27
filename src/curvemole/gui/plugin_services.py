@@ -7,6 +7,7 @@ import json
 import numpy as np
 
 from curvemole.core.extensions import extensions
+from curvemole.gui.task_runner import window_busy
 
 
 class PluginServices:
@@ -77,7 +78,7 @@ class PluginServices:
     def save_settings(self, data, *, metadata_key=None, curve_metadata=None):
         """Undoable settings/metadata only; preserve fit state and selection."""
         window = self._window()
-        if window._thread is not None or window.project.read_only:
+        if window_busy(window) or window.project.read_only:
             raise ValueError("Wait for the fit to finish, or use an editable project.")
         data, updates = copy.deepcopy(data), copy.deepcopy(curve_metadata or {})
         json.dumps([data, updates], allow_nan=False)
@@ -128,7 +129,7 @@ class PluginServices:
     ):
         """Apply an undoable full-length Y replacement to one spectrum."""
         window = self._window()
-        if window._thread is not None or window.project.read_only:
+        if window_busy(window) or window.project.read_only:
             raise ValueError("Wait for the fit to finish, or use an editable project.")
         curve = window.project.dataset.curve(curve_id)
         replacement = np.asarray(values, dtype=float).reshape(-1).copy()
@@ -186,7 +187,7 @@ class PluginServices:
         window = self._window()
         if axes not in {"x", "y", "xy"}:
             raise ValueError("Choose x, y or xy for point editing.")
-        if window._thread is not None or window.project.read_only:
+        if window_busy(window) or window.project.read_only:
             raise ValueError("Wait for the calculation to finish, or use an editable project.")
         if curve_id is None or curve_id != window.active_curve_id:
             raise ValueError("The selected spectrum changed; select it again before editing.")
@@ -223,7 +224,7 @@ class PluginServices:
     def select_masks(self, masks):
         """Select existing editable masks without changing fit data or fit state."""
         window = self._window()
-        if window._thread is not None or window.project.read_only:
+        if window_busy(window) or window.project.read_only:
             raise ValueError("Wait for the fit to finish, or use an editable project.")
         masks = dict(masks)
         previous = {}

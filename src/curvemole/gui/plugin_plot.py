@@ -54,7 +54,7 @@ class PluginPlotSession(QObject):
     def _poll(self):
         if self._curve(check_data=False) is None:
             self._invalidate()
-        elif self.picking and self._window._thread is not None:
+        elif self.picking and self._window.task_running:
             self.set_picking(False)
 
     def _require_curve(self):
@@ -194,7 +194,7 @@ class PluginPlotSession(QObject):
         if enabled:
             ws.restore_data_view_for_editing()
             self._require_curve()
-            if self._window._thread is not None:
+            if self._window.task_running:
                 raise ValueError("Wait for the current calculation before selecting data points.")
             ws.cancel_placement()
             ws.mask_toggle.setChecked(False)

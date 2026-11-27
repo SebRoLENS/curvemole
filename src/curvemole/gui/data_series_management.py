@@ -56,7 +56,7 @@ def _delete_selected_series(window: MainWindow, series_ids: Iterable[str]) -> No
     """Validate and remove all requested series as one undoable operation."""
     if not window._ensure_editable():
         return
-    if window._thread is not None:
+    if window.task_running:
         window._notify(window.tr("Wait for the current task to finish before removing data."))
         return
     requested = set(series_ids)
@@ -204,7 +204,7 @@ def _copy_name(window: MainWindow, name: str, used: set[str]) -> str:
 def _duplicate_data(window: MainWindow, curve_ids: list[str], series_ids: list[str]) -> None:
     if not window._ensure_editable(prepare_plot=False):
         return
-    if window._thread is not None:
+    if window.task_running:
         window._notify(window.tr("Wait for the current task to finish before duplicating data."))
         return
     selected_curves = set(curve_ids)

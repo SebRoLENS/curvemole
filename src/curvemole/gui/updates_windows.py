@@ -193,7 +193,7 @@ def _download_windows_update(
     if controller._download_reply is not None:
         controller.window._notify(controller.window.tr("An update download is already in progress."))
         return
-    if getattr(controller.window, "_thread", None) is not None:
+    if getattr(controller.window, "task_running", False):
         QMessageBox.warning(
             controller.window,
             controller.window.tr("Update CurveMole"),
