@@ -221,7 +221,7 @@ class UncertaintyController(QObject):
             profile_lower = profile_upper = None
         # The worker gets its own registry snapshot: disabling a plugin on the
         # GUI thread during a running task must not change the functions it uses.
-        fitter = Fitter(window.registry.copy())
+        fitter = Fitter(window.registry.copy(), extensions=window.plugin_manager.extensions)
         analyzer = UncertaintyAnalyzer(fitter,
                                        replica_timeout_seconds=replica_timeout_seconds)
         needed_ids = {cid for _, _, plan in jobs for cid in plan.curve_ids}

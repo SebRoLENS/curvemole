@@ -26,6 +26,7 @@ from curvemole.core.errors import (
     FitError,
 )
 from curvemole.core.expressions import SafeExpression
+from curvemole.core.extensions import with_owner_extensions
 from curvemole.core.fit_records import fit_model_matches
 from curvemole.core.fitting import (
     CancellationToken,
@@ -237,7 +238,8 @@ def _worker_formulas(
 
 
 def _parallel_safe(fitter: Fitter, models: Mapping[str, Model], curve_ids: Sequence[str], solver="local") -> bool:
-    from curvemole.core.extensions import extensions
+    from curvemole.core.extensions import current_extensions
+    extensions = current_extensions()
 
     if any(entry.identifier == solver for entry in extensions.values("fit_solvers")):
         return False
@@ -394,7 +396,12 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
     return prepared
 
 
-def _sample_residual_blocks(rng, residual, length, *, circular=True):
+def sample_residual_blocks(rng, residual, length, *, circular=True):
+    """Resample ``residual`` in consecutive blocks of ``length`` (moving-block bootstrap).
+
+    Public helper for plugins that build their own resampling on top of the
+    block bootstrap. ``circular=False`` never wraps a block around the end.
+    """
     size = len(residual)
     positions = size if circular else size - length + 1
     starts = rng.integers(positions, size=(size + length - 1) // length)
@@ -402,6 +409,10 @@ def _sample_residual_blocks(rng, residual, length, *, circular=True):
         return residual[starts]
     indices = (starts[:, None] + np.arange(length)).reshape(-1)[:size]
     return np.take(residual, indices, mode="wrap" if circular else "raise")
+
+
+# Historical private name, still used by published plugins.
+_sample_residual_blocks = sample_residual_blocks
 
 
 def _resample_trial(
@@ -464,7 +475,7 @@ def _resample_trial_body(
                 sampled = rng.choice(residual, size=len(output.indices), replace=True)
             else:
                 sampled = np.concatenate([
-                    _sample_residual_blocks(rng, residual[segment],
+                    sample_residual_blocks(rng, residual[segment],
                                             max(1, min(lengths[curve_id], segment.stop - segment.start - 1)),
                                             circular=False)
                     for segment in segments
@@ -609,6 +620,7 @@ class UncertaintyAnalyzer:
             raise FitError("Replica timeout must be a positive, finite number of seconds.")
         self.replica_timeout_seconds = float(timeout)
 
+    @with_owner_extensions
     def resampling_batch(
         self, method: str, jobs: Sequence[tuple[FitResult, FitPlan,
                                                Mapping[str, Curve], Mapping[str, Model]]],
@@ -669,6 +681,7 @@ class UncertaintyAnalyzer:
                 progress(len(results))
         return results
 
+    @with_owner_extensions
     def parametric_monte_carlo(
         self,
         baseline: FitResult,
@@ -699,6 +712,7 @@ class UncertaintyAnalyzer:
             adaptive,
         )
 
+    @with_owner_extensions
     def residual_bootstrap(
         self,
         baseline: FitResult,
@@ -730,6 +744,7 @@ class UncertaintyAnalyzer:
             adaptive,
         )
 
+    @with_owner_extensions
     def block_bootstrap(
         self,
         baseline: FitResult,
@@ -761,6 +776,7 @@ class UncertaintyAnalyzer:
             adaptive,
         )
 
+    @with_owner_extensions
     def profile_parameter(
         self,
         baseline: FitResult,

@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from dataclasses import replace as dataclass_replace
+from functools import wraps
 from typing import Any
 
 from curvemole.core.errors import CurveMoleError
@@ -39,10 +42,42 @@ class ExtensionRegistry:
 
 extensions = ExtensionRegistry()
 
+# The registry used by the fit/analysis currently running in this thread or
+# task. Fitter and UncertaintyAnalyzer activate their injected registry while
+# they run; outside them the process-wide registry applies.
+_ACTIVE_EXTENSIONS: ContextVar[ExtensionRegistry | None] = ContextVar("curvemole_extensions", default=None)
+
+
+def current_extensions() -> ExtensionRegistry:
+    return _ACTIVE_EXTENSIONS.get() or extensions
+
+
+@contextmanager
+def use_extensions(registry: ExtensionRegistry | None):
+    token = _ACTIVE_EXTENSIONS.set(registry)
+    try:
+        yield registry
+    finally:
+        _ACTIVE_EXTENSIONS.reset(token)
+
+
+def with_owner_extensions(method: Callable[..., Any]) -> Callable[..., Any]:
+    """Run a Fitter/UncertaintyAnalyzer method with its injected extensions active."""
+    @wraps(method)
+    def run(self: Any, *args: Any, **kwargs: Any) -> Any:
+        registry = getattr(self, "extensions", None)
+        if registry is None:
+            registry = getattr(getattr(self, "fitter", None), "extensions", None)
+        if registry is None:
+            return method(self, *args, **kwargs)
+        with use_extensions(registry):
+            return method(self, *args, **kwargs)
+    return run
+
 
 class PluginAPI:
     """Registration facade; legacy register(FunctionDefinition) is additive too."""
-    version = "1"
+    from curvemole.version import PLUGIN_API_VERSION as version
 
     def __init__(self, manager: Any, owner: str) -> None:
         self._manager = manager
@@ -78,7 +113,8 @@ class PluginAPI:
         if not callable(callback):
             raise CurveMoleError(f"Extension '{identifier}' needs a callable callback, not {type(callback).__name__}.")
         key = f"{self.identifier}:{identifier}"
-        if key in extensions.entries:
+        target = getattr(self._manager, "extensions", extensions)
+        if key in target.entries:
             raise CurveMoleError(f"Extension already registered: {key}")
         def checked(*args: Any, **kwargs: Any) -> Any:
             result = callback(*args, **kwargs)
@@ -97,7 +133,7 @@ class PluginAPI:
 
         def guarded(*args: Any, **kwargs: Any) -> Any:
             return self._manager.invoke(self.identifier, checked, *args, **kwargs)
-        extensions.entries[key] = Contribution(
+        target.entries[key] = Contribution(
             self.identifier, key, f"{self._manager.symbol(self.identifier)} {label}", kind,
             guarded, description, auto_show, self._manager.symbol(self.identifier),
             self._manager.plugin_name(self.identifier),

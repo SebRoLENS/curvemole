@@ -157,6 +157,19 @@ def register(api):
             description="Active spectrum, comma-separated x/y with header")
 ```
 
+`api_compatibility` is the plugin API version the plugin was written for, as
+`"MAJOR"` or `"MAJOR.MINOR"`. CurveMole loads the plugin when the major version
+matches its own (`curvemole.plugin_api.PLUGIN_API_VERSION`) and the plugin does not
+require a newer minor version; `curvemole.plugin_api.is_compatible()` applies the
+same rule. A plugin module is registered in `sys.modules` under
+`curvemole_plugin_<identifier>`, so `dataclasses`, `pickle` and typing helpers that
+look modules up by name work normally. Import plugin-facing objects (`PluginAPI`,
+`Contribution`, `KINDS`) from `curvemole.plugin_api`; helpers such as
+`curvemole.core.uncertainty.sample_residual_blocks` (moving-block resampling) are
+public. Contributions are stored in the loading `PluginManager`'s
+`extensions` registry; pass it to `Fitter(extensions=...)` when a script loads
+plugins in its own manager (the desktop application does this automatically).
+
 This adds **File > Plugins: Exporters > ◆ My CSV export**. CurveMole asks for a destination;
 the built-in export commands remain available. The callback owns the external file
 write; use a temporary file followed by atomic replacement if partial output would

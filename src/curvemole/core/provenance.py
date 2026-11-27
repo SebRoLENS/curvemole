@@ -139,7 +139,8 @@ def function_records(registry, models):
 def fit_record(plan, curves, models, registry):
     from dataclasses import asdict, fields
 
-    from curvemole.core.extensions import extensions
+    from curvemole.core.extensions import current_extensions
+    extensions = current_extensions()
     solver = next((entry for entry in extensions.values('fit_solvers')
                    if entry.identifier == plan.settings.solver), None)
     selected = {cid: models[cid] for cid in plan.curve_ids if cid in models}

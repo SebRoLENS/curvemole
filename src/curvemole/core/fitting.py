@@ -20,6 +20,7 @@ import numpy as np
 from curvemole.core.data import Curve, CurveState
 from curvemole.core.dynamic_bounds import DynamicParameterCoordinates
 from curvemole.core.errors import ConstraintError, FitCancelled, FitError
+from curvemole.core.extensions import with_owner_extensions
 from curvemole.core.jacobians import jacobian_svd, residual_sparsity, weighted_gram
 from curvemole.core.matrices import (
     BlockDiagonalMatrix,
@@ -99,7 +100,8 @@ class FitSettings:
     use_data_errors: bool = True
 
     def validate(self) -> None:
-        from curvemole.core.extensions import extensions
+        from curvemole.core.extensions import current_extensions
+        extensions = current_extensions()
         if not isinstance(self.use_data_errors, bool):
             raise FitError("Use data errors must be a boolean.")
         if self.absolute_sigma is not None and not isinstance(self.absolute_sigma, bool):
@@ -640,10 +642,15 @@ class _Problem:
 
 
 class Fitter:
-    def __init__(self, registry: FunctionRegistry | None = None, *, _compute_inference: bool = True) -> None:
+    def __init__(self, registry: FunctionRegistry | None = None, *, extensions: Any = None,
+                 _compute_inference: bool = True) -> None:
         self.registry = registry or default_registry()
+        # Extension contributions (custom solvers, …) used while this fitter
+        # runs; None means the process-wide registry.
+        self.extensions = extensions
         self._compute_inference = _compute_inference
 
+    @with_owner_extensions
     def fit(
         self,
         plan: FitPlan,
@@ -690,6 +697,7 @@ class Fitter:
             progress(1.0, result.message)
         return result
 
+    @with_owner_extensions
     def replay(self, result: FitResult, curves, *, verify_environment=True, **kwargs):
         """Replay saved initial conditions, rejecting changed data/definitions."""
         from curvemole.core.provenance import environment_record, function_records
@@ -725,7 +733,8 @@ class Fitter:
             raise FitError('Cannot replay: function definitions changed.')
         if verify_environment and environment_record() != record['environment']:
             raise FitError('Cannot replay exactly: numerical environment changed.')
-        from curvemole.core.extensions import extensions
+        from curvemole.core.extensions import current_extensions
+        extensions = current_extensions()
         extension = next((entry for entry in extensions.values('fit_solvers')
                           if entry.identifier == record['plan']['settings']['solver']), None)
         identity = None if extension is None else {'identifier': extension.identifier,
@@ -808,7 +817,8 @@ class Fitter:
         progress: ProgressCallback | None,
         on_curve_result: CurveResultCallback | None = None,
     ) -> FitResult:
-        from curvemole.core.extensions import extensions
+        from curvemole.core.extensions import current_extensions
+        extensions = current_extensions()
 
         formulas = worker_formula_specs(self.registry, models, [curve.id for curve in curves])
         # Declarative formulas are rebuilt in workers; executable plugin
@@ -953,7 +963,8 @@ class Fitter:
                 [float(bound) if math.isfinite(bound) else None for bound in side]
                 for side in (lower, upper)
             ]
-            from curvemole.core.extensions import extensions
+            from curvemole.core.extensions import current_extensions
+            extensions = current_extensions()
             custom = next((entry for entry in extensions.values("fit_solvers")
                            if entry.identifier == settings.solver), None)
             if custom is not None:

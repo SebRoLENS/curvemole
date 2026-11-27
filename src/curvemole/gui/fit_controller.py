@@ -401,7 +401,7 @@ class FitController(QObject):
         cancellation = window._cancellation
         # The worker gets its own registry snapshot: disabling a plugin on the
         # GUI thread during a running task must not change the functions it uses.
-        fitter = Fitter(window.registry.copy())
+        fitter = Fitter(window.registry.copy(), extensions=window.plugin_manager.extensions)
         curve_map = {curve.id: copy.deepcopy(curve) for curve in window.project.curves
                      if curve.id in plan.curve_ids}
         stream = plan.mode == FitMode.INDEPENDENT and len(plan.curve_ids) > 1

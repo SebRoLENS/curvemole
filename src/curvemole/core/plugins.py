@@ -8,6 +8,7 @@ import json
 import os
 import re
 import stat
+import sys
 import threading
 import time
 import uuid
@@ -87,6 +88,12 @@ class PluginManager:
         storage: str | Path | None = None,
     ) -> None:
         self.registry = registry or default_registry()
+        # Extension contributions (importers, exporters, solvers, …) of this
+        # manager's plugins. The process-wide registry is the default so
+        # scripts keep working; pass it to Fitter(extensions=...) explicitly.
+        from curvemole.core.extensions import extensions as process_extensions
+
+        self.extensions = process_extensions
         self.trusted_identifiers = set(trusted_identifiers or ())
         self.loaded: dict[str, PluginMetadata] = {}
         self.function_owners: dict[str, str] = {}
@@ -326,7 +333,7 @@ class PluginManager:
             raise CurveMoleError(f"Plugin {owner} failed and was disabled: {exc}") from exc
 
     def disable(self, identifier: str, reason: str | None = None) -> None:
-        from curvemole.core.extensions import extensions
+        extensions = self.extensions
         self._disabled_owners.add(identifier)
         extensions.remove_owner(identifier)
         self.registry.remove_owner(identifier)
@@ -409,7 +416,9 @@ class PluginManager:
     def load(self, candidate: PluginCandidate, *, trust: bool = False,
              expected_fingerprint: str | None = None) -> PluginMetadata:
         metadata = candidate.metadata
-        if metadata.api_compatibility != PLUGIN_API_VERSION:
+        from curvemole.plugin_api import is_compatible
+
+        if not is_compatible(metadata.api_compatibility, PLUGIN_API_VERSION):
             raise CurveMoleError(
                 f"Plugin '{metadata.identifier}' targets API {metadata.api_compatibility}; "
                 f"CurveMole provides API {PLUGIN_API_VERSION}."
@@ -489,7 +498,14 @@ class PluginManager:
         if spec is None or spec.loader is None:
             raise CurveMoleError(f"Cannot create loader for plugin source: {source}")
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        # Registered like any imported module, so pickling, dataclasses and
+        # typing helpers that look the module up by name work in plugin code.
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+        except BaseException:
+            sys.modules.pop(spec.name, None)
+            raise
         return module
 
 
