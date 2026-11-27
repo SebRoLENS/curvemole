@@ -18,6 +18,7 @@ from curvemole.core.fitting import FitResult
 from curvemole.core.models import Model
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
+from curvemole.core.results_store import ResultKey
 from curvemole.identifiers import CONCEPT_DOI, RRID
 from curvemole.version import __version__
 
@@ -435,13 +436,13 @@ def _curve_fit_result(
 ) -> FitResult | None:
     if curve.state != CurveState.FITTED:
         return None
-    by_curve = project.results.get("fit_by_curve", {}).get(curve.id, {})
+    by_curve = project.results.get(ResultKey.FIT_BY_CURVE, {}).get(curve.id, {})
     candidates = [result, project.results.get("fit:" + curve.id)]
     if isinstance(by_curve, Mapping):
         candidates.append(by_curve.get("baseline"))
         if by_curve.get("global_key"):
-            candidates.append(project.results.get("global_fit_baselines", {}).get(by_curve["global_key"]))
-    candidates.append(project.results.get("last_fit"))
+            candidates.append(project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}).get(by_curve["global_key"]))
+    candidates.append(project.results.get(ResultKey.LAST_FIT))
     for candidate in candidates:
         if not isinstance(candidate, FitResult) or curve.id not in candidate.curve_outputs:
             continue

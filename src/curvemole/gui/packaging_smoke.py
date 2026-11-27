@@ -11,6 +11,7 @@ from curvemole.core import fitting
 from curvemole.core.fitting import FitMode, FitPlan, FitSettings
 from curvemole.core.functions import builtin_definitions, formula_definition
 from curvemole.core.registry import FunctionRegistry
+from curvemole.core.results_store import ResultKey
 from curvemole.core.uncertainty import UncertaintyAnalyzer
 
 
@@ -122,6 +123,6 @@ def run_packaging_smoke(*, instance=None) -> None:
     for curve in curves:
         project.add_curve(curve)
         project.models[curve.id] = models[curve.id]
-    project.results["last_fit"] = result
+    project.results[ResultKey.LAST_FIT] = result
     with tempfile.TemporaryDirectory(prefix="curvemole-packaging-exports-") as directory:
         _smoke_graphic_exports(project, directory, registry=registry)

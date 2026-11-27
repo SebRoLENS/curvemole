@@ -47,6 +47,7 @@ from curvemole.core.functions import formula_definition
 from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
+from curvemole.core.results_store import ResultKey
 from curvemole.core.uncertainty import DEFAULT_BLOCK_BOOTSTRAP_REPLICATES, AdaptiveReplicateSettings
 from curvemole.gui.background_role import BackgroundSwitch
 from curvemole.gui.calculator_columns import ColumnSelector, choose_column
@@ -369,7 +370,7 @@ class ModelPanel(QWidget):
             )
 
             chosen = display_method(self.project)
-            report = self.project.results.get("uncertainty_reports_by_curve", {}).get(
+            report = self.project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}).get(
                 self.curve_id, {}).get(chosen, {}) if chosen else {}
             recorded_analysis = report.get("analysis", {})
             if hasattr(recorded_analysis, "to_dict"):
@@ -1386,8 +1387,8 @@ class UncertaintyPanel(QWidget):
         method = self.method.currentData()
         method = "parametric_monte_carlo" if method == "monte_carlo" else method
         available = project is not None and any(
-            method in methods for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve",
-                                         "uncertainty_failures_by_curve")
+            method in methods for key in (ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, ResultKey.UNCERTAINTY_BY_CURVE,
+                                         ResultKey.UNCERTAINTY_FAILURES_BY_CURVE)
             for methods in project.results.get(key, {}).values())
         self.delete_button.setEnabled(bool(available) and not project.read_only and not self._busy)
 

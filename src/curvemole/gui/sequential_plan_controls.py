@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.fitting import FitMode
 from curvemole.core.sequential_fit import SequentialFitPlan
+from curvemole.gui.app_settings import settings_for
 
 
 def _checked_curve_ids(dialog: Any) -> list[str]:
@@ -95,7 +96,7 @@ def _refresh_ignored_functions(dialog: Any) -> None:
 
 
 def _save_settings(dialog: Any) -> None:
-    settings = QSettings("CurveMole", "CurveMole")
+    settings = settings_for(dialog)
     for name in (
         "bounds",
         "fixed",
@@ -111,7 +112,7 @@ def _save_settings(dialog: Any) -> None:
 
 def build_sequential_controls(dialog: Any) -> None:
     """Sequential-propagation source, monitors and thresholds."""
-    settings = QSettings("CurveMole", "CurveMole")
+    settings = settings_for(dialog)
 
     dialog.sequential_box = QGroupBox(dialog.tr("Sequential propagation"))
     box_layout = QVBoxLayout(dialog.sequential_box)
@@ -321,7 +322,7 @@ def sequential_accept_check(dialog: Any) -> bool:
         return False
 
     if candidate.mode == FitMode.SEQUENTIAL:
-        settings = QSettings("CurveMole", "CurveMole")
+        settings = settings_for(dialog)
         settings.setValue(
             "sequential/monitor_residuals",
             dialog.sequential_monitor_residuals.isChecked(),
@@ -347,7 +348,7 @@ def sequential_accept_check(dialog: Any) -> bool:
 
 def build_propagation_controls(dialog: Any) -> None:
     """Which constraints and functions accompany propagated models."""
-    settings = QSettings("CurveMole", "CurveMole")
+    settings = settings_for(dialog)
 
     dialog.sequential_propagation_options = QGroupBox(
         dialog.tr("Model propagation options")

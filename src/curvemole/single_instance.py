@@ -18,9 +18,10 @@ import uuid
 from collections import OrderedDict
 from pathlib import Path
 
-from platformdirs import user_cache_path
 from PySide6.QtCore import QEvent, QLockFile, QObject, QTimer, Signal
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
+
+from curvemole import app_paths
 
 MAX_MESSAGE_BYTES = 4 * 1024 * 1024
 MAX_PATHS = 10_000
@@ -57,7 +58,7 @@ class DesktopInstance(QObject):
 
     def __init__(self, directory: Path | None = None):
         super().__init__()
-        directory = _private_directory(directory or user_cache_path("CurveMole") / "desktop")
+        directory = _private_directory(directory or app_paths.cache_dir() / "desktop")
         identity = hashlib.sha256(os.path.normcase(str(directory.resolve())).encode()).hexdigest()[:24]
         if sys.platform == "win32":
             self.server_name = "CurveMole-" + identity

@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from curvemole.core.results_store import ResultKey
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.core.uncertainty_summary import METHOD_LABELS, summarize
 from curvemole.gui.windowing import transient_widget
@@ -86,11 +87,11 @@ class UncertaintyResults(QWidget):
     def refresh(self):
         if self.project is None:
             return
-        failure = self.project.results.get("uncertainty_failures_by_curve", {}).get(
+        failure = self.project.results.get(ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, {}).get(
             self.curve_id, {}).get(self.method)
-        record = self.project.results.get("uncertainty_reports_by_curve", {}).get(self.curve_id, {}).get(self.method)
+        record = self.project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}).get(self.curve_id, {}).get(self.method)
         if record is None:
-            legacy = self.project.results.get("uncertainty_reports", {}).get(self.method)
+            legacy = self.project.results.get(ResultKey.LEGACY_UNCERTAINTY_REPORTS, {}).get(self.method)
             baseline = legacy.get("baseline", {}) if isinstance(legacy, dict) else {}
             if self.curve_id and any(path.startswith(self.curve_id + ".")
                                      for path in baseline.get("parameters", {})):

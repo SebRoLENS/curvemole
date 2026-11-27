@@ -14,7 +14,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from platformdirs import user_cache_path
 from PySide6.QtCore import (
     QEvent,
     QItemSelectionModel,
@@ -96,6 +95,7 @@ from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
+from curvemole.core.results_store import ResultKey
 from curvemole.core.serialization import ProjectLock, save_project
 from curvemole.core.state import copy_result_maps
 from curvemole.core.transactions import ModelEdit, restore_model_state
@@ -156,7 +156,8 @@ def _resource_icon(
     return QIcon(pixmap)
 
 
-from curvemole.gui import window_extensions  # noqa: E402
+from curvemole import app_paths  # noqa: E402
+from curvemole.gui import app_settings, window_extensions  # noqa: E402
 from curvemole.gui.task_runner import TaskCallbacks, TaskRunner, Worker  # noqa: E402,F401
 from curvemole.gui.undo_commands import CallbackCommand  # noqa: E402,F401 - public import path
 
@@ -165,12 +166,12 @@ def _curve_state_presentation(
     project: Project, curve: Curve, uncertainty_method: str | None = None,
 ) -> tuple[str, str]:
     """Show completion for the chosen uncertainty method, retaining all saved reports."""
-    reports_by_curve = project.results.get("uncertainty_reports_by_curve", {})
+    reports_by_curve = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {})
     reports = reports_by_curve.get(curve.id, {}) if isinstance(reports_by_curve, dict) else {}
     methods = [method for method, report in reports.items() if report]
     selected_method = ("parametric_monte_carlo" if uncertainty_method == "monte_carlo"
                        else uncertainty_method)
-    failure = project.results.get("uncertainty_failures_by_curve", {}).get(
+    failure = project.results.get(ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, {}).get(
         curve.id, {}).get(selected_method)
     if failure:
         timeout = failure.get("reason") == "timeout" or "timeout" in failure.get("message", "").lower()
@@ -866,7 +867,8 @@ class MainWindow(QMainWindow):
         self._plugin_startup = None
         self._pending_component: Component | None = None
         self._pending_component_curve_id: str | None = None
-        self.settings = QSettings("CurveMole", "CurveMole")
+        # Module-level QSettings name kept as the documented injection point.
+        self.settings = QSettings(app_settings.ORGANIZATION, app_settings.APPLICATION)
         self.last_peak_function_id = str(
             self.settings.value("last_peak_function", "gaussian")
         )
@@ -879,7 +881,7 @@ class MainWindow(QMainWindow):
         from curvemole.gui.undo_service import UndoService
         self.undo_service = UndoService(self, self.undo_stack)
         self.projectReplaced.connect(self.undo_service.project_replaced)
-        self.recovery = RecoveryManager(user_cache_path("CurveMole") / "recovery")
+        self.recovery = RecoveryManager(app_paths.recovery_dir())
         from curvemole.gui.autosave import AutosaveController
         self._autosave_controller = AutosaveController(self)
         from curvemole.gui.manual_save import ManualSaveController
@@ -932,8 +934,7 @@ class MainWindow(QMainWindow):
         self.recovery_monitor_timer.timeout.connect(self._monitor_recovery_count)
         self.recovery_monitor_timer.start()
         self._lock_monitor.start()
-        from platformdirs import user_config_path
-        self.plugin_manager = PluginManager(self.registry, storage=user_config_path("CurveMole") / "plugins")
+        self.plugin_manager = PluginManager(self.registry, storage=app_paths.plugin_storage())
         plugin_recovery = self.plugin_manager.start_session()
         self._load_custom_functions()
         # Existing callers passing a project need its plugin functions immediately.
@@ -3830,7 +3831,7 @@ class MainWindow(QMainWindow):
         task = getattr(self, "_uncertainty_task", None)
         timeout = message.startswith("Uncertainty replica timeout:")
         if task and (timeout or (task.get("background_treatment") and "cancelled" not in message.lower())):
-            failures = self.project.results.setdefault("uncertainty_failures_by_curve", {})
+            failures = self.project.results.setdefault(ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, {})
             for curve_id in task["curve_ids"] - task["completed"]:
                 failures.setdefault(curve_id, {})[task["method"]] = {
                     "message": message, "reason": "timeout" if timeout else "background_analysis",
@@ -3897,7 +3898,7 @@ class MainWindow(QMainWindow):
         return float(self.project.ui_state.get("mask_transfer_tolerance", 0.0))
 
     def _last_fit_result(self) -> FitResult | None:
-        value = self.project.results.get("last_fit")
+        value = self.project.results.get(ResultKey.LAST_FIT)
         return value if isinstance(value, FitResult) else None
 
     def _refresh_diagnostics(self) -> None:
@@ -3905,9 +3906,9 @@ class MainWindow(QMainWindow):
         if curve is None:
             self.diagnostics.set_residual(None)
             return
-        record = self.project.results.get("fit_by_curve", {}).get(self.active_curve_id, {})
+        record = self.project.results.get(ResultKey.FIT_BY_CURVE, {}).get(self.active_curve_id, {})
         if "global_key" in record:
-            result = self.project.results.get("global_fit_baselines", {}).get(record["global_key"])
+            result = self.project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}).get(record["global_key"])
         else:
             result = record.get("baseline")
         if isinstance(result, dict):

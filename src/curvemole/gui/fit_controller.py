@@ -32,6 +32,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox, QPushButton
 from curvemole.core.data import CurveState
 from curvemole.core.fitting import CancellationToken, FitMode, FitPlan, FitResult, Fitter
 from curvemole.core.parameters import resolve_parameter_values
+from curvemole.core.results_store import ResultKey
 from curvemole.core.state import restore_model
 from curvemole.gui.dialogs import FitPlanDialog
 from curvemole.gui.plot_view import _capture_view_range, _restore_view_range
@@ -199,7 +200,7 @@ def set_resume_available(window: Any, available: bool) -> None:
         stop.setEnabled(enabled)
     reason = getattr(window, "sequential_pause_reason_button", None)
     if reason is not None:
-        has_reason = available and bool(window.project.results.get("last_sequential_pause_message"))
+        has_reason = available and bool(window.project.results.get(ResultKey.LAST_SEQUENTIAL_PAUSE_MESSAGE))
         reason.setVisible(has_reason)
         reason.setEnabled(has_reason)
 
@@ -484,7 +485,7 @@ class FitController(QObject):
             plan = window._running_fit_plan
             baseline = baseline_for_curve(result, curve_id)
             baseline.success = True
-            records = dict(window.project.results.get("fit_by_curve", {}))
+            records = dict(window.project.results.get(ResultKey.FIT_BY_CURVE, {}))
             previous_key = records.get(curve_id, {}).get("global_key")
             affected_ids = {curve_id}
             if previous_key is not None:
@@ -492,23 +493,23 @@ class FitController(QObject):
                                     if record.get("global_key") == previous_key)
                 records = {cid: record for cid, record in records.items()
                            if record.get("global_key") != previous_key}
-                baselines = dict(window.project.results.get("global_fit_baselines", {}))
+                baselines = dict(window.project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}))
                 baselines.pop(previous_key, None)
-                window.project.results["global_fit_baselines"] = baselines
+                window.project.results[ResultKey.GLOBAL_FIT_BASELINES] = baselines
             records[curve_id] = {
                 "plan": plan_to_record(individual_plan(plan, curve_id)),
                 "baseline": baseline,
             }
-            window.project.results["fit_by_curve"] = records
-            for key in ("uncertainty_reports_by_curve", "uncertainty_by_curve"):
+            window.project.results[ResultKey.FIT_BY_CURVE] = records
+            for key in (ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, ResultKey.UNCERTAINTY_BY_CURVE):
                 updated = dict(window.project.results.get(key, {}))
                 for affected_id in affected_ids:
                     updated.pop(affected_id, None)
                 window.project.results[key] = updated
-            window.project.results["last_fit"] = result
+            window.project.results[ResultKey.LAST_FIT] = result
         else:
             curve.state = CurveState.FAILED
-        window.project.results["last_attempt"] = result
+        window.project.results[ResultKey.LAST_ATTEMPT] = result
         window.project.touch()
         window.refresh_all()
 
@@ -554,11 +555,11 @@ class FitController(QObject):
         window = self.window
         successful_ids = window._successful_fit_curve_ids(result)
         window._apply_fit_result_to_project(result)
-        window.project.results["last_attempt"] = result
+        window.project.results[ResultKey.LAST_ATTEMPT] = result
         if result.paused_curve_id:
-            window.project.results["last_sequential_pause_message"] = result.message
+            window.project.results[ResultKey.LAST_SEQUENTIAL_PAUSE_MESSAGE] = result.message
         if result.success:
-            window.project.results["last_fit"] = result
+            window.project.results[ResultKey.LAST_FIT] = result
         if successful_ids:
             from curvemole.core.fit_records import (
                 baseline_for_curve,
@@ -571,10 +572,10 @@ class FitController(QObject):
                 plan = FitPlan(list(result.curve_outputs), result.mode, copy.deepcopy(result.settings))
             # Fit undo captures the outer results mapping, so replace nested maps
             # instead of mutating its previously captured values.
-            records = dict(window.project.results.get("fit_by_curve", {}))
-            reports = dict(window.project.results.get("uncertainty_reports_by_curve", {}))
-            analyses = dict(window.project.results.get("uncertainty_by_curve", {}))
-            global_baselines = dict(window.project.results.get("global_fit_baselines", {}))
+            records = dict(window.project.results.get(ResultKey.FIT_BY_CURVE, {}))
+            reports = dict(window.project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}))
+            analyses = dict(window.project.results.get(ResultKey.UNCERTAINTY_BY_CURVE, {}))
+            global_baselines = dict(window.project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}))
             for curve_id in successful_ids:
                 previous_key = records.get(curve_id, {}).get("global_key")
                 if previous_key is not None:
@@ -599,10 +600,10 @@ class FitController(QObject):
                     baseline.success = True  # The aggregate may include failed neighbours.
                     record["baseline"] = baseline
                 records[curve_id] = record
-            window.project.results["fit_by_curve"] = records
-            window.project.results["global_fit_baselines"] = global_baselines
-            window.project.results["uncertainty_reports_by_curve"] = reports
-            window.project.results["uncertainty_by_curve"] = analyses
+            window.project.results[ResultKey.FIT_BY_CURVE] = records
+            window.project.results[ResultKey.GLOBAL_FIT_BASELINES] = global_baselines
+            window.project.results[ResultKey.UNCERTAINTY_REPORTS_BY_CURVE] = reports
+            window.project.results[ResultKey.UNCERTAINTY_BY_CURVE] = analyses
         window.project.snapshot(
             "Fit",
             {
@@ -630,10 +631,10 @@ class FitController(QObject):
         """Recover successful spectra from an older, partially failed batch fit."""
         from curvemole.core.fit_records import baseline_for_curve, individual_plan, plan_to_record
 
-        attempt = window.project.results.get("last_attempt")
+        attempt = window.project.results.get(ResultKey.LAST_ATTEMPT)
         if not isinstance(attempt, FitResult) or attempt.mode == FitMode.GLOBAL:
             return
-        records = window.project.results.setdefault("fit_by_curve", {})
+        records = window.project.results.setdefault(ResultKey.FIT_BY_CURVE, {})
         available = {curve.id for curve in window.project.curves}
         plan = FitPlan(list(attempt.curve_outputs), attempt.mode, copy.deepcopy(attempt.settings))
         recovered = False
@@ -652,6 +653,6 @@ class FitController(QObject):
 
     def show_sequential_pause_reason(self) -> None:
         window = self.window
-        message = window.project.results.get("last_sequential_pause_message")
+        message = window.project.results.get(ResultKey.LAST_SEQUENTIAL_PAUSE_MESSAGE)
         if message:
             QMessageBox.warning(window, window.tr("Sequential fit — last pause reason"), str(message))

@@ -32,6 +32,7 @@ from curvemole.core.fitting import (
     FitResult,
     Fitter,
 )
+from curvemole.core.results_store import ResultKey
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
 from curvemole.core.uncertainty_status import uncertainty_warning
 from curvemole.gui.windowing import transient_widget
@@ -73,9 +74,9 @@ class UncertaintyController(QObject):
         )
 
         window._recover_missing_fit_records()
-        record = window.project.results.get("fit_by_curve", {}).get(curve_id)
+        record = window.project.results.get(ResultKey.FIT_BY_CURVE, {}).get(curve_id)
         if record:
-            baseline = (window.project.results.get("global_fit_baselines", {}).get(record["global_key"])
+            baseline = (window.project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}).get(record["global_key"])
                         if "global_key" in record else record.get("baseline"))
             if baseline is None:
                 return None
@@ -366,8 +367,8 @@ class UncertaintyController(QObject):
             return
         method = "parametric_monte_carlo" if method == "monte_carlo" else method
         names = {method, "monte_carlo"} if method == "parametric_monte_carlo" else {method}
-        per_curve_keys = ("uncertainty_reports_by_curve", "uncertainty_by_curve", "uncertainty_failures_by_curve")
-        global_keys = ("uncertainty", "uncertainty_reports")
+        per_curve_keys = (ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, ResultKey.UNCERTAINTY_BY_CURVE, ResultKey.UNCERTAINTY_FAILURES_BY_CURVE)
+        global_keys = (ResultKey.LEGACY_UNCERTAINTY, ResultKey.LEGACY_UNCERTAINTY_REPORTS)
         saved = {
             key: {curve_id: {name: value for name, value in methods.items() if name in names}
                   for curve_id, methods in window.project.results.get(key, {}).items()
@@ -376,7 +377,7 @@ class UncertaintyController(QObject):
                       for key in global_keys}
         if not any(saved.values()) and not any(old_global.values()):
             return
-        old_choice = window.project.results.get("uncertainty_display_method")
+        old_choice = window.project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD)
 
         def remove() -> None:
             for key in per_curve_keys:
@@ -386,8 +387,8 @@ class UncertaintyController(QObject):
             for key in global_keys:
                 window.project.results[key] = {name: value for name, value in window.project.results.get(key, {}).items()
                                              if name not in names}
-            if window.project.results.get("uncertainty_display_method") in names:
-                window.project.results.pop("uncertainty_display_method", None)
+            if window.project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD) in names:
+                window.project.results.pop(ResultKey.UNCERTAINTY_DISPLAY_METHOD, None)
 
         def restore() -> None:
             for key, curves in saved.items():
@@ -396,19 +397,19 @@ class UncertaintyController(QObject):
             for key, methods in old_global.items():
                 window.project.results.setdefault(key, {}).update(methods)
             if old_choice is not None:
-                window.project.results["uncertainty_display_method"] = old_choice
+                window.project.results[ResultKey.UNCERTAINTY_DISPLAY_METHOD] = old_choice
 
         window._push_change(window.tr("Delete uncertainty analysis"), remove, restore, modified_curve_ids=set())
 
     def _store_uncertainty_result(self, curve_id: str, baseline: FitResult, result: Any) -> None:
         window = self.window
         method = "covariance" if isinstance(result, FitResult) else getattr(result, "method", "profile_likelihood")
-        window.project.results.get("uncertainty_failures_by_curve", {}).get(curve_id, {}).pop(method, None)
+        window.project.results.get(ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, {}).get(curve_id, {}).pop(method, None)
         task = getattr(window, "_uncertainty_task", None)
         if task and task["method"] == method:
             task["completed"].add(curve_id)
-        window.project.results.setdefault("uncertainty", {})[method] = result
-        window.project.results.setdefault("uncertainty_by_curve", {}).setdefault(curve_id, {})[method] = result
+        window.project.results.setdefault(ResultKey.LEGACY_UNCERTAINTY, {})[method] = result
+        window.project.results.setdefault(ResultKey.UNCERTAINTY_BY_CURVE, {}).setdefault(curve_id, {})[method] = result
         analysis = (result.to_dict(include_samples=False)
                     if hasattr(result, "samples") else result.to_dict())
         if method not in {"covariance", "profile_likelihood"}:
@@ -417,13 +418,13 @@ class UncertaintyController(QObject):
                 with np.errstate(invalid="ignore", divide="ignore"):
                     analysis["sample_correlation"] = np.corrcoef(samples, rowvar=False).tolist()
             analysis.pop("samples", None)
-        window.project.results.setdefault("uncertainty_reports_by_curve", {}).setdefault(curve_id, {})[method] = {
+        window.project.results.setdefault(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}).setdefault(curve_id, {})[method] = {
             "baseline": baseline.to_dict(arrays=False), "analysis": analysis,
         }
         from curvemole.core.analysis_errors import DISPLAY_METHODS
 
-        if window.project.results.get("uncertainty_display_method") not in DISPLAY_METHODS:
-            window.project.results["uncertainty_display_method"] = method
+        if window.project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD) not in DISPLAY_METHODS:
+            window.project.results[ResultKey.UNCERTAINTY_DISPLAY_METHOD] = method
             window._sync_uncertainty_method()
 
     def _select_uncertainty_display(self, method: str) -> None:
@@ -433,8 +434,8 @@ class UncertaintyController(QObject):
         method = "parametric_monte_carlo" if method == "monte_carlo" else method
         if method not in DISPLAY_METHODS:
             return
-        previous = window.project.results.get("uncertainty_display_method")
-        window.project.results["uncertainty_display_method"] = method
+        previous = window.project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD)
+        window.project.results[ResultKey.UNCERTAINTY_DISPLAY_METHOD] = method
         if previous != method and not window.project.read_only:
             window.project.touch()
         window._sync_uncertainty_method()

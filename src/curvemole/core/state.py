@@ -4,14 +4,14 @@ from __future__ import annotations
 import copy
 from dataclasses import fields
 
-_RESULT_MAPS = {"fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
-                "global_fit_baselines", "uncertainty_failures_by_curve"}
+from curvemole.core.results_store import METHOD_MAPS as _METHOD_MAPS
+from curvemole.core.results_store import RESULT_MAPS as _RESULT_MAPS
 
 
 def copy_result_maps(results):
     """Detach mutable map containers; completed result payloads remain shared."""
     snapshot = {}
-    method_maps = {"uncertainty_by_curve", "uncertainty_reports_by_curve", "uncertainty_failures_by_curve"}
+    method_maps = _METHOD_MAPS
     for key, value in results.items():
         if key in method_maps and isinstance(value, dict):
             value = {identity: dict(methods) if isinstance(methods, dict) else methods

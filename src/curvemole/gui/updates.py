@@ -13,12 +13,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import QObject, QSettings, QTimer, QUrl
+from PySide6.QtCore import QObject, QTimer, QUrl
 from PySide6.QtGui import QAction
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply, QNetworkRequest
 from PySide6.QtWidgets import QMessageBox, QToolButton
 
 from curvemole.core.release_channels import ReleaseVersion, default_channel, select_release
+from curvemole.gui.app_settings import settings_for
 from curvemole.gui.legacy_updates import asset_suffix  # noqa: F401
 from curvemole.gui.windowing import secondary_window_parent, transient_widget
 from curvemole.version import __version__
@@ -106,7 +107,7 @@ class UpdateController(QObject):
             from curvemole.gui.updates_windows import _cleanup_stale_update_files
             _cleanup_stale_update_files(_running_desktop_binary())
         self.window = window
-        self.settings = QSettings("CurveMole", "CurveMole")
+        self.settings = settings_for(window)
         channel = str(self.settings.value("updates/channel", default_channel(__version__)))
         self.channel = channel if channel in {"stable", "beta"} else default_channel(__version__)
         # Keep an initial beta opt-in when a final package is later installed.

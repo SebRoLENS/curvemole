@@ -1,3 +1,5 @@
+from curvemole.core.results_store import ResultKey
+
 """Warnings shared by saved uncertainty reports and spectrum-list tags."""
 
 
@@ -5,8 +7,8 @@ def uncertainty_warning(project, curve_id, method):
     from curvemole.core.background_uncertainty import background_uncertainty_note
 
     method = "parametric_monte_carlo" if method == "monte_carlo" else method
-    failures = project.results.get("uncertainty_failures_by_curve", {}).get(curve_id, {})
-    reports = project.results.get("uncertainty_reports_by_curve", {}).get(curve_id, {})
+    failures = project.results.get(ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, {}).get(curve_id, {})
+    reports = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}).get(curve_id, {})
     if method is None:
         return next((warning for name in dict.fromkeys([*failures, *reports])
                      if (warning := uncertainty_warning(project, curve_id, name))), None)

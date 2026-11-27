@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from curvemole.core.errors import CurveMoleError
 from curvemole.core.parameters import Parameter
+from curvemole.gui.app_settings import settings_for
 from curvemole.gui.parameter_limits import _NUMERICAL_FLOORS
 
 
@@ -35,7 +36,7 @@ class FunctionOptionsWidget(QWidget):
     def __init__(self, definition, parent=None, settings=None):
         super().__init__(parent)
         self.definition = definition
-        self.settings = settings or QSettings("CurveMole", "CurveMole")
+        self.settings = settings or settings_for(parent, factory=QSettings)
         self.controls = {}
         self.point_mode = False
         form = QFormLayout(self)

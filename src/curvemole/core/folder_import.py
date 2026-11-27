@@ -9,6 +9,7 @@ from pathlib import Path
 
 from curvemole.core.data import Curve, Series
 from curvemole.core.errors import DataValidationError
+from curvemole.core.results_store import ResultKey
 
 IMPORT_PROCESSOR_KEY = "automatic_import_processor"
 IMPORT_DESTINATION_KEY = "automatic_import_destination"
@@ -143,8 +144,8 @@ class FolderScan:
 
 
 CURVE_RESULT_MAPS = frozenset({
-    "fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
-    "uncertainty_failures_by_curve", "uncertainty_display_method_by_curve", "global_fit_baselines",
+    ResultKey.FIT_BY_CURVE, ResultKey.UNCERTAINTY_BY_CURVE, ResultKey.UNCERTAINTY_REPORTS_BY_CURVE,
+    ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, ResultKey.LEGACY_UNCERTAINTY_DISPLAY_METHOD_BY_CURVE, ResultKey.GLOBAL_FIT_BASELINES,
 })
 
 
@@ -163,7 +164,7 @@ def merge_acquisition_results(existing, incoming, curve_ids):
             previous = existing.get(key, {})
             if not isinstance(previous, dict) or not isinstance(value, dict):
                 raise ValueError(f"Import result '{key}' must be a mapping.")
-            if key != "global_fit_baselines" and not set(value) <= curve_ids:
+            if key != ResultKey.GLOBAL_FIT_BASELINES and not set(value) <= curve_ids:
                 raise ValueError(f"Import result '{key}' refers to unrelated spectra.")
             if set(previous) & set(value):
                 raise ValueError(f"Import result '{key}' collides with existing analyses.")

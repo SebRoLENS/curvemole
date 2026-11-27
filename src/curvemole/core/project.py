@@ -20,6 +20,7 @@ from curvemole.core.history import CompactHistory
 from curvemole.core.models import Component, Model
 from curvemole.core.notebook import LaboratoryNotebook
 from curvemole.core.parameters import Parameter, resolve_parameter_values
+from curvemole.core.results_store import ResultKey
 from curvemole.version import __version__
 
 
@@ -112,19 +113,19 @@ class Project:
         curves = {curve.id: curve for curve in self.curves if curve.id in removed}
         for series in self.dataset.series:
             series.curves[:] = [curve for curve in series.curves if curve.id not in removed]
-        fitted = self.results.get("fit_by_curve", {})
+        fitted = self.results.get(ResultKey.FIT_BY_CURVE, {})
         global_keys = {record.get("global_key") for identity, record in fitted.items()
                        if identity in removed and record.get("global_key") is not None}
         affected_records = removed | {identity for identity, record in fitted.items()
                                       if record.get("global_key") in global_keys}
-        for key in ("fit_by_curve", "uncertainty_by_curve", "uncertainty_reports_by_curve",
-                    "uncertainty_failures_by_curve", "uncertainty_display_method_by_curve"):
+        for key in (ResultKey.FIT_BY_CURVE, ResultKey.UNCERTAINTY_BY_CURVE, ResultKey.UNCERTAINTY_REPORTS_BY_CURVE,
+                    ResultKey.UNCERTAINTY_FAILURES_BY_CURVE, ResultKey.LEGACY_UNCERTAINTY_DISPLAY_METHOD_BY_CURVE):
             if isinstance(self.results.get(key), dict):
                 self.results[key] = {identity: value for identity, value in self.results[key].items()
                                      if identity not in affected_records}
-        if global_keys and isinstance(self.results.get("global_fit_baselines"), dict):
-            self.results["global_fit_baselines"] = {
-                key: value for key, value in self.results["global_fit_baselines"].items() if key not in global_keys
+        if global_keys and isinstance(self.results.get(ResultKey.GLOBAL_FIT_BASELINES), dict):
+            self.results[ResultKey.GLOBAL_FIT_BASELINES] = {
+                key: value for key, value in self.results[ResultKey.GLOBAL_FIT_BASELINES].items() if key not in global_keys
             }
         for identity in identities:
             self.models.pop(identity, None)
@@ -138,7 +139,7 @@ class Project:
     def affected_curve_ids(self, curve_ids) -> set[str]:
         """Include transitive link dependencies and recorded global-fit coupling."""
         affected = set(curve_ids)
-        records = self.results.get("fit_by_curve", {})
+        records = self.results.get(ResultKey.FIT_BY_CURVE, {})
         dependencies = [(path.split(".", 1)[0],
                          {ref.split(".", 1)[0] for ref in SafeExpression.compile(p.link).references})
                         for path, p in self.parameter_map().items() if p.link]
@@ -383,6 +384,13 @@ class Project:
         """Check before mutating, so rejected writes have no side effects."""
         if self.read_only:
             raise PermissionError("This project is open read-only. Use Save As to create an editable copy.")
+
+    @property
+    def results_store(self):
+        """Typed view of ``results`` (see core.results_store); no copy is made."""
+        from curvemole.core.results_store import ResultsStore
+
+        return ResultsStore(self.results)
 
     def touch(self) -> None:
         self.ensure_editable()

@@ -19,6 +19,8 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from curvemole.core.results_store import ResultKey
+
 if TYPE_CHECKING:
     import pandas as pd
 
@@ -540,7 +542,7 @@ def export_parameter_covariances(
 
     destination = Path(parameter_path)
     directory = destination.with_name(destination.stem + "_covariance")
-    records = project.results.get("fit_by_curve", {})
+    records = project.results.get(ResultKey.FIT_BY_CURVE, {})
     written: list[Path] = []
     manifest: list[tuple[str, str, str, str, int]] = []
     seen: set[tuple[str, str]] = set()
@@ -565,10 +567,10 @@ def export_parameter_covariances(
         record = records.get(curve.id, {})
         global_key = record.get("global_key")
         key = str(global_key or curve.id)
-        fit = (project.results.get("global_fit_baselines", {}).get(global_key)
+        fit = (project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}).get(global_key)
                if global_key is not None else record.get("baseline"))
         if fit is None:
-            latest = project.results.get("last_fit")
+            latest = project.results.get(ResultKey.LAST_FIT)
             if latest is not None:
                 curve_outputs = (latest.curve_outputs if isinstance(latest, FitResult)
                                  else latest.get("curve_outputs", {}))
@@ -588,7 +590,7 @@ def export_parameter_covariances(
         if (key, method) in seen:
             continue
         seen.add((key, method))
-        result = project.results.get("uncertainty_by_curve", {}).get(curve.id, {}).get(method)
+        result = project.results.get(ResultKey.UNCERTAINTY_BY_CURVE, {}).get(curve.id, {}).get(method)
         if result is None:
             continue
         paths = result.parameter_paths if hasattr(result, "parameter_paths") else result.get("parameter_paths", [])
@@ -642,12 +644,12 @@ def uncertainty_dataframe(project: Project) -> pd.DataFrame:
 
     from curvemole.core.uncertainty_summary import summarize
     rows = []
-    by_curve = project.results.get("uncertainty_reports_by_curve", {})
+    by_curve = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {})
     for curve_id, reports in by_curve.items():
         for method, record in reports.items():
             rows.extend(row for row in summarize(project, record["baseline"], record["analysis"], method)
                         if row["path"].startswith(curve_id + "."))
-    for method, record in project.results.get("uncertainty_reports", {}).items():
+    for method, record in project.results.get(ResultKey.LEGACY_UNCERTAINTY_REPORTS, {}).items():
         rows.extend(row for row in summarize(project, record["baseline"], record["analysis"], method)
                     if method not in by_curve.get(row["path"].split(".", 1)[0], {}))
     return pd.DataFrame(rows)
@@ -756,8 +758,8 @@ def export_bundle(
     current_view: Any | None = None,
 ) -> ExportSummary:
     selection = selection or BundleExportSelection()
-    if result is None and isinstance(project.results.get("last_fit"), FitResult):
-        result = project.results["last_fit"]
+    if result is None and isinstance(project.results.get(ResultKey.LAST_FIT), FitResult):
+        result = project.results[ResultKey.LAST_FIT]
     if not selection.any_selected():
         raise CurveMoleError("Select at least one item to export.")
 
@@ -976,8 +978,8 @@ def _write_bundle_files(project, root, destination, result, selection, delimiter
                     "application_version": __version__, "software_rrid": RRID, "software_concept_doi": CONCEPT_DOI,
                     "scope": "Recorded fits; current model evaluations are in observations.csv.",
                     "result": result.to_dict(arrays=False) if result else None,
-                    "fit_by_curve": project.results.get("fit_by_curve", {}),
-                    "global_fit_baselines": project.results.get("global_fit_baselines", {}),
+                    "fit_by_curve": project.results.get(ResultKey.FIT_BY_CURVE, {}),
+                    "global_fit_baselines": project.results.get(ResultKey.GLOBAL_FIT_BASELINES, {}),
                 },
                 indent=2,
                 default=_json_default,
@@ -1044,8 +1046,8 @@ def _write_bundle_files(project, root, destination, result, selection, delimiter
             correlation_path.parent.mkdir(parents=True, exist_ok=True)
             _write_labeled_matrix(correlation_path, result.correlation, result.free_parameter_paths, delimiter=delimiter)
 
-    if selection.uncertainty and (project.results.get("uncertainty_reports") or
-                                  project.results.get("uncertainty_reports_by_curve")):
+    if selection.uncertainty and (project.results.get(ResultKey.LEGACY_UNCERTAINTY_REPORTS) or
+                                  project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE)):
         export_dataframe(uncertainty_dataframe(project), root / "uncertainty" / "parameter_assessments.csv",
                          delimiter=delimiter)
 
@@ -1158,8 +1160,8 @@ def _bundle_paths(
             paths.append("uncertainty/covariance.csv")
         if result.correlation is not None:
             paths.append("uncertainty/correlation.csv")
-    if selection.uncertainty and (project.results.get("uncertainty_reports") or
-                                  project.results.get("uncertainty_reports_by_curve")):
+    if selection.uncertainty and (project.results.get(ResultKey.LEGACY_UNCERTAINTY_REPORTS) or
+                                  project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE)):
         paths.append("uncertainty/parameter_assessments.csv")
     if selection.diagnostics and result:
         paths.extend(

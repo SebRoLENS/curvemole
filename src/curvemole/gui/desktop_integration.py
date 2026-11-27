@@ -11,7 +11,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from platformdirs import user_data_path
+from curvemole import app_paths
 
 DESKTOP_FILENAME = "curvemole.desktop"
 MIME_TYPE = "application/x-curvemole-project"
@@ -34,7 +34,7 @@ def _xdg_data_home() -> Path:
     configured = os.environ.get("XDG_DATA_HOME", "").strip()
     if configured:
         return Path(configured).expanduser()
-    return Path(user_data_path("", appauthor=False))
+    return app_paths.data_dir()
 
 
 def _desktop_exec(path: Path) -> str | None:

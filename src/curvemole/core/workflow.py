@@ -20,6 +20,7 @@ from curvemole.core.models import Component
 from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry, default_registry
+from curvemole.core.results_store import ResultKey
 from curvemole.core.serialization import save_project
 from curvemole.core.workflow_inputs import format_import_name, resolve_import_paths
 from curvemole.core.workflow_selection import SELECTOR_KEYS, select_curve_ids
@@ -261,7 +262,7 @@ def run_workflow(
             fit_spec.get("equal_contribution", False),
         )
         result = Fitter(registry).fit(plan, {curve.id: curve for curve in project.curves}, project.models)
-        project.results["last_fit"] = result
+        project.results[ResultKey.LAST_FIT] = result
         project.snapshot("Workflow fit", {"plan": _plan_dict(plan), "result": result.to_dict()})
 
     outputs: list[Path] = []

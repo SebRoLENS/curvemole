@@ -19,6 +19,7 @@ from curvemole.core.initialization import component_from_suggestion, find_peak_s
 from curvemole.core.models import Component
 from curvemole.core.project import Project
 from curvemole.core.registry import default_registry
+from curvemole.core.results_store import ResultKey
 from curvemole.core.serialization import (
     load_fitmodel,
     load_project,
@@ -288,7 +289,7 @@ def _fit_files(inputs: list[Path], args: argparse.Namespace) -> dict[str, Any]:
     if args.output and args.output.exists() and not args.force:
         raise FileExistsError(f"Output exists; use --force to replace: {args.output}")
     result = Fitter().fit(plan, {curve.id: curve for curve in project.curves}, project.models)
-    project.results["last_fit"] = result
+    project.results[ResultKey.LAST_FIT] = result
     if args.output:
         save_project(project, args.output)
     labels = _parameter_labels(project)

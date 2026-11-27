@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 
 from curvemole.core.data import CurveState
+from curvemole.core.results_store import ResultKey
 
 DISPLAY_METHODS = {
     "covariance": "Fit covariance",
@@ -17,11 +18,11 @@ DISPLAY_METHODS = {
 
 def restore_uncertainty_reports(project) -> None:
     """Promote legacy saved reports to the same per-spectrum records the GUI uses."""
-    reports = project.results.get("uncertainty_reports_by_curve", {})
+    reports = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {})
     for methods in reports.values():
         if "monte_carlo" in methods:
             methods.setdefault("parametric_monte_carlo", methods.pop("monte_carlo"))
-    legacy = project.results.get("uncertainty_reports", {})
+    legacy = project.results.get(ResultKey.LEGACY_UNCERTAINTY_REPORTS, {})
     for saved_method, record in list(legacy.items()):
         baseline = record.get("baseline", {})
         parameters = baseline.parameters if hasattr(baseline, "parameters") else baseline.get("parameters", {})
@@ -36,33 +37,33 @@ def restore_uncertainty_reports(project) -> None:
         # fallback resurrecting an analysis of the previous fit.
         legacy.pop(saved_method)
     if reports:
-        project.results["uncertainty_reports_by_curve"] = reports
-    choice = project.results.get("uncertainty_display_method")
+        project.results[ResultKey.UNCERTAINTY_REPORTS_BY_CURVE] = reports
+    choice = project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD)
     if choice == "monte_carlo":
-        project.results["uncertainty_display_method"] = "parametric_monte_carlo"
+        project.results[ResultKey.UNCERTAINTY_DISPLAY_METHOD] = "parametric_monte_carlo"
     # Older projects stored separate preferences. Migrate the first available
     # preference in spectrum order to one project choice; never vary it by curve.
-    choices = project.results.pop("uncertainty_display_method_by_curve", {})
-    if "uncertainty_display_method" not in project.results:
+    choices = project.results.pop(ResultKey.LEGACY_UNCERTAINTY_DISPLAY_METHOD_BY_CURVE, {})
+    if ResultKey.UNCERTAINTY_DISPLAY_METHOD not in project.results:
         available = available_methods(project)
         for curve in project.curves:
             method = choices.get(curve.id)
             method = "parametric_monte_carlo" if method == "monte_carlo" else method
             if method in available:
-                project.results["uncertainty_display_method"] = method
+                project.results[ResultKey.UNCERTAINTY_DISPLAY_METHOD] = method
                 break
 
 
 def available_methods(project) -> tuple[str, ...]:
     """Methods recorded for at least one spectrum still in this project."""
-    reports = project.results.get("uncertainty_reports_by_curve", {})
+    reports = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {})
     names = {method for curve in project.curves for method in reports.get(curve.id, {})}
     return tuple(method for method in DISPLAY_METHODS if method in names)
 
 
 def display_method(project) -> str | None:
     """Resolve one display method for the whole project without changing it."""
-    method = project.results.get("uncertainty_display_method")
+    method = project.results.get(ResultKey.UNCERTAINTY_DISPLAY_METHOD)
     if method in DISPLAY_METHODS:
         return method
     available = available_methods(project)
@@ -73,7 +74,7 @@ def display_method(project) -> str | None:
 
 def selected_method(project, curve_id: str) -> str | None:
     method = display_method(project)
-    reports = project.results.get("uncertainty_reports_by_curve", {}).get(curve_id, {})
+    reports = project.results.get(ResultKey.UNCERTAINTY_REPORTS_BY_CURVE, {}).get(curve_id, {})
     return method if method in reports else None
 
 
@@ -91,7 +92,7 @@ def recorded_analysis_error(project, curve_id: str, path: str) -> tuple[float, f
     method = selected_method(project, curve_id)
     if method is None:
         return None
-    record = project.results["uncertainty_reports_by_curve"][curve_id][method]
+    record = project.results[ResultKey.UNCERTAINTY_REPORTS_BY_CURVE][curve_id][method]
     baseline = record.get("baseline", {})
     if background_uncertainty_record(baseline):
         return None  # These offsets must not be exported beside a different fit value.
