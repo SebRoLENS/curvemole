@@ -207,7 +207,7 @@ class CurveMoleMainWindow(MainWindow):
                     and not already_prompted
                     and os.environ.get("CURVEMOLE_SMOKE_TEST") != "1"
                 ):
-                    QTimer.singleShot(750, self._offer_linux_desktop_integration)
+                    QTimer.singleShot(750, self, self._offer_linux_desktop_integration)
         from curvemole.gui.function_composition import sync_composition
         sync_composition(self)
 
@@ -402,7 +402,7 @@ def run_primary(app, paths, instance, file_open_filter) -> int:
         if window._startup_pending:
             window.plugins_ready.connect(lambda: window.show_recovery_sessions(startup=True))
         else:
-            QTimer.singleShot(0, lambda: window.show_recovery_sessions(startup=True))
+            QTimer.singleShot(0, window, lambda: window.show_recovery_sessions(startup=True))
     return app.exec()
 
 

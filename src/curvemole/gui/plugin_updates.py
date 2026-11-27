@@ -213,7 +213,7 @@ class PluginUpdateController(QObject):
         self._refresh()
         if self.dialog.parent() is not self.window and self.dialog.parent().isModal():
             if check:
-                QTimer.singleShot(0, self.check)
+                QTimer.singleShot(0, self, self.check)
             self.dialog.exec()
         else:
             self.dialog.show()
@@ -331,7 +331,7 @@ class PluginUpdateController(QObject):
             self.catalog_folder.setText(directory)
         self._refresh_catalog()
         if self.catalog_dialog.parent() is not self.window and self.catalog_dialog.parent().isModal():
-            QTimer.singleShot(0, self.check_catalog)
+            QTimer.singleShot(0, self, self.check_catalog)
             self.catalog_dialog.exec()
         else:
             self.catalog_dialog.show()

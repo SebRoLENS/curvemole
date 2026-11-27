@@ -104,14 +104,12 @@ def test_fit_completion_refreshes_and_auto_ranges(monkeypatch: pytest.MonkeyPatc
     app.processEvents()
 
 
-def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
-    from PySide6.QtCore import QTimer
-
+def test_remove_button_handles_same_named_spectra_and_preserves_notebook(monkeypatch):
     from curvemole.core.data import Series
     from curvemole.core.notebook import description_key
     from curvemole.gui.app import CurveMoleMainWindow
 
-    app = QApplication.instance() or QApplication([])
+    QApplication.instance() or QApplication([])
     project = Project("remove duplicates")
     first = Curve("same", [0., 1.], [0., 1.])
     second = Curve("same", [0., 1.], [1., 0.])
@@ -124,13 +122,13 @@ def test_remove_button_handles_same_named_spectra_and_preserves_notebook():
     window._set_active_curve(second.id)
     confirmations = []
 
-    def confirm():
-        box = app.activeModalWidget()
-        if isinstance(box, QMessageBox):
-            confirmations.append(box.text())
-            box.button(QMessageBox.StandardButton.Yes).click()
+    def confirm(_parent, _title, text, *args, **kwargs):
+        # Answer without spinning a nested modal event loop (issue #143): events
+        # left over from earlier tests could otherwise be delivered inside it.
+        confirmations.append(text)
+        return QMessageBox.StandardButton.Yes
 
-    QTimer.singleShot(0, confirm)
+    monkeypatch.setattr(QMessageBox, "question", confirm)
     window.remove_curves_button.click()
     assert confirmations and "can be undone" in confirmations[0]
     assert [curve.id for curve in project.curves] == [first.id]

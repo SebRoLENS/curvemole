@@ -36,6 +36,7 @@ def _data_item_clicked(
     # the requested autoscale.
     QTimer.singleShot(
         0,
+        window,
         lambda: _apply_clicked_data_autoscale(window, kind, item_id),
     )
 

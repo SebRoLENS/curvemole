@@ -335,6 +335,6 @@ class PluginHost:
             None if unclean else load_failures,
         )
         if unclean or problems:
-            QTimer.singleShot(0, lambda: QMessageBox.warning(
+            QTimer.singleShot(0, self.window, lambda: QMessageBox.warning(
                 self.window, "Plugin recovery", "Some plugins are disabled. CurveMole can be used normally.\n"
                 "Open File → Plugin Manager to review, enable or remove them.\n\n" + "\n".join(problems)))

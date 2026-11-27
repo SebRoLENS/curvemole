@@ -59,6 +59,11 @@ def release_closed_gui_windows():
         return
     from PySide6.QtCore import QCoreApplication, QEvent
 
+    # Deliver this test's pending events now, while its objects still exist.
+    # Otherwise they can surface inside a later test's nested modal event loop
+    # and touch destroyed widgets (intermittent order-dependent crash, #143).
+    QCoreApplication.sendPostedEvents()
+    QCoreApplication.processEvents()
     for window in widgets.QApplication.topLevelWidgets():
         if isinstance(window, main_window.MainWindow) and window._session_finished:
             window.deleteLater()

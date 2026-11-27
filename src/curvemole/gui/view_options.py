@@ -213,7 +213,7 @@ class ViewOptionsController(QObject):
 
     def _rebuild_later(self):
         if self.menu.isVisible():
-            QTimer.singleShot(0, self.rebuild_menu)
+            QTimer.singleShot(0, self, self.rebuild_menu)
 
     def _set_scope(self, scope):
         self.scope = scope

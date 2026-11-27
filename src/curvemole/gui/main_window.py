@@ -1178,7 +1178,7 @@ class MainWindow(QMainWindow):
     def _queue_tool_tab_refresh(self) -> None:
         if not self._tab_refresh_pending:
             self._tab_refresh_pending = True
-            QTimer.singleShot(0, self._configure_tool_tabs)
+            QTimer.singleShot(0, self, self._configure_tool_tabs)
 
     def _configure_tool_tabs(self) -> None:
         self._tab_refresh_pending = False
