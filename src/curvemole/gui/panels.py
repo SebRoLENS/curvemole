@@ -330,10 +330,6 @@ class ModelPanel(QWidget):
             self._updating = False
         self.refresh_parameters()
 
-    def selected_component_id(self) -> str | None:
-        item = self.components.currentItem()
-        return str(item.data(Qt.ItemDataRole.UserRole)) if item else None
-
     def _show_uncertainty_menu(self, section: int) -> None:
         if section != 3 or not self.display_method.isEnabled():
             return
@@ -570,26 +566,6 @@ class ModelPanel(QWidget):
         except Exception:
             return expression
 
-    def _component_selected(self, current: QListWidgetItem | None, previous: QListWidgetItem | None) -> None:
-        if self._updating or current is None:
-            return
-        component_id = str(current.data(Qt.ItemDataRole.UserRole))
-        self.refresh_parameters()
-        self.componentSelected.emit(component_id)
-
-    def _component_enabled(self, item: QListWidgetItem) -> None:
-        if self._updating:
-            return
-        self.enabledRequested.emit(
-            str(item.data(Qt.ItemDataRole.UserRole)), item.checkState() == Qt.CheckState.Checked
-        )
-
-    def _background_toggled(self, marked: bool) -> None:
-        if self._updating:
-            return
-        if component_id := self.selected_component_id():
-            self.backgroundRequested.emit(component_id, marked)
-
     def _parameter_changed(self, item: QTableWidgetItem) -> None:
         if self._updating:
             return
@@ -621,23 +597,6 @@ class ModelPanel(QWidget):
             self.refresh_parameters()
             return
         self.parameterChangeRequested.emit(component_id, name, field, value)
-
-    def _bulk_fixed(self, fixed: bool) -> None:
-        if component_id := self.selected_component_id():
-            self.bulkFixedRequested.emit(component_id, fixed)
-
-    def _duplicate(self) -> None:
-        if component_id := self.selected_component_id():
-            self.duplicateRequested.emit(component_id)
-
-    def _delete(self) -> None:
-        if component_id := self.selected_component_id():
-            self.deleteRequested.emit(component_id)
-
-    def _move(self, delta: int) -> None:
-        if component_id := self.selected_component_id():
-            self.moveRequested.emit(component_id, delta)
-
 
 class _CalculatorValue(QDoubleSpinBox):
     def textFromValue(self, value: float) -> str:

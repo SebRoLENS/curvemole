@@ -76,7 +76,6 @@ from PySide6.QtWidgets import (
 from shiboken6 import getCppPointer
 
 from curvemole.core.calculator import (
-    apply_background_subtraction,
     apply_column_formula,
     apply_curve_operation,
     apply_custom_formula,
@@ -96,8 +95,6 @@ from curvemole.core.fitting import (
 from curvemole.core.importers import ImportColumnError, ImportPreview, import_file
 from curvemole.core.initialization import (
     PeakSuggestion,
-    component_from_suggestion,
-    find_peak_suggestions,
     initialise_peak_component,
     initialise_spline_component,
 )
@@ -127,12 +124,13 @@ from curvemole.gui.colours import (
 from curvemole.gui.dialogs import (
     AboutDialog,
     AddComponentDialog,
-    BackgroundComponentsDialog,
+    # Public injection point: background subtraction resolves its dialog through
+    # this module so plugins and tests can substitute it.
+    BackgroundComponentsDialog,  # noqa: F401
     CopyFitDialog,
     ExportBundleDialog,
     FitPlanDialog,
     ImportMappingDialog,
-    ParameterLinkDialog,
     PluginManagerDialog,
 )
 from curvemole.gui.dock_collapse import DockCollapseControls, DockViewport
@@ -150,7 +148,6 @@ from curvemole.gui.plot import PlotWorkspace
 from curvemole.gui.plot_appearance import PlotAppearanceDialog, normalize_plot_appearance
 from curvemole.gui.row_drag import RowDragMixin, RowDrop, row_block_order
 from curvemole.gui.task_thread import TaskThread
-from curvemole.gui.transformation_undo import redo_transformation, undo_transformation
 from curvemole.gui.updates import semantic_version as _semantic_version  # noqa: F401
 from curvemole.gui.updates import update_kind as _update_kind  # noqa: F401
 from curvemole.gui.windowing import transient_widget
@@ -2404,40 +2401,6 @@ class MainWindow(QMainWindow):
             except Exception as exc:
                 self._show_error(self.tr("Add component"), exc)
 
-    def quick_peak(self) -> None:
-        if not self._ensure_editable():
-            return
-        if not self.active_curve_id:
-            self._notify(self.tr("Activate a curve first."), warning=True)
-            return
-        self.plot_workspace.cancel_placement()
-        try:
-            function_id = self._quick_peak_function_id()
-            definition = self.registry.get(function_id)
-            component = Component.create(function_id, registry=self.registry)
-            self.last_peak_function_id = function_id
-            self.settings.setValue("last_peak_function", function_id)
-            self._pending_component = component
-            self._pending_component_curve_id = self.active_curve_id
-            self.plot_workspace.begin_peak_placement(definition.display_name)
-            self._notify(
-                self.tr("Quick Peak: click the peak centre and drag horizontally to set its initial FWHM.")
-            )
-        except Exception as exc:
-            self._show_error(self.tr("Quick Peak"), exc)
-
-    def _quick_peak_function_id(self) -> str:
-        try:
-            definition = self.registry.get(self.last_peak_function_id)
-            if definition.kind == "peak":
-                return definition.identifier
-        except (KeyError, ValueError):
-            pass
-        for definition in self.registry.values():
-            if definition.kind == "peak":
-                return definition.identifier
-        raise ValueError(self.tr("No peak function is available in the current registry."))
-
     def _graphical_peak_placed(self, centre: float, _: float, fwhm: float) -> None:
         component = self._pending_component
         curve_id = self._pending_component_curve_id
@@ -2581,38 +2544,6 @@ class MainWindow(QMainWindow):
         self.selected_component_id = component.id
         self._push_model_state(curve_id, before, after, self.tr("Add component"))
 
-    def duplicate_component(self, component_id: str) -> None:
-        created_id: list[str] = []
-
-        def operation(model: Model) -> None:
-            duplicate = model.duplicate(component_id)
-            self._assign_component_name(
-                duplicate, model, exclude_component_id=duplicate.id
-            )
-            created_id.append(duplicate.id)
-
-        self._model_mutation(self.tr("Duplicate component"), operation)
-        if created_id:
-            self.selected_component_id = created_id[-1]
-            self.refresh_all()
-
-    def delete_component(self, component_id: str) -> None:
-        answer = QMessageBox.question(
-            self,
-            self.tr("Delete component"),
-            self.tr("Delete the selected component? This action can be undone."),
-        )
-        if answer == QMessageBox.StandardButton.Yes:
-            self._model_mutation(self.tr("Delete component"), lambda model: model.remove(component_id))
-            self.selected_component_id = None
-
-    def move_component(self, component_id: str, delta: int) -> None:
-        if not self.active_curve_id:
-            return
-        model = self.project.model_for(self.active_curve_id)
-        index = next((i for i, item in enumerate(model.components) if item.id == component_id), 0)
-        self._model_mutation(self.tr("Reorder component"), lambda value: value.move(component_id, index + delta))
-
     def move_function_row(
         self, curve_id: str, sources: str | tuple[tuple[str, str], ...], target_id: str, after: bool,
     ) -> None:
@@ -2656,38 +2587,6 @@ class MainWindow(QMainWindow):
             modified_curve_ids=set(),
         )
 
-    def enable_component(self, component_id: str, enabled: bool) -> None:
-        if not self.active_curve_id:
-            return
-        curve_id = self.active_curve_id
-        component = self.project.model_for(curve_id).component(component_id)
-        old = component.enabled
-        def assign(value):
-            self.project.model_for(curve_id).component(component_id).enabled = value
-        self._push_change(
-            self.tr("Enable/disable component"),
-            lambda: assign(enabled),
-            lambda: assign(old),
-            modified_curve_ids={curve_id},
-        )
-
-    def set_component_background(self, component_id: str, marked: bool) -> None:
-        if not self.active_curve_id:
-            return
-        curve_id = self.active_curve_id
-        component = self.project.model_for(curve_id).component(component_id)
-        old = component.is_background
-        if old == bool(marked):
-            return
-        def assign(value):
-            self.project.model_for(curve_id).component(component_id).is_background = value
-        self._push_change(
-            self.tr("Mark background") if marked else self.tr("Unmark background"),
-            lambda: assign(bool(marked)),
-            lambda: assign(old),
-            modified_curve_ids={curve_id},
-        )
-
     def _can_fix_parameter(self, curve_id: str, component_id: str, name: str) -> bool:
         component = self.project.model_for(curve_id).component(component_id)
         parameter = component.parameters[name]
@@ -2699,12 +2598,6 @@ class MainWindow(QMainWindow):
         ).format(parameter=f"{component.name}.{name}")))
         self.model_panel.refresh_parameters()
         return False
-
-    def change_parameter(self, component_id: str, name: str, field: str, value: Any) -> None:
-        if not self.active_curve_id:
-            return
-        curve_id = self.active_curve_id
-        self._change_parameter_for_curve(curve_id, component_id, name, field, value)
 
     def _change_parameter_for_curve(self, curve_id, component_id, name, field, value) -> None:
         """One validation and undo path for single and multi-spectrum editors."""
@@ -2731,53 +2624,6 @@ class MainWindow(QMainWindow):
             lambda: assign(old),
             modified_curve_ids={curve_id},
         )
-
-    def set_component_fixed(self, component_id: str, fixed: bool) -> None:
-        if not self.active_curve_id:
-            return
-        curve_id = self.active_curve_id
-        component = self.project.model_for(curve_id).component(component_id)
-        if fixed and any(not self._can_fix_parameter(curve_id, component_id, name)
-                         for name in component.parameters):
-            return
-        before = {name: parameter.fixed for name, parameter in component.parameters.items()}
-        after = {name: bool(fixed) for name in component.parameters}
-        if before == after:
-            return
-
-        def restore(values: dict[str, bool]) -> None:
-            component = self.project.model_for(curve_id).component(component_id)
-            for name, value in values.items():
-                component.parameters[name].fixed = value
-
-        text = self.tr("Lock all parameters") if fixed else self.tr("Unlock all parameters")
-        self._push_change(text, lambda: restore(after), lambda: restore(before),
-                          modified_curve_ids={curve_id})
-
-    def edit_parameter_link(self, component_id: str, name: str) -> None:
-        if not self.active_curve_id:
-            return
-        parameter = self.project.model_for(self.active_curve_id).component(component_id).parameters[name]
-        with transient_widget(ParameterLinkDialog(
-            self.project,
-            self.active_curve_id,
-            component_id,
-            name,
-            parameter.link,
-            self,
-            current_scope=parameter.link_scope,
-            current_reference_scopes=parameter.link_reference_scopes,
-            current_relation=parameter.link_relation,
-            current_tolerance=parameter.link_tolerance,
-            current_tolerance_mode=parameter.link_tolerance_mode,
-        )) as dialog:
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            self.apply_parameter_link(self.active_curve_id, component_id, name,
-                                      dialog.selected_link(), dialog.selected_link_scope(),
-                                      reference_scopes=dialog.selected_reference_scopes(),
-                                      relation=dialog.selected_relation(), tolerance=dialog.selected_tolerance(),
-                                      tolerance_mode=dialog.selected_tolerance_mode())
 
     def apply_parameter_link(self, curve_id: str, component_id: str, name: str,
                              link: str | None, scope: str, *,
@@ -2933,130 +2779,6 @@ class MainWindow(QMainWindow):
             )
             if next_id in targets:
                 self._set_active_curve(next_id)
-
-    def subtract_background(self) -> None:
-        if not self._ensure_editable():
-            return
-        if not self.active_curve_id:
-            self._notify(self.tr("Activate a curve first."), warning=True)
-            return
-        curve_id = self.active_curve_id
-        curve = self.project.dataset.curve(curve_id)
-        model = self.project.model_for(curve_id)
-        if not model.components:
-            self._notify(
-                self.tr("Add at least one model function before subtracting a background."),
-                warning=True,
-            )
-            return
-
-        with transient_widget(BackgroundComponentsDialog(self.project, curve_id, self.registry, self)) as dialog:
-            if dialog.exec() != dialog.DialogCode.Accepted:
-                return
-            component_ids = dialog.selected_component_ids()
-            if not component_ids:
-                self._notify(self.tr("Select at least one background function."), warning=True)
-                return
-
-            selected = [model.component(component_id) for component_id in component_ids]
-            try:
-                background = model.background(
-                    curve.x,
-                    curve_id=curve_id,
-                    values=self.project.resolved_parameter_values(),
-                    registry=self.registry,
-                    component_ids=set(component_ids),
-                )
-            except Exception as exc:
-                self._show_error(self.tr("Subtract background"), exc)
-                return
-            if not np.all(np.isfinite(background)):
-                self._notify(
-                    self.tr("The selected background functions produce non-finite values."),
-                    warning=True,
-                )
-                return
-
-            states_before = {
-                component.id: (component.is_background, component.enabled)
-                for component in selected
-            }
-            states_after = {component.id: (True, False) for component in selected}
-            transformation = apply_background_subtraction(
-                curve,
-                background,
-                method="model_components",
-                description=self.tr("Subtract marked model background"),
-                parameters={
-                    "component_ids": list(component_ids),
-                    "component_names": [component.name for component in selected],
-                },
-            )
-            curve.undo_transformation()
-
-            def restore_states(states: dict[str, tuple[bool, bool]]) -> None:
-                model = self.project.model_for(curve_id)
-                for component_id, (marked, enabled) in states.items():
-                    component = model.component(component_id)
-                    component.is_background = marked
-                    component.enabled = enabled
-
-            def redo() -> None:
-                redo_transformation(self.project.dataset.curve(curve_id), transformation)
-                restore_states(states_after)
-
-            def undo() -> None:
-                undo_transformation(self.project.dataset.curve(curve_id), transformation)
-                restore_states(states_before)
-
-            self._push_change(self.tr("Subtract background"), redo, undo)
-            self._notify(
-                self.tr("Background subtracted. Selected background functions were disabled to avoid double-counting.")
-            )
-
-    def find_peaks(self) -> None:
-        if not self._ensure_editable():
-            return
-        if not self.active_curve_id:
-            return
-        curve = self.project.dataset.curve(self.active_curve_id)
-        labels = [self.tr("Positive (default)"), self.tr("Negative"), self.tr("Both signs")]
-        selected_sign, accepted = QInputDialog.getItem(
-            self,
-            self.tr("Find Peaks — Advanced"),
-            self.tr("Peak sign:"),
-            labels,
-            0,
-            False,
-        )
-        if not accepted:
-            return
-        sign = {
-            labels[0]: "positive",
-            labels[1]: "negative",
-            labels[2]: "both",
-        }[selected_sign]
-        suggestions = find_peak_suggestions(curve, sign=sign)
-        if not suggestions:
-            self._notify(self.tr("No positive peak suggestion met the automatic threshold."), warning=True)
-            return
-        count, ok = QInputDialog.getInt(
-            self,
-            self.tr("Find Peaks"),
-            self.tr("Suggested peaks found: ") + f"{len(suggestions)}\n" + self.tr("How many should be added?"),
-            min(1, len(suggestions)),
-            1,
-            len(suggestions),
-        )
-        if not ok:
-            return
-        model = self.project.model_for(self.active_curve_id)
-        before = model.to_dict()
-        for suggestion in suggestions[:count]:
-            model.add(component_from_suggestion(suggestion, "gaussian", registry=self.registry))
-        after = model.to_dict()
-        self.project.models[self.active_curve_id] = Model.from_dict(before)
-        self._push_model_state(self.active_curve_id, before, after, self.tr("Add suggested peaks"))
 
     def start_fit(self) -> None:
         if not self._ensure_editable():
@@ -4814,20 +4536,6 @@ class MainWindow(QMainWindow):
         self.project.dataset.curve(curve_id).name = name
         self.project.touch()
         self.refresh_all()
-
-    def _set_component(self, component_id: str) -> None:
-        editor = getattr(self, "_function_point_editor", None)
-        if editor is not None and editor.active and component_id != editor.draft.id:
-            self.plot_workspace.cancel_placement()
-        self.selected_component_id = component_id
-        self.model_panel.refresh(component_id)
-        self.copy_fit_next_action.setEnabled(self.model_panel.copy_fit_next_button.isEnabled())
-        self.plot_workspace.set_context(
-            self.project,
-            self.active_curve_id,
-            self.curve_tree.selected_curve_ids(),
-            component_id,
-        )
 
     def _set_component_on_curve(self, curve_id: str, component_id: str) -> None:
         model = self.project.models.get(curve_id)

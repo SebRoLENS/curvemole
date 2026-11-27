@@ -511,7 +511,9 @@ def import_custom_function(path: str | Path) -> Any:
         raise CurveMoleError(f"Cannot read custom function '{source}': {exc}") from exc
     if payload.get("format") != "CurveMole custom function" or payload.get("schema_version") != 1:
         raise CurveMoleError("Unsupported custom-function file.")
-    return formula_definition(
+    from curvemole.core.peak_roles import attach_roles
+
+    definition = formula_definition(
         str(payload["identifier"]),
         str(payload["display_name"]),
         str(payload["formula"]),
@@ -520,6 +522,7 @@ def import_custom_function(path: str | Path) -> Any:
         bounds={key: tuple(value) for key, value in payload.get("bounds", {}).items()},
         derived_formulas=payload.get("derived_formulas"),
     )
+    return attach_roles(definition, payload.get("peak_roles"))
 
 
 def _distribution_version(entry_point: importlib.metadata.EntryPoint) -> str:

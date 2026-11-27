@@ -162,6 +162,9 @@ def run_workflow(
             bounds={key: tuple(value) for key, value in custom.get("bounds", {}).items()},
             derived_formulas=custom.get("derived", {}),
         )
+        from curvemole.core.peak_roles import attach_roles
+
+        attach_roles(definition, custom.get("peak_roles"))
         registry.register_custom(definition, replace=True)
         custom_specs.append({
             "identifier": custom["identifier"],
@@ -171,6 +174,7 @@ def run_workflow(
             "defaults": dict(custom.get("defaults", {})),
             "bounds": dict(custom.get("bounds", {})),
             "derived_formulas": dict(custom.get("derived", {})),
+            **({"peak_roles": dict(custom["peak_roles"])} if "peak_roles" in custom else {}),
         })
     manager = PluginManager(registry, trusted_identifiers=trust_plugins)
     for plugin_path in workflow.get("plugins", []):
@@ -367,6 +371,7 @@ def dump_workflow(project: Project, path: str | Path) -> Path:
                 "defaults": spec.get("defaults", {}),
                 "bounds": spec.get("bounds", {}),
                 "derived": spec.get("derived_formulas", spec.get("derived", {})),
+                **({"peak_roles": dict(spec["peak_roles"])} if spec.get("peak_roles") else {}),
             }
             for spec in project.custom_functions
         ]

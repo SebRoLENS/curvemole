@@ -25,7 +25,7 @@ def test_live_preview_errors_from_other_curves_do_not_fail_the_fit(monkeypatch):
     project.model_for(b.id).add(second)
     linked = project.model_for(b.id).component(second.id).parameters["area"]
     linked.maximum = 1.5  # A's fitted area exceeds B's bound while A is still running
-    linked.link = "${%s.%s.area}" % (a.id, first.id)
+    linked.link = f"${{{a.id}.{first.id}.area}}"
     linked.link_scope = "absolute"
     linked.validate()
     window = MainWindow(project)

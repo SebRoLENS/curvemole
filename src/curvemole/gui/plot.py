@@ -227,7 +227,7 @@ def _label_offset(placed, left, top, right, bottom, step, limit):
     bottom - its top). Merging those intervals finds the answer in one sweep
     instead of re-testing every label at every trial step.
     """
-    forbidden = sorted((top - b, bottom - t) for l, t, r, b in placed if l < right and left < r)
+    forbidden = sorted((top - b, bottom - t) for lo, t, r, b in placed if lo < right and left < r)
     merged: list[list[float]] = []
     for low, high in forbidden:
         if merged and low < merged[-1][1]:
@@ -527,23 +527,6 @@ class PlotWorkspace(QWidget):
             self._project.ui_state["plot_appearance"] = dict(self._plot_appearance)
         self._sync_function_style_control()
         self._apply_grid_appearance()
-        self.refresh()
-
-    def _sync_function_style_control(self) -> None:
-        value = str(self._plot_appearance.get("function_style", "lines"))
-        index = self.function_style_mode.findData(value)
-        self.function_style_mode.blockSignals(True)
-        self.function_style_mode.setCurrentIndex(index if index >= 0 else 0)
-        self.function_style_mode.blockSignals(False)
-
-    def _function_style_changed(self, *_: Any) -> None:
-        value = self.function_style_mode.currentData()
-        if value is None:
-            return
-        self._plot_appearance["function_style"] = str(value)
-        self._plot_appearance = normalize_plot_appearance(self._plot_appearance)
-        if self._project is not None:
-            self._project.ui_state["plot_appearance"] = dict(self._plot_appearance)
         self.refresh()
 
     def _apply_grid_appearance(self) -> None:

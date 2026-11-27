@@ -180,6 +180,12 @@ def initialise_peak_component(
     definition = registry.get(component.function_id)
     if definition.kind != "peak":
         raise DataValidationError(f"'{definition.display_name}' is not a peak function.")
+    from curvemole.core.peak_roles import has_roles, initialise_from_roles
+
+    if has_roles(definition):
+        # Explicit roles declared in the Function Builder take precedence over
+        # the legacy guesses from parameter names below.
+        return initialise_from_roles(component, suggestion, definition)
     if component.function_id in {"gaussian", "lorentzian", "voigt", "pseudo_voigt"}:
         estimated = component_from_suggestion(
             suggestion,

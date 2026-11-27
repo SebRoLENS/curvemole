@@ -8,61 +8,23 @@ name-based initialiser when no role metadata is present.
 
 from __future__ import annotations
 
-import json
-import math
 import re
-from pathlib import Path
 from typing import Any
 
-import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QComboBox, QLabel, QMessageBox, QTableWidget, QTableWidgetItem
 
-import curvemole.core.initialization as initialization_module
-import curvemole.core.plugins as plugins_module
-import curvemole.gui.main_window as main_window_module
 import curvemole.gui.quick_function_library as quick_library
 from curvemole.core.expressions import expression_parameters
 from curvemole.core.functions import formula_definition
-from curvemole.core.initialization import PeakSuggestion
-from curvemole.core.models import Component
+from curvemole.core.peak_roles import ROLE_CHOICES as _ROLE_CHOICES  # noqa: E402
 from curvemole.core.plugins import export_custom_function
-from curvemole.core.registry import FunctionRegistry, default_registry
+from curvemole.core.registry import FunctionRegistry
 from curvemole.gui.main_window import MainWindow
 from curvemole.gui.panels import FunctionBuilderPanel
 
-_ROLE_CHOICES = (
-    ("", "Not specified"),
-    ("center", "Peak position / centre"),
-    ("height", "Peak height"),
-    ("area", "Peak area / integral"),
-    ("fwhm", "FWHM (full width at half maximum)"),
-    ("sigma", "Gaussian sigma (standard deviation)"),
-    ("hwhm", "HWHM / gamma (half width at half maximum)"),
-)
-_ALLOWED_ROLES = {identifier for identifier, _ in _ROLE_CHOICES if identifier}
-_MISSING = object()
-
 _ORIGINAL_PANEL_INIT = FunctionBuilderPanel.__init__
 _ORIGINAL_PANEL_VALIDATE = FunctionBuilderPanel._validate
-_ORIGINAL_INITIALISE_PEAK = initialization_module.initialise_peak_component
-_ORIGINAL_IMPORT_CUSTOM_FUNCTION = plugins_module.import_custom_function
-_ORIGINAL_LOAD_CUSTOM_FUNCTIONS = MainWindow._load_custom_functions
-
-
-def _sanitise_roles(value: Any, parameter_names: set[str] | None = None) -> dict[str, str]:
-    if not isinstance(value, dict):
-        return {}
-    result: dict[str, str] = {}
-    for raw_name, raw_role in value.items():
-        name = str(raw_name)
-        role = str(raw_role)
-        if role not in _ALLOWED_ROLES:
-            continue
-        if parameter_names is not None and name not in parameter_names:
-            continue
-        result[name] = role
-    return result
 
 
 def _roles_from_table(panel: FunctionBuilderPanel) -> dict[str, str]:
@@ -293,98 +255,6 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
         QMessageBox.warning(panel, panel.tr("Function Builder"), str(exc))
 
 
-def _set_role_value(component: Component, name: str | None, value: float) -> None:
-    if name is None or name not in component.parameters:
-        return
-    parameter = component.parameters[name]
-    parameter.value = min(max(float(value), parameter.minimum), parameter.maximum)
-
-
-def _initialise_peak_component(
-    component: Component,
-    suggestion: PeakSuggestion,
-    *,
-    registry: FunctionRegistry | None = None,
-) -> Component:
-    registry = registry or default_registry()
-    definition = registry.get(component.function_id)
-    raw_roles = definition.custom_metadata.get("peak_roles", _MISSING)
-    if raw_roles is _MISSING:
-        # Backward compatibility for custom functions created before explicit roles existed.
-        return _ORIGINAL_INITIALISE_PEAK(component, suggestion, registry=registry)
-    if definition.kind != "peak":
-        return _ORIGINAL_INITIALISE_PEAK(component, suggestion, registry=registry)
-
-    roles = _sanitise_roles(raw_roles, set(component.parameters))
-    by_role = {role: name for name, role in roles.items()}
-
-    _set_role_value(component, by_role.get("center"), suggestion.x)
-    _set_role_value(component, by_role.get("fwhm"), suggestion.fwhm)
-    _set_role_value(component, by_role.get("sigma"), suggestion.fwhm / 2.354820045)
-    _set_role_value(component, by_role.get("hwhm"), suggestion.fwhm / 2)
-
-    height_name = by_role.get("height")
-    area_name = by_role.get("area")
-    if height_name is not None:
-        _set_role_value(component, height_name, suggestion.height)
-    elif area_name is not None:
-        area_parameter = component.parameters[area_name]
-        unit_scale = min(max(1.0, area_parameter.minimum), area_parameter.maximum)
-        area_parameter.value = unit_scale
-        values = {name: parameter.value for name, parameter in component.parameters.items()}
-        unit_height = float(
-            definition.evaluate(np.asarray([suggestion.x], dtype=float), values, component.metadata)[0]
-        )
-        if math.isfinite(unit_height) and unit_height != 0:
-            _set_role_value(
-                component,
-                area_name,
-                suggestion.height / unit_height * unit_scale,
-            )
-
-    for parameter in component.parameters.values():
-        parameter.validate()
-    return component
-
-
-def _import_custom_function(path: str | Path) -> Any:
-    definition = _ORIGINAL_IMPORT_CUSTOM_FUNCTION(path)
-    if definition.kind != "peak":
-        return definition
-    try:
-        payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return definition
-    if "peak_roles" in payload:
-        names = {spec.name for spec in definition.specs({})}
-        definition.custom_metadata["peak_roles"] = _sanitise_roles(
-            payload.get("peak_roles"), names
-        )
-    return definition
-
-
-def _load_custom_functions(window: MainWindow) -> None:
-    _ORIGINAL_LOAD_CUSTOM_FUNCTIONS(window)
-    # The historical project loader rebuilds formula definitions from known fields.
-    # Reattach explicit roles for portable project-contained functions when the
-    # loaded definition still corresponds to the same formula.
-    for value in window.project.custom_functions:
-        if "peak_roles" not in value:
-            continue
-        try:
-            definition = window.registry.get(str(value["identifier"]))
-        except Exception:
-            continue
-        if definition.kind != "peak":
-            continue
-        if definition.custom_metadata.get("formula") != value.get("formula"):
-            continue
-        names = {spec.name for spec in definition.specs({})}
-        definition.custom_metadata["peak_roles"] = _sanitise_roles(
-            value.get("peak_roles"), names
-        )
-
-
 def _install() -> None:
     if getattr(MainWindow, "_curvemole_peak_parameter_roles", False):
         return
@@ -394,14 +264,8 @@ def _install() -> None:
     FunctionBuilderPanel._add = _builder_add
     FunctionBuilderPanel.peak_parameter_roles = _roles_from_table
 
-    initialization_module.initialise_peak_component = _initialise_peak_component
-    main_window_module.initialise_peak_component = _initialise_peak_component
-    quick_library.initialise_peak_component = _initialise_peak_component
-
-    plugins_module.import_custom_function = _import_custom_function
-    quick_library.import_custom_function = _import_custom_function
-
-    MainWindow._load_custom_functions = _load_custom_functions
+    # Role-based initialisation, import and project loading live in
+    # curvemole.core.peak_roles, so the core functions are never replaced here.
     MainWindow._curvemole_peak_parameter_roles = True
 
 

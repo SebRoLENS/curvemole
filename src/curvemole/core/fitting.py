@@ -565,6 +565,7 @@ class _Problem:
         # Keep numerical-difference probes out of the solver's nfev budget.
         # Use SciPy's bound-aware two-point routine, as least_squares does.
         from scipy.optimize._numdiff import approx_derivative
+
         from curvemole.core.models import ComponentCache
 
         cache = ComponentCache()

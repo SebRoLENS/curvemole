@@ -1,4 +1,13 @@
-"""Qt desktop client for the CurveMole scientific engine."""
+"""Qt desktop client for the CurveMole scientific engine.
+
+The modules below extend MainWindow, PlotWorkspace and the panels when they are
+imported. Their ORDER IS SIGNIFICANT: several wrap a method that an earlier one
+installed (for example sequential_propagation_options wraps a FitPlanDialog
+method added by sequential_fit_ui). The list is therefore kept in this explicit
+order rather than sorted automatically; append new extensions at the end and
+see tests/test_gui_composition.py.
+"""
+# isort: skip_file
 
 # Apply Autoscale after mouse-driven data navigation once Qt has finished the
 # current selection/current-item event sequence.
@@ -111,3 +120,9 @@ from curvemole.gui import windows_update_fix as _windows_update_fix  # noqa: F40
 from curvemole.gui import (  # noqa: F401,E402
     windows_update_powershell_compat as _windows_update_powershell_compat,
 )
+
+# The application module installs further PlotWorkspace behaviour (view-preserving
+# refresh, continuous peak placement, manual points). Import it here so every
+# MainWindow, including those built by tests and plugins, has the same behaviour
+# as the desktop application, whether or not gui.app was imported explicitly.
+from curvemole.gui import app as _app  # noqa: F401,E402

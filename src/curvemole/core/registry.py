@@ -50,6 +50,9 @@ class FunctionRegistry:
                 kind=value.get("kind", "generic"), defaults=value.get("defaults"),
                 bounds={key: tuple(bounds) for key, bounds in value.get("bounds", {}).items()},
                 derived_formulas=value.get("derived_formulas", {}))
+            from curvemole.core.peak_roles import attach_roles
+
+            attach_roles(definition, value.get("peak_roles"))
             probe.register_custom(definition, replace=True)
             definitions.append(definition)
         for identifier, original in self._project_originals.items():

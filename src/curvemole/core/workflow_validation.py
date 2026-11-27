@@ -35,7 +35,7 @@ _RULE_KEYS = {
     "minimum", "maximum", "fixed", "link", "link_scope", "link_reference_scopes",
     "link_relation", "link_tolerance", "link_tolerance_mode",
 }
-_CUSTOM_KEYS = {"identifier", "display_name", "formula", "kind", "defaults", "bounds", "derived"}
+_CUSTOM_KEYS = {"identifier", "display_name", "formula", "kind", "defaults", "bounds", "derived", "peak_roles"}
 _FIT_KEYS = SELECTOR_KEYS | {"mode", "settings", "spectrum_weights", "equal_contribution"}
 _EXPORT_KEYS = {"project", "bundle", "project_overwrite", "versioned", "overwrite"}
 _SELECTORS = {
