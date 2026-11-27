@@ -130,7 +130,7 @@ class RenderController:
             window._notify(f"{curve.name}: model/background evaluation failed: {message}", warning=True)
 
     def refresh(self, *args):
-        from curvemole.gui.background_navigation import (
+        from curvemole.gui.background_display import (
             _apply_background_aware_display,
             _background_cache,
             _masked_sample_renderer,

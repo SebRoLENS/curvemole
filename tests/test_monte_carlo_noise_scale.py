@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from curvemole.core.data import Curve
-from curvemole.core.fitting import FitPlan, Fitter, FitSettings
+from curvemole.core.fitting import FitPlan, FitSettings, Fitter
 from curvemole.core.models import Component, Model
 from curvemole.core.uncertainty import UncertaintyAnalyzer
 

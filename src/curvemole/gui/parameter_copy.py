@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import copy
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,8 +12,8 @@ from PySide6.QtWidgets import (
 )
 
 from curvemole.core.errors import ConstraintError
-from curvemole.core.models import Model
 from curvemole.gui.main_window import MainWindow
+from curvemole.gui.model_multiselect import _restore_models
 from curvemole.gui.panels import ModelPanel
 
 
@@ -30,11 +29,6 @@ def _component_label(window: MainWindow, ref: tuple[str, str]) -> str:
     curve = window.project.dataset.curve(curve_id)
     component = window.project.model_for(curve_id).component(component_id)
     return f"{curve.name}  ›  {component.name}"
-
-
-def _restore_models(window: MainWindow, states: dict[str, dict[str, Any]]) -> None:
-    for curve_id, state in states.items():
-        window.project.models[curve_id] = Model.from_dict(copy.deepcopy(state))
 
 
 def copy_parameter_to_refs(

@@ -8,6 +8,7 @@ import json
 import os
 import re
 import stat
+import threading
 import time
 import uuid
 from collections.abc import Iterator, Mapping
@@ -100,6 +101,9 @@ class PluginManager:
         self.session_path: Path | None = None
         self.load_timings: dict[str, float] = {}
         self._saved_payload: str | None = None
+        # Plugin callbacks also run on fit/analysis worker threads; a failure
+        # there updates this state and installed.json concurrently with the GUI.
+        self._state_lock = threading.RLock()
         if self.storage:
             self.storage.mkdir(parents=True, exist_ok=True)
             try:
@@ -135,6 +139,10 @@ class PluginManager:
             "metadata", {}).get("name") or identifier
 
     def _save(self) -> None:
+        with self._state_lock:
+            self._save_unlocked()
+
+    def _save_unlocked(self) -> None:
         if self.storage:
             payload = json.dumps(self.installed, indent=2)
             if payload == self._saved_payload:
@@ -310,10 +318,11 @@ class PluginManager:
             from curvemole.core.errors import FitCancelled
             if isinstance(exc, FitCancelled):
                 raise
-            self.errors[owner] = str(exc)
-            if owner in self.installed:
-                self.installed[owner].update(enabled=False, error=str(exc))
-                self._save()
+            with self._state_lock:
+                self.errors[owner] = str(exc)
+                if owner in self.installed:
+                    self.installed[owner].update(enabled=False, error=str(exc))
+                    self._save()
             raise CurveMoleError(f"Plugin {owner} failed and was disabled: {exc}") from exc
 
     def disable(self, identifier: str, reason: str | None = None) -> None:

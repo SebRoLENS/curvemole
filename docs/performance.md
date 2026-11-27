@@ -48,6 +48,38 @@ are removed. Transient handles, labels, masks and plugin overlays retain their
 normal refresh lifecycle. Click handlers are connected once, so repeated redraws
 do not accumulate callbacks. Display sampling does not alter scientific arrays.
 
+Component labels are hidden and reused between redraws instead of being destroyed
+and recreated, and their overlap layout computes each label's offset directly from
+the merged intervals blocked by earlier labels (one Qt geometry query per label).
+Dense monotonic lines use automatic peak-preserving downsampling in every display
+mode, including Single; it engages only when there are more samples than pixels.
+Live fit previews are throttled to at most one every
+`live_fit_progress.LIVE_PREVIEW_SECONDS` (0.15 s), and the residual Y axis follows
+new residuals unless the user zoomed it by hand.
+
+## Numerical work
+
+Worker processes for parallel fits, bootstrap, Monte Carlo and profiles start
+with one BLAS/OpenMP thread each (`process_pool.single_threaded_worker_libraries`);
+explicit user settings of `OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS` and similar
+variables are kept. Finite-difference Jacobians reuse, for every probe, the
+outputs of the components whose parameters the probe did not change
+(`models.ComponentCache`), so results are bit-for-bit identical to a full
+re-evaluation. Neumaier summation runs in reusable buffers.
+
+Measured on a 24-thread workstation (2026-11-27):
+
+| Workload | Before | After |
+|---|---|---|
+| Block bootstrap, 5k points × 8 peaks, 96 replicas, 12 workers | 9.4 s | 1.3 s |
+| 48 independent fits of 10k points, 12 workers | 17.7 s | 1.8 s |
+| Jacobian, 100k points × 30 peaks | 3.8 s | 1.0 s |
+| Sequential fit, 200 spectra × 5k points × 8 peaks | 25.6 s | 15.2 s |
+| Overlay refresh, 200 spectra × 8 labelled peaks | 39.8 s | 1.0 s |
+| Single-view refresh, 100k points × 30 components | 315 ms | 90 ms |
+| Import of a 1M-row CSV | 1.7 s | 0.9 s |
+| Project save, 100 spectra × 10k points (file size) | 3.2 s (85 MB) | 2.1 s (50 MB) |
+
 ## Measurements
 
 Measured on Linux, AMD Ryzen 9 9900X, Python 3.14.8, NumPy 2.5.3, SciPy 1.18.1,

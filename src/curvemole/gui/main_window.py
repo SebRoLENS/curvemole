@@ -2835,7 +2835,9 @@ class MainWindow(QMainWindow):
         self._fit_task_active = True
         self._cancellation = CancellationToken()
         cancellation = self._cancellation
-        fitter = Fitter(self.registry)
+        # The worker gets its own registry snapshot: disabling a plugin on the
+        # GUI thread during a running task must not change the functions it uses.
+        fitter = Fitter(self.registry.copy())
         curve_map = {curve.id: copy.deepcopy(curve) for curve in self.project.curves
                      if curve.id in plan.curve_ids}
         stream = plan.mode == FitMode.INDEPENDENT and len(plan.curve_ids) > 1
@@ -3326,7 +3328,9 @@ class MainWindow(QMainWindow):
                 self._notify(self.tr("Profile limits must be numeric, or blank for automatic."), warning=True)
                 return
             profile_lower = profile_upper = None
-        fitter = Fitter(self.registry)
+        # The worker gets its own registry snapshot: disabling a plugin on the
+        # GUI thread during a running task must not change the functions it uses.
+        fitter = Fitter(self.registry.copy())
         analyzer = UncertaintyAnalyzer(fitter,
                                        replica_timeout_seconds=replica_timeout_seconds)
         needed_ids = {cid for _, _, plan in jobs for cid in plan.curve_ids}

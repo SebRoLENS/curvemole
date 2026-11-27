@@ -154,7 +154,7 @@ class DataPointEditor(QWidget):
         self._update_selection()
 
     def _background(self, x):
-        from curvemole.gui.background_navigation import background_removed
+        from curvemole.gui.background_display import background_removed
 
         workspace = self.workspace
         if not background_removed(workspace, workspace._active_curve_id):

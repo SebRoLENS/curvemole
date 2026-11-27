@@ -758,7 +758,7 @@ class PlotWorkspace(QWidget):
         for index, curve in enumerate(curves):
             x = curve.x + index * x_step
             y = curve.y + index * y_step
-            from curvemole.gui.background_navigation import background_removed
+            from curvemole.gui.background_display import background_removed
             subtract = background_removed(self, curve.id)
             background = getattr(self, "_curvemole_background_cache", {}).get(curve.id)
             if background is None:
@@ -786,7 +786,7 @@ class PlotWorkspace(QWidget):
             item.curve_id = curve.id
             self._data_items[curve.id] = item
             if self.error_bars_toggle.isChecked():
-                from curvemole.gui.background_navigation import (
+                from curvemole.gui.background_display import (
                     background_removed,
                 )
                 from curvemole.gui.data_errors import error_bar_item
@@ -1537,7 +1537,7 @@ class PlotWorkspace(QWidget):
     def _fit_experimental_data(self, *, active_only: bool, series_id: str | None = None) -> None:
         # Never use scene/item bounds: adaptive rendering clips those to the
         # current viewport, while model extrapolation can dwarf the actual data.
-        from curvemole.gui.background_navigation import (
+        from curvemole.gui.background_display import (
             _background_array,
             _displayed_curves,
             background_removed,
