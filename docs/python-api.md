@@ -873,9 +873,10 @@ workers=1, cancellation=None, progress=None)`; `block_bootstrap` defaults to
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
   block length for each curve. Blocks never cross gaps: masked or deleted rows,
-  or a change of X spacing, split a curve into contiguous segments (calibrated
-  SPE spectra use detector-pixel adjacency instead of X spacing). If no adjacent
-  samples remain, `FitError` is raised. The configuration records `block_grid`
+  or an X jump/reversal relative to the local spacing, split a curve into
+  contiguous segments (calibrated SPE spectra use detector-pixel adjacency instead
+  of X spacing). If fewer than half of the fitted rows remain in segments of at
+  least two samples, `FitError` is raised. The configuration records `block_grid`
   and `contiguous_segments`.
 
 **Worker processes.** Resampling and profile replicas always run in a pool of

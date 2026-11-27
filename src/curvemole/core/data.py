@@ -78,6 +78,41 @@ class Mask:
     def to_dict(self) -> dict[str, Any]:
         return {"id": self.id, "name": self.name, "ranges": [list(item) for item in self.ranges]}
 
+    def current_ranges(self, x: np.ndarray) -> list[tuple[float, float]]:
+        """X intervals of the rows excluded now, in ascending X.
+
+        Stored ``ranges`` record the coordinates at masking time; they go stale
+        after X transformations or partial unmasking. Consumers that act on the
+        present data (copying, display) must use the excluded rows instead.
+        """
+        x = np.asarray(x, dtype=float)
+        finite = np.flatnonzero(np.isfinite(x))
+        if not finite.size or not np.any(self.excluded[finite]):
+            return []
+        order = finite[np.argsort(x[finite], kind="stable")]
+        flags = self.excluded[order]
+        values = x[order]
+        edges = np.diff(np.r_[0, flags.astype(np.int8), 0])
+        starts, stops = np.flatnonzero(edges == 1), np.flatnonzero(edges == -1) - 1
+        return [(float(values[start]), float(values[stop])) for start, stop in zip(starts, stops, strict=True)]
+
+    def effective_ranges(self, x: np.ndarray) -> list[tuple[float, float]]:
+        """Stored ranges while they still describe the excluded rows, else current ones.
+
+        Masks set row by row (no stored ranges) keep point semantics.
+        """
+        if not self.ranges:
+            return []
+        x = np.asarray(x, dtype=float)
+        finite = np.isfinite(x)
+        covered = np.zeros(len(x), dtype=bool)
+        for lower, upper in self.ranges:
+            lo, hi = sorted((float(lower), float(upper)))
+            covered |= finite & (x >= lo) & (x <= hi)
+        if np.array_equal(covered[finite], self.excluded[finite]):
+            return list(self.ranges)
+        return self.current_ranges(x)
+
 
 def _scale_interval(minus, plus, factor):
     magnitude = np.abs(factor)
@@ -633,7 +668,7 @@ class Curve:
         mask = self._mask(name)
         changed = selected & mask.excluded
         mask.excluded[selected] = False
-        mask.ranges = [item for item in mask.ranges if item[1] < lo or item[0] > hi]
+        mask.ranges = mask.current_ranges(self._x)
         self._mark_modified()
         return int(np.count_nonzero(changed))
 
@@ -669,7 +704,7 @@ class Curve:
                                       np.abs(values - sorted_source[right]))
                 applied[finite_target] = distance <= tolerance
         target.excluded |= applied
-        for lo, hi in source_mask.ranges:
+        for lo, hi in source_mask.effective_ranges(source.x):
             target.ranges.append((lo - tolerance, hi + tolerance))
         self._mark_modified()
         return int(np.count_nonzero(applied))

@@ -349,7 +349,7 @@ class Project:
                 target_curve.masks = {}
                 for name, source_mask in source_curve.masks.items():
                     target_mask = Mask(name, np.zeros(len(target_curve), dtype=bool))
-                    for lower, upper in source_mask.ranges:
+                    for lower, upper in source_mask.effective_ranges(source_curve.x):
                         lo, hi = sorted((lower, upper))
                         target_mask.excluded |= (
                             np.isfinite(target_curve.x)

@@ -175,6 +175,9 @@ def wide_dataframe(
                         label += f" | {component.id}"
                     component_labels.add(label)
                     columns[label] = components[component.id]
+    if selection.sigma_y and curve.current_sigma_x is not None:
+        # The selection covers data uncertainties; X errors belong with them.
+        columns["sigma_x"] = curve.current_sigma_x
     if selection.sigma_y and curve.current_sigma_y is not None:
         columns["sigma_y"] = curve.current_sigma_y
     if selection.sigma_y and curve.current_error_y_minus is not None:

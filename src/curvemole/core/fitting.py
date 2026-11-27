@@ -204,6 +204,17 @@ class ParameterEstimate:
         return asdict(self)
 
 
+_ESTIMATE_FLOATS = ("value", "standard_error", "ci_low", "ci_high", "minimum", "maximum",
+                    "link_tolerance", "global_minimum", "global_maximum")
+
+
+def _decode_estimate(estimate):
+    from curvemole.core.numerics import decode_json_float
+
+    return {key: decode_json_float(value) if key in _ESTIMATE_FLOATS else value
+            for key, value in estimate.items()}
+
+
 @dataclass(slots=True)
 class CurveFitOutput:
     curve_id: str
@@ -280,7 +291,7 @@ class FitResult:
     def from_dict(cls, value: Mapping[str, Any]) -> FitResult:
         settings = FitSettings(**dict(value.get("settings", {})))
         parameters = {
-            path: ParameterEstimate(**estimate)
+            path: ParameterEstimate(**_decode_estimate(estimate))
             for path, estimate in value.get("parameters", {}).items()
         }
         outputs: dict[str, CurveFitOutput] = {}

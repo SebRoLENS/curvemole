@@ -80,3 +80,13 @@ def compensated_sum(arrays, template):
                                (total - updated) + value, (value - updated) + total)
         total = updated
     return total + correction
+
+
+_JSON_SPECIAL_FLOATS = {"Infinity": float("inf"), "-Infinity": float("-inf"), "NaN": float("nan")}
+
+
+def decode_json_float(value):
+    """Undo the project archive's spelling of non-finite floats (``"Infinity"``)."""
+    if isinstance(value, str) and value in _JSON_SPECIAL_FLOATS:
+        return _JSON_SPECIAL_FLOATS[value]
+    return value

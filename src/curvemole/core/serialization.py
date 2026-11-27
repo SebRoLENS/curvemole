@@ -48,6 +48,7 @@ from curvemole.core.history import CompactHistory
 from curvemole.core.matrices import BlockDiagonalMatrix
 from curvemole.core.models import Model
 from curvemole.core.notebook import LaboratoryNotebook
+from curvemole.core.numerics import decode_json_float
 from curvemole.core.process import process_alive
 from curvemole.core.project import Project
 from curvemole.core.uncertainty import ResamplingResult
@@ -457,7 +458,8 @@ def load_project(path: str | Path, *, partial_recovery: bool = False,
                         id=str(mask_meta["id"]),
                         name=str(mask_meta["name"]),
                         excluded=excluded.astype(bool),
-                        ranges=[tuple(value) for value in mask_meta.get("ranges", [])],
+                        ranges=[tuple(decode_json_float(item) for item in value)
+                                for value in mask_meta.get("ranges", [])],
                     )
                     masks[mask.name] = mask
                 transformations = _load_transformations(
@@ -503,7 +505,8 @@ def load_project(path: str | Path, *, partial_recovery: bool = False,
                     redo_transformations=redo,
                     masks=masks,
                     active_mask=str(curve_meta.get("active_mask", "Default")),
-                    fit_ranges=[tuple(value) for value in curve_meta.get("fit_ranges", [])],
+                    fit_ranges=[tuple(decode_json_float(item) for item in value)
+                                for value in curve_meta.get("fit_ranges", [])],
                     metadata=dict(curve_meta.get("metadata", {})),
                 )
                 curve_values[curve_id] = curve

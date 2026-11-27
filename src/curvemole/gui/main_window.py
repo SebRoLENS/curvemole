@@ -2092,8 +2092,6 @@ class MainWindow(QMainWindow):
                     curve.colour = default_palette[
                         (colour_offset + len(series.curves)) % len(default_palette)
                     ]
-                    if len(paths) > 1 and not (file_mapping.as_separated_files or file_mapping.spectra):
-                        curve.name = f"{Path(path).stem}: {curve.name}"
                     if curve.id in imported_ids:
                         raise ValueError("Imported spectra contain duplicate identifiers.")
                     imported_ids.add(curve.id)
@@ -3120,12 +3118,29 @@ class MainWindow(QMainWindow):
         plan = copy.deepcopy(plan)
         self._task_snapshot_safe = True
 
+        from curvemole.core import live_fit_progress
+
+        live_interval = live_fit_progress.LIVE_PREVIEW_SECONDS
+
         def operation(progress, publish=None):
+            last_live = [-math.inf]
+
             def live_progress(value, text):
                 if publish is not None and text.startswith("Evaluation "):
-                    parameters = {path: parameter for cid, model in models.items()
-                                  for path, parameter in model.parameter_map(cid).items()}
-                    publish({"live_values": resolve_parameter_values(parameters)})
+                    now = time.monotonic()
+                    # Throttle previews: a full plot refresh per evaluation slows
+                    # the fit and competes for the GIL.
+                    if now - last_live[0] >= live_interval:
+                        last_live[0] = now
+                        parameters = {path: parameter for cid, model in models.items()
+                                      for path, parameter in model.parameter_map(cid).items()}
+                        try:
+                            values = resolve_parameter_values(parameters)
+                        except Exception:  # noqa: BLE001 - previews are best effort
+                            # A transiently invalid link elsewhere must not fail a valid fit.
+                            values = None
+                        if values is not None:
+                            publish({"live_values": values})
                 progress(value, text)
             return fitter.fit(
                 plan, curve_map, models, cancellation=cancellation,
@@ -3856,7 +3871,8 @@ class MainWindow(QMainWindow):
                     curve.masks[name].ranges = list(ranges)
 
         restore(before)
-        self._push_change(self.tr("Edit mask"), lambda: restore(after), lambda: restore(before))
+        self._push_change(self.tr("Edit mask"), lambda: restore(after), lambda: restore(before),
+                          modified_curve_ids=set(after))
 
     def set_mask_tolerance(self) -> None:
         value, ok = QInputDialog.getDouble(
@@ -4914,6 +4930,8 @@ class MainWindow(QMainWindow):
         self.progress.setVisible(True)
         self.cancel_action.setEnabled(True)
         self.fit_action.setEnabled(False)
+        self.undo_action.setEnabled(False)
+        self.redo_action.setEnabled(False)
         self.uncertainty_panel.set_busy(True)
         self._notify(status)
         self._thread.start()
@@ -5214,6 +5232,12 @@ class MainWindow(QMainWindow):
         if getattr(self, "_project_loading", False):
             self._notify(self.tr("Wait for project loading to finish."), warning=True)
             return False
+        if self._thread is not None:
+            # A running fit or analysis works on a snapshot and writes its result
+            # back on completion; edits made meanwhile would be overwritten or
+            # leave a result marked current for data it never saw.
+            self._notify(self.tr("Stop or wait for the running fit or analysis before editing."), warning=True)
+            return False
         if self.project.read_only:
             QMessageBox.information(
                 self,
@@ -5403,6 +5427,11 @@ class MainWindow(QMainWindow):
                     )
                     if self.project.dirty and not self.save_project():
                         raise RuntimeError("Unable to save pending modifications.")
+                    if self.project.dirty:
+                        # Saving runs a nested event loop; edits made meanwhile are
+                        # not on disk yet. Keep control and retry on the next poll.
+                        lock.heartbeat()
+                        return
                     self._check_project_file_unchanged(
                         lock.project_path, self._project_disk_digest
                     )

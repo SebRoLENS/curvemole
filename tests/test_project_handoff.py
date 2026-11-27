@@ -179,3 +179,31 @@ def test_owner_releases_on_request_and_requester_recovers_editing(tmp_path, monk
         requester_window.close()
         owner_window.close()
         app.processEvents()
+
+
+def test_owner_keeps_control_while_edits_made_during_save_are_unsaved(tmp_path, monkeypatch):
+    pytest.importorskip("PySide6", exc_type=ImportError)
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.gui.main_window import MainWindow
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("CURVEMOLE_DISABLE_PLUGINS", "1")
+    app = QApplication.instance() or QApplication([])
+    path = save_project(Project("handoff"), tmp_path / "handoff.fitproj")
+    window = MainWindow()
+    try:
+        window.open_project(path)
+        session = window._project_lock.session_id
+        request = request_control(path, session)
+        window.project.dirty = True
+        # The save succeeds, but the user edits again during its nested event loop.
+        monkeypatch.setattr(window, "save_project", lambda *a, **k: True)
+        window._poll_project_lock()
+        assert window._project_lock is not None and window._project_lock.owns()
+        assert not window.project.read_only
+        assert read_reply(path, request) is None
+    finally:
+        window.project.dirty = False
+        window.close()
+        app.processEvents()

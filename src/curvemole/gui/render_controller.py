@@ -84,7 +84,7 @@ def _render_lightweight_mask_boundaries(workspace: PlotWorkspace) -> None:
     for index, curve in enumerate(curves):
         x_offset = index * x_step
         for mask in curve.masks.values():
-            for lower, upper in mask.ranges:
+            for lower, upper in mask.effective_ranges(curve.x):
                 lo, hi = sorted((float(lower), float(upper)))
                 positions = (lo + x_offset,) if math.isclose(lo, hi) else (lo + x_offset, hi + x_offset)
                 for position in positions:

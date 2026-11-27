@@ -534,8 +534,11 @@ def _split(line: str, delimiter: str | None) -> list[str]:
 
 
 def _is_number(value: str, decimal: str) -> bool:
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1].strip()  # CSV writers may quote every field
     try:
-        float(value.strip().replace(",", ".") if decimal == "," else value.strip())
+        float(value.replace(",", ".") if decimal == "," else value)
         return True
     except ValueError:
         return False

@@ -230,6 +230,7 @@ def test_worker_progress_publishes_changing_values_without_mutating_project(monk
     from curvemole.gui.main_window import MainWindow
     app = QApplication.instance() or QApplication([])
     monkeypatch.setattr(live_fit_progress, 'LIVE_REFRESH_EVERY', 1)
+    monkeypatch.setattr(live_fit_progress, 'LIVE_PREVIEW_SECONDS', 0.)
     project = Project('worker snapshot')
     curve = Curve('constant', np.arange(20.), np.full(20, 3.))
     project.add_curve(curve)

@@ -7,7 +7,7 @@ import copy
 from PySide6.QtGui import QUndoCommand
 
 from curvemole.core.history import CompactHistory
-from curvemole.core.state import copy_result_maps, restore_model
+from curvemole.core.state import _RESULT_MAPS, copy_result_maps, restore_model
 
 
 def _capture(window, curve_ids=None):
@@ -34,16 +34,61 @@ def _capture(window, curve_ids=None):
     }
 
 
-def _restore(window, state):
+def _same_entry(first, second):
+    # Snapshots share completed payloads, so identity detects unchanged entries
+    # without comparing NumPy arrays element-wise.
+    if isinstance(first, dict) and isinstance(second, dict):
+        return first.keys() == second.keys() and all(first[key] is second[key] for key in first)
+    return first is second
+
+
+def _changed_curve_ids(before, after):
+    """Curves whose per-curve results or state differ between two snapshots."""
+    changed = set(before["scope"]) | set(after["scope"])
+    for key in _RESULT_MAPS:
+        old, new = before["results"].get(key), after["results"].get(key)
+        if not isinstance(old, dict) or not isinstance(new, dict):
+            continue
+        for curve_id in old.keys() | new.keys():
+            if not _same_entry(old.get(curve_id), new.get(curve_id)):
+                changed.add(curve_id)
+    for curve_id in before["states"].keys() | after["states"].keys():
+        if before["states"].get(curve_id) != after["states"].get(curve_id):
+            changed.add(curve_id)
+    return changed
+
+
+def _restore_results(current, saved, curve_ids):
+    """Restore global results and only the per-curve entries of ``curve_ids``.
+
+    Other spectra's fits and uncertainty analyses may have been added after the
+    snapshot; replacing whole maps would silently delete them.
+    """
+    if curve_ids is None:
+        return copy_result_maps(saved)
+    restored = copy_result_maps(saved)
+    live = copy_result_maps(current)
+    for key in _RESULT_MAPS:
+        old, now = restored.get(key), live.get(key)
+        if not isinstance(now, dict) and not isinstance(old, dict):
+            continue
+        merged = {cid: value for cid, value in (now or {}).items() if cid not in curve_ids}
+        merged.update({cid: value for cid, value in (old or {}).items() if cid in curve_ids})
+        if merged or key in restored or key in live:
+            restored[key] = merged
+    return restored
+
+
+def _restore(window, state, curve_ids=None):
     for curve_id in state["scope"] - state["models"].keys():
         window.project.models.pop(curve_id, None)
     for curve_id, (model, saved, refs) in state["models"].items():
         restore_model(model, saved, refs)
         window.project.models[curve_id] = model
-    window.project.results = copy_result_maps(state["results"])
+    window.project.results = _restore_results(window.project.results, state["results"], curve_ids)
     window.project.fit_history = state["history"].copy()
     for curve in window.project.curves:
-        if curve.id in state["states"]:
+        if curve.id in state["states"] and (curve_ids is None or curve.id in curve_ids):
             curve.state = state["states"][curve.id]
     window.active_curve_id = state["active"]
     window.selected_component_id = state["selected"]
@@ -61,16 +106,17 @@ class FitUndoCommand(QUndoCommand):
     def __init__(self, window, before, after):
         super().__init__(window.tr("Fit"))
         self.window, self.before, self.after = window, before, after
+        self.curve_ids = _changed_curve_ids(before, after)
         self.initial = True
 
     def redo(self):
         if self.initial:
             self.initial = False
         else:
-            _restore(self.window, self.after)
+            _restore(self.window, self.after, self.curve_ids)
 
     def undo(self):
-        _restore(self.window, self.before)
+        _restore(self.window, self.before, self.curve_ids)
 
 
 class FitLifecycleController:
