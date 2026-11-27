@@ -6,6 +6,8 @@ CurveMole's existing copy engine, undo semantics, and optional constraint copy.
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -16,15 +18,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
 )
 
 from curvemole.gui import parameter_copy as _legacy
-from curvemole.gui.main_window import MainWindow
-from curvemole.gui.panels import ModelPanel
-from curvemole.gui.windowing import transient_widget
+
+if TYPE_CHECKING:
+    from curvemole.gui.main_window import MainWindow
 
 
 def _all_component_refs(window: MainWindow) -> list[tuple[str, str]]:
@@ -280,105 +281,3 @@ class CopyParameterDialog(QDialog):
         else:
             self.summary.setText(self.tr("Select at least one target function."))
             self.copy_button.setText(self.tr("Copy parameter"))
-
-
-def _component_name(panel: ModelPanel, ref: tuple[str, str]) -> str:
-    if panel.project is None:
-        return panel.tr("selected function")
-    try:
-        return panel.project.model_for(ref[0]).component(ref[1]).name
-    except Exception:
-        return panel.tr("selected function")
-
-
-def _update_button(panel: ModelPanel) -> None:
-    button = getattr(panel, "copy_parameter_button", None)
-    if button is None:
-        return
-    refs = panel.selected_component_refs()
-    if not refs:
-        button.setEnabled(False)
-        button.setText(panel.tr("First select a function"))
-        button.setToolTip(panel.tr("Select one source function, then choose Copy parameter."))
-        return
-    if len(refs) != 1:
-        button.setEnabled(False)
-        button.setText(panel.tr("Select a single source function"))
-        button.setToolTip(
-            panel.tr("Target functions are chosen in the Copy parameter window, not with Ctrl/Shift.")
-        )
-        return
-
-    source_ref = refs[0]
-    remembered_source = getattr(panel, "_parameter_copy_source_ref", None)
-    remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
-    button.setEnabled(True)
-    if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
-        button.setText(panel.tr("Copy all parameters from ") + _component_name(panel, source_ref) + "…")
-    elif remembered_source == source_ref and remembered_parameter:
-        button.setText(
-            panel.tr("Copy '")
-            + str(remembered_parameter)
-            + panel.tr("' from ")
-            + _component_name(panel, source_ref)
-            + "…"
-        )
-    else:
-        button.setText(panel.tr("Copy parameter from ") + _component_name(panel, source_ref) + "…")
-    button.setToolTip(
-        panel.tr(
-            "Open a project-wide target list and choose which parameter fields to copy."
-        )
-    )
-
-
-def _copy_selected(panel: ModelPanel) -> None:
-    refs = panel.selected_component_refs()
-    if len(refs) != 1:
-        QMessageBox.information(
-            panel,
-            panel.tr("Copy parameter"),
-            panel.tr("First select a single source function."),
-        )
-        return
-    window = panel.window()
-    if not isinstance(window, MainWindow) or not window._ensure_editable():
-        return
-
-    source_ref = refs[0]
-    remembered_source = getattr(panel, "_parameter_copy_source_ref", None)
-    remembered_parameter = getattr(panel, "_parameter_copy_parameter_name", None)
-    parameter_hint = remembered_parameter if remembered_source == source_ref else None
-    with transient_widget(CopyParameterDialog(window, source_ref, current_parameter=parameter_hint)) as dialog:
-        if remembered_source == source_ref and getattr(panel, "_parameter_copy_all_parameters", False):
-            dialog.parameter.setCurrentIndex(dialog.parameter.findData(None))
-        if dialog.exec() != dialog.DialogCode.Accepted:
-            return
-        try:
-            result = _legacy.copy_parameter_to_refs(
-                window,
-                dialog.source_ref(),
-                dialog.target_refs(),
-                dialog.parameter_name(),
-                copy_value=dialog.copy_value.isChecked(),
-                copy_fixed=dialog.copy_fixed.isChecked(),
-                copy_bounds=dialog.copy_bounds.isChecked(),
-                copy_link=dialog.copy_link.isChecked(),
-            )
-        except Exception as exc:
-            window._show_error(window.tr("Copy parameter"), exc)
-            return
-        panel._parameter_copy_source_ref = source_ref
-        panel._parameter_copy_parameter_name = dialog.parameter_name()
-        panel._parameter_copy_all_parameters = dialog.parameter_name() is None
-        panel._update_copy_parameter_button()
-        _legacy._show_copy_result(window, result, dialog.parameter_name())
-
-
-def _install() -> None:
-    # parameter_copy.CopyParameterDialog resolves lazily through its __getattr__.
-    ModelPanel._update_copy_parameter_button = _update_button
-    ModelPanel._copy_parameter_to_selected = _copy_selected
-
-
-_install()

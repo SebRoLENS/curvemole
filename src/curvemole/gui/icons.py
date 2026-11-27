@@ -83,3 +83,16 @@ def vector_icon(filename: str, checked_filename: str | None = None) -> QIcon:
     source = root.joinpath(filename).read_text(encoding="utf-8")
     checked = root.joinpath(checked_filename).read_text(encoding="utf-8") if checked_filename else None
     return QIcon(PaletteIconEngine(source, checked))
+
+
+def resource_icon(
+    filename: str, crop: tuple[int, int, int, int] | None = None,
+    checked_filename: str | None = None,
+) -> QIcon:
+    """Return an icon bundled with CurveMole."""
+    if filename.endswith(".svg") and crop is None:
+        return vector_icon(filename, checked_filename)
+    pixmap = QPixmap(str(resources.files("curvemole.resources").joinpath(filename)))
+    if crop is not None:
+        pixmap = pixmap.copy(*crop)
+    return QIcon(pixmap)

@@ -13,6 +13,9 @@ from PySide6.QtCore import Qt
 # Item data role carrying the curve id of a function row in the Model panel.
 COMPONENT_CURVE_ROLE = int(Qt.ItemDataRole.UserRole) + 1
 
+# Component id the Model panel sends to mean "the whole current multi-selection".
+_BATCH = "__curvemole_batch_components__"
+
 
 def _item_ref(item: Any) -> tuple[str, str] | None:
     if item is None:
@@ -62,3 +65,11 @@ def _find_component_curve(window: Any, component_id: str) -> str | None:
     if window.active_curve_id in candidates:
         return window.active_curve_id
     return candidates[0] if len(candidates) == 1 else None
+
+
+def _restore_models(window: Any, states: dict[str, dict[str, Any]]) -> None:
+    """Restore whole model snapshots (curve id -> Model.to_dict()) into the project."""
+    from curvemole.core.transactions import restore_model_state
+
+    for curve_id, state in states.items():
+        restore_model_state(window.project, curve_id, state)

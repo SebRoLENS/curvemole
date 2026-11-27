@@ -54,7 +54,7 @@ def test_runtime_class_patching_does_not_grow():
                   if callable(value) and not isinstance(value, Signal)
                   and getattr(value, "__module__", MainWindow.__module__) != MainWindow.__module__))
     """)
-    assert int(output) <= 26
+    assert int(output) <= 10
 
 
 def test_building_blocks_do_not_import_the_window_or_its_extensions():
@@ -67,7 +67,7 @@ def test_building_blocks_do_not_import_the_window_or_its_extensions():
     building_blocks = ["plot", "plot_placement", "plot_scene", "plot_view_state", "panels", "dialogs",
                        "render_controller", "data_point_editor", "edit_function_points",
                        "background_display", "point_initialisation", "model_selection", "updates",
-                       "updates_windows", "update_platform"]
+                       "updates_windows", "update_platform", "model_edit_controller", "icons"]
     forbidden = {"curvemole.gui.main_window", "curvemole.gui.background_navigation",
                  "curvemole.gui.manual_points", "curvemole.gui.manual_points_live",
                  "curvemole.gui.model_multiselect", "curvemole.gui.windows_update_fix"}
@@ -86,6 +86,24 @@ def test_building_blocks_do_not_import_the_window_or_its_extensions():
                 offenders += [f"{name} -> curvemole.gui.{alias.name}" for alias in node.names
                               if f"curvemole.gui.{alias.name}" in forbidden]
     assert offenders == []
+
+
+def test_model_panel_multiselection_and_model_edits_are_native():
+    """ModelPanel is a plain view and model edits live in ModelEditController (#137)."""
+    output = _run("""
+        from PySide6.QtCore import Signal
+        from curvemole.gui.main_window import MainWindow
+        from curvemole.gui.panels import ModelPanel
+        installed = [name for name, value in vars(ModelPanel).items()
+                     if callable(value) and not isinstance(value, Signal)
+                     and getattr(value, "__module__", ModelPanel.__module__) != ModelPanel.__module__]
+        names = ("duplicate_component", "delete_component", "move_component", "enable_component",
+                 "set_component_background", "set_component_fixed", "change_parameter",
+                 "edit_parameter_link", "_set_component", "quick_peak", "find_peaks",
+                 "show_plugin_manager", "_refresh_quick_function_selector")
+        print(installed, sorted({getattr(MainWindow, name).__module__ for name in names}))
+    """)
+    assert output.strip() == "[] ['curvemole.gui.main_window']"
 
 
 def test_background_commands_are_native_window_methods():

@@ -5,14 +5,16 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from PySide6.QtCore import QPoint, Qt, Signal
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QPoint, QSignalBlocker, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import (
+    QCheckBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -26,14 +28,20 @@ from PySide6.QtWidgets import (
 from curvemole.core.background_status import background_component_status
 from curvemole.core.data import CurveState
 from curvemole.core.expressions import SafeExpression
-from curvemole.core.plugin_identity import function_tooltip
 from curvemole.core.project import Project
 from curvemole.core.registry import FunctionRegistry
 from curvemole.core.results_store import ResultKey
 from curvemole.gui.background_role import BackgroundSwitch
-from curvemole.gui.model_selection import COMPONENT_CURVE_ROLE  # noqa: E402
+from curvemole.gui.model_selection import (
+    _BATCH,
+    COMPONENT_CURVE_ROLE,
+    _current_ref,
+    _item_ref,
+    _selected_refs,
+)
 from curvemole.gui.parameter_limits import POSITIVE_BOUND_ROLE, positive_width_bound
 from curvemole.gui.row_drag import RowDragMixin, RowDrop
+from curvemole.gui.windowing import transient_widget
 
 
 class FunctionList(RowDragMixin, QListWidget):
@@ -92,6 +100,7 @@ class ModelPanel(QWidget):
     editPointsRequested = Signal(str, str)
     reorderRequested = Signal()
     reorderRulesRequested = Signal()
+    copyParameterRequested = Signal()
 
     def __init__(self, registry: FunctionRegistry, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -226,74 +235,268 @@ class ModelPanel(QWidget):
         self.stack.addWidget(single)
         self.stack.addWidget(multi)
         layout.addWidget(self.stack)
+        self._build_multiselect_controls()
+        self._build_parameter_copy_controls()
+
+    def _build_multiselect_controls(self) -> None:
+        """Function multi-selection, cross-spectrum browsing and the context menu."""
+        self.components.setSpacing(2)
+        self.components.setSelectionMode(self.components.SelectionMode.ExtendedSelection)
+        from curvemole.gui.component_composition import ComponentCompositionDelegate
+
+        self.components.setItemDelegate(ComponentCompositionDelegate(self))
+
+        self.show_all_functions = QCheckBox(self.tr("Show all functions"))
+        self.show_all_functions.setToolTip(
+            self.tr(
+                "Show model functions from every spectrum. Each row keeps its spectrum association, "
+                "and Ctrl/Shift multi-selection works across spectra."
+            )
+        )
+        self.function_selection_summary = QLabel()
+        self.function_selection_summary.setAlignment(
+            Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+        )
+
+        row = QWidget(self)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        row_layout.addWidget(self.show_all_functions)
+        row_layout.addStretch(1)
+        row_layout.addWidget(self.function_selection_summary)
+
+        single = self.stack.widget(0)
+        single.layout().insertWidget(1, row)
+        selection_row = QWidget(self)
+        selection_layout = QHBoxLayout(selection_row)
+        selection_layout.setContentsMargins(0, 0, 0, 0)
+        self.select_all_functions_button = QPushButton(self.tr("Select all"))
+        self.select_non_background_functions_button = QPushButton(
+            self.tr("Select all except backgrounds")
+        )
+        for button in (
+            self.select_all_functions_button,
+            self.select_non_background_functions_button,
+        ):
+            button.setToolTip(self.tr(
+                "Select functions in the displayed list for editing. "
+                "This does not change their enabled checkboxes."
+            ))
+            selection_layout.addWidget(button)
+        single.layout().insertWidget(2, selection_row)
+        self.select_all_functions_button.clicked.connect(
+            lambda: self._select_functions(exclude_backgrounds=False)
+        )
+        self.select_non_background_functions_button.clicked.connect(
+            lambda: self._select_functions(exclude_backgrounds=True)
+        )
+        self.show_all_functions.toggled.connect(lambda *_: self.refresh())
+        self.components.itemSelectionChanged.connect(self._multi_selection_changed)
+        self.components.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.components.customContextMenuRequested.connect(lambda position: self._description_menu(position))
+
+    def _select_functions(self, *, exclude_backgrounds: bool) -> None:
+        selection = QItemSelection()
+        for row in range(self.components.count()):
+            ref = _item_ref(self.components.item(row))
+            if ref is None or self.project is None:
+                continue
+            curve_id, component_id = ref
+            component = self.project.model_for(curve_id).component(component_id)
+            if exclude_backgrounds and component.is_background:
+                continue
+            index = self.components.model().index(row, 0)
+            selection.select(index, index)
+        previous_item = self.components.currentItem()
+        was_updating = self._updating
+        self._updating = True
+        try:
+            self.components.selectionModel().select(
+                selection, QItemSelectionModel.SelectionFlag.ClearAndSelect
+            )
+            if not selection.isEmpty():
+                self.components.selectionModel().setCurrentIndex(
+                    selection.indexes()[0], QItemSelectionModel.SelectionFlag.NoUpdate
+                )
+        finally:
+            self._updating = was_updating
+        # Selection and current-item signals fire separately. Refresh only once
+        # both refer to the same spectrum, especially for a single remote function.
+        if selection.isEmpty():
+            self._multi_selection_changed()
+        else:
+            self._component_selected(self.components.currentItem(), previous_item)
+
+    def _description_menu(self, position: Any) -> None:
+        ref = _item_ref(self.components.itemAt(position))
+        if ref is None:
+            return
+        with transient_widget(QMenu(self)) as menu:
+            from curvemole.gui.component_composition import add_composition_actions
+            from curvemole.gui.edit_function_points import can_edit_points
+
+            edit = menu.addAction(self.tr("Edit function points…"))
+            component = self.project.model_for(ref[0]).component(ref[1])
+            edit.setEnabled(not self.project.read_only and can_edit_points(component, self.registry))
+            edit.triggered.connect(lambda checked=False: self.editPointsRequested.emit(*ref))
+            add_composition_actions(menu.addMenu(self.tr("Composition")), self, *ref)
+            rename = menu.addAction(self.tr("Rename function…"))
+            rename.setEnabled(self.project is not None and not self.project.read_only)
+            rename.triggered.connect(lambda checked=False: self.renameRequested.emit(*ref))
+            action = menu.addAction(self.tr("Add description…"))
+            action.setEnabled(self.project is not None and not self.project.read_only)
+            action.triggered.connect(lambda checked=False: self.descriptionRequested.emit(*ref))
+            menu.exec(self.components.viewport().mapToGlobal(position))
 
     def set_context(
         self,
-        project: Project,
+        project: Any,
         curve_id: str | None,
         selected_count: int,
         component_id: str | None = None,
     ) -> None:
         self.project = project
         self.curve_id = curve_id
-        self.components.setDragEnabled(not project.read_only)
+        self.components.setDragEnabled(project is not None and not project.read_only)
         self.display_method.set_context(project, curve_id)
-        self.stack.setCurrentIndex(1 if selected_count > 1 else 0)
+        can_copy_next = False
+        if curve_id and project is not None and not project.read_only:
+            ids = [curve.id for curve in project.dataset.series_for(curve_id).curves]
+            can_copy_next = ids.index(curve_id) + 1 < len(ids)
+        self.copy_fit_next_button.setEnabled(can_copy_next)
+        self.copy_fit_next_button.setToolTip(self.tr("Copy to the next spectrum in this series, then open it") if can_copy_next
+                                              else self.tr("No next spectrum in this series"))
+        # Curve selection and function selection are independent. Keep the model
+        # editor available even when several spectra are selected in the curve tree.
+        self.stack.setCurrentIndex(0)
         self.refresh(component_id)
 
     def refresh(self, selected_component_id: str | None = None) -> None:
+        self.display_method.set_context(self.project, self.curve_id)
+        previous = set(self.selected_component_refs())
         self._updating = True
         try:
             self.components.clear()
             self.parameters.setRowCount(0)
             self.derived.clear()
-            if self.project is None or self.curve_id is None:
+            project = self.project
+            show_all = bool(self.show_all_functions.isChecked())
+
+            if project is None:
                 self.title.setText(self.tr("No active curve"))
+                self._update_function_selection_summary()
                 return
-            curve = self.project.dataset.curve(self.curve_id)
-            model = self.project.model_for(self.curve_id)
-            self.title.setText(f"<b>{curve.name}</b><br>{model.name}")
-            selected_row = 0
-            for row, component in enumerate(model.display_components):
+
+            entries: list[tuple[Any, Any]] = []
+            if show_all:
+                for curve in project.curves:
+                    model = project.model_for(curve.id)
+                    entries.extend((curve, component) for component in model.display_components)
+                self.title.setText(
+                    self.tr("<b>All functions</b><br>")
+                    + self.tr("Every spectrum in the project")
+                )
+            elif self.curve_id is not None:
+                curve = project.dataset.curve(self.curve_id)
+                model = project.model_for(self.curve_id)
+                entries = [(curve, component) for component in model.display_components]
+                self.title.setText(f"<b>{curve.name}</b><br>{model.name}")
+            else:
+                self.title.setText(self.tr("No active curve"))
+                self._update_function_selection_summary()
+                return
+
+            preferred_row: int | None = None
+            first_preserved_row: int | None = None
+            last_series = None
+            last_curve = None
+            first_function_row = None
+            for curve, component in entries:
+                if show_all:
+                    from curvemole.gui.series_groups import style_heading
+
+                    series = project.dataset.series_for(curve.id)
+                    if series.id != last_series:
+                        heading = QListWidgetItem(series.name)
+                        style_heading(heading, self.components)
+                        self.components.addItem(heading)
+                        last_series = series.id
+                    if curve.id != last_curve:
+                        heading = QListWidgetItem("    " + curve.name)
+                        style_heading(heading, self.components, series=False)
+                        self.components.addItem(heading)
+                        last_curve = curve.id
+                row_index = self.components.count()
+                if first_function_row is None:
+                    first_function_row = row_index
                 label = component.name
-                tooltip = ""
+                background_status = ""
                 if component.is_background:
                     label += self.tr("  ·  Background")
-                    background_status = background_component_status(curve, component, model, self.registry)
-                    if background_status == "subtracted":
+                    status = background_component_status(curve, component, project.model_for(curve.id), self.registry)
+                    if status == "subtracted":
                         label += self.tr("  ·  Subtracted")
-                        tooltip = self.tr(
+                        background_status = self.tr(
                             "Background status: subtracted from this spectrum. "
                             "The subtraction keeps the values used at that time; editing or "
                             "copying parameter values does not subtract the function again."
                         )
-                    elif background_status == "unresolved":
+                    elif status == "unresolved":
                         label += self.tr("  ·  Subtraction recorded — function uncertain")
-                        tooltip = self.tr(
+                        background_status = self.tr(
                             "A background subtraction is recorded for this spectrum, but the saved "
                             "history cannot identify this function unambiguously. Revert background "
                             "uses the stored subtraction array; the data have not been changed."
                         )
                     else:
                         label += self.tr("  ·  Not subtracted")
-                        tooltip = self.tr(
+                        background_status = self.tr(
                             "Background status: present in the model and not subtracted "
                             "from this spectrum."
                         )
-                if component.function_id in self.registry.identifiers():
-                    definition = self.registry.get(component.function_id)
-                    symbol = definition.custom_metadata.get("plugin_symbol", "")
-                    if symbol and not label.startswith(symbol + " "):
-                        label = symbol + " " + label
-                    function_help = function_tooltip(definition)
-                    tooltip = "\n\n".join(part for part in (function_help, tooltip) if part)
+                if show_all:
+                    label = "        " + label
                 item = QListWidgetItem(label)
-                if tooltip:
-                    item.setToolTip(tooltip)
+                from curvemole.gui.note_indicators import attach_note
+
+                attach_note(item, project, "function", component.id, curve.id)
                 item.setData(Qt.ItemDataRole.UserRole, component.id)
                 item.setData(COMPONENT_CURVE_ROLE, curve.id)
+                from curvemole.gui.component_composition import COMPOSITION_ROLE
+
+                item.setData(COMPOSITION_ROLE, component.operator)
+                item.setData(Qt.ItemDataRole.AccessibleTextRole, label + " — " + component.operator)
+                item.setToolTip(
+                    self.tr("Spectrum: ")
+                    + curve.name
+                    + "\n"
+                    + self.tr("Function: ")
+                    + component.name
+                    + "\n"
+                    + self.tr("Type: ")
+                    + component.function_id
+                    + "\n" + self.tr("Composition: ") + component.operator
+                    + "\n"
+                    + self.tr(
+                        "Checkbox: include this function in the model and fit. "
+                        "Uncheck to exclude it without deleting it. "
+                        "Highlight rows to select functions for editing; with multiple "
+                        "functions selected, changing a selected checkbox applies to all of them."
+                    )
+                    + (("\n" + background_status) if background_status else "")
+                )
                 item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-                item.setCheckState(Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked)
+                from curvemole.gui.note_indicators import CHECKBOX_TOOLTIP_ROLE
+
+                item.setData(CHECKBOX_TOOLTIP_ROLE, self.tr(
+                    "Checked: this function contributes to the model and fit.\n"
+                    "Unchecked: exclude it without deleting it.\n"
+                    "Row highlighting selects functions for editing. Changing a selected "
+                    "checkbox applies to all selected functions."
+                ))
+                item.setCheckState(
+                    Qt.CheckState.Checked if component.enabled else Qt.CheckState.Unchecked
+                )
                 if component.is_background:
                     dark = self.palette().color(QPalette.ColorRole.Base).lightness() < 128
                     item.setForeground(QColor("#63D7C4" if dark else "#087565"))
@@ -301,13 +504,282 @@ class ModelPanel(QWidget):
                     font.setWeight(QFont.Weight.DemiBold)
                     item.setFont(font)
                 self.components.addItem(item)
+
+                ref = (str(curve.id), str(component.id))
+                if ref in previous:
+                    item.setSelected(True)
+                    if first_preserved_row is None:
+                        first_preserved_row = row_index
                 if component.id == selected_component_id:
-                    selected_row = row
-            if self.components.count():
-                self.components.setCurrentRow(selected_row)
+                    preferred_row = row_index
+
+            if first_preserved_row is not None:
+                self.components.setCurrentRow(
+                    first_preserved_row,
+                    QItemSelectionModel.SelectionFlag.NoUpdate,
+                )
+            elif preferred_row is not None:
+                self.components.setCurrentRow(preferred_row)
+            elif first_function_row is not None:
+                self.components.setCurrentRow(first_function_row)
         finally:
             self._updating = False
+
+        self._update_function_selection_summary()
         self.refresh_parameters()
+
+    def selected_component_refs(self) -> list[tuple[str, str]]:
+        return _selected_refs(self)
+
+    def select_component_ref(self, curve_id: str, component_id: str) -> bool:
+        """Select one plotted function using its complete spectrum identity."""
+        for row in range(self.components.count()):
+            if _item_ref(self.components.item(row)) == (curve_id, component_id):
+                with QSignalBlocker(self.components):
+                    self.components.setCurrentRow(row, QItemSelectionModel.SelectionFlag.ClearAndSelect)
+                self._update_function_selection_summary()
+                return True
+        return False
+
+    def selected_component_ids(self) -> list[str]:
+        return [component_id for _, component_id in self.selected_component_refs()]
+
+    def selected_component_id(self) -> str | None:
+        ref = _current_ref(self)
+        return ref[1] if ref else None
+
+    def selected_component_curve_id(self) -> str | None:
+        ref = _current_ref(self)
+        return ref[0] if ref else None
+
+    def _update_function_selection_summary(self) -> None:
+        refs = self.selected_component_refs()
+        count = len(refs)
+        if count == 0:
+            text = ""
+        elif count == 1:
+            text = self.tr("1 function selected")
+        else:
+            text = f"{count} " + self.tr("functions selected")
+        self.function_selection_summary.setText(text)
+        states = ([self.project.model_for(curve_id).component(component_id).is_background
+                   for curve_id, component_id in refs] if self.project is not None else [])
+        self._sync_background_role(states)
+
+    def _multi_selection_changed(self) -> None:
+        if self._updating:
+            return
+        self._update_function_selection_summary()
+        self.refresh_parameters()
+
+    def refresh_parameters(self) -> None:
+        from curvemole.gui.component_composition import update_composition_summary
+
+        update_composition_summary(self)
+        refs = self.selected_component_refs()
+        if len(refs) <= 1:
+            if refs:
+                original_curve_id = self.curve_id
+                self.curve_id = refs[0][0]
+                try:
+                    self._refresh_single_parameters()
+                finally:
+                    self.curve_id = original_curve_id
+            else:
+                self._refresh_single_parameters()
+                self._sync_background_role([])
+            return
+
+        if self.edit_points_action is not None:
+            self.edit_points_action.setEnabled(False)
+        self.display_method.set_context(self.project, None)
+        self._updating = True
+        try:
+            self.parameters.setRowCount(0)
+            self.derived.setText(
+                f"{len(refs)} "
+                + self.tr(
+                    "functions selected. Delete, duplicate, move, enable/disable, background, "
+                    "Lock all and Unlock all apply to the complete selection."
+                )
+            )
+            states = []
+            if self.project is not None:
+                for curve_id, component_id in refs:
+                    states.append(
+                        self.project.model_for(curve_id).component(component_id).is_background
+                    )
+            self._sync_background_role(states)
+        finally:
+            self._updating = False
+
+    def _component_selected(
+        self,
+        current: QListWidgetItem | None,
+        previous: QListWidgetItem | None,
+    ) -> None:
+        if self._updating or current is None:
+            return
+        self._update_function_selection_summary()
+        self.refresh_parameters()
+        ref = _item_ref(current)
+        if ref is not None:
+            self.componentSelected.emit(ref[1])
+
+    def _component_enabled(self, item: QListWidgetItem) -> None:
+        if self._updating:
+            return
+        enabled = item.checkState() == Qt.CheckState.Checked
+        refs = self.selected_component_refs()
+        ref = _item_ref(item)
+        if ref is not None and len(refs) > 1 and ref in refs:
+            self.enabledRequested.emit(_BATCH, enabled)
+        elif ref is not None:
+            self.enabledRequested.emit(ref[1], enabled)
+
+    def _background_toggled(self, marked: bool) -> None:
+        if self._updating:
+            return
+        refs = self.selected_component_refs()
+        if len(refs) > 1:
+            self.backgroundRequested.emit(_BATCH, marked)
+        elif refs:
+            self.backgroundRequested.emit(refs[0][1], marked)
+
+    def _bulk_fixed(self, fixed: bool) -> None:
+        refs = self.selected_component_refs()
+        if len(refs) > 1:
+            self.bulkFixedRequested.emit(_BATCH, fixed)
+        elif refs:
+            self.bulkFixedRequested.emit(refs[0][1], fixed)
+
+    def _duplicate(self) -> None:
+        refs = self.selected_component_refs()
+        if len(refs) > 1:
+            self.duplicateRequested.emit(_BATCH)
+        elif refs:
+            self.duplicateRequested.emit(refs[0][1])
+
+    def _delete(self) -> None:
+        refs = self.selected_component_refs()
+        if len(refs) > 1:
+            self.deleteRequested.emit(_BATCH)
+        elif refs:
+            self.deleteRequested.emit(refs[0][1])
+
+    def _move(self, delta: int) -> None:
+        refs = self.selected_component_refs()
+        if len(refs) > 1:
+            self.moveRequested.emit(_BATCH, delta)
+        elif refs:
+            self.moveRequested.emit(refs[0][1], delta)
+
+    def _build_parameter_copy_controls(self) -> None:
+        """Copy-parameter button; the dialog and the edit belong to the window."""
+        self._parameter_copy_source_ref = None
+        self._parameter_copy_parameter_name = None
+        self._parameter_copy_all_parameters = False
+        self.copy_parameter_button = QPushButton(self.tr("Select a parameter, then select target functions"))
+        self.copy_parameter_button.setToolTip(
+            self.tr(
+                "Workflow: 1) select the source function; 2) click the parameter row you want to copy; "
+                "3) Ctrl/Shift-select the target functions; 4) choose which fields to copy."
+            )
+        )
+        single = self.stack.widget(0)
+        index = single.layout().indexOf(self.parameters)
+        single.layout().insertWidget(index, self.copy_parameter_button)
+        self.copy_parameter_button.clicked.connect(self._copy_parameter_to_selected)
+        self.components.itemSelectionChanged.connect(self._update_copy_parameter_button)
+        self.parameters.currentCellChanged.connect(self._remember_parameter_copy_source)
+        self._update_copy_parameter_button()
+
+    def _remember_parameter_copy_source(
+        self,
+        row: int,
+        column: int,
+        previous_row: int,
+        previous_column: int,
+    ) -> None:
+        del column, previous_row, previous_column
+        if self._updating or row < 0:
+            return
+        refs = self.selected_component_refs()
+        if len(refs) != 1:
+            return
+        value_item = self.parameters.item(row, 1)
+        metadata = value_item.data(Qt.ItemDataRole.UserRole) if value_item is not None else None
+        if not metadata:
+            return
+        self._parameter_copy_source_ref = refs[0]
+        self._parameter_copy_parameter_name = str(metadata[1])
+        self._parameter_copy_all_parameters = False
+        self._update_copy_parameter_button()
+
+    def _parameter_copy_component_name(self, ref: tuple[str, str]) -> str:
+        if self.project is None:
+            return self.tr("selected function")
+        try:
+            return self.project.model_for(ref[0]).component(ref[1]).name
+        except Exception:
+            return self.tr("selected function")
+
+    def _update_copy_parameter_button(self) -> None:
+        button = getattr(self, "copy_parameter_button", None)
+        if button is None:
+            return
+        refs = self.selected_component_refs()
+        if not refs:
+            button.setEnabled(False)
+            button.setText(self.tr("First select a function"))
+            button.setToolTip(self.tr("Select one source function, then choose Copy parameter."))
+            return
+        if len(refs) != 1:
+            button.setEnabled(False)
+            button.setText(self.tr("Select a single source function"))
+            button.setToolTip(
+                self.tr("Target functions are chosen in the Copy parameter window, not with Ctrl/Shift.")
+            )
+            return
+
+        source_ref = refs[0]
+        remembered_source = getattr(self, "_parameter_copy_source_ref", None)
+        remembered_parameter = getattr(self, "_parameter_copy_parameter_name", None)
+        button.setEnabled(True)
+        if remembered_source == source_ref and getattr(self, "_parameter_copy_all_parameters", False):
+            button.setText(self.tr("Copy all parameters from ") + self._parameter_copy_component_name(source_ref) + "…")
+        elif remembered_source == source_ref and remembered_parameter:
+            button.setText(
+                self.tr("Copy '")
+                + str(remembered_parameter)
+                + self.tr("' from ")
+                + self._parameter_copy_component_name(source_ref)
+                + "…"
+            )
+        else:
+            button.setText(self.tr("Copy parameter from ") + self._parameter_copy_component_name(source_ref) + "…")
+        button.setToolTip(
+            self.tr(
+                "Open a project-wide target list and choose which parameter fields to copy."
+            )
+        )
+
+    def _copy_parameter_to_selected(self) -> None:
+        if len(self.selected_component_refs()) != 1:
+            QMessageBox.information(
+                self,
+                self.tr("Copy parameter"),
+                self.tr("First select a single source function."),
+            )
+            return
+        self.copyParameterRequested.emit()
+
+    def remember_parameter_copy(self, source_ref: tuple[str, str], parameter_name: str | None) -> None:
+        """Remember what was copied last, to offer it again for the same source."""
+        self._parameter_copy_source_ref = source_ref
+        self._parameter_copy_parameter_name = parameter_name
+        self._parameter_copy_all_parameters = parameter_name is None
+        self._update_copy_parameter_button()
 
     def _show_uncertainty_menu(self, section: int) -> None:
         if section != 3 or not self.display_method.isEnabled():
@@ -316,7 +788,8 @@ class ModelPanel(QWidget):
         point = QPoint(header.sectionViewportPosition(section), header.height())
         self.display_method.popup(header.viewport().mapToGlobal(point))
 
-    def refresh_parameters(self) -> None:
+    def _refresh_single_parameters(self) -> None:
+        """Parameter table for one function of the panel's current spectrum."""
         self.display_method.set_context(self.project, self.curve_id)
         self._updating = True
         try:

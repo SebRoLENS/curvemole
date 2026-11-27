@@ -35,11 +35,32 @@ restores only the per-curve results of the curves the fit changed, and the GUI
 refuses edits while a fit or analysis task is running. `Project` validates group removals before mutation and expands fit
 invalidation through parameter links and recorded global-fit groups.
 
-Other GUI extensions still use the historical wrappers. Their gradual migration
-is intentional; the fit-Undo and rendering groups above no longer depend on
-stacking their own refresh/completion monkey-patches. Historical update helpers
-are isolated in `gui.legacy_updates` and re-exported at their original import paths
-for external integrations. Current update policy remains in `UpdateController`.
+Historical update helpers are isolated in `gui.legacy_updates` and re-exported at
+their original import paths for external integrations. Current update policy remains
+in `UpdateController`.
+
+## Window controllers
+
+`MainWindow` is a composition root. Behaviour that used to be installed on it at
+import time now lives in controllers that the window owns, with thin delegating
+methods kept at the historical names:
+
+| Attribute | Class | Responsibility |
+|---|---|---|
+| `session` | `ProjectSession` | new/open/save, autosave, recovery, recent projects, file locks |
+| `undo_service` | `UndoService` | the only path to the `QUndoStack`; clean state follows `project.revision` |
+| `task_runner` | `TaskRunner` | worker threads, busy state, cancellation |
+| `fit_controller` / `uncertainty_controller` | `FitController` / `UncertaintyController` | fits, sequential plans, quick fit, uncertainty analyses |
+| `background_controller` | `BackgroundController` | background subtraction, revert, visual-only display |
+| `model_edit` | `ModelEditController` | duplicate/delete/move/enable/background/lock/link edits, single or multi-selection, and parameter copy |
+| `plot_workspace.placement` / `.scene` / `.view_state` | `PlacementController` / `SceneRenderer` / `ViewState` | plot interaction, drawing and view ranges |
+
+`ModelPanel` is a view: function multi-selection (also across spectra) is native,
+and it reports edits through signals. A batch request uses the `_BATCH` marker from
+`gui.model_selection`. Menu, toolbar and signal additions from optional modules go
+through `gui.window_extensions` stages instead of wrapping `_build_*` methods.
+Controllers and other building blocks (`plot*`, `panels`, `dialogs`,
+`model_selection`, …) must not import `gui.main_window`.
 
 ## GUI extensions and guardrails
 

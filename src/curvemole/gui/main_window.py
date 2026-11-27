@@ -35,7 +35,6 @@ from PySide6.QtGui import (
     QIcon,
     QKeySequence,
     QPalette,
-    QPixmap,
     QUndoStack,
 )
 from PySide6.QtWidgets import (
@@ -141,23 +140,9 @@ PALETTE = list(SERIES_PALETTES[DEFAULT_SERIES_PALETTE])
 _DEFAULT_PALETTE_SETTING = "plot/default_series_palette"
 
 
-def _resource_icon(
-    filename: str, crop: tuple[int, int, int, int] | None = None,
-    checked_filename: str | None = None,
-) -> QIcon:
-    """Return an icon bundled with CurveMole."""
-    if filename.endswith(".svg") and crop is None:
-        from curvemole.gui.icons import vector_icon
-
-        return vector_icon(filename, checked_filename)
-    pixmap = QPixmap(str(resources.files("curvemole.resources").joinpath(filename)))
-    if crop is not None:
-        pixmap = pixmap.copy(*crop)
-    return QIcon(pixmap)
-
-
 from curvemole import app_paths  # noqa: E402
 from curvemole.gui import app_settings, window_extensions  # noqa: E402
+from curvemole.gui.icons import resource_icon as _resource_icon  # noqa: E402,F401 - historical name
 from curvemole.gui.task_runner import TaskCallbacks, TaskRunner, Worker  # noqa: E402,F401
 from curvemole.gui.undo_commands import CallbackCommand  # noqa: E402,F401 - public import path
 
@@ -874,6 +859,8 @@ class MainWindow(QMainWindow):
         )
         from curvemole.gui.project_session import ProjectSession
         self.session = ProjectSession(self)
+        from curvemole.gui.model_edit_controller import ModelEditController
+        self.model_edit = ModelEditController(self)
         from curvemole.gui.uncertainty_controller import UncertaintyController
         self.uncertainty_controller = UncertaintyController(self)
         self.undo_stack = QUndoStack(self)
@@ -984,6 +971,34 @@ class MainWindow(QMainWindow):
 
     def revert_backgrounds(self, curve_ids: list[str] | None = None) -> None:
         self.background_controller.revert(curve_ids)
+
+    # Model-function edits; component_id may be the panel's batch marker.
+    def _set_component(self, component_id: str) -> None:
+        self.model_edit.set_component(component_id)
+
+    def duplicate_component(self, component_id: str) -> None:
+        self.model_edit.duplicate_component(component_id)
+
+    def delete_component(self, component_id: str) -> None:
+        self.model_edit.delete_component(component_id)
+
+    def move_component(self, component_id: str, delta: int) -> None:
+        self.model_edit.move_component(component_id, delta)
+
+    def enable_component(self, component_id: str, enabled: bool) -> None:
+        self.model_edit.enable_component(component_id, enabled)
+
+    def set_component_background(self, component_id: str, marked: bool) -> None:
+        self.model_edit.set_component_background(component_id, marked)
+
+    def set_component_fixed(self, component_id: str, fixed: bool) -> None:
+        self.model_edit.set_component_fixed(component_id, fixed)
+
+    def change_parameter(self, component_id: str, name: str, field: str, value: Any) -> None:
+        self.model_edit.change_parameter(component_id, name, field, value)
+
+    def edit_parameter_link(self, component_id: str, name: str) -> None:
+        self.model_edit.edit_parameter_link(component_id, name)
 
     def _complete_plugin_startup(self, recovered: bool, failures: set[str]) -> None:
         if self._session_finished:
@@ -1655,6 +1670,7 @@ class MainWindow(QMainWindow):
         self.curve_tree.seriesMergeRequested.connect(self.merge_series)
         self.curve_tree.rowMoveRequested.connect(self.move_data_row)
         self.model_panel.componentSelected.connect(self._set_component)
+        self.model_panel.copyParameterRequested.connect(self.model_edit.copy_parameter)
         self.model_panel.addRequested.connect(self.add_component)
         self.model_panel.duplicateRequested.connect(self.duplicate_component)
         self.model_panel.deleteRequested.connect(self.delete_component)
@@ -2138,6 +2154,29 @@ class MainWindow(QMainWindow):
             self._show_error(self.tr("Edit function points"), exc)
 
     def add_component(self) -> None:
+        """Add a function from the dialog and remember its type for quick add."""
+        previous_pending = self._pending_component
+        previous_selected = self.selected_component_id
+        self._add_component_from_dialog()
+        function_id: str | None = None
+        pending = self._pending_component
+        if pending is not None and pending is not previous_pending:
+            function_id = pending.function_id
+        elif (
+            self.active_curve_id
+            and self.selected_component_id
+            and self.selected_component_id != previous_selected
+        ):
+            try:
+                function_id = self.project.model_for(self.active_curve_id).component(
+                    self.selected_component_id
+                ).function_id
+            except KeyError:
+                function_id = None
+        if function_id:
+            self._remember_quick_function(function_id)
+
+    def _add_component_from_dialog(self) -> None:
         if not self._ensure_editable():
             return
         if not self.active_curve_id:
@@ -3138,6 +3177,11 @@ class MainWindow(QMainWindow):
             dialog.exec()
 
     def show_plugin_manager(self) -> None:
+        self._show_plugin_manager_dialog()
+        # Installed or removed plugins can change the quick-add function list.
+        self._refresh_quick_function_selector()
+
+    def _show_plugin_manager_dialog(self) -> None:
         if self.task_running:
             QMessageBox.information(self, "Plugin Manager", "Wait for the running task to finish.")
             return
@@ -3955,7 +3999,36 @@ class MainWindow(QMainWindow):
         label.setVisible(bool(name))
 
     def _load_custom_functions(self) -> None:
+        # Remove the old project layer before reloading persistent definitions.
+        self.registry.set_project_functions([])
+        self._load_user_function_library()
         self.registry.set_project_functions(self.project.custom_functions)
+        self._refresh_quick_function_selector()
+
+    # Functions toolbar group (quick add, peak finding, the reusable library).
+    def quick_peak(self) -> None:
+        from curvemole.gui import quick_function_library
+        quick_function_library._quick_add_function(self)
+
+    def _quick_peak_function_id(self) -> str:
+        from curvemole.gui import quick_function_library
+        return quick_function_library._selected_quick_function(self)
+
+    def find_peaks(self) -> None:
+        from curvemole.gui import quick_function_library
+        quick_function_library._find_peaks(self)
+
+    def _refresh_quick_function_selector(self, *args: Any, **kwargs: Any) -> None:
+        from curvemole.gui import quick_function_library
+        quick_function_library._refresh_quick_function_selector(self, *args, **kwargs)
+
+    def _remember_quick_function(self, function_id: str) -> None:
+        from curvemole.gui import quick_function_library
+        quick_function_library._remember_quick_function(self, function_id)
+
+    def _load_user_function_library(self) -> None:
+        from curvemole.gui import quick_function_library
+        quick_function_library._load_user_function_library(self)
 
     def _autosave(self) -> None:
         return self.session._autosave()

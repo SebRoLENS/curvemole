@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from PySide6.QtCore import QSignalBlocker, Qt
@@ -52,9 +52,12 @@ from curvemole.gui.function_composition import (
     sync_composition,
 )
 from curvemole.gui.function_info import show_function_info, sync_function_info
-from curvemole.gui.main_window import MainWindow, _resource_icon
+from curvemole.gui.icons import resource_icon as _resource_icon
 from curvemole.gui.panels import FunctionBuilderPanel
 from curvemole.gui.windowing import transient_widget
+
+if TYPE_CHECKING:
+    from curvemole.gui.main_window import MainWindow
 
 _LIBRARY_FOLDER_NAME = "my_curvemole_functions"
 _LIBRARY_SETTING = "custom_function_directory"
@@ -434,7 +437,7 @@ def _quick_add_function(window: MainWindow) -> None:
 
         component = Component.create(function_id, registry=window.registry, metadata=metadata, operator=operator)
         component.is_background = _quick_add_option(window, function_id, "background")
-        from curvemole.gui.manual_points import minimum_manual_points
+        from curvemole.gui.point_initialisation import minimum_manual_points
 
         if _quick_add_option(window, function_id, "manual_points"):
             window._pending_component = component
@@ -586,7 +589,7 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
         return
 
     host = panel.window()
-    if not isinstance(host, MainWindow):
+    if not hasattr(host, "quick_function_selector"):
         # The normal desktop path always has a MainWindow. Preserve the historical
         # behaviour for isolated/embed use where no persistent settings host exists.
         _ORIGINAL_BUILDER_ADD(panel)
@@ -628,13 +631,6 @@ def _builder_add(panel: FunctionBuilderPanel) -> None:
 
 
 def _install() -> None:
-    if getattr(MainWindow, "_curvemole_quick_function_library", False):
-        return
-
-    original_load_custom_functions = MainWindow._load_custom_functions
-    original_add_component = MainWindow.add_component
-    original_show_plugin_manager = MainWindow.show_plugin_manager
-
     def build_actions(window: MainWindow) -> None:
         window.quick_peak_action.setText(window.tr("Add function"))
         window.quick_peak_action.setToolTip(
@@ -749,52 +745,9 @@ def _install() -> None:
             _load_user_function_library(window)
             window.refresh_all()
 
-    def load_custom_functions(window: MainWindow) -> None:
-        # Remove the old project layer before reloading persistent definitions.
-        window.registry.set_project_functions([])
-        _load_user_function_library(window)
-        original_load_custom_functions(window)
-        _refresh_quick_function_selector(window)
-
-    def add_component(window: MainWindow) -> None:
-        previous_pending = window._pending_component
-        previous_selected = window.selected_component_id
-        original_add_component(window)
-        function_id: str | None = None
-        pending = window._pending_component
-        if pending is not None and pending is not previous_pending:
-            function_id = pending.function_id
-        elif (
-            window.active_curve_id
-            and window.selected_component_id
-            and window.selected_component_id != previous_selected
-        ):
-            try:
-                function_id = window.project.model_for(window.active_curve_id).component(
-                    window.selected_component_id
-                ).function_id
-            except KeyError:
-                function_id = None
-        if function_id:
-            _remember_quick_function(window, function_id)
-
-    def show_plugin_manager(window: MainWindow) -> None:
-        original_show_plugin_manager(window)
-        _refresh_quick_function_selector(window)
-
     window_extensions.register("actions", build_actions, key="quick_function_library.actions")
     window_extensions.register("toolbar", build_toolbar, key="quick_function_library.toolbar")
     window_extensions.register("signals", connect_signals, key="quick_function_library.signals")
-    MainWindow._load_custom_functions = load_custom_functions
-    MainWindow.add_component = add_component
-    MainWindow.quick_peak = _quick_add_function
-    MainWindow._quick_peak_function_id = _selected_quick_function
-    MainWindow.find_peaks = _find_peaks
-    MainWindow.show_plugin_manager = show_plugin_manager
-    MainWindow._refresh_quick_function_selector = _refresh_quick_function_selector
-    MainWindow._remember_quick_function = _remember_quick_function
-    MainWindow._load_user_function_library = _load_user_function_library
-    MainWindow._curvemole_quick_function_library = True
 
 
 _ORIGINAL_BUILDER_ADD = FunctionBuilderPanel._add

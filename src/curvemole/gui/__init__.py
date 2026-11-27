@@ -39,20 +39,9 @@ from curvemole.gui import manual_points_live as _manual_points_live  # noqa: F40
 # Keep the lightweight masked-data renderer available as the canonical module alias.
 from curvemole.gui import mask_display as _mask_display  # noqa: F401,E402
 
-# Install model-panel multi-selection and project-wide function browsing before
-# the desktop entry point constructs its MainWindow instance.
-from curvemole.gui import model_multiselect as _model_multiselect  # noqa: F401,E402
-
 # Keep an already-open laboratory notebook synchronised when descriptions are
 # added or edited from the main data/model context menus.
 from curvemole.gui import notebook_live_refresh as _notebook_live_refresh  # noqa: F401,E402
-
-# Extend the multi-selection model panel with source-to-many parameter copying.
-from curvemole.gui import parameter_copy as _parameter_copy  # noqa: F401,E402
-
-# Present parameter copying as a source-first action with an explicit project-wide
-# target picker, without changing the established copy/undo engine.
-from curvemole.gui import parameter_copy_redesign as _parameter_copy_redesign  # noqa: F401,E402
 
 # Let Function Builder peak parameters carry explicit semantic roles (centre,
 # height/area, FWHM/sigma/HWHM) instead of relying on parameter-name guesses.

@@ -3,18 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QMessageBox,
-    QPushButton,
 )
 
 from curvemole.core.errors import ConstraintError
-from curvemole.gui.main_window import MainWindow
-from curvemole.gui.model_multiselect import _restore_models
-from curvemole.gui.panels import ModelPanel
+from curvemole.gui.model_selection import _restore_models
+
+if TYPE_CHECKING:
+    from curvemole.gui.main_window import MainWindow
 
 
 @dataclass(slots=True)
@@ -184,60 +183,3 @@ def _show_copy_result(window: MainWindow, result: ParameterCopyResult, parameter
             )
         message += ", ".join(details) + "."
     QMessageBox.information(window, window.tr("Copy parameter"), message)
-
-
-def _install_parameter_copy() -> None:
-    if getattr(ModelPanel, "_curvemole_parameter_copy", False):
-        return
-
-    original_init = ModelPanel.__init__
-
-    def init(panel: ModelPanel, *args: Any, **kwargs: Any) -> None:
-        original_init(panel, *args, **kwargs)
-        panel._parameter_copy_source_ref = None
-        panel._parameter_copy_parameter_name = None
-        panel.copy_parameter_button = QPushButton(panel.tr("Select a parameter, then select target functions"))
-        panel.copy_parameter_button.setToolTip(
-            panel.tr(
-                "Workflow: 1) select the source function; 2) click the parameter row you want to copy; "
-                "3) Ctrl/Shift-select the target functions; 4) choose which fields to copy."
-            )
-        )
-        single = panel.stack.widget(0)
-        index = single.layout().indexOf(panel.parameters)
-        single.layout().insertWidget(index, panel.copy_parameter_button)
-        panel.copy_parameter_button.clicked.connect(panel._copy_parameter_to_selected)
-        panel.components.itemSelectionChanged.connect(panel._update_copy_parameter_button)
-        panel.parameters.currentCellChanged.connect(panel._remember_parameter_copy_source)
-        panel._update_copy_parameter_button()
-
-    def remember_source(
-        panel: ModelPanel,
-        row: int,
-        column: int,
-        previous_row: int,
-        previous_column: int,
-    ) -> None:
-        del column, previous_row, previous_column
-        if panel._updating or row < 0:
-            return
-        refs = panel.selected_component_refs()
-        if len(refs) != 1:
-            return
-        value_item = panel.parameters.item(row, 1)
-        metadata = value_item.data(Qt.ItemDataRole.UserRole) if value_item is not None else None
-        if not metadata:
-            return
-        panel._parameter_copy_source_ref = refs[0]
-        panel._parameter_copy_parameter_name = str(metadata[1])
-        panel._parameter_copy_all_parameters = False
-        panel._update_copy_parameter_button()
-
-    # The button state and copy action are installed by parameter_copy_redesign,
-    # which the curvemole.gui package always imports together with this module.
-    ModelPanel.__init__ = init
-    ModelPanel._remember_parameter_copy_source = remember_source
-    ModelPanel._curvemole_parameter_copy = True
-
-
-_install_parameter_copy()
