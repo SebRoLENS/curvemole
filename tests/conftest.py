@@ -76,7 +76,10 @@ def gaussian_curve() -> Curve:
 
 @pytest.fixture(autouse=True)
 def isolated_equation_library(tmp_path):
-    from PySide6.QtCore import QSettings
+    QSettings = _qsettings()
+    if QSettings is None:  # core tests run without Qt
+        yield
+        return
 
     settings = QSettings("CurveMole", "CurveMole")
     previous = settings.value("custom_equation_directory")
@@ -90,7 +93,10 @@ def isolated_equation_library(tmp_path):
 
 @pytest.fixture(autouse=True)
 def isolated_data_directory(tmp_path):
-    from PySide6.QtCore import QSettings
+    QSettings = _qsettings()
+    if QSettings is None:
+        yield
+        return
 
     settings = QSettings("CurveMole", "CurveMole")
     previous = settings.value("data_directory")
@@ -107,6 +113,8 @@ def no_leftover_screen_fit_filter():
     """The application-wide screen clamp is per test; the 800x800 offscreen
     screen would otherwise resize windows in unrelated layout tests."""
     yield
+    if "PySide6.QtWidgets" not in sys.modules:
+        return
     from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance()
@@ -114,3 +122,81 @@ def no_leftover_screen_fit_filter():
     if screen_fit is not None:
         app.removeEventFilter(screen_fit)
         app._curvemole_screen_fit = None
+
+
+def _qsettings():
+    """QSettings when Qt is available; core-only test runs do not need PySide6."""
+    try:
+        from PySide6.QtCore import QSettings
+    except ImportError:
+        return None
+    return QSettings
+
+
+_GUI_MARKERS = ("PySide6", "pyqtgraph", "curvemole.gui", "curvemole.desktop", "QApplication")
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "gui: needs Qt (applied automatically); run core tests with -m 'not gui'")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Mark every test of a module that uses Qt or the desktop client as ``gui``."""
+    sources: dict[str, bool] = {}
+    for item in items:
+        path = str(item.fspath)
+        if path not in sources:
+            try:
+                text = Path(path).read_text(encoding="utf-8")
+            except OSError:
+                text = ""
+            sources[path] = any(marker in text for marker in _GUI_MARKERS)
+        if sources[path]:
+            item.add_marker(pytest.mark.gui)
+
+
+@pytest.fixture
+def main_window(tmp_path, monkeypatch):
+    """A desktop main window with isolated settings, closed after the test.
+
+    Call it with an optional Project: ``window = main_window(project)``.
+    """
+    from PySide6.QtCore import QSettings
+    from PySide6.QtWidgets import QApplication
+
+    from curvemole.gui.app import CurveMoleMainWindow
+
+    app = QApplication.instance() or QApplication([])
+    settings = QSettings(str(tmp_path / "window-settings.ini"), QSettings.Format.IniFormat)
+    monkeypatch.setattr("curvemole.gui.main_window.QSettings", lambda *args: settings)
+    windows = []
+
+    def create(project=None):
+        window = CurveMoleMainWindow(project)
+        windows.append(window)
+        return window
+
+    yield create
+    for window in windows:
+        window.project.dirty = False
+        window.close()
+    app.processEvents()
+
+
+def _qt_available() -> bool:
+    try:
+        import PySide6.QtCore  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def pytest_ignore_collect(collection_path, config):
+    """Without Qt, skip GUI test modules entirely (they import PySide6 at load)."""
+    if collection_path.suffix != ".py" or not collection_path.name.startswith("test_") or _qt_available():
+        return None
+    try:
+        text = collection_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return True if any(marker in text for marker in _GUI_MARKERS) else None
