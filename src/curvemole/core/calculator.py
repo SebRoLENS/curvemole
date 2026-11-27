@@ -140,7 +140,7 @@ def apply_curve_operation(
             "interpolation": interpolation,
             "extrapolate": extrapolate,
             "asymmetric_operand": operand.current_error_y_minus is not None,
-            "correlated_operand": correlated,
+            "correlated_operand": bool(correlated),
             "same_measurement_rows": [] if same_rows is None else same_rows.tolist(),
         },
         description=f"{operation} with {operand.name} ({interpolation} interpolation)",

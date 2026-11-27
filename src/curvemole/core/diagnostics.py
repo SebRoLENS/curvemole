@@ -55,16 +55,49 @@ def _lag_limit(size, max_lag=None):
     return min(max_lag, size - 1)
 
 
+_SPACING_WINDOW = 9
+_SPACING_RATIO = 2.5
+
+
+def _local_step_scale(steps, eligible):
+    """Median absolute X step in a small centred window, ignoring ineligible steps."""
+    half = _SPACING_WINDOW // 2
+    magnitudes = np.where(eligible, np.abs(steps), np.nan)
+    padded = np.pad(magnitudes, half, constant_values=np.nan)
+    windows = np.lib.stride_tricks.sliding_window_view(padded, _SPACING_WINDOW)
+    with np.errstate(all="ignore"):
+        valid = np.isfinite(windows)
+        counts = valid.sum(axis=1)
+        ordered = np.sort(np.where(valid, windows, np.inf), axis=1)
+        lower = ordered[np.arange(len(steps)), np.maximum(counts - 1, 0) // 2]
+        upper = ordered[np.arange(len(steps)), counts // 2]
+        scale = (lower + upper) / 2
+    return np.where(counts > 0, scale, np.nan)
+
+
 def contiguous_residual_segments(indices, x):
-    """Split residuals at original-row gaps and, for other data, changes in X spacing."""
+    """Split residuals at original-row gaps and, for other data, at X discontinuities.
+
+    Calibrated detector axes (Raman shift, wavelength, wavenumber) are smooth but
+    never exactly uniform, and X values read from text files are rounded. Rows
+    therefore stay together while the X step keeps the dominant direction and is
+    within a factor of the *local* step; only real jumps, reversals and
+    duplicate/invalid X values break a segment.
+    """
     rows = np.asarray(indices)
     neighbours = np.diff(rows) == 1
-    if not isinstance(indices, DetectorPixelRows):
+    if not isinstance(indices, DetectorPixelRows) and len(neighbours):
         steps = np.diff(np.asarray(x, dtype=float))
         eligible = neighbours & np.isfinite(steps) & (steps != 0)
         if np.any(eligible):
-            step = float(np.median(steps[eligible]))
-            neighbours &= np.isclose(steps, step, rtol=1e-5, atol=0) & eligible
+            direction = np.sign(np.median(steps[eligible]))
+            eligible &= np.sign(steps) == direction
+        if np.any(eligible):
+            scale = _local_step_scale(steps, eligible)
+            with np.errstate(all="ignore"):
+                ratio = np.abs(steps) / scale
+            regular = (ratio <= _SPACING_RATIO) & (ratio >= 1 / _SPACING_RATIO)
+            neighbours &= eligible & regular
         else:
             neighbours[:] = False
     starts = np.r_[0, np.flatnonzero(~neighbours) + 1, len(rows)]

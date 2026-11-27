@@ -684,7 +684,7 @@ class Fitter:
         use_data_errors = record["plan"]["settings"].get("use_data_errors", True)
         for cid, digest in record["input_hashes"].items():
             curve = available.get(cid)
-            if curve is None or curve.fit_input_hash(schema) != digest:
+            if curve is None or not curve.matches_fit_input_hash(digest, schema):
                 raise FitError(f"Cannot replay: input data changed or missing for {cid}.")
             if schema == 1 and not use_data_errors:
                 output = result.curve_outputs.get(cid)

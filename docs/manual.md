@@ -2537,6 +2537,12 @@ uses the same rows as the baseline. Refitting requires the same scientific model
 data, weighting and loss as the recorded fit. The noise model and input
 confidence are recorded in the analysis settings.
 
+When **Estimate scale from residuals** is selected, the Y errors only define
+relative precision. Simulated noise is then multiplied by the square root of the
+baseline reduced chi-square, like the covariance standard errors, pooled over all
+spectra of a global fit and per spectrum for independent fits. The factor is
+recorded as `parametric_noise_scale` in the analysis settings.
+
 Each synthetic data set is refitted using the local solver. The result records the
 requested, completed, and failed replicates, seed, free parameter paths, samples,
 empirical intervals, and failure messages.
@@ -2561,7 +2567,11 @@ data-error weighting is disabled; they must be positive and finite on fitted row
 The block bootstrap resamples overlapping residual blocks within contiguous
 regularly spaced segments. With a verified SPE detector grid, blocks follow the
 detector samples and the fit uses the calibrated wavelengths. Blocks never
-cross masked rows, grid discontinuities, or spectrum endpoints. Fixed-count
+cross masked rows, grid discontinuities, or spectrum endpoints. A discontinuity
+is a reversal of X direction or a step more than 2.5 times larger or smaller than
+the median of the neighbouring steps, so smoothly calibrated or rounded X axes
+stay in one segment. The analysis is refused when fewer than half of the fitted
+rows lie in segments of at least two samples. Fixed-count
 block bootstrap defaults to 500 replicas. With Y errors it resamples standardized residuals and
 restores the destination row's noise scale, as in residual bootstrap. Enter a
 block length or choose Automatic. The automatic estimate uses the first lag at which the
@@ -4816,9 +4826,10 @@ workers=1, cancellation=None, progress=None)`; `block_bootstrap` defaults to
 - `residual_bootstrap(...)`: resamples residuals around the fitted model.
 - `block_bootstrap(..., block_length=None, ...)`: residual blocks; None estimates
   block length for each curve. Blocks never cross gaps: masked or deleted rows,
-  or a change of X spacing, split a curve into contiguous segments (calibrated
-  SPE spectra use detector-pixel adjacency instead of X spacing). If no adjacent
-  samples remain, `FitError` is raised. The configuration records `block_grid`
+  or an X jump/reversal relative to the local spacing, split a curve into
+  contiguous segments (calibrated SPE spectra use detector-pixel adjacency instead
+  of X spacing). If fewer than half of the fitted rows remain in segments of at
+  least two samples, `FitError` is raised. The configuration records `block_grid`
   and `contiguous_segments`.
 
 **Worker processes.** Resampling and profile replicas always run in a pool of

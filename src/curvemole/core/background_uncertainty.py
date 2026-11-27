@@ -103,6 +103,12 @@ def _input_identity(curve, model):
     return [curve.fit_input_hash(), hashlib.sha256(encoded).hexdigest()]
 
 
+def _identity_matches(curve, model, identity):
+    current = _input_identity(curve, model)
+    return (current[1] == identity[1]
+            and (current[0] == identity[0] or curve.matches_fit_input_hash(identity[0])))
+
+
 def background_uncertainty_record(baseline):
     if hasattr(baseline, "provenance"):
         provenance = baseline.provenance
@@ -113,7 +119,7 @@ def background_uncertainty_record(baseline):
 
 def background_uncertainty_is_current(project, treatment):
     try:
-        return all(_input_identity(project.dataset.curve(cid), project.models[cid]) == identity
+        return all(_identity_matches(project.dataset.curve(cid), project.models[cid], identity)
                    for cid, identity in treatment["source_inputs"].items())
     except KeyError:
         return False

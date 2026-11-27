@@ -259,7 +259,8 @@ def _baseline_output(baseline, curve, settings):
             or not np.array_equal(observed, output.observed)):
         raise FitError(f"The fitted rows or data have changed for '{curve.name}'. Refit before analysis.")
     digest = baseline.provenance.get("input_hashes", {}).get(curve.id)
-    if digest is not None and digest != curve.fit_input_hash(baseline.provenance.get("schema_version", 1)):
+    if digest is not None and not curve.matches_fit_input_hash(
+            digest, baseline.provenance.get("schema_version", 1)):
         raise FitError(f"The fit inputs have changed for '{curve.name}'. Refit before analysis.")
     return output
 
@@ -313,11 +314,51 @@ def residual_inflation(baseline: FitResult, curve_ids: Sequence[str]) -> dict[st
     return factors
 
 
+def parametric_noise_scale(baseline, plan, curves):
+    """Scale relative Y errors to the residual scatter for parametric Monte Carlo.
+
+    With "Estimate scale from residuals" (``absolute_sigma=False``) the supplied
+    Y errors only fix relative precision. The covariance is then rescaled by the
+    reduced chi-square, so simulated noise must be rescaled by its square root
+    too; otherwise the Monte Carlo spread is too small by sqrt(chi2_red).
+    Global fits pool the statistic, independent fits use each spectrum's own.
+    Returns ``None`` when the errors are absolute.
+    """
+    if plan.settings.absolute_sigma is not False:
+        return None
+    paths = list(baseline.free_parameter_paths)
+    sums, counts = {}, {}
+    for cid in plan.curve_ids:
+        curve = curves[cid]
+        output = _baseline_output(baseline, curve, plan.settings)
+        scales = _resampling_scales(curve, "parametric_monte_carlo")
+        residual = np.asarray(output.residual, dtype=float)
+        if scales is None:
+            continue
+        minus, plus = (np.asarray(side, dtype=float)[output.indices] for side in scales)
+        normalised = residual / np.where(residual >= 0, minus, plus)
+        sums[cid] = float(np.sum(normalised ** 2))
+        counts[cid] = len(residual)
+    if not sums:
+        return None
+
+    def factor(total, n, p):
+        return math.sqrt(total / (n - p)) if n > p and total > 0 else 1.0
+
+    if baseline.mode == FitMode.GLOBAL or len(plan.curve_ids) == 1:
+        value = factor(sum(sums.values()), sum(counts.values()), len(paths))
+        return dict.fromkeys(sums, value)
+    return {cid: factor(sums[cid], counts[cid], sum(1 for path in paths if path.startswith(f"{cid}.")))
+            for cid in sums}
+
+
 def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="residual_bootstrap"):
     resolved = resolve_parameter_values({path: parameter for cid, model in models.items()
                                         for path, parameter in model.parameter_map(cid).items()})
     inflation = (residual_inflation(baseline, plan.curve_ids)
                  if method != "parametric_monte_carlo" else {})
+    noise_scale = (parametric_noise_scale(baseline, plan, curves) or {}
+                   if method == "parametric_monte_carlo" else {})
     prepared = {}
     for cid in plan.curve_ids:
         curve = curves[cid]
@@ -333,6 +374,8 @@ def _prepare_resampling(baseline, plan, curves, models, fitter, *, method="resid
             raise FitError(
                 f"Parametric Monte Carlo requires calibrated Y errors or absolute inverse variance for '{curve.name}'."
             )
+        if scales is not None and cid in noise_scale:
+            scales = tuple(np.asarray(side, dtype=float) * noise_scale[cid] for side in scales)
         if scales is not None and any(np.any(~np.isfinite(side[output.indices]) |
                                               (side[output.indices] <= 0)) for side in scales):
             raise FitError(f"Resampling requires finite positive Y errors on fitted rows for '{curve.name}'.")
@@ -936,6 +979,8 @@ class UncertaintyAnalyzer:
             } for curve_id in plan.curve_ids},
             "residual_inflation": (residual_inflation(baseline, plan.curve_ids)
                                    if method != "parametric_monte_carlo" else None),
+            "parametric_noise_scale": (parametric_noise_scale(baseline, plan, curves)
+                                       if method == "parametric_monte_carlo" else None),
             "residual_standardization": method != "parametric_monte_carlo" and any(
                 _resampling_scales(curves[curve_id], method) is not None
                 for curve_id in plan.curve_ids),
@@ -975,9 +1020,17 @@ class UncertaintyAnalyzer:
             extra_configuration["contiguous_segments"] = {
                 curve_id: len(values[4]) for curve_id, values in prepared.items()
             }
-            if any(not any(segment.stop - segment.start > 1 for segment in values[4])
-                   for values in prepared.values()):
-                raise FitError("Block bootstrap requires adjacent fitted samples on a regular X or detector grid.")
+            for values in prepared.values():
+                segments = values[4]
+                total = sum(segment.stop - segment.start for segment in segments)
+                usable = sum(segment.stop - segment.start for segment in segments
+                             if segment.stop - segment.start > 1)
+                # Singleton segments can only resample their own residual, which
+                # silently collapses the replicate spread towards zero.
+                if not usable or usable < 0.5 * total:
+                    raise FitError(
+                        "Block bootstrap requires most fitted samples to be adjacent on a regular X "
+                        "or detector grid; the selected data is fragmented by gaps or irregular X steps.")
         lengths["_prepared"] = prepared
         from curvemole.core.provenance import analysis_record
         provenance = analysis_record(method, baseline, trial_plan, curves, models, self.fitter.registry,

@@ -92,9 +92,13 @@ def _normalization(x, y, operation):
         scale = abs(y[peak])
         coefficients[peak] = np.sign(y[peak])
     else:
-        finite = np.isfinite(x) & np.isfinite(y)
-        steps = np.diff(x[finite]) / 2
-        coefficients[finite] = np.r_[steps, 0.] + np.r_[0., steps] if np.any(finite) else []
+        finite = np.flatnonzero(np.isfinite(x) & np.isfinite(y))
+        # Trapezoid weights over ascending X, whatever the row order: descending
+        # wavenumber axes and unsorted rows must not change the sign or value.
+        order = finite[np.argsort(x[finite], kind="stable")]
+        steps = np.diff(x[order]) / 2
+        if len(order):
+            coefficients[order] = np.r_[steps, 0.] + np.r_[0., steps]
         scale = float(np.dot(coefficients[finite], y[finite]))
     if not np.isfinite(scale) or scale == 0:
         raise DataValidationError("Cannot normalise a curve with a zero or invalid denominator.")
@@ -110,6 +114,10 @@ def _normalized_errors(minus, plus, normalized, scale, coefficients):
     low[coefficients == 0] = high[coefficients == 0] = 0.
 
     def other_norm(values):
+        # Rows without a usable error (NaN sigma, zero point weight) keep an
+        # undefined own error but must not poison every other row through the
+        # shared denominator.
+        values = np.where(np.isfinite(values), values, 0.)
         prefix = np.hypot.accumulate(np.r_[0., values])[:-1]
         suffix = np.hypot.accumulate(np.r_[0., values[::-1]])[:-1][::-1]
         return np.hypot(prefix, suffix)
@@ -488,7 +496,7 @@ class Curve:
 
     @property
     def has_correlated_y_errors(self) -> bool:
-        return self._correlated_y_errors
+        return bool(self._correlated_y_errors)
 
     def residual_scale(self, fitted: np.ndarray, indices: np.ndarray,
                        *, use_data_errors: bool = True) -> np.ndarray | None:
@@ -526,6 +534,37 @@ class Curve:
 
     def fit_input_hash(self, schema_version: int = 2) -> str:
         """Retain the historical fingerprint for verifying archived records."""
+        return self._fit_input_digest(schema_version, self._hash_flags(schema_version)).hexdigest()
+
+    def matches_fit_input_hash(self, digest: str, schema_version: int = 2) -> bool:
+        """Compare with a recorded fingerprint, accepting NumPy scalar flag spellings.
+
+        Older releases could hash flags such as ``np.False_`` that serialisation
+        later restores as plain ``False``; those records still describe the same data.
+        """
+        if digest == self.fit_input_hash(schema_version):
+            return True
+        import itertools
+
+        flags = self._hash_flags(schema_version)
+        base = self._fit_input_digest(schema_version, None)
+        spellings = [(value, np.float64(value) if isinstance(value, float) else np.bool_(value))
+                     if isinstance(value, (bool, float)) else (value,) for value in flags]
+        for variant in itertools.product(*spellings):
+            candidate = base.copy()
+            candidate.update(repr(variant).encode())
+            if candidate.hexdigest() == digest:
+                return True
+        return False
+
+    def _hash_flags(self, schema_version):
+        level = self.error_confidence_level
+        flags = (None if level is None else float(level), bool(self.weights_are_inverse_variance))
+        if schema_version >= 2:
+            flags += (bool(self.has_correlated_y_errors),)
+        return flags
+
+    def _fit_input_digest(self, schema_version, flags):
         digest = hashlib.sha256()
         mask = self.effective_mask if schema_version == 1 else self._excluded_rows(use_data_errors=False)
         for array in (self._x, self._y, mask, self._sigma_y_current,
@@ -536,11 +575,9 @@ class Curve:
                 if schema_version >= 2:
                     digest.update(repr((array.dtype.str, array.shape)).encode())
                 digest.update(np.ascontiguousarray(array).tobytes())
-        flags = (self.error_confidence_level, self.weights_are_inverse_variance)
-        if schema_version >= 2:
-            flags += (self.has_correlated_y_errors,)
-        digest.update(repr(flags).encode())
-        return digest.hexdigest()
+        if flags is not None:
+            digest.update(repr(flags).encode())
+        return digest
 
     def fit_arrays(self, *, use_data_errors: bool = True) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray]:
         keep = ~self._excluded_rows(use_data_errors=use_data_errors)

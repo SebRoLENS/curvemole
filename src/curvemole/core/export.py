@@ -350,7 +350,7 @@ def parameter_dataframe(
             model = project.models.get(curve_id)
             if (curve is None or model is None
                     or (not result.success and (result.mode == FitMode.GLOBAL or curve.state != CurveState.FITTED))
-                    or (curve_id in recorded_hashes and curve.fit_input_hash(schema) != recorded_hashes[curve_id])
+                    or (curve_id in recorded_hashes and not curve.matches_fit_input_hash(recorded_hashes[curve_id], schema))
                     or np.any(output.indices < 0) or np.any(output.indices >= len(curve))
                     or not np.array_equal(curve.x[output.indices], output.x)
                     or not np.array_equal(curve.y[output.indices], output.observed)
