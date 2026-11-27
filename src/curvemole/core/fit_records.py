@@ -39,7 +39,7 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
         matrices[field] = (None if matrix is None else matrix.submatrix(indices)
                            if hasattr(matrix, "submatrix") else np.asarray(matrix)[np.ix_(indices, indices)])
     from curvemole.core.provenance import select_fit_record
-    output = copy.deepcopy(result.curve_outputs[curve_id])
+    output = _shared_output(result.curve_outputs[curve_id])
     return replace(
         result,
         mode=FitMode.INDEPENDENT,
@@ -57,6 +57,24 @@ def baseline_for_curve(result: FitResult, curve_id: str) -> FitResult:
         covariance=matrices["covariance"],
         correlation=matrices["correlation"],
     )
+
+
+def _shared_output(output):
+    """Copy a curve output's metadata while sharing its (read-only) arrays.
+
+    Completed fit outputs are never modified, so the per-spectrum baseline can
+    reference the batch result's arrays instead of duplicating every X, data,
+    fit and residual vector. Freezing them turns any accidental write into an
+    immediate error instead of silent corruption of both records.
+    """
+    shared = copy.copy(output)
+    for name in dir(output):
+        value = getattr(output, name, None)
+        if isinstance(value, np.ndarray):
+            value.setflags(write=False)
+    if isinstance(getattr(output, "statistics", None), dict):
+        shared.statistics = copy.deepcopy(output.statistics)
+    return shared
 
 
 def fit_model_matches(result: FitResult, curve_id: str, model, values) -> bool:

@@ -435,17 +435,25 @@ def _read_frame(
     count = 0
     separator = config.delimiter if config.delimiter is not None else r"\s+"
     with SpooledTemporaryFile(mode="w+", max_size=1024 * 1024, encoding="utf-8", newline="") as filtered:
+        prefixes = tuple(config.comment_prefixes)
+        limit = None if nrows is None else nrows + int(bool(config.header))
+        kept: list[str] = []
         with path.open(encoding=config.encoding, errors="replace") as stream:
             for index, line in enumerate(stream):
                 if index < config.skip_rows or not line.strip():
                     continue
-                if line.lstrip().startswith(tuple(config.comment_prefixes)):
+                if line.lstrip().startswith(prefixes):
                     comments += 1
                     continue
-                filtered.write(line.rstrip("\r\n") + "\n")
-                count += 1
-                if nrows is not None and count >= nrows + int(bool(config.header)):
+                kept.append(line.rstrip("\r\n") + "\n")
+                if len(kept) >= 4096:
+                    count += len(kept)
+                    filtered.writelines(kept)
+                    kept.clear()
+                if limit is not None and count + len(kept) >= limit:
                     break
+        count += len(kept)
+        filtered.writelines(kept)
         if not count:
             raise DataValidationError(f"'{path}' contains no readable table rows.")
         filtered.seek(0)
@@ -459,7 +467,10 @@ def _read_frame(
                         f"Table row {number} has more fields ({len(fields)}) than declared columns ({expected})."
                     )
             filtered.seek(0)
-            frame = pd.read_csv(filtered, sep=separator, engine="python",
+            # The C parser is ~30x faster; it supports single-character
+            # separators and runs of whitespace. Other patterns need Python.
+            engine = "c" if len(separator) == 1 or separator == r"\s+" else "python"
+            frame = pd.read_csv(filtered, sep=separator, engine=engine,
                                 header=0 if config.header else None, dtype=str,
                                 keep_default_na=False, na_filter=False, nrows=nrows)
         except Exception as exc:
@@ -520,13 +531,18 @@ def unparsed_values(values: Iterable[str], parsed: np.ndarray) -> np.ndarray:
     Explicit missing-value markers (empty cells, NaN, NA, ...) are intentional
     and are not reported; typing errors such as ``4x`` or ``1.234,5`` are.
     """
-    text = np.asarray([str(value).strip().casefold() for value in values], dtype=object)
-    missing = np.isnan(parsed) & ~np.isin(text, list(_MISSING_TEXT))
-    return np.flatnonzero(missing) + 1
+    candidates = np.flatnonzero(np.isnan(parsed))
+    if not candidates.size:
+        return candidates
+    values = values if hasattr(values, "__getitem__") else list(values)
+    flagged = [row for row in candidates.tolist()
+               if str(values[row]).strip().casefold() not in _MISSING_TEXT]
+    return np.asarray(flagged, dtype=np.intp) + 1
 
 
 def _unparsed_rows(series: pd.Series, parsed: np.ndarray) -> np.ndarray:
-    return unparsed_values(series.astype(str).tolist(), parsed)
+    # Only rows that failed to parse need their text inspected.
+    return unparsed_values(series.to_numpy(dtype=object), parsed)
 
 
 def _split(line: str, delimiter: str | None) -> list[str]:

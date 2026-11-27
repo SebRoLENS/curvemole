@@ -536,7 +536,7 @@ class _Problem:
         finally:
             self.values(vector, commit=True)
 
-    def residual(self, vector: np.ndarray, *, report: bool = True) -> np.ndarray:
+    def residual(self, vector: np.ndarray, *, report: bool = True, component_cache=None) -> np.ndarray:
         self.cancellation.raise_if_cancelled()
         if report:
             self.evaluations += 1
@@ -545,7 +545,7 @@ class _Problem:
         for curve in self.curves:
             _, observed, point_scale, indices = self._data[curve.id]
             fitted = self.models[curve.id].evaluate_for_curve(
-                curve, indices, values=values, registry=self.registry
+                curve, indices, values=values, registry=self.registry, component_cache=component_cache
             )
             if not np.all(np.isfinite(fitted)):
                 raise FitError(f"Model for curve '{curve.name}' returned non-finite values.")
@@ -565,11 +565,16 @@ class _Problem:
         # Keep numerical-difference probes out of the solver's nfev budget.
         # Use SciPy's bound-aware two-point routine, as least_squares does.
         from scipy.optimize._numdiff import approx_derivative
-        base = self._jacobian_base
-        f0 = base[1] if base is not None and np.array_equal(base[0], vector) else None
+        from curvemole.core.models import ComponentCache
+
+        cache = ComponentCache()
+        # Fill the cache at the base point (this also yields f0), then let the
+        # probes reuse every component whose parameters they did not change.
+        f0 = self.residual(vector, report=False, component_cache=cache)
+        cache.filling = False
         try:
             result = approx_derivative(
-                lambda point: self.residual(point, report=False),
+                lambda point: self.residual(point, report=False, component_cache=cache),
                 vector, method="3-point", bounds=self.bounds, f0=f0,
                 abs_step=derivative_steps(vector, self.scales),
                 sparsity=self._jacobian_sparsity,

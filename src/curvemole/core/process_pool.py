@@ -2,14 +2,61 @@
 
 from __future__ import annotations
 
+import os
+import threading
 import time
 from concurrent.futures import FIRST_COMPLETED, wait
 from contextlib import contextmanager
+
+# Each worker already runs one fit or replica. Letting OpenBLAS/MKL/OpenMP start
+# one thread per core inside every worker oversubscribes the CPU many times over
+# (measured: 12 workers on 24 threads were 7-10x slower than single-threaded BLAS).
+WORKER_THREAD_VARIABLES = (
+    "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS",
+    "BLIS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
+)
+_environment_lock = threading.Lock()
+_environment_users = 0
+_saved_environment: dict[str, str | None] = {}
+
+
+@contextmanager
+def single_threaded_worker_libraries():
+    """Make spawned workers start with one BLAS/OpenMP thread each.
+
+    Spawned processes copy ``os.environ`` when they start, and the libraries read
+    these variables only when loaded, so they must be set in the parent while the
+    pool starts its workers. Values chosen explicitly by the user are kept. The
+    parent's own, already loaded libraries are unaffected.
+    """
+    global _environment_users
+    with _environment_lock:
+        if _environment_users == 0:
+            _saved_environment.clear()
+            for name in WORKER_THREAD_VARIABLES:
+                if name not in os.environ:
+                    _saved_environment[name] = None
+                    os.environ[name] = "1"
+        _environment_users += 1
+    try:
+        yield
+    finally:
+        with _environment_lock:
+            _environment_users -= 1
+            if _environment_users == 0:
+                for name in _saved_environment:
+                    os.environ.pop(name, None)
+                _saved_environment.clear()
 
 
 @contextmanager
 def managed_process_pool(pool, *, drain=None):
     """Drain telemetry while shutting down; never wait forever on a worker exit."""
+    with single_threaded_worker_libraries():
+        yield from _managed_process_pool(pool, drain=drain)
+
+
+def _managed_process_pool(pool, *, drain=None):
     failed = False
     try:
         yield pool

@@ -72,13 +72,31 @@ def scale_jacobian(jacobian, scales):
 
 
 def compensated_sum(arrays, template):
+    """Neumaier summation, performed in reusable buffers.
+
+    Same operations and rounding as the straightforward expression
+    ``where(|t| >= |v|, (t - u) + v, (v - u) + t)``, without allocating
+    temporaries for every term (model evaluation calls this for each
+    finite-difference probe).
+    """
     total = np.zeros_like(template, dtype=float)
     correction = np.zeros_like(total)
+    updated = np.empty_like(total)
+    first = np.empty_like(total)
+    second = np.empty_like(total)
+    smaller = np.empty(total.shape, dtype=bool)
     for value in arrays:
-        updated = total + value
-        correction += np.where(np.abs(total) >= np.abs(value),
-                               (total - updated) + value, (value - updated) + total)
-        total = updated
+        np.add(total, value, out=updated)
+        np.abs(total, out=first)
+        np.abs(value, out=second)
+        np.less(first, second, out=smaller)
+        np.subtract(total, updated, out=first)
+        first += value
+        np.subtract(value, updated, out=second)
+        second += total
+        np.copyto(first, second, where=smaller)
+        correction += first
+        total, updated = updated, total
     return total + correction
 
 

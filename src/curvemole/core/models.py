@@ -20,6 +20,29 @@ def _identifier(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:12]}"
 
 
+
+class ComponentCache:
+    """Component outputs at one base parameter vector, reused by derivative probes.
+
+    A finite-difference Jacobian perturbs one solver coordinate at a time, which
+    usually changes the parameters of a single component. Reusing the unchanged
+    components' arrays (keyed by curve, component and exact parameter values)
+    removes most model evaluations while leaving the combination, and therefore
+    every result, bit-for-bit identical. Only entries stored while filling are
+    kept, so probe outputs do not accumulate in memory.
+    """
+
+    def __init__(self) -> None:
+        self._store: dict[tuple, np.ndarray] = {}
+        self.filling = True
+
+    def get(self, key):
+        return self._store.get(key)
+
+    def put(self, key, value) -> None:
+        if self.filling:
+            self._store[key] = value
+
 @dataclass(slots=True)
 class Component:
     function_id: str
@@ -205,6 +228,7 @@ class Model:
         values: Mapping[str, float] | None = None,
         registry: FunctionRegistry | None = None,
         components: bool = False,
+        component_cache: ComponentCache | None = None,
     ) -> np.ndarray | tuple[np.ndarray, dict[str, np.ndarray]]:
         registry = registry or default_registry()
         prefix = curve_id or self.id
@@ -220,10 +244,15 @@ class Model:
                 name: float(values.get(self.parameter_path(prefix, component.id, name), parameter.value))
                 for name, parameter in component.parameters.items()
             }
-            evaluated = component.evaluate(np.asarray(x, dtype=float), parameters, registry)
+            key = (prefix, component.id, "values", tuple(parameters.values()))
+            evaluated = None if component_cache is None else component_cache.get(key)
+            if evaluated is None:
+                evaluated = component.evaluate(np.asarray(x, dtype=float), parameters, registry)
+                if component_cache is not None:
+                    component_cache.put(key, evaluated)
             component_values[component.id] = evaluated
         total = self._evaluate_global(np.asarray(x, dtype=float), component_values,
-                                      self._convolution_samples(x, prefix, values, registry))
+                                      self._convolution_samples(x, prefix, values, registry, component_cache))
         return (total, component_values) if components else total
 
     def evaluate_for_curve(self, curve, indices, **kwargs):
@@ -242,7 +271,7 @@ class Model:
             positions.get(c.id, len(positions)), rank[c.operator] if c.id not in positions else 0, c.id,
         ))
 
-    def _convolution_samples(self, x, prefix, values, registry):
+    def _convolution_samples(self, x, prefix, values, registry, component_cache=None):
         """Use odd kernel grids, with an exact central lag, for even signals."""
         x = np.asarray(x, dtype=float)
         if len(x) < 2 or len(x) % 2:
@@ -253,7 +282,13 @@ class Model:
             if component.enabled and component.operator == "convolve":
                 parameters = {name: float(values.get(self.parameter_path(prefix, component.id, name), p.value))
                               for name, p in component.parameters.items()}
-                kernels[component.id] = component.evaluate(grid, parameters, registry)
+                key = (prefix, component.id, "kernel", tuple(parameters.values()))
+                kernel = None if component_cache is None else component_cache.get(key)
+                if kernel is None:
+                    kernel = component.evaluate(grid, parameters, registry)
+                    if component_cache is not None:
+                        component_cache.put(key, kernel)
+                kernels[component.id] = kernel
         return kernels
 
     @property
@@ -268,7 +303,7 @@ class Model:
         terms = [c for c in self.additive_components if c.id in evaluated]
         total = None
         if terms:
-            total = compensated_sum((evaluated[c.id] * (1 if c.operator == "add" else -1)
+            total = compensated_sum((evaluated[c.id] if c.operator == "add" else -evaluated[c.id]
                                      for c in terms), x)
         operations = [c for c in self.ordered_operations if c.enabled and c.id in evaluated]
         index = 0

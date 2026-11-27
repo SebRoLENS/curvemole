@@ -107,11 +107,11 @@ def test_profile_dynamic_target_refits_source_inside_relation_on_every_iteration
     original = Model.evaluate
     source_values = []
 
-    def evaluate(self, x, *, curve_id=None, values=None, registry=None):
+    def evaluate(self, x, *, curve_id=None, values=None, registry=None, **options):
         resolved = values or resolve_parameter_values(self.parameter_map(curve_id))
         assert resolved[target_path] >= resolved[source_path]
         source_values.append(resolved[source_path])
-        return original(self, x, curve_id=curve_id, values=resolved, registry=registry)
+        return original(self, x, curve_id=curve_id, values=resolved, registry=registry, **options)
 
     monkeypatch.setattr(Model, "evaluate", evaluate)
     result = UncertaintyAnalyzer(fitter).profile_parameter(

@@ -36,7 +36,10 @@ def _optimise_plot_data_item(item: pg.PlotDataItem, *, adaptive: bool) -> None:
         return
     monotonic = _normalise_display_x(item)
     item.setClipToView(monotonic)
-    use_downsampling = (adaptive or has_symbols) and monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
+    # Automatic "peak" reduction only engages with more samples than pixels and
+    # keeps every pixel column's minimum and maximum, so a dense spectrum looks
+    # the same while drawing far fewer segments, in Single view as well.
+    use_downsampling = monotonic and len(x_data) >= _ADAPTIVE_RENDER_MIN_POINTS
     item.setDownsampling(
         ds=None if use_downsampling else 1,
         auto=use_downsampling,

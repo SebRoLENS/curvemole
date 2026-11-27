@@ -60,8 +60,11 @@ def test_individual_baseline_copies_only_selected_spectrum_and_covariance_block(
     selected = baseline.curve_outputs["first"]
     for field in ("indices", "x", "observed", "fitted", "residual", "weighted_residual"):
         np.testing.assert_array_equal(getattr(selected, field), getattr(original, field))
-        assert not np.shares_memory(getattr(selected, field), getattr(original, field))
-    selected.observed[0] = -999
+        # Completed outputs are shared, not duplicated, and frozen against writes.
+        assert np.shares_memory(getattr(selected, field), getattr(original, field))
+        assert not getattr(selected, field).flags.writeable
+    with pytest.raises(ValueError, match="read-only"):
+        selected.observed[0] = -999
     selected.statistics["chi_square"] = -99
     baseline.parameters["first.peak.area"].value = -99
     baseline.warnings.append("new warning")

@@ -220,6 +220,33 @@ class MaskViewBox(pg.ViewBox):
         super().mouseDragEvent(event, axis=axis)
 
 
+def _label_offset(placed, left, top, right, bottom, step, limit):
+    """Smallest whole number of upward steps that clears every placed label.
+
+    A placed rectangle forbids the open offset interval (top - its bottom,
+    bottom - its top). Merging those intervals finds the answer in one sweep
+    instead of re-testing every label at every trial step.
+    """
+    forbidden = sorted((top - b, bottom - t) for l, t, r, b in placed if l < right and left < r)
+    merged: list[list[float]] = []
+    for low, high in forbidden:
+        if merged and low < merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], high)
+        else:
+            merged.append([low, high])
+    steps = 0
+    for low, high in merged:
+        offset = steps * step
+        if high <= offset:
+            continue
+        if low >= offset:
+            break
+        steps = math.ceil(high / step - 1e-9)
+        if steps >= limit:
+            return limit * step
+    return steps * step
+
+
 class PlotWorkspace(QWidget):
     maskPointRequested = Signal(float)
     maskRangeRequested = Signal(float, float)
@@ -679,7 +706,15 @@ class PlotWorkspace(QWidget):
         self._restore_placement_mouse_targets()
         previous = self._render_items
         self._render_items = {}
-        retained = {item for _, item in previous.values()}
+        # Hide old labels and keep them in the scene for reuse: removing,
+        # destroying and recreating thousands of text items dominated Overlay
+        # refreshes. Unused labels simply stay hidden.
+        pool = getattr(self, "_label_pool", [])
+        pool.extend(self._component_labels)
+        for label in pool:
+            label.setVisible(False)
+        self._label_pool = pool
+        retained = {item for _, item in previous.values()} | set(pool)
         for plot in (self.plot, self.residual_plot):
             for item in tuple(plot.items):
                 if item not in retained:
@@ -775,7 +810,7 @@ class PlotWorkspace(QWidget):
                     self.plot.addItem(errors)
                     self._error_items[curve.id] = errors
             for mask in (() if getattr(self, "_lightweight_masks", False) else curve.masks.values()):
-                for lower, upper in mask.ranges:
+                for lower, upper in mask.effective_ranges(curve.x):
                     if math.isclose(lower, upper):
                         continue
                     region = pg.LinearRegionItem(
@@ -946,15 +981,22 @@ class PlotWorkspace(QWidget):
         index = int(maxima[len(maxima) // 2]) if len(maxima) else int(finite_indices[np.nanargmax(values)])
         x_position = float(x[index])
         y_position = float(y[index])
-        label = pg.TextItem(
-            text=name,
-            color="#202020",
-            anchor=(0.5, 1.0),
-            border=pg.mkPen(100, 100, 100, 150),
-            fill=pg.mkBrush(255, 255, 255, 220),
-        )
-        label.setZValue(70)
-        self.plot.addItem(label)
+        pool = getattr(self, "_label_pool", None)
+        if pool:
+            label = pool.pop()
+            label.setText(name)
+            label.setVisible(True)
+        else:
+            label = pg.TextItem(
+                text=name,
+                color="#202020",
+                anchor=(0.5, 1.0),
+                border=pg.mkPen(100, 100, 100, 150),
+                fill=pg.mkBrush(255, 255, 255, 220),
+            )
+            label.setZValue(70)
+        if label.scene() is None:
+            self.plot.addItem(label)
         label.setPos(x_position, y_position)
         self._component_labels.append(label)
         self._component_label_specs.append((label, x_position, y_position))
@@ -970,17 +1012,21 @@ class PlotWorkspace(QWidget):
             if step_scale == 0.0:
                 return
             direction = -1.0 if bool(self.view_box.state.get("yInverted", False)) else 1.0
-            placed: list[Any] = []
+            limit = len(self._component_label_specs) + 3
+            # Scene rectangles as (left, top, right, bottom). Labels move up the
+            # screen in whole steps until they clear every earlier label. Only
+            # one Qt geometry query per label: the layout runs on every refresh
+            # and view change, and overlays can carry thousands of labels.
+            placed: list[tuple[float, float, float, float]] = []
             for label, base_x, base_y in sorted(self._component_label_specs, key=lambda item: item[1]):
-                y_position = base_y
-                label.setPos(base_x, y_position)
-                for _ in range(len(self._component_label_specs) + 3):
-                    rect = label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0)
-                    if not any(rect.intersects(previous) for previous in placed):
-                        break
-                    y_position += direction * max(16.0, rect.height() + 4.0) * step_scale
-                    label.setPos(base_x, y_position)
-                placed.append(label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0))
+                label.setPos(base_x, base_y)
+                rect = label.sceneBoundingRect().adjusted(-3.0, -2.0, 3.0, 2.0)
+                left, top, right, bottom = rect.left(), rect.top(), rect.right(), rect.bottom()
+                step = max(16.0, rect.height() + 4.0)
+                offset = _label_offset(placed, left, top, right, bottom, step, limit)
+                if offset:
+                    label.setPos(base_x, base_y + direction * offset * step_scale)
+                placed.append((left, top - offset, right, bottom - offset))
         finally:
             self._laying_out_labels = False
 

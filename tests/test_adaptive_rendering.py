@@ -34,7 +34,7 @@ def test_dense_line_uses_peak_downsampling_and_clip_to_view() -> None:
     app.processEvents()
 
 
-def test_single_view_keeps_full_resolution_but_clips_visible_range() -> None:
+def test_single_view_uses_peak_preserving_reduction_and_keeps_pen() -> None:
     app = QApplication.instance() or QApplication([])
     widget = pg.PlotWidget()
     x = np.linspace(0.0, 100.0, 5000)
@@ -43,8 +43,8 @@ def test_single_view_keeps_full_resolution_but_clips_visible_range() -> None:
 
     _optimise_plot_data_item(item, adaptive=False)
 
-    assert item.opts["autoDownsample"] is False
-    assert item.opts["downsample"] == 1
+    assert item.opts["autoDownsample"] is True
+    assert item.opts["downsampleMethod"] == "peak"
     assert item.opts["clipToView"] is True
     assert item.opts["pen"].widthF() == pytest.approx(1.35)
     widget.close()
