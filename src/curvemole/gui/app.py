@@ -387,7 +387,7 @@ def run_primary(app, paths, instance, file_open_filter) -> int:
         if missing_icons:
             raise RuntimeError(f"Missing bundled toolbar icons: {', '.join(missing_icons)}")
         if os.environ.get("CURVEMOLE_PACKAGING_SMOKE") == "1":
-            from curvemole.core.packaging_smoke import run_packaging_smoke
+            from curvemole.gui.packaging_smoke import run_packaging_smoke
 
             run_packaging_smoke(instance=instance)
         QTimer.singleShot(0, app.quit)

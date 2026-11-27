@@ -13,7 +13,7 @@ def test_importing_the_gui_never_replaces_core_functions():
     output = _run("""
         import inspect, curvemole.core as core, pkgutil, importlib
         modules = [importlib.import_module(f"curvemole.core.{m.name}")
-                   for m in pkgutil.iter_modules(core.__path__) if m.name != "packaging_smoke"]
+                   for m in pkgutil.iter_modules(core.__path__)]
         before = {(m.__name__, name): value for m in modules for name, value in vars(m).items()
                   if inspect.isfunction(value) and value.__module__ == m.__name__}
         import curvemole.gui  # noqa: F401
@@ -28,8 +28,7 @@ def test_core_and_cli_do_not_load_qt_or_the_gui():
     output = _run("""
         import sys, pkgutil, importlib, curvemole.core as core, curvemole.cli  # noqa: F401
         for m in pkgutil.iter_modules(core.__path__):
-            if m.name != "packaging_smoke":
-                importlib.import_module(f"curvemole.core.{m.name}")
+            importlib.import_module(f"curvemole.core.{m.name}")
         print(sorted(name for name in sys.modules
                      if name.startswith(("PySide6", "pyqtgraph", "curvemole.gui"))))
     """)

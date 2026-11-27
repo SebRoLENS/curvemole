@@ -87,8 +87,8 @@ def test_packaging_smoke_creates_valid_png_svg_and_pdf(tmp_path) -> None:
 
     from curvemole import Component, Curve, Project
     from curvemole.core.functions import formula_definition
-    from curvemole.core.packaging_smoke import _smoke_graphic_exports
     from curvemole.core.registry import default_registry
+    from curvemole.gui.packaging_smoke import _smoke_graphic_exports
 
     project = Project("Renderer packaging smoke")
     curve = Curve("sample", [0., 1., 2.], [1., 2., 1.])
