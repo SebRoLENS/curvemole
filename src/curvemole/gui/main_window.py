@@ -7,7 +7,6 @@ import json
 import math
 import os
 import re
-import socket
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -79,7 +78,7 @@ from curvemole.core.calculator import (
     apply_scalar,
 )
 from curvemole.core.data import Curve, CurveState, Series
-from curvemole.core.errors import ConstraintError, FitCancelled, FitError
+from curvemole.core.errors import ConstraintError, FitError
 from curvemole.core.export import export_bundle, export_function_parameters
 from curvemole.core.fitting import (
     CancellationToken,
@@ -99,16 +98,9 @@ from curvemole.core.models import Component, Model, area_for_height
 from curvemole.core.parameters import resolve_parameter_values
 from curvemole.core.plugins import PluginManager
 from curvemole.core.project import Project
-from curvemole.core.project_handoff import (
-    file_digest,
-    pending_requests,
-    read_reply,
-    reply_to_request,
-    request_control,
-)
 from curvemole.core.recovery import RecoveryManager
 from curvemole.core.registry import default_registry
-from curvemole.core.serialization import ProjectLock, load_project, save_project
+from curvemole.core.serialization import ProjectLock, save_project
 from curvemole.core.state import copy_result_maps, restore_model
 from curvemole.core.transactions import ModelEdit, restore_model_state
 from curvemole.core.uncertainty import AdaptiveReplicateSettings, UncertaintyAnalyzer
@@ -883,6 +875,8 @@ class MainWindow(QMainWindow):
         self.last_peak_function_id = str(
             self.settings.value("last_peak_function", "gaussian")
         )
+        from curvemole.gui.project_session import ProjectSession
+        self.session = ProjectSession(self)
         self.undo_stack = QUndoStack(self)
         self.undo_stack.setUndoLimit(20)
         from curvemole.gui.undo_service import UndoService
@@ -1770,124 +1764,16 @@ class MainWindow(QMainWindow):
             ensure_gui_garbage_collection().retire_project()
 
     def new_project(self) -> None:
-        if not self._can_replace_project():
-            return
-        if not self._confirm_discard_or_save():
-            return
-        self._cancel_project_transfer()
-        self._release_lock()
-        self._project_disk_digest = None
-        self._clear_project_session_state()
-        self.project = Project()
-        self._load_custom_functions()
-        self.active_curve_id = None
-        self.selected_component_id = None
-        self.undo_service.reset()
-        self.refresh_all()
+        return self.session.new_project()
 
     def open_project(self, path: str | Path | None = None) -> None:
-        if not self._can_replace_project():
-            return
-        if path is None:
-            selected, _ = QFileDialog.getOpenFileName(
-                self, self.tr("Open CurveMole project"), "", self.tr("CurveMole projects (*.fitproj)")
-            )
-            if not selected:
-                return
-            path = selected
-        if not self._confirm_discard_or_save():
-            return
-        lock = None
-        adopted = False
-        try:
-            existing = self._project_lock
-            same = (existing is not None and existing.acquired
-                    and existing.project_path.resolve() == Path(path).resolve() and existing.owns())
-            lock = existing if same else ProjectLock(Path(path))
-            if not same:
-                lock.__enter__()
-            from curvemole.gui.project_loading import load_project_responsive
-            project, digest = load_project_responsive(self, path, load_project, snapshot=True)
-            self.registry.copy().set_project_functions(project.custom_functions)
-            self._cancel_project_transfer()
-            if not same:
-                self._release_lock()
-            self._project_lock = lock
-            self._project_disk_digest = digest
-            adopted = True
-            if not lock.acquired:
-                project.read_only = True
-                self._notify(self.tr("Project is already open elsewhere; opened read-only."), warning=True)
-                owner = ProjectLock.owner(path)
-                if (owner and isinstance(owner.get("session_id"), str)
-                        and owner.get("host") != socket.gethostname()):
-                    answer = QMessageBox.question(
-                        self,
-                        self.tr("Project open on another computer"),
-                        self.tr(
-                            "This project is owned by {host}. Request control through "
-                            "the shared folder? The project stays read-only until the "
-                            "other computer saves, releases it and its changes arrive."
-                        ).format(host=owner.get("host", "another computer")),
-                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        QMessageBox.StandardButton.No,
-                    )
-                    if answer == QMessageBox.StandardButton.Yes:
-                        try:
-                            self._transfer_request = request_control(path, owner["session_id"])
-                            self._transfer_path = Path(path)
-                        except OSError as exc:
-                            self._show_error(self.tr("Request project control"), exc)
-            self._clear_project_session_state()
-            self.project = project
-            self.active_curve_id = project.curves[0].id if project.curves else None
-            self.selected_component_id = None
-            self.undo_service.reset()
-            self._load_custom_functions()
-            self._normalise_component_names()
-            self._normalise_spectrum_colours()
-            self.refresh_all()
-            self._notify(self.tr("Project opened."))
-            self._remember_recent_project(project.path)
-            if self._transfer_request is not None:
-                self._transfer_monitor.start()
-                self._notify(self.tr("Control requested; waiting for the other computer."))
-        except FitCancelled:
-            return
-        except Exception as exc:
-            self._show_error(self.tr("Open project"), exc)
-        finally:
-            if lock is not None and not adopted and lock is not self._project_lock:
-                lock.__exit__(None, None, None)
+        return self.session.open_project(path)
 
     def _can_replace_project(self) -> bool:
-        if getattr(self, "_project_loading", False):
-            self._notify(self.tr("Wait for project loading to finish."), warning=True)
-            return False
-        if self.task_running:
-            self._notify(self.tr("Wait for the running task before opening another project."), warning=True)
-            return False
-        if self.automation_runner.process is not None:
-            self._notify(self.tr("Stop the automation before opening another project."), warning=True)
-            return False
-        return True
+        return self.session._can_replace_project()
 
     def _clear_project_session_state(self) -> None:
-        """Drop project-specific state that outlives the panels' normal refresh."""
-        self.plot_workspace.cancel_placement()
-        self._pending_component = None
-        self._pending_component_curve_id = None
-        self._pending_manual_points = False
-        self.last_fit_plan = None
-        self._running_fit_plan = None
-        self._paused_result = None
-        self._sequential_pause_result = None
-        self._sequential_resume_plan = None
-        self._sequential_pause_source_ids = ()
-        self._fit_undo_before = None
-        self.resume_action.setEnabled(False)
-        # A large hidden worksheet otherwise keeps its old table allocation.
-        self.worksheet.set_curve(None)
+        return self.session._clear_project_session_state()
 
     def import_data(self, paths: list[str] | None = None, *, preview_columns=None) -> None:
         if not self._ensure_editable():
@@ -4688,140 +4574,25 @@ class MainWindow(QMainWindow):
         self.registry.set_project_functions(self.project.custom_functions)
 
     def _autosave(self) -> None:
-        self._autosave_controller.request()
+        return self.session._autosave()
 
     def _clear_recovery(self) -> None:
-        try:
-            self.recovery.clear(self.project.id)
-        except OSError as exc:
-            self._notify(self.tr("Could not remove recovery copies: ") + str(exc), warning=True)
-        try:
-            session = getattr(self, "_recovery_session", None)
-            if session is not None and hasattr(session, "resolve"):
-                session.resolve(self.project.id)
-        except OSError as exc:
-            self._notify(self.tr("Could not update recovery session: ") + str(exc), warning=True)
+        return self.session._clear_recovery()
 
     def _remember_recent_project(self, path) -> None:
-        if path is None:
-            return
-        path = str(Path(path).resolve())
-        recent = self.settings.value("recent_projects", [], type=list)
-        self.settings.setValue("recent_projects", [path, *[item for item in recent if item != path]][:10])
+        return self.session._remember_recent_project(path)
 
     def _refresh_recent_projects(self) -> None:
-        menu = self.recent_projects_menu
-        menu.clear()
-        recent = self.settings.value("recent_projects", [], type=list)
-        if not recent:
-            menu.addAction(self.tr("No recent projects")).setEnabled(False)
-            return
-        for saved in recent:
-            path = Path(saved)
-            action = menu.addAction(f"{path.name} — {path.parent}".replace("&", "&&"))
-            action.setToolTip(str(path))
-            action.setEnabled(path.is_file())
-            action.triggered.connect(lambda checked=False, path=path: self.open_project(path))
-        menu.addSeparator()
-        menu.addAction(self.tr("Clear recent projects")).triggered.connect(
-            lambda checked=False: self.settings.setValue("recent_projects", [])
-        )
+        return self.session._refresh_recent_projects()
 
     def show_recovery_sessions(self, *, startup: bool = False) -> None:
-        from curvemole.gui.background_io import run_background_io
-        from curvemole.gui.recovery import RecoveryDialog
-        from curvemole.gui.recovery_monitor import should_warn
-
-        if not self._can_replace_project():
-            return
-        try:
-            paths = self.recovery.files()
-            warning = should_warn(self.settings, len(paths), announce=startup)
-            if warning:
-                QMessageBox.warning(self, self.tr("Recovery backup cleanup"), self.tr(
-                    "There are {count} recovery copies. You may keep all of them, but periodic cleanup "
-                    "is recommended to limit disk usage. Use the backup manager to manually delete old "
-                    "copies or copies you no longer need."
-                ).format(count=len(paths)))
-            if startup:
-                crashed = getattr(self, "_crashed_recovery_projects", set())
-                if not warning:
-                    paths = [path for path in paths if path.name.split(".recovery-", 1)[0] in crashed]
-            if not paths:
-                if not startup:
-                    self._notify(self.tr("No recoverable sessions are available."))
-                return
-            def scan():
-                from curvemole.core.serialization import validate_project_archive
-                descriptions = {}
-                for path in paths:
-                    if self._session_finished:
-                        break
-                    info = self.recovery.description(path)
-                    info["valid"] = info["readable"] and not validate_project_archive(path, raise_on_error=False)
-                    if path.exists():
-                        descriptions[path] = info
-                return descriptions
-            descriptions = run_background_io(scan)
-            if self._session_finished:
-                return
-            paths = [p for p in paths if p in descriptions]
-            if not paths:
-                return
-            with transient_widget(RecoveryDialog(self.recovery, paths, self, descriptions=descriptions)) as dialog:
-                if dialog.exec() != dialog.DialogCode.Accepted:
-                    return
-                project = self.recovery.recover(dialog.selected_path)
-                if not self._confirm_discard_or_save():
-                    return
-                self._release_lock()
-                self._clear_project_session_state()
-                self.project = project
-                self.active_curve_id = project.curves[0].id if project.curves else None
-                self.selected_component_id = None
-                self.undo_service.reset()
-                self._load_custom_functions()
-                self._normalise_component_names()
-                self._normalise_spectrum_colours()
-                self.refresh_all()
-                self._notify(self.tr("Session recovered. Save the project to keep this work."))
-                self._autosave()
-        except Exception as exc:
-            self._show_error(self.tr("Recover session"), exc)
+        return self.session.show_recovery_sessions(startup=startup)
 
     def _monitor_recovery_count(self) -> None:
-        from curvemole.gui.recovery_monitor import should_warn
-        try:
-            should_warn(self.settings, len(self.recovery.files()))
-            for message in self.recovery.cleanup_errors:
-                self._log(f"Recovery temporary-file cleanup failed: {message}")
-            self.recovery.cleanup_errors.clear()
-        except OSError as exc:
-            self._log(f"Recovery count failed: {exc}")
+        return self.session._monitor_recovery_count()
 
     def _confirm_discard_or_save(self) -> bool:
-        if self._manual_save_controller.busy and not self._manual_save_controller.wait():
-            return False
-        if not self.project.dirty:
-            return True
-        answer = QMessageBox.question(
-            self,
-            self.tr("Unsaved changes"),
-            self.tr("Save changes to the current project?"),
-            QMessageBox.StandardButton.Save
-            | QMessageBox.StandardButton.Discard
-            | QMessageBox.StandardButton.Cancel,
-        )
-        if answer == QMessageBox.StandardButton.Cancel:
-            return False
-        if answer == QMessageBox.StandardButton.Save:
-            if not self.save_project():
-                return False
-            return self._confirm_discard_or_save() if self.project.dirty else True
-        if answer == QMessageBox.StandardButton.Discard:
-            self._clear_recovery()
-            return True
-        return False
+        return self.session._confirm_discard_or_save()
 
     def _ensure_editable(self, *, prepare_plot: bool = True) -> bool:
         if getattr(self, "_project_loading", False):
@@ -4950,200 +4721,28 @@ class MainWindow(QMainWindow):
             self.plugin_manager.finish_session()
 
     def _cancel_project_transfer(self) -> None:
-        self._transfer_monitor.stop()
-        self._transfer_request = None
-        self._transfer_path = None
-        self._transfer_timeout_warned = False
+        return self.session._cancel_project_transfer()
 
     def _check_project_file_unchanged(self, path: Path, expected: str | None) -> None:
-        actual = file_digest(path)
-        if actual != expected:
-            raise RuntimeError(
-                "Project changed on disk (possibly through synchronization). "
-                "Saving over that version was blocked. Use Save As to preserve your changes."
-            )
+        return self.session._check_project_file_unchanged(path, expected)
 
     def _prepare_project_save_lock(self, path: Path):
-        """Acquire a destination lock before a worker writes, including Save As."""
-        path = Path(path)
-        if path.suffix.lower() != ".fitproj":
-            path = path.with_suffix(".fitproj")
-        path.parent.mkdir(parents=True, exist_ok=True)
-        existing = self._project_lock
-        if existing is not None and existing.acquired and existing.project_path == path:
-            if not existing.owns():
-                raise RuntimeError("Project control was transferred. Save As to keep your work.")
-            expected = self._project_disk_digest
-            self._check_project_file_unchanged(path, expected)
-            return existing, lambda: self._guard_project_commit(existing, path, expected)
-
-        proposed = ProjectLock(path)
-        proposed.__enter__()
-        if not proposed.acquired:
-            raise RuntimeError(f"Cannot save '{path.name}': another session holds its lock.")
-        expected = file_digest(path)
-        return proposed, lambda: self._guard_project_commit(proposed, path, expected)
+        return self.session._prepare_project_save_lock(path)
 
     def _guard_project_commit(self, lock: ProjectLock, path: Path, expected: str | None) -> None:
-        if not lock.owns():
-            raise RuntimeError("Project lock changed before save completed; write was cancelled.")
-        self._check_project_file_unchanged(path, expected)
+        return self.session._guard_project_commit(lock, path, expected)
 
     def _adopt_saved_project_lock(self, lock: ProjectLock, path: Path) -> None:
-        old = self._project_lock
-        self._project_lock = lock
-        if old is not None and old is not lock:
-            old.__exit__(None, None, None)
-        self._project_disk_digest = file_digest(path)
-        self._cancel_project_transfer()
+        return self.session._adopt_saved_project_lock(lock, path)
 
     def _poll_project_lock(self) -> None:
-        lock = self._project_lock
-        if lock is None or not lock.acquired:
-            return
-        if not lock.owns():
-            lock.acquired = False
-            self._project_lock = None
-            self.project.read_only = True
-            self._notify(self.tr("Project control changed; switched to read-only."), warning=True)
-            self.refresh_all()
-            return
-        try:
-            requests = pending_requests(lock.project_path, lock.session_id)
-            if requests:
-                # Never release ownership while a fit or save is in progress.
-                if self.task_running or self._manual_save_controller.busy:
-                    lock.heartbeat()
-                    return
-                request = requests[0]
-                try:
-                    self._check_project_file_unchanged(
-                        lock.project_path, self._project_disk_digest
-                    )
-                    if self.project.dirty and not self.save_project():
-                        raise RuntimeError("Unable to save pending modifications.")
-                    if self.project.dirty:
-                        # Saving runs a nested event loop; edits made meanwhile are
-                        # not on disk yet. Keep control and retry on the next poll.
-                        lock.heartbeat()
-                        return
-                    self._check_project_file_unchanged(
-                        lock.project_path, self._project_disk_digest
-                    )
-                    if not lock.owns():
-                        raise RuntimeError("Project control already changed.")
-                    digest = file_digest(lock.project_path)
-                    if digest is None:
-                        raise RuntimeError("Project file is unavailable.")
-                    # Once acknowledged, no further edits can be saved by this session.
-                    reply_to_request(
-                        lock.project_path, request, accepted=True, digest=digest
-                    )
-                    self.project.read_only = True
-                    self._release_lock()
-                    for waiting in requests[1:]:
-                        try:
-                            reply_to_request(
-                                lock.project_path, waiting, accepted=False,
-                                reason="Another request acquired control first.",
-                            )
-                        except OSError as exc:
-                            self._log(f"Could not reject concurrent request: {exc}")
-                    self.refresh_all()
-                    self._notify(
-                        self.tr("Project control released to another computer.")
-                    )
-                    return
-                except Exception as exc:
-                    reply_to_request(
-                        lock.project_path, request, accepted=False, reason=str(exc)
-                    )
-                    self._log(f"Project handoff declined: {exc}")
-            else:
-                lock.heartbeat()
-        except OSError as exc:
-            self._log(f"Project lock monitor could not update: {exc}")
+        return self.session._poll_project_lock()
 
     def _poll_project_transfer(self) -> None:
-        if getattr(self, "_project_loading", False):
-            return
-        request, path = self._transfer_request, self._transfer_path
-        if request is None or path is None or self.project.path != path:
-            self._cancel_project_transfer()
-            return
-        try:
-            response = read_reply(path, request)
-            if response is None:
-                requested_at = request.get("created_at", 0)
-                if (not self._transfer_timeout_warned
-                        and time.time() - requested_at >= 180):
-                    self._transfer_timeout_warned = True
-                    self._notify(
-                        self.tr(
-                            "No response from the other computer yet. You may keep "
-                            "waiting, or use Save As to save a separate copy."
-                        ), warning=True,
-                    )
-                if time.time() - requested_at >= 24 * 60 * 60:
-                    self._cancel_project_transfer()
-                    self._notify(
-                        self.tr("Project control request expired; reopen to request again."),
-                        warning=True,
-                    )
-                return
-            if not response["accepted"]:
-                self._cancel_project_transfer()
-                self._notify(
-                    self.tr("Project handoff declined: {reason}").format(
-                        reason=response.get("reason", "unknown")
-                    ), warning=True,
-                )
-                return
-            digest = response["project_sha256"]
-            lock = ProjectLock(path, takeover_from=request["owner_session"])
-            lock.__enter__()
-            if not lock.acquired:
-                owner = ProjectLock.owner(path)
-                if owner and owner.get("session_id") not in (
-                    request["owner_session"], None,
-                ):
-                    self._cancel_project_transfer()
-                    self._notify(
-                        self.tr("Another session acquired the project first."),
-                        warning=True,
-                    )
-                return
-            try:
-                from curvemole.gui.project_loading import load_project_responsive
-                project, loaded_digest = load_project_responsive(
-                    self, path, load_project, snapshot=True, expected_digest=digest)
-                probe = self.registry.copy()
-                probe.set_project_functions(project.custom_functions)
-            except Exception:
-                lock.__exit__(None, None, None)
-                raise
-            self._release_lock()
-            self._project_lock = lock
-            self._project_disk_digest = loaded_digest
-            self.project = project
-            self.active_curve_id = project.curves[0].id if project.curves else None
-            self.selected_component_id = None
-            self.undo_service.reset()
-            self._load_custom_functions()
-            self._normalise_component_names()
-            self._normalise_spectrum_colours()
-            self._cancel_project_transfer()
-            self.refresh_all()
-            self._notify(self.tr("Project control transferred to this computer."))
-        except FitCancelled:
-            self._cancel_project_transfer()
-        except Exception as exc:
-            self._log(f"Project handoff check failed: {exc}")
+        return self.session._poll_project_transfer()
 
     def _release_lock(self) -> None:
-        if self._project_lock:
-            self._project_lock.__exit__(None, None, None)
-            self._project_lock = None
+        return self.session._release_lock()
 
     def dragEnterEvent(self, event: Any) -> None:
         if event.mimeData().hasUrls():

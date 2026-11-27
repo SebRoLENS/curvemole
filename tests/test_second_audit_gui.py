@@ -82,7 +82,7 @@ def test_handoff_rejects_replacement_after_lock_without_replacing_session(window
             result = super().__enter__()
             replacement.replace(path)
             return result
-    monkeypatch.setattr('curvemole.gui.main_window.ProjectLock', InterleavedLock)
+    monkeypatch.setattr('curvemole.gui.project_session.ProjectLock', InterleavedLock)
     window._poll_project_transfer()
     assert window.project is original and window.project.read_only
     assert window._project_lock is None and ProjectLock.owner(path) is None
@@ -91,7 +91,7 @@ def test_handoff_rejects_replacement_after_lock_without_replacing_session(window
 
 
 def test_handoff_rejects_replacement_during_read_and_keeps_ui_responsive(window, tmp_path, monkeypatch):
-    import curvemole.gui.main_window as main
+    import curvemole.gui.project_session as main
     path, _ = prepare_transfer(window, tmp_path)
     original = window.project
     real_loader = main.load_project
