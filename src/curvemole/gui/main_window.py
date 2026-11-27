@@ -41,7 +41,6 @@ from PySide6.QtGui import (
     QKeySequence,
     QPalette,
     QPixmap,
-    QUndoCommand,
     QUndoStack,
 )
 from PySide6.QtWidgets import (
@@ -297,22 +296,7 @@ class TaskCallbacks(QObject):
             self.deleteLater()
 
 
-class CallbackCommand(QUndoCommand):
-    def __init__(
-        self,
-        text: str,
-        redo: Callable[[], None],
-        undo: Callable[[], None],
-    ) -> None:
-        super().__init__(text)
-        self._redo = redo
-        self._undo = undo
-
-    def redo(self) -> None:
-        self._redo()
-
-    def undo(self) -> None:
-        self._undo()
+from curvemole.gui.undo_commands import CallbackCommand  # noqa: E402,F401 - public import path
 
 
 def _curve_state_presentation(
@@ -1052,6 +1036,9 @@ class MainWindow(QMainWindow):
         self._build_menus()
         self._build_toolbar()
         self._connect_signals()
+        from curvemole.gui.background_controller import BackgroundController
+        self.background_controller = BackgroundController(self)
+        self.background_controller.install_actions()
         from curvemole.gui.action_shortcuts import install_action_shortcuts
         install_action_shortcuts(self)
         from curvemole.gui.calculator_equation_library import CalculatorEquationLibrary
@@ -1102,6 +1089,17 @@ class MainWindow(QMainWindow):
         self._release_update_controller = UpdateController(self)
         from curvemole.gui.fit_undo import FitLifecycleController
         self.fit_lifecycle = FitLifecycleController(self)
+
+    def subtract_background(self) -> None:
+        """Subtract model background from the active spectrum (or all, from the dialog)."""
+        # Resolved through this module so plugins and tests can substitute the dialog.
+        self.background_controller.subtract_current(BackgroundComponentsDialog)
+
+    def subtract_all_backgrounds(self, mark_current_component_ids: list[str] | None = None) -> None:
+        self.background_controller.subtract_all(mark_current_component_ids)
+
+    def revert_backgrounds(self, curve_ids: list[str] | None = None) -> None:
+        self.background_controller.revert(curve_ids)
 
     def _complete_plugin_startup(self, recovered: bool, failures: set[str]) -> None:
         if self._session_finished:

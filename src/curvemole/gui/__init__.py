@@ -15,12 +15,6 @@ from curvemole.gui import (
     autoscale_mouse_navigation as _autoscale_mouse_navigation,  # noqa: F401,E402
 )
 
-# Preserve the established BackgroundComponentsDialog injection point used by
-# tests/plugins while loading the corrected background-control semantics.
-from curvemole.gui import (
-    background_controls_compat as _background_controls_compat,  # noqa: F401,E402
-)
-from curvemole.gui import background_controls_fix as _background_controls_fix  # noqa: F401,E402
 
 # Add plot-focused spectrum keyboard navigation plus background-aware rendering.
 from curvemole.gui import background_navigation as _background_navigation  # noqa: F401,E402
@@ -78,11 +72,6 @@ from curvemole.gui import quick_fit_zoom_fix as _quick_fit_zoom_fix  # noqa: F40
 # function registry, with a persistent user-selected function-library directory.
 from curvemole.gui import quick_function_library as _quick_function_library  # noqa: F401,E402
 
-# QAction.triggered emits a checked boolean. The Revert background method also has
-# an optional curve-id argument, so discard the signal payload explicitly.
-from curvemole.gui import (
-    revert_background_action_fix as _revert_background_action_fix,  # noqa: F401,E402
-)
 
 # Add propagating sequential-fit controls plus pause/resume state that survives
 # manual intervention on a suspicious spectrum.

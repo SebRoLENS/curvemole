@@ -537,6 +537,18 @@ class BackgroundComponentsDialog(QDialog):
             empty.setWordWrap(True)
             layout.addWidget(empty)
 
+        self.apply_to_all_spectra = QCheckBox(self.tr("Apply to all spectra"), self)
+        self.apply_to_all_spectra.setToolTip(self.tr(
+            "Off: subtract the selected background functions only from the current spectrum. "
+            "On: apply subtraction to every spectrum using every enabled function already marked "
+            "as background on that spectrum."))
+        # With backgrounds already marked, the global mode uses all of them, so the
+        # checklist is not meaningful; in first-use marking mode it still designates
+        # the current spectrum's backgrounds.
+        self.apply_to_all_spectra.toggled.connect(
+            lambda enabled: None if self.marking_mode else self.components.setEnabled(not enabled))
+        layout.addWidget(self.apply_to_all_spectra)
+
         self.buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )

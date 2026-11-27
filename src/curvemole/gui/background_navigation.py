@@ -7,8 +7,8 @@ from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QAction, QKeySequence, QShortcut
-from PySide6.QtWidgets import QMenu, QStyle, QToolBar, QToolButton, QTreeWidgetItem
+from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtWidgets import QTreeWidgetItem
 
 from curvemole.gui.background_display import (  # noqa: E402,F401 - compatibility re-exports
     _apply_background_aware_display,
@@ -137,68 +137,14 @@ def _restore_component_states(
 
 
 def _subtract_all_backgrounds(window: MainWindow) -> None:
-    from curvemole.gui.background_controls_fix import _subtract_all_backgrounds as subtract
-    subtract(window)
+    """Compatibility entry point; the BackgroundController owns this command."""
+    window.subtract_all_backgrounds()
 
 
-def _find_menu(window: MainWindow, title: str) -> QMenu | None:
-    wanted = window.tr(title)
-    for action in window.menuBar().actions():
-        menu = action.menu()
-        if menu is not None and menu.title().replace("&", "") == wanted:
-            return menu
-    return None
+from curvemole.gui.background_controller import find_menu as _find_menu  # noqa: E402,F401
 
 
 def _install_window_controls(window: MainWindow) -> None:
-    window.subtract_all_backgrounds_action = QAction(
-        window.subtract_background_action.icon(),
-        window.tr("Subtract backgrounds from all spectra"),
-        window,
-    )
-    window.subtract_all_backgrounds_action.setToolTip(
-        window.tr(
-            "Subtract every enabled model function marked as background from every spectrum. "
-            "This changes the data and can be undone."
-        )
-    )
-    window.subtract_all_backgrounds_action.triggered.connect(window.subtract_all_backgrounds)
-
-    window.background_subtracted_view_action = QAction(
-        window.style().standardIcon(QStyle.StandardPixmap.SP_FileDialogDetailedView),
-        window.tr("Background-subtracted display"),
-        window,
-        checkable=True,
-    )
-    window.background_subtracted_view_action.setToolTip(
-        window.tr(
-            "Visual only: show all spectra and fitted functions with marked backgrounds removed. "
-            "Turning it off restores the normal display; data are never changed."
-        )
-    )
-    window.background_subtracted_view_action.toggled.connect(
-        window.plot_workspace.set_background_subtracted_view
-    )
-
-    data_menu = _find_menu(window, "Data")
-    if data_menu is not None:
-        data_menu.insertAction(window.calculator_action, window.subtract_all_backgrounds_action)
-    view_menu = _find_menu(window, "View")
-    if view_menu is not None:
-        view_menu.insertAction(window.reset_layout_action, window.background_subtracted_view_action)
-
-    toolbar = window.findChild(QToolBar, "Main_toolbar")
-    if toolbar is not None:
-        toolbar.insertAction(window._background_toolbar_separator, window.subtract_all_backgrounds_action)
-        toolbar.insertAction(window._background_toolbar_separator, window.background_subtracted_view_action)
-        for action in (
-            window.subtract_all_backgrounds_action,
-            window.background_subtracted_view_action,
-        ):
-            button = toolbar.widgetForAction(action)
-            if isinstance(button, QToolButton):
-                button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
-
     graphics = window.plot_workspace.graphics
     graphics.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
     graphics.viewport().setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -226,7 +172,6 @@ def _install_main_window_extensions() -> None:
 
     MainWindow.__init__ = init
     MainWindow._step_active_spectrum = _step_active_spectrum
-    MainWindow.subtract_all_backgrounds = _subtract_all_backgrounds
     MainWindow._curvemole_background_navigation = True
 
 

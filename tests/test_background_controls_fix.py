@@ -217,7 +217,7 @@ def test_old_standalone_global_button_is_removed_and_revert_button_is_present() 
     window = CurveMoleMainWindow(project)
     toolbar = window.findChild(QToolBar, "Main_toolbar")
     assert toolbar is not None
-    assert window.subtract_all_backgrounds_action not in toolbar.actions()
+    assert getattr(window, "subtract_all_backgrounds_action", None) not in toolbar.actions()
     assert window.revert_background_action in toolbar.actions()
     assert window.view_options_action in toolbar.actions()
     assert toolbar.actions().index(window.revert_background_action) < toolbar.actions().index(window.view_options_action)
